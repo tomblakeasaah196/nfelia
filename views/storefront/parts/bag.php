@@ -1,9 +1,10 @@
 <?php
 /**
- * The bag bar, the product sheet, and the bag with its three checkout steps.
- * storefront.js fills them in. Checkout posts to the shop's own /checkout:
- * the cart says only which products and how many, and the server looks up
- * every name and price.
+ * The bag bar, the product sheet, the bag with its three checkout steps, and
+ * (live shops) the Status image maker. storefront.js fills them in. Checkout
+ * posts to the shop's own /checkout: the cart says only which products and
+ * how many, and the server looks up every name and price. The bag also lists
+ * the shopper's recent orders, kept on their phone, with their tracking links.
  */
 $banks    = $catalogue['banks'];
 $bag_word = $settings['look'] === 'market' ? 'order' : 'bag';
@@ -42,6 +43,12 @@ $bag_word = $settings['look'] === 'market' ? 'order' : 'bag';
             <?php if ($wa !== ''): ?>
                 <a class="sf-btn sf-btn--outline sf-btn--block" data-p-wa href="https://wa.me/<?= e($wa) ?>" target="_blank" rel="noopener"><?= sf_icon('whatsapp', 20) ?><span>Ask on WhatsApp</span></a>
             <?php endif; ?>
+            <?php if ($mode === 'live'): ?>
+                <div class="sf-share">
+                    <button type="button" class="sf-share__btn" data-share-item><?= sf_icon('share', 18) ?><span>Share</span></button>
+                    <button type="button" class="sf-share__btn" data-status-item><?= sf_icon('image', 18) ?><span>Image for your Status</span></button>
+                </div>
+            <?php endif; ?>
         </div>
     </div>
 </dialog>
@@ -57,6 +64,10 @@ $bag_word = $settings['look'] === 'market' ? 'order' : 'bag';
         <div class="sf-step" data-step="bag">
             <ul class="sf-baglist" data-bag-list></ul>
             <p class="sf-empty" data-bag-empty>Your <?= $bag_word ?> is empty.</p>
+            <div class="sf-recent" data-recent hidden>
+                <p class="sf-recent__title">Your recent orders</p>
+                <ul class="sf-recent__list" data-recent-list></ul>
+            </div>
             <div class="sf-dialog__foot" data-bag-foot>
                 <p class="sf-total"><span>Total</span><strong data-bag-total>₦0</strong></p>
                 <button type="button" class="sf-btn sf-btn--block" data-go="details">Check out</button>
@@ -147,7 +158,29 @@ $bag_word = $settings['look'] === 'market' ? 'order' : 'bag';
             <p>Your order number is <strong data-done-number></strong>.</p>
             <p data-done-text></p>
             <a class="sf-btn sf-btn--block" data-done-wa hidden target="_blank" rel="noopener"><?= sf_icon('whatsapp', 20) ?><span>Open WhatsApp to send it</span></a>
+            <a class="sf-btn sf-btn--outline sf-btn--block" data-done-track hidden><?= sf_icon('truck', 20) ?><span>Follow your order</span></a>
+            <p class="sf-fineprint" data-done-keep hidden>We saved the link in your <?= $bag_word ?>, so you can come back to it.</p>
             <button type="button" class="sf-btn sf-btn--outline sf-btn--block" data-close>Done</button>
         </div>
     </div>
 </dialog>
+
+<?php if ($mode === 'live'): ?>
+<dialog class="sf-dialog sf-dialog--status" id="sf-status" aria-labelledby="sf-status-title">
+    <div class="sf-dialog__panel">
+        <div class="sf-dialog__head">
+            <h2 class="sf-h3" id="sf-status-title">Image for your Status</h2>
+            <button type="button" class="sf-iconbtn sf-iconbtn--bare" data-close aria-label="Close"><?= sf_icon('close', 22) ?></button>
+        </div>
+        <div class="sf-step sf-status">
+            <p class="sf-status__hint">Post it on your WhatsApp Status or Instagram story. The product's link is on the image.</p>
+            <div class="sf-status__frame">
+                <img data-status-img alt="" hidden>
+                <p class="sf-status__wait" data-status-wait role="status">Making your image…</p>
+            </div>
+            <button type="button" class="sf-btn sf-btn--block" data-status-share hidden><?= sf_icon('share', 20) ?><span>Share the image</span></button>
+            <a class="sf-btn sf-btn--outline sf-btn--block" data-status-save hidden><?= sf_icon('image', 20) ?><span>Save the image</span></a>
+        </div>
+    </div>
+</dialog>
+<?php endif; ?>

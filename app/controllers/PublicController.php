@@ -401,7 +401,22 @@ class PublicController
         } catch (\Exception $e) {
             /* Non-critical — don't fail the sign-off if notification insert fails */
         }
-        echo json_encode(["success" => true]);
+        /* The order behind this delivery is done: the shopper can now review it */
+        $review_link = null;
+        try {
+            $stmtOrder = $this->db->prepare(
+                "SELECT id FROM orders WHERE delivery_id = ? AND business_id = ? LIMIT 1",
+            );
+            $stmtOrder->execute([$delivery["id"], $delivery["business_id"]]);
+            $order_id = (int) $stmtOrder->fetchColumn();
+            $review = $order_id ? review_invite($this->db, $order_id) : null;
+            if ($review && $review["status"] === "invited" && $business) {
+                $review_link = review_url($business, $review);
+            }
+        } catch (\Throwable $e) {
+            error_log("Review invite failed: " . $e->getMessage());
+        }
+        echo json_encode(["success" => true, "review_url" => $review_link]);
     } /* ────────────────────────────────────────── * OLD SHOP LINKS /biz/{slug} (retired) * *──────────────────────────────────────────*/
     public function business($slug = null): void
     {
@@ -815,14 +830,17 @@ class PublicController
             $status =
                 $channel === "whatsapp"
                     ? "pending"
-                    : "pending_verification"; /* Insert order */
+                    : "pending_verification";
+            /* The shopper's private tracking link: name.nfelia.com/order/{token} */
+            $public_token = shop_order_token(); /* Insert order */
             $this->db
                 ->prepare(
-                    " INSERT INTO orders (business_id, order_number, channel, fulfillment_type, customer_name, customer_phone, customer_email, delivery_address, customer_note, payment_method, payment_proof_path, payment_note, currency_code, subtotal, total, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ",
+                    " INSERT INTO orders (business_id, order_number, public_token, channel, fulfillment_type, customer_name, customer_phone, customer_email, delivery_address, customer_note, payment_method, payment_proof_path, payment_note, currency_code, subtotal, total, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ",
                 )
                 ->execute([
                     $business_id,
                     $order_number,
+                    $public_token,
                     $channel,
                     $fulfillment,
                     $customer_name,
@@ -900,9 +918,40 @@ class PublicController
                     "/orders/view/" . $order_id,
                 ]);
             $this->db->commit();
+            $order_url = $business["subdomain"]
+                ? shop_url($business["subdomain"], "/order/" . $public_token)
+                : null;
+            /* The shopper's copy of the order and its link, sent after they have
+               their answer, so the mail server never holds up the checkout */
+            if ($customer_email !== "" && $order_url !== null) {
+                $mail_vars = [
+                    "first_name" => preg_split("/\s+/u", $customer_name)[0],
+                    "shop_name" => (string) $business["name"],
+                    "order_number" => $order_number,
+                    "order_url" => $order_url,
+                    "lines" => array_map(
+                        fn($oi) => [
+                            "name" => $oi["product_name"] . ($oi["variant_selection"] ? " (" . $oi["variant_selection"] . ")" : ""),
+                            "quantity" => $oi["quantity"],
+                            "total" => sf_money((float) $oi["line_total"], (string) ($business["currency_symbol"] ?? "")),
+                        ],
+                        $order_items,
+                    ),
+                    "total" => sf_money((float) $subtotal, (string) ($business["currency_symbol"] ?? "")),
+                    "is_whatsapp" => $channel === "whatsapp",
+                ];
+                after_response(function () use ($customer_email, $customer_name, $order_number, $business, $mail_vars) {
+                    try {
+                        send_branded_mail($customer_email, $customer_name, "Your order " . $order_number . " from " . $business["name"], "order_received", $mail_vars, $business);
+                    } catch (\Throwable $e) {
+                        error_log("Order email failed: " . $e->getMessage());
+                    }
+                });
+            }
             json_response([
                 "success" => true,
                 "order_number" => $order_number,
+                "order_url" => $order_url,
                 "total" => $subtotal,
                 "channel" => $channel,
             ]);

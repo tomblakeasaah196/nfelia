@@ -24,6 +24,7 @@ require_once __DIR__ . '/app/helpers/planner.php';
 require_once __DIR__ . '/app/helpers/shop_links.php';
 require_once __DIR__ . '/app/helpers/storefront.php';
 require_once __DIR__ . '/app/helpers/cloudflare.php';
+require_once __DIR__ . '/app/helpers/shop_orders.php';
 
 // --- GLOBAL EXCEPTION & FATAL ERROR HANDLER ---
 // Start output buffering so we can erase half-loaded pages if a crash happens

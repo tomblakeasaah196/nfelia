@@ -8,22 +8,28 @@
  * so they can be cached.
  *
  * Available: $business, $settings, $theme (storefront_resolve), $catalogue
- * (storefront_catalogue), $mode ('live', 'preview' or 'look') and
- * $visibility ('live' or 'unlisted').
+ * (storefront_catalogue), $mode ('live', 'preview' or 'look'), $visibility
+ * ('live' or 'unlisted') and $page: the shop itself, a product's page, an
+ * order's tracking page or a review form (see storefront_render). Every page
+ * has the shop's header, footer and bag; order and review pages are private
+ * and never indexed.
  *
  * Orders and quote requests post to the shop's own address (/checkout and
  * /quote-request); previews never send them.
  */
 require_once __DIR__ . '/parts/helpers.php';
 
+$kind      = $page['kind'];
 $look      = $theme['def'];
 $labels    = $look['labels'];
 $currency  = trim((string)($business['currency_symbol'] ?? '')) ?: '₦';
 $wa        = shop_whatsapp_digits($business);
 $is_live   = $mode === 'live';
 $shop_url  = $business['subdomain'] ? shop_url($business['subdomain']) : APP_URL;
-$indexable = $is_live && ($visibility ?? 'live') === 'live';
+$private   = in_array($kind, ['order', 'review'], true);
+$indexable = $is_live && !$private && ($visibility ?? 'live') === 'live';
 $json_flags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES;
+sf_live_links($is_live);
 
 $sections  = [];
 foreach ($settings['sections'] as $section) {
@@ -32,6 +38,11 @@ foreach ($settings['sections'] as $section) {
 $hero      = $sections['hero'];
 $quote_on  = $sections['quote']['on'];
 $contact   = $sections['contact'];
+
+// Published reviews, for the reviews section and a product page's rating
+$reviews = !empty($sections['reviews']['on']) && in_array($kind, ['shop', 'product'], true)
+    ? shop_reviews(get_db(), (int)$business['id'])
+    : null;
 
 // Shared with every partial
 $ctx = [
@@ -44,6 +55,7 @@ $ctx = [
     'labels'    => $labels,
     'quote_on'  => $quote_on,
     'catalogue' => $catalogue,
+    'reviews'   => $reviews,
 ];
 
 // Words for search engines and link previews
@@ -59,6 +71,9 @@ $seo_desc = mb_strlen($summary) > 158 ? rtrim(mb_substr($summary, 0, 155)) . '�
 $og_image = $business['logo_path'] && !str_ends_with((string)$business['logo_path'], '.svg')
     ? sf_media_url((string)$business['logo_path'])
     : APP_URL . '/og-image.php?biz=' . (int)$business['id'];
+$og_size  = null;
+$og_type  = 'business.business';
+$canonical = $shop_url;
 
 $socials = array_filter([
     'instagram' => $contact['instagram'] ? 'https://instagram.com/' . $contact['instagram'] : null,
@@ -87,6 +102,7 @@ if ($catalogue['items']) {
         'itemListElement' => array_map(fn($item) => [
             '@type'    => $item['is_service'] ? 'Service' : 'Product',
             'name'     => $item['name'],
+            'url'      => $shop_url . sf_product_path($item),
             'category' => $item['category'],
             'offers'   => [
                 '@type' => 'Offer',
@@ -101,6 +117,65 @@ if ($quote_on) {
     $ld['potentialAction'] = ['@type' => 'QuoteAction', 'target' => $shop_url . '#sf-quote', 'name' => 'Ask for a quote'];
 }
 
+// A product's page speaks for the product
+if ($kind === 'product') {
+    $item      = $page['item'];
+    $canonical = $shop_url . sf_product_path($item);
+    $seo_title = $item['name'] . ' — ' . $business['name'];
+    $og_type   = 'product';
+    $price_text = $item['price'] > 0 ? sf_money($item['price'], $currency) . sf_unit_text($item['unit']) : '';
+    $about_item = trim(preg_replace('/\s+/u', ' ', $item['description']) ?? '');
+    $seo_desc = $about_item !== ''
+        ? (mb_strlen($about_item) > 158 ? rtrim(mb_substr($about_item, 0, 155)) . '…' : $about_item)
+        : $item['name'] . ($price_text !== '' ? ', ' . $price_text : '') . ', from ' . $business['name'] . '. Order online or on WhatsApp.';
+    $item_images = [];
+    foreach ($item['images'] as $rel) {
+        if (sf_image_size($rel)) {
+            $item_images[] = sf_media_url($rel);
+            if ($og_size === null && ($og = sf_og_image($rel))) {
+                [$og_image, $og_w, $og_h] = $og;
+                $og_size = [$og_w, $og_h];
+            }
+        }
+    }
+    $product_ld = [
+        '@context' => 'https://schema.org',
+        '@type'    => $item['is_service'] ? 'Service' : 'Product',
+        'name'     => $item['name'],
+        'url'      => $canonical,
+    ];
+    if ($about_item !== '')    { $product_ld['description'] = mb_substr($about_item, 0, 5000); }
+    if ($item_images)          { $product_ld['image'] = $item_images; }
+    if ($item['category'] !== '') { $product_ld['category'] = $item['category']; }
+    if ($item['is_service'])   { $product_ld['provider'] = ['@type' => 'LocalBusiness', 'name' => (string)$business['name'], 'url' => $shop_url]; }
+    if ($item['price'] > 0) {
+        $product_ld['offers'] = [
+            '@type'         => 'Offer',
+            'url'           => $canonical,
+            'price'         => number_format($item['price'], 2, '.', ''),
+            'priceCurrency' => business_currency_code($business),
+            'availability'  => 'https://schema.org/InStock',
+            'seller'        => ['@type' => 'Organization', 'name' => (string)$business['name'], 'url' => $shop_url],
+        ];
+    }
+    $ld = [$product_ld, [
+        '@context' => 'https://schema.org',
+        '@type'    => 'BreadcrumbList',
+        'itemListElement' => [
+            ['@type' => 'ListItem', 'position' => 1, 'name' => (string)$business['name'], 'item' => $shop_url],
+            ['@type' => 'ListItem', 'position' => 2, 'name' => $item['name'], 'item' => $canonical],
+        ],
+    ]];
+}
+
+// Order and review pages belong to one shopper: no address to share, no data
+if ($private) {
+    $canonical = null;
+    $ld        = null;
+    $seo_title = ($kind === 'order' ? 'Order ' . $page['order']['order_number'] : 'Review your order') . ' — ' . $business['name'];
+    $seo_desc  = 'Your order from ' . $business['name'] . '.';
+}
+
 // What storefront.js needs: the catalogue for the product sheet and the bag,
 // bank accounts for checkout, and where to send things
 $js_items = [];
@@ -113,6 +188,7 @@ foreach ($catalogue['items'] as $item) {
     }
     $js_items[(string)$item['id']] = [
         'id'       => $item['id'],
+        'path'     => sf_product_path($item),
         'name'     => $item['name'],
         'desc'     => $item['description'],
         'price'    => $item['price'],
@@ -126,7 +202,9 @@ foreach ($catalogue['items'] as $item) {
 $js = [
     'shop'     => $business['subdomain'] ?: 'preview-' . (int)$business['id'],
     'mode'     => $mode,
+    'page'     => $kind,
     'name'     => (string)$business['name'],
+    'url'      => $shop_url,
     'currency' => $currency,
     'wa'       => $wa,
     'look'     => $settings['look'],
@@ -147,14 +225,30 @@ $asset = fn(string $path) => APP_URL . '/' . $path . '?v=' . (@filemtime(BASE_PA
     <meta name="description" content="<?= e($seo_desc) ?>">
     <meta name="robots" content="<?= $indexable ? 'index, follow' : 'noindex, nofollow' ?>">
     <meta name="theme-color" content="<?= e($theme['palette']['ground']) ?>">
-    <link rel="canonical" href="<?= e($shop_url) ?>">
+    <?php if ($private): ?>
+    <meta name="referrer" content="same-origin">
+    <?php endif; ?>
+    <?php if ($canonical !== null): ?>
+    <link rel="canonical" href="<?= e($canonical) ?>">
+    <?php endif; ?>
 
-    <meta property="og:type" content="business.business">
+    <meta property="og:type" content="<?= e($og_type) ?>">
     <meta property="og:site_name" content="<?= e($business['name']) ?>">
     <meta property="og:title" content="<?= e($seo_title) ?>">
     <meta property="og:description" content="<?= e($seo_desc) ?>">
     <meta property="og:image" content="<?= e($og_image) ?>">
-    <meta property="og:url" content="<?= e($shop_url) ?>">
+    <?php if ($og_size): ?>
+    <meta property="og:image:width" content="<?= (int)$og_size[0] ?>">
+    <meta property="og:image:height" content="<?= (int)$og_size[1] ?>">
+    <meta property="og:image:alt" content="<?= e($page['item']['name']) ?>">
+    <?php endif; ?>
+    <?php if ($canonical !== null): ?>
+    <meta property="og:url" content="<?= e($canonical) ?>">
+    <?php endif; ?>
+    <?php if ($kind === 'product' && $page['item']['price'] > 0): ?>
+    <meta property="product:price:amount" content="<?= e(number_format($page['item']['price'], 2, '.', '')) ?>">
+    <meta property="product:price:currency" content="<?= e(business_currency_code($business)) ?>">
+    <?php endif; ?>
     <meta property="og:locale" content="en_NG">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="<?= e($seo_title) ?>">
@@ -164,7 +258,9 @@ $asset = fn(string $path) => APP_URL . '/' . $path . '?v=' . (@filemtime(BASE_PA
     <meta name="twitter:site" content="@<?= e($contact['twitter']) ?>">
     <?php endif; ?>
 
+    <?php if ($ld !== null): ?>
     <script type="application/ld+json"><?= json_encode($ld, $json_flags) ?></script>
+    <?php endif; ?>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -173,10 +269,10 @@ $asset = fn(string $path) => APP_URL . '/' . $path . '?v=' . (@filemtime(BASE_PA
     <style id="sf-vars"><?= storefront_css_vars($theme['vars']) ?></style>
 </head>
 <body>
-    <a class="sf-skip" href="#sf-main">Skip to the shop</a>
+    <a class="sf-skip" href="#sf-main"><?= $kind === 'shop' ? 'Skip to the shop' : 'Skip to the page' ?></a>
 
     <?php
-    if ($sections['announcement']['on'] && ($sections['announcement']['text'] !== '' || !$is_live)) {
+    if (!$private && $sections['announcement']['on'] && ($sections['announcement']['text'] !== '' || !$is_live)) {
         include __DIR__ . '/sections/announcement.php';
     }
     include __DIR__ . '/parts/header.php';
@@ -184,11 +280,15 @@ $asset = fn(string $path) => APP_URL . '/' . $path . '?v=' . (@filemtime(BASE_PA
 
     <main id="sf-main">
         <?php
-        foreach ($settings['sections'] as $section) {
-            if (!$section['on'] || in_array($section['type'], ['announcement', 'contact'], true)) {
-                continue;
+        if ($kind === 'shop') {
+            foreach ($settings['sections'] as $section) {
+                if (!$section['on'] || in_array($section['type'], ['announcement', 'contact'], true)) {
+                    continue;
+                }
+                include __DIR__ . '/sections/' . $section['type'] . '.php';
             }
-            include __DIR__ . '/sections/' . $section['type'] . '.php';
+        } else {
+            include __DIR__ . '/pages/' . $kind . '.php';
         }
         ?>
     </main>

@@ -171,6 +171,21 @@ class OrderController
             $delivery_doc = $s->fetch();
         }
 
+        // The shopper's tracking link and, once the order is done, its review
+        $track_url = shop_order_url($this->db, $order, $business);
+        $review = null;
+        $review_link = null;
+        if ($track_url !== null) {
+            $s = $this->db->prepare("SELECT * FROM reviews WHERE order_id = ?");
+            $s->execute([(int) $order["id"]]);
+            $review = $s->fetch() ?: null;
+            if (!$review) {
+                $review = review_invite($this->db, (int) $order["id"]);
+            }
+            $review_link = $review ? review_url($business, $review) : null;
+        }
+        $customer_wa = shop_whatsapp_digits(["phone" => $order["customer_phone"]]);
+
         $title = "Order {$order["order_number"]}";
         $view_file = BASE_PATH . "/views/orders/view.php";
         require_once BASE_PATH . "/views/layouts/app.php";
@@ -353,6 +368,11 @@ class OrderController
                 "UPDATE orders SET status = ? WHERE id = ? AND business_id = ?",
             )
             ->execute([$new_status, (int) $id, $this->biz_id]);
+        // A fulfilled order can be reviewed: the link shows on the order and
+        // on the shopper's tracking page
+        if ($new_status === "fulfilled") {
+            review_invite($this->db, (int) $id);
+        }
         flash("success", "Order status updated to {$new_status}.");
         redirect("orders/view/{$id}");
     }

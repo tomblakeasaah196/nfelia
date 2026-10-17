@@ -882,6 +882,10 @@
                     editorEl.appendChild(checkbox(s, k, f[k].label));
                 });
                 break;
+            case 'reviews':
+                editorEl.appendChild(field('Title', textInput(s, 'title', f.title, 'What customers say')));
+                editorEl.appendChild(el('p', { class: 'st-help' }, 'Customers rate an order once it is delivered or collected. They get the link on their order page, and right after they sign for a delivery. Nobody can write or change a review for them, which is why shoppers trust them.'));
+                break;
             case 'contact':
                 editorEl.appendChild(field('A short line', textInput(s, 'text', f.text, 'Open Monday to Saturday, 9am to 6pm')));
                 ['instagram', 'facebook', 'tiktok', 'twitter'].forEach(function (k) { editorEl.appendChild(handleField(s, k, f[k].label)); });

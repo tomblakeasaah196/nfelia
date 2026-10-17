@@ -210,6 +210,58 @@ $can_advance = in_array($order['status'], ['approved', 'processing']);
             </div>
         </div>
 
+        <!-- The shopper's links: tracking, and the review once the order is done -->
+        <?php if ($track_url): ?>
+        <?php
+        $first_name = preg_split('/\s+/u', trim((string)$order['customer_name']))[0] ?: 'there';
+        $send_track = 'Hello ' . $first_name . ', here is the link to follow your order ' . $order['order_number'] . ' from ' . $business['name'] . ': ' . $track_url;
+        $send_review = $review_link ? 'Hello ' . $first_name . ', thank you for your order ' . $order['order_number'] . '. Would you rate it? It takes a few seconds: ' . $review_link : '';
+        ?>
+        <div class="bg-brand-white border border-brand-sand rounded-xl shadow-sm overflow-hidden" x-data="{ copied: '' }">
+            <div class="px-5 py-4 border-b border-brand-sand/50">
+                <h3 class="font-heading font-bold text-sm text-brand-plum uppercase tracking-wider">Customer's links</h3>
+            </div>
+            <div class="p-5 space-y-4">
+                <div>
+                    <div class="text-[9px] font-bold text-brand-plum/30 uppercase tracking-widest mb-1">Order tracking</div>
+                    <p class="text-xs text-brand-plum/60 mb-2">Your customer follows this order here. No account needed.</p>
+                    <div class="flex flex-wrap gap-2">
+                        <button type="button" class="h-10 px-3 text-xs font-bold rounded-lg border border-brand-sand text-brand-plum hover:bg-brand-cream"
+                                @click="navigator.clipboard && navigator.clipboard.writeText(<?= e(json_encode($track_url)) ?>).then(() => { copied = 'track'; setTimeout(() => copied = '', 2000) })">
+                            <span x-show="copied !== 'track'">Copy link</span><span x-show="copied === 'track'" x-cloak>Copied</span>
+                        </button>
+                        <?php if ($customer_wa !== ''): ?>
+                        <a href="https://wa.me/<?= e($customer_wa) ?>?text=<?= e(rawurlencode($send_track)) ?>" target="_blank" rel="noopener"
+                           class="h-10 px-3 inline-flex items-center text-xs font-bold rounded-lg border border-brand-sand text-brand-plum hover:bg-brand-cream">Send on WhatsApp</a>
+                        <?php endif; ?>
+                        <a href="<?= e($track_url) ?>" target="_blank" rel="noopener"
+                           class="h-10 px-3 inline-flex items-center text-xs font-bold rounded-lg text-brand-plum/70 hover:underline">Open</a>
+                    </div>
+                </div>
+                <div>
+                    <div class="text-[9px] font-bold text-brand-plum/30 uppercase tracking-widest mb-1">Review</div>
+                    <?php if (!$review): ?>
+                        <p class="text-xs text-brand-plum/60">Once the delivery is signed for, or you mark the order fulfilled, your customer can rate it. Reviews show on your shop.</p>
+                    <?php elseif ($review['status'] === 'invited'): ?>
+                        <p class="text-xs text-brand-plum/60 mb-2">Waiting for your customer. Their tracking page asks them too.</p>
+                        <?php if ($customer_wa !== '' && $send_review !== ''): ?>
+                        <a href="https://wa.me/<?= e($customer_wa) ?>?text=<?= e(rawurlencode($send_review)) ?>" target="_blank" rel="noopener"
+                           class="h-10 px-3 inline-flex items-center text-xs font-bold rounded-lg border border-brand-sand text-brand-plum hover:bg-brand-cream">Ask for a review on WhatsApp</a>
+                        <?php endif; ?>
+                    <?php else: ?>
+                        <p class="text-sm font-bold text-brand-plum"><?= str_repeat('★', (int)$review['rating']) ?><span class="text-brand-plum/20"><?= str_repeat('★', 5 - (int)$review['rating']) ?></span> <span class="text-xs font-medium text-brand-plum/60"><?= (int)$review['rating'] ?> out of 5</span></p>
+                        <?php if ($review['comment']): ?>
+                        <p class="text-xs text-brand-plum/70 italic mt-1">"<?= e($review['comment']) ?>"</p>
+                        <?php endif; ?>
+                        <?php if ($review['status'] === 'hidden'): ?>
+                        <p class="text-[11px] text-red-600 mt-1">Hidden from your shop by Nfelia for breaking the review rules.</p>
+                        <?php endif; ?>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <!-- Order Details -->
         <div class="bg-brand-white border border-brand-sand rounded-xl shadow-sm overflow-hidden">
             <div class="px-5 py-4 border-b border-brand-sand/50">

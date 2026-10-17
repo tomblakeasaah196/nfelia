@@ -1,8 +1,9 @@
 <?php
 /**
- * Storefront header: the shop's name (and logo), and the bag.
+ * Storefront header: the shop's name (and logo), and the bag. On the shop's
+ * other pages (a product, an order) the name leads back to the shop.
  * Market draws its price-list band here, with the headline in it, so its
- * hero partial adds only a photo.
+ * hero partial adds only a photo; other pages get the band without it.
  */
 $logo     = (string)($business['logo_path'] ?? '');
 $logo_ok  = $logo !== '' && is_file(BASE_PATH . '/' . $logo) && str_starts_with($logo, 'uploads/');
@@ -14,6 +15,10 @@ $sub_line = in_array($settings['look'], ['buka', 'harvest', 'desk'], true) ? $ad
 $bag_button = '<button type="button" class="sf-bagbtn" data-open-bag aria-label="' . e($bag_name) . '">'
             . sf_icon($bag_icon, 23) . '<span class="sf-badge" data-bag-count hidden>0</span></button>';
 
+$home_link  = $kind !== 'shop' && $mode === 'live';
+$brand_open = $home_link ? '<a class="sf-brand__home" href="/">' : '';
+$brand_shut = $home_link ? '<span class="sf-sr"> — back to the shop</span></a>' : '';
+
 $brand_mark = '';
 if ($logo_ok) {
     $brand_mark = '<img class="sf-brand__logo" src="' . e(sf_media_url($logo)) . '" alt="" height="40">';
@@ -24,14 +29,15 @@ if ($logo_ok) {
 <?php if ($settings['look'] === 'market'):
     $market_headline = $hero['headline'] !== '' ? $hero['headline'] : (string)$business['name'];
 ?>
-<header class="sf-header sf-header--band">
+<header class="sf-header sf-header--band<?= $kind !== 'shop' ? ' sf-header--slim' : '' ?>">
     <div class="sf-wrap sf-header__inner">
         <div class="sf-brand">
-            <?= $brand_mark ?>
-            <p class="sf-brand__name"><?= e($business['name']) ?></p>
+            <?= $brand_open ?><?= $brand_mark ?>
+            <p class="sf-brand__name"><?= e($business['name']) ?></p><?= $brand_shut ?>
         </div>
         <?= $bag_button ?>
     </div>
+    <?php if ($kind === 'shop'): ?>
     <div class="sf-wrap sf-header__hero">
         <?php if ($market_headline !== (string)$business['name']): ?>
             <h1 class="sf-h1" id="sf-hero-title"><?= e($market_headline) ?></h1>
@@ -49,6 +55,7 @@ if ($logo_ok) {
             <p class="sf-header__chip"><?= sf_icon('clock', 16) ?>Prices updated <?= e(date('j F Y', strtotime($catalogue['updated_at']))) ?></p>
         <?php endif; ?>
     </div>
+    <?php endif; ?>
 </header>
 <?php else: ?>
 <header class="sf-header">
@@ -61,13 +68,13 @@ if ($logo_ok) {
             <?php endif; ?>
         <?php endif; ?>
         <div class="sf-brand">
-            <?= $brand_mark ?>
+            <?= $brand_open ?><?= $brand_mark ?>
             <div class="sf-brand__text">
                 <p class="sf-brand__name"><?= e($business['name']) ?></p>
                 <?php if ($sub_line !== ''): ?>
                     <p class="sf-brand__sub"><?= e($sub_line) ?></p>
                 <?php endif; ?>
-            </div>
+            </div><?= $brand_shut ?>
         </div>
         <?= $bag_button ?>
     </div>

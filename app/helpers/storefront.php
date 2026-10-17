@@ -25,6 +25,10 @@
 const STOREFRONT_SETTINGS_VERSION = 1;
 const STOREFRONT_MAX_SETTINGS_BYTES = 65536;
 const STOREFRONT_IMAGE_WIDTHS = [320, 640, 960, 1280];
+// Link-preview copies (JPEG): this wide at most, and small enough that
+// WhatsApp shows them (it skips images much over 300 KB).
+const STOREFRONT_OG_WIDTH = 1200;
+const STOREFRONT_OG_MAX_BYTES = 290000;
 // Uploads that get WebP copies: photos shown on shops. GIFs keep their
 // animation, so they are sent as they are.
 const STOREFRONT_VARIANT_PATH = '(?:products|heroes|logos|storefront)/\d+/[A-Za-z0-9_-][A-Za-z0-9_.-]*\.(?:png|jpe?g|webp)';
@@ -221,8 +225,8 @@ function storefront_colour_sets(): array {
 /**
  * Section types. 'pin' keeps a section at the top or bottom of the page;
  * the rest can be moved. 'switch' => false means it is always shown.
- * 'available' => false types belong to later steps (reviews, booking and
- * news): they are known here but never stored, shown or offered yet.
+ * 'available' => false types belong to later steps (booking and news): they
+ * are known here but never stored, shown or offered yet.
  *
  * Field kinds: line (one line), text (paragraphs), bool, youtube, image,
  * products (a list of product ids), faq (question and answer pairs).
@@ -268,7 +272,8 @@ function storefront_section_types(): array {
                 'timeline'          => ['kind' => 'bool', 'label' => 'Ask when they need it'],
                 'delivery_location' => ['kind' => 'bool', 'label' => 'Ask where to deliver'],
             ]],
-        'reviews' => ['name' => 'Customer reviews', 'hint' => 'Only from orders that were delivered', 'pin' => null, 'switch' => true, 'on' => false, 'available' => false, 'fields' => []],
+        'reviews' => ['name' => 'Customer reviews', 'hint' => 'Stars and words from people whose orders were delivered or collected. They show once the first one arrives.', 'pin' => null, 'switch' => true, 'on' => true, 'available' => true,
+            'fields' => ['title' => ['kind' => 'line', 'max' => 50, 'label' => 'Title']]],
         'booking' => ['name' => 'Bookings', 'hint' => 'Uses the free times in your Nfelia calendar', 'pin' => null, 'switch' => true, 'on' => false, 'available' => false, 'fields' => []],
         'news'    => ['name' => 'News and offers', 'hint' => '', 'pin' => null, 'switch' => true, 'on' => false, 'available' => false, 'fields' => []],
         'contact' => ['name' => 'Contact and footer', 'hint' => 'Your WhatsApp, socials and address', 'pin' => 'bottom', 'switch' => false, 'on' => true, 'available' => true,
@@ -1013,6 +1018,57 @@ function sf_media_url(string $rel): string {
 }
 
 /**
+ * A product's name for its address: "Adire Kaftan (Blue)" → "adire-kaftan-blue".
+ */
+function sf_product_slug(string $name): string {
+    $ascii = function_exists('transliterator_transliterate')
+        ? (transliterator_transliterate('Any-Latin; Latin-ASCII', $name) ?: $name)
+        : (@iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $name) ?: $name);
+    $slug = trim(preg_replace('/[^a-z0-9]+/', '-', strtolower($ascii)) ?? '', '-');
+    if (strlen($slug) > 60) {
+        $slug = rtrim(substr($slug, 0, 60), '-');
+        $slug = str_contains($slug, '-') ? substr($slug, 0, strrpos($slug, '-')) : $slug;
+    }
+    return $slug !== '' ? $slug : 'item';
+}
+
+/**
+ * A product's page on its shop: /p/12-adire-kaftan. The number is what
+ * counts; an old or missing name is sent on to this one.
+ */
+function sf_product_path(array $item): string {
+    return '/p/' . (int)$item['id'] . '-' . sf_product_slug((string)$item['name']);
+}
+
+/**
+ * Whether product links on the page being drawn go to product pages (live
+ * shops) or only open the product sheet (Shop Studio's previews, which
+ * aren't on the shop's address). shell.php sets it for each page.
+ */
+function sf_live_links(?bool $set = null): bool {
+    static $live = true;
+    if ($set !== null) {
+        $live = $set;
+    }
+    return $live;
+}
+
+/**
+ * The JPEG copy of a photo that WhatsApp, Facebook and X show in link
+ * previews (they don't all read WebP), with its size: [url, width, height],
+ * or null when the photo can't have one. Made on first request, like the
+ * WebP copies.
+ */
+function sf_og_image(string $rel): ?array {
+    $size = sf_image_size($rel);
+    if (!$size || !preg_match('#^uploads/(' . STOREFRONT_VARIANT_PATH . ')$#i', $rel, $m)) {
+        return null;
+    }
+    $width = min(STOREFRONT_OG_WIDTH, $size[0]);
+    return [sf_media_url('uploads/cache/og/' . $m[1] . '.jpg'), $width, max(1, (int)round($size[1] * $width / $size[0]))];
+}
+
+/**
  * Width and height of an uploaded image, or null when it is missing or not
  * an image. Read once per request.
  */
@@ -1124,6 +1180,9 @@ function sf_icon(string $name, int $size = 20, string $class = ''): string {
         'sparkle'   => '<path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/>',
         'grid'      => '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
         'tool'      => '<path d="M14.5 6.5a4 4 0 0 0 5 5L12 19a2.1 2.1 0 0 1-3-3l7.5-7.5a4 4 0 0 0-2-2z"/>',
+        'share'     => '<path d="M12 15V3M7.5 7.5L12 3l4.5 4.5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/>',
+        'image'     => '<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="M21 15.5l-5-5L6 20.5"/>',
+        'star'      => '<path d="M12 2.8l2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17.2l-5.6 3 1.1-6.3-4.6-4.4 6.3-.9z"/>',
     ];
     return '<svg width="' . $size . '" height="' . $size . '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"'
          . ($class !== '' ? ' class="' . e($class) . '"' : '') . '>' . ($paths[$name] ?? '') . '</svg>';
@@ -1143,37 +1202,57 @@ function sf_short_address(array $business): string {
  * ────────────────────────────────────────── */
 
 /**
- * Draw a shop. $mode is 'live' for shoppers, 'preview' for Shop Studio and
- * 'look' for the full-size previews on the setup screen. Previews can't
+ * Draw a shop page. $mode is 'live' for shoppers, 'preview' for Shop Studio
+ * and 'look' for the full-size previews on the setup screen. Previews can't
  * place orders and show empty sections as gaps to fill.
+ *
+ * $page says which page: ['kind' => 'shop'] (the default), or on live shops
+ *   ['kind' => 'product', 'item' => …]                     a product's page
+ *   ['kind' => 'order', 'order' => …]                      a tracking page
+ *   ['kind' => 'review', 'review' => …, 'error', 'comment'] the review form
+ * Pass $catalogue when the caller already has it.
  */
-function storefront_render(array $business, array $settings, string $mode = 'live', string $visibility = 'live'): void {
+function storefront_render(array $business, array $settings, string $mode = 'live', string $visibility = 'live', array $page = [], ?array $catalogue = null): void {
+    $page     += ['kind' => 'shop'];
     $theme     = storefront_resolve($settings);
-    $catalogue = storefront_catalogue($business, $settings);
+    $catalogue = $catalogue ?? storefront_catalogue($business, $settings);
     require BASE_PATH . '/views/storefront/shell.php';
 }
 
 /* ──────────────────────────────────────────
  *  IMAGE COPIES — /uploads/cache/{width}/{path}.webp
+ *                 /uploads/cache/og/{path}.jpg (link previews)
  * ────────────────────────────────────────── */
 
 /**
- * Make (once) and send a WebP copy of an uploaded image. Afterwards the
- * file is on disk and the web server sends it without PHP. Only photos
- * shown on shops are copied: product photos, hero media, logos and Shop
- * Studio uploads. Anything else is a 404.
+ * Make (once) and send a WebP copy of an uploaded image, or the JPEG copy
+ * for link previews. Afterwards the file is on disk and the web server sends
+ * it without PHP. Only photos shown on shops are copied: product photos,
+ * hero media, logos and Shop Studio uploads. Anything else is a 404.
  */
 function storefront_serve_variant(string $url_path): void {
-    if (!preg_match('#^uploads/cache/(320|640|960|1280|full)/(' . STOREFRONT_VARIANT_PATH . ')\.webp$#i', $url_path, $m)
-        || str_contains($url_path, '..')) {
+    if (preg_match('#^uploads/cache/og/(' . STOREFRONT_VARIANT_PATH . ')\.jpg$#i', $url_path, $m)) {
+        $size = 'og';
+        $rel  = $m[1];
+    } elseif (preg_match('#^uploads/cache/(320|640|960|1280|full)/(' . STOREFRONT_VARIANT_PATH . ')\.webp$#i', $url_path, $m)) {
+        $size = $m[1];
+        $rel  = $m[2];
+    } else {
         http_response_code(404);
         exit;
     }
-    $source = BASE_PATH . '/uploads/' . $m[2];
+    if (str_contains($url_path, '..')) {
+        http_response_code(404);
+        exit;
+    }
+    $source = BASE_PATH . '/uploads/' . $rel;
     $target = BASE_PATH . '/' . $url_path;
     if (!is_file($source) || !function_exists('imagewebp')) {
         http_response_code(404);
         exit;
+    }
+    if ($size === 'og') {
+        storefront_serve_og($source, $target, $url_path);
     }
 
     if (!is_file($target)) {
@@ -1190,7 +1269,7 @@ function storefront_serve_variant(string $url_path): void {
         }
         $w = imagesx($src);
         $h = imagesy($src);
-        $width = $m[1] === 'full' ? $w : min($w, (int)$m[1]);
+        $width = $size === 'full' ? $w : min($w, (int)$size);
         if ($width !== $w) {
             $height = max(1, (int)round($h * $width / $w));
             $dst = imagecreatetruecolor($width, $height);
@@ -1220,6 +1299,64 @@ function storefront_serve_variant(string $url_path): void {
     }
 
     header('Content-Type: image/webp');
+    header('Content-Length: ' . filesize($target));
+    header('Cache-Control: public, max-age=31536000');
+    readfile($target);
+    exit;
+}
+
+/**
+ * Make (once) and send the JPEG copy of a photo for link previews: at most
+ * STOREFRONT_OG_WIDTH wide, see-through parts on white, and squeezed until it
+ * is under STOREFRONT_OG_MAX_BYTES (the size never changes, so the width and
+ * height on product pages stay true).
+ */
+function storefront_serve_og(string $source, string $target, string $url_path): void {
+    if (!is_file($target)) {
+        $info = @getimagesize($source);
+        $src = match ($info['mime'] ?? '') {
+            'image/png'  => @imagecreatefrompng($source),
+            'image/jpeg' => @imagecreatefromjpeg($source),
+            'image/webp' => @imagecreatefromwebp($source),
+            default      => false,
+        };
+        if (!$src) {
+            http_response_code(404);
+            exit;
+        }
+        $w = imagesx($src);
+        $h = imagesy($src);
+        $width  = min(STOREFRONT_OG_WIDTH, $w);
+        $height = max(1, (int)round($h * $width / $w));
+        $dst = imagecreatetruecolor($width, $height);
+        imagefill($dst, 0, 0, imagecolorallocate($dst, 255, 255, 255));
+        imagealphablending($dst, true);
+        imagecopyresampled($dst, $src, 0, 0, 0, 0, $width, $height, $w, $h);
+        imagedestroy($src);
+        imageinterlace($dst, true);
+
+        if (!is_dir(dirname($target))) {
+            @mkdir(dirname($target), 0755, true);
+        }
+        $tmp = $target . '.' . bin2hex(random_bytes(4)) . '.tmp';
+        $ok  = false;
+        foreach ([82, 68, 55, 42] as $quality) {
+            $ok = @imagejpeg($dst, $tmp, $quality);
+            clearstatcache(true, $tmp);
+            if (!$ok || filesize($tmp) <= STOREFRONT_OG_MAX_BYTES) {
+                break;
+            }
+        }
+        imagedestroy($dst);
+        if (!$ok || !@rename($tmp, $target)) {
+            @unlink($tmp);
+            error_log('[Nfelia] Link preview copy failed: ' . $url_path);
+            http_response_code(404);
+            exit;
+        }
+    }
+
+    header('Content-Type: image/jpeg');
     header('Content-Length: ' . filesize($target));
     header('Cache-Control: public, max-age=31536000');
     readfile($target);

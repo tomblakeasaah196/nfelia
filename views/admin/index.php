@@ -10,6 +10,7 @@ $tabs = [
     'referrals'  => ['label' => 'Referrals',  'url' => APP_URL . '/admin/referrals'],
     'support'    => ['label' => 'Support',    'url' => APP_URL . '/admin/support'],
     'shop_names' => ['label' => 'Shop names', 'url' => APP_URL . '/admin/shop-names'],
+    'reviews'    => ['label' => 'Reviews',    'url' => APP_URL . '/admin/reviews'],
     'financials' => ['label' => 'Financials', 'url' => APP_URL . '/admin/financials'],
 ];
 ?>
@@ -505,6 +506,64 @@ $tabs = [
         <?php endforeach; ?>
         <?php if (empty($pending_names)): ?>
         <div class="text-center py-12 text-gray-400"><p>No shop names waiting for review.</p></div>
+        <?php endif; ?>
+    </div>
+
+    <?php endif; ?>
+
+
+    <!-- ═══════════════════════════════════════
+         REVIEWS TAB
+         ═══════════════════════════════════════ -->
+    <?php if ($tab === 'reviews'): ?>
+
+    <div class="bg-white rounded-xl border p-5">
+        <h2 class="font-semibold text-brand-plum">Reviews on shops</h2>
+        <p class="text-sm text-gray-500 mt-1">
+            Only shoppers whose orders were delivered or collected can post one, once per order, and shop owners can't
+            change them. Hide a review only if it breaks the rules: abuse, someone's private details, or spam.
+        </p>
+        <div class="flex flex-wrap gap-2 mt-4">
+            <?php foreach (['all' => 'All', 'low' => '1 or 2 stars', 'hidden' => 'Hidden'] as $key => $label): ?>
+            <a href="<?= APP_URL ?>/admin/reviews<?= $key === 'all' ? '' : '?show=' . $key ?>"
+               class="h-9 px-3 inline-flex items-center rounded-lg text-sm font-medium <?= $review_filter === $key ? 'bg-brand-plum text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200' ?>"><?= $label ?></a>
+            <?php endforeach; ?>
+        </div>
+    </div>
+
+    <div class="space-y-3">
+        <?php foreach ($reviews as $rv): ?>
+        <div class="bg-white rounded-xl border p-5 <?= $rv['status'] === 'hidden' ? 'opacity-70' : '' ?>">
+            <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                <div class="min-w-0">
+                    <p class="text-base text-amber-500"><?= str_repeat('★', (int)$rv['rating']) ?><span class="text-gray-200"><?= str_repeat('★', 5 - (int)$rv['rating']) ?></span></p>
+                    <?php if ($rv['comment']): ?>
+                    <p class="text-sm text-gray-800 mt-1 whitespace-pre-line break-words"><?= e($rv['comment']) ?></p>
+                    <?php endif; ?>
+                    <p class="text-sm text-gray-500 mt-2">
+                        <?= e(review_display_name((string)$rv['customer_name'])) ?> · <?= e($rv['business_name']) ?>
+                        <?= $rv['subdomain'] ? '(' . e($rv['subdomain'] . '.' . shop_base_host()) . ')' : '' ?>
+                        · <?= e($rv['order_number']) ?> · <?= e(date('M j, Y', strtotime((string)$rv['submitted_at']))) ?>
+                        <?= $rv['status'] === 'hidden' ? '· <span class="text-red-600 font-medium">hidden</span>' : '' ?>
+                    </p>
+                </div>
+                <form method="POST" action="<?= APP_URL ?>/admin/review-visibility" class="shrink-0">
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="review_id" value="<?= (int)$rv['id'] ?>">
+                    <?php if ($rv['status'] === 'hidden'): ?>
+                    <input type="hidden" name="hide" value="0">
+                    <button type="submit" class="h-11 px-4 bg-white border text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50">Show again</button>
+                    <?php else: ?>
+                    <input type="hidden" name="hide" value="1">
+                    <button type="submit" class="h-11 px-4 bg-white border border-red-200 text-red-700 text-sm font-semibold rounded-lg hover:bg-red-50"
+                            onclick="return confirm(<?= e(json_encode('Hide this review from ' . $rv['business_name'] . '\'s shop?', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP)) ?>)">Hide</button>
+                    <?php endif; ?>
+                </form>
+            </div>
+        </div>
+        <?php endforeach; ?>
+        <?php if (empty($reviews)): ?>
+        <div class="text-center py-12 text-gray-400"><p>No reviews here yet.</p></div>
         <?php endif; ?>
     </div>
 

@@ -63,11 +63,14 @@ function sf_item_attrs(array $item, string $class): string {
 }
 
 /**
- * The link that opens a product's sheet. $hidden copies are for photos next
- * to a name link, so screen readers hear each product once.
+ * The link to a product. On live shops it is the product's own page, which
+ * storefront.js opens as a sheet over the shop (a new tab or a search engine
+ * gets the page); previews only open the sheet. $hidden copies are for photos
+ * next to a name link, so screen readers hear each product once.
  */
 function sf_open_link(array $item, string $inner, string $class = '', bool $hidden = false): string {
-    return '<a href="#item-' . (int)$item['id'] . '" data-open="' . (int)$item['id'] . '"'
+    $href = sf_live_links() ? sf_product_path($item) : '#item-' . (int)$item['id'];
+    return '<a href="' . e($href) . '" data-open="' . (int)$item['id'] . '"'
          . ($class !== '' ? ' class="' . e($class) . '"' : '')
          . ($hidden ? ' tabindex="-1" aria-hidden="true"' : '') . '>' . $inner . '</a>';
 }
@@ -153,6 +156,19 @@ function sf_item_chips(array $item): array {
         return array_slice($item['sizes']['options'], 0, 3);
     }
     return $item['unit'] !== '' ? [ucfirst(trim(sf_unit_text($item['unit'])))] : [];
+}
+
+/**
+ * Five stars filled to $rating (4.5 fills four and a half), read out as
+ * "Rated 4.5 out of 5".
+ */
+function sf_stars(float $rating, int $size = 18, string $class = ''): string {
+    $row = str_repeat('<svg width="' . $size . '" height="' . $size . '" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2.8l2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17.2l-5.6 3 1.1-6.3-4.6-4.4 6.3-.9z"/></svg>', 5);
+    $pct = max(0, min(100, $rating / 5 * 100));
+    $said = rtrim(rtrim(number_format($rating, 1), '0'), '.');
+    return '<span class="sf-starline' . ($class !== '' ? ' ' . e($class) : '') . '" role="img" aria-label="Rated ' . e($said) . ' out of 5">'
+         . '<span class="sf-starline__base">' . $row . '</span>'
+         . '<span class="sf-starline__fill" style="width:' . round($pct, 1) . '%">' . $row . '</span></span>';
 }
 
 /**

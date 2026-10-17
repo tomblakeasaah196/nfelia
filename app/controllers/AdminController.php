@@ -474,6 +474,55 @@ class AdminController {
      *  Names that look like a bank, telco, government body or an official
      *  account wait here (see shop_name_needs_review in shop_links.php).
      * ══════════════════════════════════════════ */
+    /**
+     * Reviews shoppers posted on shops, newest first. The founder can hide
+     * one that breaks the rules (abuse, someone's phone number, spam) and
+     * show it again; nobody can edit what a shopper wrote.
+     */
+    public function reviews() {
+        $filter = in_array($_GET['show'] ?? '', ['hidden', 'low'], true) ? $_GET['show'] : 'all';
+        $where  = match ($filter) {
+            'hidden' => "r.status = 'hidden'",
+            'low'    => "r.status IN ('published', 'hidden') AND r.rating <= 2",
+            default  => "r.status IN ('published', 'hidden')",
+        };
+        $stmt = $this->db->query("
+            SELECT r.id, r.rating, r.comment, r.status, r.customer_name, r.submitted_at, r.hidden_at,
+                   o.order_number, b.id AS business_id, b.name AS business_name, b.subdomain
+            FROM reviews r
+            JOIN orders o ON o.id = r.order_id
+            JOIN businesses b ON b.id = r.business_id
+            WHERE {$where}
+            ORDER BY r.submitted_at DESC, r.id DESC
+            LIMIT 200
+        ");
+        $reviews = $stmt->fetchAll();
+        $review_filter = $filter;
+
+        $tab       = 'reviews';
+        $title     = 'Admin — Reviews';
+        $view_file = BASE_PATH . '/views/admin/index.php';
+        require_once BASE_PATH . '/views/layouts/app.php';
+    }
+
+    public function review_visibility() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { redirect('admin/reviews'); }
+        csrf_verify();
+
+        $review_id = (int)($_POST['review_id'] ?? 0);
+        $hide      = ($_POST['hide'] ?? '') === '1';
+        $stmt = $this->db->prepare("SELECT business_id FROM reviews WHERE id = ? AND status IN ('published', 'hidden')");
+        $stmt->execute([$review_id]);
+        $biz_id = (int)$stmt->fetchColumn();
+        if ($biz_id) {
+            $this->db->prepare("UPDATE reviews SET status = ?, hidden_at = ? WHERE id = ?")
+                     ->execute([$hide ? 'hidden' : 'published', $hide ? date('Y-m-d H:i:s') : null, $review_id]);
+            storefront_purge($biz_id);
+            flash('success', $hide ? 'That review is hidden from the shop.' : 'That review shows on the shop again.');
+        }
+        redirect('admin/reviews');
+    }
+
     public function shop_names() {
         $stmt = $this->db->query("
             SELECT b.id, b.name, b.category, b.email, b.phone, b.created_at,
