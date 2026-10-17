@@ -285,6 +285,9 @@ class PublicController
         );
         $stmtItems->execute([$delivery["id"]]);
         $items = $stmtItems->fetchAll();
+        /* The status and courier names live on DeliveryController, which the
+           public routes don't load */
+        require_once BASE_PATH . "/app/controllers/DeliveryController.php";
         $statuses = DeliveryController::STATUSES;
         $providers = DeliveryController::PROVIDERS;
         require_once BASE_PATH . "/views/deliveries/public.php";
@@ -309,6 +312,7 @@ class PublicController
         );
         $stmtItems->execute([$delivery["id"]]);
         $items = $stmtItems->fetchAll();
+        require_once BASE_PATH . "/app/controllers/DeliveryController.php";
         $statuses = DeliveryController::STATUSES;
         $providers =
             DeliveryController::PROVIDERS; /* POST — process signature */

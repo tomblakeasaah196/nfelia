@@ -577,7 +577,7 @@ class PurgeController
             foreach ($stmtD->fetchAll() as $drow) {
                 $this->db
                     ->prepare(
-                        "DELETE FROM delivery_items WHERE delivery_note_id = ?",
+                        "DELETE FROM delivery_items WHERE delivery_id = ?",
                     )
                     ->execute([(int) $drow["id"]]);
             }
@@ -599,7 +599,7 @@ class PurgeController
         } elseif ($module === "deliveries") {
             $this->db
                 ->prepare(
-                    "DELETE FROM delivery_items WHERE delivery_note_id = ?",
+                    "DELETE FROM delivery_items WHERE delivery_id = ?",
                 )
                 ->execute([$target_id]);
             $this->db

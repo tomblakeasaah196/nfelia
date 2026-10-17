@@ -43,7 +43,7 @@ $already_signed = ($delivery['status'] === 'signed_off' && $delivery['signoff_na
             <?php if ($logo_url): ?>
                 <img src="<?= e($logo_url) ?>" alt="Logo" class="h-12 w-12 object-contain rounded-xl mx-auto mb-2 shadow-sm">
             <?php endif; ?>
-            <h1 class="text-lg font-extrabold brand-primary"><?= e($business['business_name']) ?></h1>
+            <h1 class="text-lg font-extrabold brand-primary"><?= e($business['name']) ?></h1>
             <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Delivery Confirmation</p>
         </div>
 

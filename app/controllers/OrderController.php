@@ -548,12 +548,12 @@ class OrderController
             ]);
         $delivery_id = (int) $this->db->lastInsertId();
 
-        // Insert delivery items (audited against delivery_items schema: delivery_note_id)
+        // The delivery's lines (delivery_items.delivery_id, as on every delivery screen)
         foreach ($items as $item) {
             $this->db
                 ->prepare(
                     "
-                INSERT INTO delivery_items (delivery_note_id, product_id, description, quantity)
+                INSERT INTO delivery_items (delivery_id, product_id, description, quantity)
                 VALUES (?, ?, ?, ?)
             ",
                 )
