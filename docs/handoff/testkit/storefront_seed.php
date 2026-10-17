@@ -12,7 +12,7 @@ $db = new PDO('mysql:host=localhost;dbname=smartqaq_nfelia_core;charset=utf8mb4'
 $pw = password_hash('testpass123', PASSWORD_BCRYPT);
 
 $db->exec('SET FOREIGN_KEY_CHECKS = 0');
-foreach (['bookings', 'reviews', 'delivery_items', 'deliveries', 'receipt_items', 'receipts', 'invoice_items', 'invoices',
+foreach (['shop_posts', 'bookings', 'reviews', 'delivery_items', 'deliveries', 'receipt_items', 'receipts', 'invoice_items', 'invoices',
           'order_items', 'orders', 'quote_requests', 'customers', 'notifications', 'sessions', 'subscriptions',
           'product_variant_options', 'product_variant_groups', 'product_images', 'products', 'bank_accounts',
           'storefront_versions', 'shop_name_holds', 'users', 'businesses', 'countries'] as $t) {
