@@ -47,8 +47,12 @@ class LandingPageController {
         // Current featured IDs
         $featured_ids = json_decode($business['featured_product_ids'] ?? '[]', true) ?: [];
 
-        // Public URL
-        $public_url = $business['slug'] ? APP_URL . '/biz/' . $business['slug'] : null;
+        // The shop's own address once its link is live, a name still waiting
+        // for review, and whether the one rename owners get is still unused
+        $public_url   = $business['subdomain'] ? shop_url($business['subdomain']) : null;
+        $shop_host    = $public_url ? $business['subdomain'] . '.' . shop_base_host() : null;
+        $pending_name = $business['subdomain_status'] === 'pending' ? $business['subdomain_requested'] : null;
+        $can_rename   = $public_url && (int)$business['subdomain_renames'] < 1;
 
         $title     = "Landing Page";
         $view_file = BASE_PATH . '/views/landing/settings.php';

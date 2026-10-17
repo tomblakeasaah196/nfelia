@@ -150,6 +150,55 @@ if ($hero_path) {
     </template>
 </div>
 
+<!-- ═══ SHOP LINK (its own form: changing the link is separate from saving the page) ═══ -->
+<div class="bg-brand-white border border-brand-sand rounded-xl p-5 shadow-sm mb-6"
+     x-data="shopNameField({ base: <?= e(json_encode(shop_base_host())) ?>, checkUrl: <?= e(json_encode(APP_URL . '/shop-setup/check')) ?> })">
+    <h2 class="font-heading font-bold text-base text-brand-plum mb-1">Shop link</h2>
+    <?php if ($public_url): ?>
+        <p class="text-sm text-brand-plum">
+            <a href="<?= e($public_url) ?>" target="_blank" rel="noopener" class="font-semibold underline underline-offset-4 break-all"><?= e($shop_host) ?></a>
+        </p>
+    <?php else: ?>
+        <p class="text-sm text-brand-plum/70">Your shop doesn't have a live link yet.</p>
+    <?php endif; ?>
+
+    <?php if ($pending_name): ?>
+        <p class="mt-3 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            We're checking <strong><?= e($pending_name . '.' . shop_base_host()) ?></strong>.
+            <?= $public_url ? 'Your current link keeps working until then.' : 'Your shop goes live as soon as it is approved.' ?>
+        </p>
+    <?php elseif (!$public_url): ?>
+        <a href="<?= APP_URL ?>/shop-setup" class="mt-3 inline-flex items-center min-h-[44px] text-sm font-semibold text-brand-burgundy underline underline-offset-4">Choose your shop link</a>
+    <?php elseif ($can_rename): ?>
+        <div x-data="{ open: false }" class="mt-2">
+            <button type="button" @click="open = !open" :aria-expanded="open.toString()" aria-controls="rename-shop-form"
+                    class="inline-flex items-center min-h-[44px] text-sm font-semibold text-brand-burgundy underline underline-offset-4">Change link</button>
+            <form id="rename-shop-form" x-show="open" style="display:none;" method="POST" action="<?= APP_URL ?>/shop-setup/rename" class="mt-2 space-y-2">
+                <?= csrf_field() ?>
+                <label for="rename-shop-name" class="block text-sm font-semibold text-brand-plum">New shop name</label>
+                <div class="flex items-stretch rounded-xl border bg-white" :class="borderClass">
+                    <input id="rename-shop-name" name="shop_name" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="40"
+                           x-model="name" @input.debounce.350ms="check()" aria-describedby="rename-shop-status rename-shop-rules"
+                           class="flex-1 min-w-0 h-12 px-4 text-base bg-transparent rounded-l-xl focus:outline-none">
+                    <span class="flex items-center pr-4 text-base text-brand-plum/60">.<?= e(shop_base_host()) ?></span>
+                </div>
+                <p id="rename-shop-status" role="status" class="text-sm min-h-[1.25rem]" :class="statusClass" x-text="message"></p>
+                <p id="rename-shop-rules" class="text-sm text-brand-plum/60">You can change your link once. The old link stops working straight away, so update it anywhere you've shared it.</p>
+                <button type="submit" :disabled="!canSubmit" class="btn-primary min-h-[44px] px-5 rounded-xl text-sm font-bold disabled:opacity-50">Change my link</button>
+            </form>
+        </div>
+    <?php else: ?>
+        <p class="mt-3 text-sm text-brand-plum/70">You've already changed your link once. <a href="<?= APP_URL ?>/contact-support" class="font-semibold text-brand-burgundy underline underline-offset-4">Contact support</a> to change it again.</p>
+    <?php endif; ?>
+
+    <?php if ($public_url || $pending_name): ?>
+        <p class="mt-2 text-sm text-brand-plum/70">
+            Look: <strong class="text-brand-plum"><?= e(STOREFRONT_LOOKS[$business['storefront_look'] ?? '']['name'] ?? 'Not chosen yet') ?></strong>
+            <a href="<?= APP_URL ?>/shop-setup" class="ml-1 inline-flex items-center min-h-[44px] font-semibold text-brand-burgundy underline underline-offset-4">Change look</a>
+        </p>
+    <?php endif; ?>
+</div>
+
 <!-- ═══ MAIN SETTINGS FORM ═══ -->
 <form method="POST" action="<?= APP_URL ?>/landing-page" class="space-y-6">
     <?= csrf_field() ?>
@@ -166,11 +215,6 @@ if ($hero_path) {
                 <div class="w-11 h-6 bg-gray-200 peer-focus:ring-2 peer-focus:ring-brand-gold/30 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
             </label>
         </div>
-        <?php if ($business['slug']): ?>
-        <div class="text-[10px] text-brand-plum/40">
-            Your page URL: <strong class="text-brand-plum"><?= APP_URL ?>/biz/<?= e($business['slug']) ?></strong>
-        </div>
-        <?php endif; ?>
     </div>
 
     <!-- About -->
@@ -312,7 +356,8 @@ if ($hero_path) {
         </button>
     </div>
 </form>
-<script src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js" defer></script>
+<!-- Alpine comes from the app layout; loading it twice here initialised every component twice. -->
+<script src="<?= APP_URL ?>/assets/js/shop-link.js?v=2"></script>
 <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
 <script>
 function heroUploader() {
