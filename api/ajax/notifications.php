@@ -12,9 +12,11 @@ if (!is_logged_in()) {
 
 $db = get_db();
 $biz_id = auth_business_id();
-// Business-wide alerts have no user_id; reminders and assigned tasks are
-// addressed to one person and only that person sees them.
+// Reminders and assigned tasks ('general' rows with a user_id) are for one
+// person only. Every other alert is for the whole business, including the
+// payment and overdue alerts that record who triggered them in user_id.
 $user_id = (int)(auth_user()['id'] ?? 0);
+$mine    = "(user_id IS NULL OR user_id = ? OR type <> 'general')";
 $action = $_GET['action'] ?? 'list';
 
 switch ($action) {
@@ -24,7 +26,7 @@ switch ($action) {
      *  Used for the red notification bubble/badge
      * ══════════════════════════════════════════ */
     case 'count':
-        $stmt = $db->prepare("SELECT COUNT(*) FROM notifications WHERE business_id = ? AND (user_id IS NULL OR user_id = ?) AND is_read = 0");
+        $stmt = $db->prepare("SELECT COUNT(*) FROM notifications WHERE business_id = ? AND {$mine} AND is_read = 0");
         $stmt->execute([$biz_id, $user_id]);
         $count = (int)$stmt->fetchColumn();
 
@@ -44,7 +46,7 @@ switch ($action) {
         $stmt = $db->prepare("
             SELECT id, type, title, message, action_url, is_read, created_at 
             FROM notifications 
-            WHERE business_id = ? AND (user_id IS NULL OR user_id = ?)
+            WHERE business_id = ? AND {$mine}
             ORDER BY created_at DESC, id DESC
             LIMIT ?
         ");
@@ -90,11 +92,11 @@ switch ($action) {
 
         if ($notif_id === 'all') {
             // Mark every unread notification as read
-            $stmt = $db->prepare("UPDATE notifications SET is_read = 1 WHERE business_id = ? AND (user_id IS NULL OR user_id = ?) AND is_read = 0");
+            $stmt = $db->prepare("UPDATE notifications SET is_read = 1 WHERE business_id = ? AND {$mine} AND is_read = 0");
             $stmt->execute([$biz_id, $user_id]);
         } else {
             // Mark a specific single notification as read
-            $stmt = $db->prepare("UPDATE notifications SET is_read = 1 WHERE business_id = ? AND (user_id IS NULL OR user_id = ?) AND id = ?");
+            $stmt = $db->prepare("UPDATE notifications SET is_read = 1 WHERE business_id = ? AND {$mine} AND id = ?");
             $stmt->execute([$biz_id, $user_id, (int)$notif_id]);
         }
 

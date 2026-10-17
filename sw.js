@@ -9,7 +9,19 @@
  * without a service worker.
  */
 self.addEventListener('install', function () { self.skipWaiting(); });
+
 self.addEventListener('activate', function (event) { event.waitUntil(self.clients.claim()); });
+
+// Only ever open a page of this site.
+function safeUrl(path) {
+    var scope = self.registration.scope;
+    try {
+        var url = new URL(path || 'tasks', scope);
+        return url.origin === self.location.origin ? url.href : scope;
+    } catch (e) {
+        return scope;
+    }
+}
 
 self.addEventListener('push', function (event) {
     var data = {};
@@ -23,7 +35,7 @@ self.addEventListener('push', function (event) {
         badge: scope + 'favicon-32x32.png',
         tag: data.tag || undefined,
         renotify: !!data.tag,
-        data: { url: new URL(data.url || 'tasks', scope).href }
+        data: { url: safeUrl(data.url) }
     }));
 });
 
@@ -33,6 +45,14 @@ self.addEventListener('notificationclick', function (event) {
     event.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (list) {
         for (var i = 0; i < list.length; i++) {
             if (list[i].url === url && 'focus' in list[i]) return list[i].focus();
+        }
+        // Nfelia is open on another page: bring that tab here instead of opening another.
+        for (var j = 0; j < list.length; j++) {
+            if (new URL(list[j].url).origin === self.location.origin && 'navigate' in list[j]) {
+                return list[j].navigate(url)
+                    .then(function (c) { return c ? c.focus() : self.clients.openWindow(url); })
+                    .catch(function () { return self.clients.openWindow(url); });
+            }
         }
         return self.clients.openWindow(url);
     }));

@@ -789,6 +789,9 @@ class InvoiceController {
                     $delivery['deliver_mode'], $delivery['deliver_by'], $delivery['deliver_show'], $delivery['delivered_at'],
                     $id, $this->biz_id
                 ]);
+                // A job plan's delivery step follows the invoice's date.
+                $this->db->prepare("UPDATE tasks SET due_date = ? WHERE invoice_id = ? AND business_id = ? AND step_key = 'deliver' AND done_at IS NULL AND deleted_at IS NULL")
+                         ->execute([$delivery['deliver_by'], $id, $this->biz_id]);
 
                 $this->db->prepare("DELETE FROM invoice_items WHERE invoice_id = ?")->execute([$id]);
             } else {

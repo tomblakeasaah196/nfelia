@@ -52,6 +52,17 @@ if (require.main === module) (async () => {
     await page.screenshot({ path: path.join(OUT, `${TAG}_${name}.png`), fullPage: true });
     const ov = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     console.log(name, 'overflow', ov, 'height', await page.evaluate(() => document.body.scrollHeight));
+    if (PATHQ.startsWith('/tasks')) {
+      // Tap targets: every visible control on the page, and in the editor, is 44px or more.
+      const small = () => page.$$eval('[x-data="planner()"] button, [x-data="planner()"] a[href]', (els) => els
+        .filter((el) => { const r = el.getBoundingClientRect(); return el.offsetParent !== null && r.height > 0 && r.height < 44; })
+        .map((el) => (el.textContent || el.getAttribute('aria-label') || '').trim().replace(/\s+/g, ' ').slice(0, 24) + ' ' + Math.round(el.getBoundingClientRect().height)));
+      const found = await small();
+      await page.click('button:has-text("New appointment")'); await page.waitForSelector('#pl-title');
+      found.push(...await small());
+      console.log(name, 'tap targets under 44px:', found.length ? found.join(' | ') : 'none');
+      if (found.length) errors.push(name + ' small tap targets');
+    }
     await ctx.close();
   }
   console.log(errors.length ? errors.join('\n') : 'no console errors');

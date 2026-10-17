@@ -9,7 +9,7 @@ $monthsAgo = fn(int $m, int $d) => date('Y-m-', strtotime("first day of -$m mont
 $tok = fn() => bin2hex(random_bytes(32));
 $pw  = password_hash('DemoPass1', PASSWORD_BCRYPT);
 
-foreach (['receipts','payments','invoice_items','invoices','debts','expenses','products','customers','subscriptions','users','bank_accounts','deliveries','document_counters','businesses','countries'] as $t) {
+foreach (['tasks','planner_dismissals','planner_sends','push_subscriptions','notifications','quotation_items','quotation_activities','quotations','order_items','orders','receipts','payments','invoice_items','invoices','debts','expenses','products','customers','subscriptions','users','bank_accounts','deliveries','document_counters','businesses','countries'] as $t) {
     $db->exec("DELETE FROM `$t`");
 }
 

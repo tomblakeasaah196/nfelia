@@ -8,7 +8,8 @@
  *   NfeliaPush.current()        the live subscription, or null
  *   NfeliaPush.enable(key)      ask, subscribe, save on the server
  *   NfeliaPush.disable()        unsubscribe here and on the server
- *   NfeliaPush.sync()           re-save an existing subscription (cheap)
+ *   NfeliaPush.sync(key)        re-save an existing subscription (cheap),
+ *                               or renew it if Nfelia's key has changed
  */
 (function () {
     var base = (window.Nfelia && window.Nfelia.url) || location.origin;
@@ -20,9 +21,12 @@
             credentials: 'same-origin',
             headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.Nfelia.csrf, 'X-Requested-With': 'XMLHttpRequest' },
             body: JSON.stringify(body)
+        }).catch(function () {
+            throw new Error('No connection. Check your data and try again.');
         }).then(function (r) {
-            return r.json().catch(function () { return {}; }).then(function (d) {
-                if (!r.ok || d.error) throw new Error(d.error || 'Could not reach Nfelia. Check your connection.');
+            if (r.redirected) throw new Error('You were signed out. Reload the page to sign in again.');
+            return r.json().catch(function () { return null; }).then(function (d) {
+                if (!r.ok || !d || d.error) throw new Error((d && d.error) || 'Could not reach Nfelia. Try again.');
                 return d;
             });
         });
@@ -34,6 +38,27 @@
         var out = new Uint8Array(raw.length);
         for (var i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
         return out;
+    }
+
+    function sameKey(sub, key) {
+        var have = sub.options && sub.options.applicationServerKey;
+        if (!have) return true;   // the browser does not say; assume it matches
+        var a = new Uint8Array(have), b = keyBytes(key);
+        if (a.length !== b.length) return false;
+        for (var i = 0; i < a.length; i++) { if (a[i] !== b[i]) return false; }
+        return true;
+    }
+
+    // A subscription made with Nfelia's current key: the one this phone has,
+    // or a new one when there is none or the key has changed since.
+    function subscribe(reg, key) {
+        return reg.pushManager.getSubscription().then(function (old) {
+            if (old && sameKey(old, key)) return old;
+            var drop = old ? post('push-unsubscribe', { endpoint: old.endpoint }).catch(function () {}).then(function () { return old.unsubscribe(); }) : Promise.resolve();
+            return drop.then(function () {
+                return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(key) });
+            });
+        });
     }
 
     function register() {
@@ -57,9 +82,7 @@
             }).then(function () {
                 return navigator.serviceWorker.ready;
             }).then(function (reg) {
-                return reg.pushManager.getSubscription().then(function (old) {
-                    return old || reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(publicKey) });
-                });
+                return subscribe(reg, publicKey);
             }).then(function (sub) {
                 return post('push-subscribe', sub.toJSON()).then(function () { return sub; });
             });
@@ -70,9 +93,15 @@
                 return post('push-unsubscribe', { endpoint: sub.endpoint }).finally(function () { return sub.unsubscribe(); });
             });
         },
-        sync: function () {
-            return this.current().then(function (sub) {
-                return sub ? post('push-subscribe', sub.toJSON()).then(function () { return true; }) : false;
+        sync: function (publicKey) {
+            if (!this.supported()) return Promise.resolve(false);
+            return navigator.serviceWorker.getRegistration(scope).then(function (reg) {
+                return reg ? reg.pushManager.getSubscription().then(function (sub) {
+                    if (!sub) return false;
+                    var fresh = (!publicKey || sameKey(sub, publicKey) || Notification.permission !== 'granted')
+                        ? Promise.resolve(sub) : subscribe(reg, publicKey);
+                    return fresh.then(function (s) { return post('push-subscribe', s.toJSON()); }).then(function () { return true; });
+                }) : false;
             });
         }
     };

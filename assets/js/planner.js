@@ -23,6 +23,11 @@ function planner() {
     function addDays(s, n) { return iso(ms(s) + n * DAY); }
     function between(a, b) { return Math.round((ms(b) - ms(a)) / DAY); }
     function firstName(n) { return (n || '').trim().split(/\s+/)[0] || ''; }
+    function lagosDay() {
+        try { return new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()); }
+        catch (e) { return ''; }
+    }
+    function reducedMotion() { return window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches; }
 
     var ICONS = {
         deliver: 'M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12',
@@ -44,6 +49,10 @@ function planner() {
         appUrl: BASE,
 
         busy: false,
+        seq: 0,
+        inFlight: 0,
+        nextBoard: null,
+        nextBoardSeq: 0,
         mine: false,
         showDone: false,
         quick: { title: '', when: 'today', date: addDays(D.today, 2) },
@@ -54,6 +63,7 @@ function planner() {
         err: {},
         custQuery: '',
         confirmDelete: false,
+        confirmFrom: null,
 
         plan: { template: null, steps: [] },
         job: {},
@@ -76,26 +86,40 @@ function planner() {
                 this.openPlan(p);
             } else if (p.new) {
                 this.openEditor({ kind: p.new, date: p.date || this.today, customer_id: p.customer });
+            } else if (p.reminders) {
+                this.openPanel('reminders');
             }
-            if (p.plan || p.new || p.invoice || p.customer || p.date) {
+            if (p.plan || p.new || p.invoice || p.customer || p.date || p.reminders) {
                 history.replaceState(null, '', BASE + '/tasks' + (this.tab === 'calendar' ? '?tab=calendar' : ''));
             }
             if (this.tab === 'calendar') this.loadMonth();
             this.checkPush();
             this.$watch('panel', function (v) { document.body.style.overflow = v ? 'hidden' : ''; });
             document.addEventListener('keydown', function (e) { if (e.key === 'Tab' && self.panel) self.trapFocus(e); });
+
+            // A page left open overnight starts the new day fresh, unless a
+            // sheet is open with something half typed. Compared with the
+            // device's own date at load, so a phone with a wrong clock never
+            // reloads in a loop.
+            var loadedOn = lagosDay();
+            var newDay = function () { if (loadedOn && !self.panel && lagosDay() !== loadedOn) location.reload(); };
+            document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') newDay(); });
+            setInterval(newDay, 300000);
         },
 
         /* ── Server ─────────────────────────────────── */
 
         api: function (path, body) {
-            var self = this;
+            var self = this, seq = ++this.seq;
             this.busy = true;
+            this.inFlight++;
             return fetch(BASE + '/tasks/' + path, {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.Nfelia.csrf, 'X-Requested-With': 'XMLHttpRequest' },
                 body: JSON.stringify(body || {})
+            }).catch(function () {
+                throw new Error('No connection. Check your data and try again.');
             }).then(function (r) {
                 if (r.redirected) throw new Error('You were signed out. Reload the page to sign in again.');
                 return r.json().catch(function () { return null; }).then(function (data) {
@@ -104,29 +128,47 @@ function planner() {
                         e.fields = data && data.fields;
                         throw e;
                     }
-                    if (data.board) {
-                        self.board = data.board;
-                        self.cal = {};
-                        if (self.tab === 'calendar') self.loadMonth();
-                    }
+                    if (data.board && seq > self.nextBoardSeq) { self.nextBoard = data.board; self.nextBoardSeq = seq; }
                     return data;
                 });
-            }).finally(function () { self.busy = false; });
+            }).finally(function () {
+                // Two quick ticks: show the server's list once every change in
+                // flight is answered, keeping the newest reply's list, so it
+                // never flickers back through an older one.
+                if (--self.inFlight > 0) return;
+                self.busy = false;
+                if (self.nextBoard) {
+                    self.board = self.nextBoard;
+                    self.nextBoard = null;
+                    self.refreshCalendar();
+                }
+            });
         },
 
         get: function (url) {
             return fetch(BASE + url, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .catch(function () { throw new Error('No connection. Check your data and try again.'); })
                 .then(function (r) {
                     if (r.redirected) throw new Error('You were signed out. Reload the page to sign in again.');
-                    return r.json().then(function (d) { if (!r.ok || d.error) throw new Error(d.error || 'Could not load.'); return d; });
+                    return r.json().catch(function () { return {}; }).then(function (d) {
+                        if (!r.ok || d.error) throw new Error(d.error || 'Could not load this. Try again.');
+                        return d;
+                    });
                 });
         },
 
         say: function (text, undo, error) {
-            var self = this;
             clearTimeout(this.toastTimer);
             this.toast = { show: true, text: text, undo: undo || null, error: !!error };
-            this.toastTimer = setTimeout(function () { self.toast.show = false; }, undo ? 6000 : 3500);
+            this.releaseToast(undo ? 6000 : 3500);
+        },
+
+        // While a finger or the keyboard is on the toast (its Undo), it stays.
+        holdToast: function () { clearTimeout(this.toastTimer); },
+        releaseToast: function (ms) {
+            var self = this;
+            clearTimeout(this.toastTimer);
+            this.toastTimer = setTimeout(function () { self.toast.show = false; }, ms || 3000);
         },
 
         undo: function () {
@@ -135,7 +177,21 @@ function planner() {
             if (fn) fn();
         },
 
-        fail: function (e) { this.say(e.message, null, true); },
+        fail: function (e) {
+            var fields = e.fields || {};
+            var first = Object.keys(fields).map(function (k) { return fields[k]; }).filter(Boolean)[0];
+            this.say(first || e.message, null, true);
+        },
+
+        focusFirstError: function () {
+            var self = this;
+            this.$nextTick(function () {
+                var sheet = self.$refs.sheet, el = sheet && sheet.querySelector('[aria-invalid=true]');
+                if (el && el.getAttribute('role') === 'radiogroup') el = el.querySelector('button');
+                if (!el && self.err.steps) el = document.getElementById('pl-add-step');
+                if (el) el.focus();
+            });
+        },
 
         /* ── Tabs and lists ─────────────────────────── */
 
@@ -229,6 +285,7 @@ function planner() {
 
         quickAdd: function () {
             var self = this;
+            if (this.busy) return;
             var title = this.quick.title.trim();
             if (!title) { document.getElementById('pl-quick').focus(); return this.say('Write the task first.', null, true); }
             this.api('save', { kind: 'task', title: title, date: this.quickDate() }).then(function (d) {
@@ -253,10 +310,30 @@ function planner() {
 
         closePanel: function () {
             var self = this;
+            if (!this.panel) return;
             this.panel = null;
             this.custQuery = '';
             this.confirmDelete = false;
+            this.job = {};
+            this.jobSteps = [];
             this.$nextTick(function () { if (self.lastFocus && self.lastFocus.focus) self.lastFocus.focus(); });
+        },
+
+        onEscape: function () {
+            if (this.confirmDelete) this.closeConfirm();
+            else this.closePanel();
+        },
+
+        askDelete: function () {
+            this.confirmFrom = document.activeElement;
+            this.confirmDelete = true;
+            this.$nextTick(function () { var keep = document.getElementById('pl-del-keep'); if (keep) keep.focus(); });
+        },
+
+        closeConfirm: function () {
+            var self = this;
+            this.confirmDelete = false;
+            this.$nextTick(function () { if (self.confirmFrom && self.confirmFrom.isConnected) self.confirmFrom.focus(); });
         },
 
         trapFocus: function (e) {
@@ -298,7 +375,8 @@ function planner() {
                 created_by: src.created_by || this.me.id,
                 plan: src.plan || null,
                 wa: src.wa || null,
-                wa_label: src.wa_label || null
+                wa_label: src.wa_label || null,
+                fromQuick: !!src.fromQuick
             };
             this.custQuery = '';
             this.openPanel('editor');
@@ -374,37 +452,37 @@ function planner() {
 
         save: function () {
             var self = this, f = this.form;
+            if (this.busy) return;
             this.err = {};
             this.touch('title');
             if (f.kind === 'appointment' && !f.date) this.setErr('date', 'Pick the day of the appointment.');
             if (f.end_time && f.time && f.end_time <= f.time) this.setErr('end_time', 'The end time must be after the start.');
-            if (Object.values(this.err).some(Boolean)) {
-                this.$nextTick(function () { var el = self.$refs.sheet.querySelector('[aria-invalid=true], .border-\\[\\#B42318\\]'); if (el) el.focus(); });
-                return;
-            }
+            if (Object.values(this.err).some(Boolean)) return this.focusFirstError();
             var parent = f.parent_id;
             this.api('save', {
                 id: f.id, kind: f.kind, title: f.title.trim(), date: f.date, time: f.date ? f.time : '',
                 end_time: f.end_time, customer_id: f.customer_id, assigned_to: f.assigned_to,
-                remind_before: f.remind_before, repeat: f.repeat, notes: f.notes, starred: f.starred
+                remind_before: f.remind_before, repeat: f.date ? f.repeat : '', notes: f.notes, starred: f.starred
             }).then(function (d) {
                 self.say(d.message);
+                if (f.fromQuick) self.quick.title = '';
                 if (parent && self.job.task_id === parent) { self.openPanel('job'); self.reloadJob(); }
                 else self.closePanel();
             }).catch(function (e) {
-                if (e.fields) self.err = e.fields;
+                if (e.fields) { self.err = e.fields; self.focusFirstError(); }
                 self.fail(e);
             });
         },
 
         remove: function () {
             var self = this, f = this.form;
+            if (this.busy) return;
             this.api('delete', { id: f.id }).then(function (d) {
                 self.confirmDelete = false;
                 if (f.parent_id && self.job.task_id === f.parent_id) { self.openPanel('job'); self.reloadJob(); }
                 else self.closePanel();
                 self.say(d.message);
-            }).catch(function (e) { self.confirmDelete = false; self.fail(e); });
+            }).catch(function (e) { self.closeConfirm(); self.fail(e); });
         },
 
         /* ── Job plans ──────────────────────────────── */
@@ -495,13 +573,14 @@ function planner() {
 
         savePlan: function () {
             var self = this, p = this.plan;
+            if (this.busy) return;
             this.err = {};
             if (!p.title.trim()) this.setErr('title', 'Give the job a name.');
             if (!p.finish) this.setErr('finish', 'Pick the finish date.');
             var steps = p.steps.filter(function (s) { return s.title.trim(); });
             if (!steps.length) this.setErr('steps', 'Add at least one step.');
             if (steps.some(function (s) { return !s.date; })) this.setErr('steps', 'Every step needs a date.');
-            if (Object.values(this.err).some(Boolean)) return;
+            if (Object.values(this.err).some(Boolean)) return this.focusFirstError();
             this.api('plan', {
                 template: p.template, title: p.title.trim(), finish: p.finish, customer_id: p.customer_id,
                 invoice_id: p.invoice_id, assigned_to: p.assigned_to,
@@ -509,11 +588,15 @@ function planner() {
             }).then(function (d) {
                 self.closePanel();
                 self.say(d.message);
-            }).catch(function (e) { if (e.fields) self.err = e.fields; self.fail(e); });
+            }).catch(function (e) {
+                if (e.fields) { self.err = e.fields; self.focusFirstError(); }
+                self.fail(e);
+            });
         },
 
         openJob: function (job) {
             this.job = job;
+            this.jobSteps = [];
             this.openPanel('job');
             this.reloadJob();
         },
@@ -525,6 +608,7 @@ function planner() {
             if (fresh) this.job = fresh;
             this.jobLoading = !this.jobSteps.length;
             this.get('/tasks/job/' + id).then(function (d) {
+                if (self.job.task_id !== id) return;   // another job was opened meanwhile
                 self.jobSteps = d.steps;
                 if (!fresh) {
                     var done = d.steps.filter(function (s) { return s.done; }).length;
@@ -550,11 +634,20 @@ function planner() {
             return out;
         },
 
-        loadMonth: function () {
+        // After a change: this month refreshes in place (no blank list, focus
+        // kept); other months fetch again when they are opened.
+        refreshCalendar: function () {
+            var keep = {};
+            if (this.cal[this.viewMonth]) keep[this.viewMonth] = this.cal[this.viewMonth];
+            this.cal = keep;
+            if (this.tab === 'calendar') this.loadMonth(true);
+        },
+
+        loadMonth: function (refresh) {
             var self = this, key = this.viewMonth;
-            if (this.cal[key]) return;
+            if (this.cal[key] && !refresh) return;
             var from = this.gridStart(), to = addDays(from, 41);
-            this.calLoading = true;
+            this.calLoading = !this.cal[key];
             this.get('/tasks/feed?from=' + from + '&to=' + to).then(function (d) {
                 var byDay = {};
                 d.items.forEach(function (it) { (byDay[it.date] = byDay[it.date] || []).push(it); });
@@ -590,7 +683,7 @@ function planner() {
             if (window.innerWidth < 1024) {
                 this.$nextTick(function () {
                     var h = document.querySelector('[x-text="dayHeading(selected)"]');
-                    if (h) h.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    if (h) h.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'start' });
                 });
             }
         },
@@ -675,7 +768,7 @@ function planner() {
             if (Notification.permission === 'denied') { this.pushState = 'blocked'; return; }
             NfeliaPush.current().then(function (sub) {
                 self.pushState = sub ? 'on' : 'off';
-                if (sub) NfeliaPush.sync().catch(function () {});
+                if (sub) NfeliaPush.sync(D.push.key).catch(function () {});
             }).catch(function () { self.pushState = 'off'; });
         },
 

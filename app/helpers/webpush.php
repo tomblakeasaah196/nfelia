@@ -175,7 +175,9 @@ function push_to_user(PDO $db, int $user_id, array $message, string $urgency = '
                 $db->prepare("UPDATE push_subscriptions SET failures = 0, last_sent_at = NOW() WHERE id = ?")->execute([$sub['id']]);
             } elseif ($status === 404 || $status === 410) {
                 $db->prepare("DELETE FROM push_subscriptions WHERE id = ?")->execute([$sub['id']]);
-            } else {
+            } elseif ($status !== 0) {
+                // Status 0 means the request never left this server (network,
+                // DNS), which is no fault of the phone, so it does not count.
                 $db->prepare("UPDATE push_subscriptions SET failures = failures + 1 WHERE id = ?")->execute([$sub['id']]);
                 $db->prepare("DELETE FROM push_subscriptions WHERE id = ? AND failures >= 5")->execute([$sub['id']]);
             }

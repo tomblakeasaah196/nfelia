@@ -55,7 +55,7 @@ const ok = (c, m) => { if (c) { pass++; console.log('  PASS ', m); } else { fail
   ok(q("SELECT COUNT(*) FROM tasks WHERE title='Pay shop rent' AND deleted_at IS NULL AND done_at IS NULL AND due_date = DATE_ADD(DATE_ADD(CURDATE(), INTERVAL 5 DAY), INTERVAL 1 MONTH)") === '1', 'next month created');
 
   console.log('Star');
-  await row('Clean the display shelves').locator('button[aria-label="Star as important"]').click();
+  await row('Clean the display shelves').locator('button[aria-label="Mark important"]').click();
   await waitIdle();
   ok(q("SELECT is_starred FROM tasks WHERE title='Clean the display shelves'") === '1', 'starred in DB');
 
@@ -170,6 +170,107 @@ const ok = (c, m) => { if (c) { pass++; console.log('  PASS ', m); } else { fail
   ok(q("SELECT morning_email FROM users WHERE id=1") === '0', 'morning email off saved');
   await page.locator('label:has-text("Morning plan by email") input').check();
   await page.waitForTimeout(600);
+
+  console.log('Review fixes');
+  await page.keyboard.press('Escape'); await waitIdle();
+  ok(await page.locator('[role=dialog]').isHidden(), 'Escape closes the Reminders sheet');
+  let feeds = 0;
+  const countFeed = (req) => { if (req.url().includes('/tasks/feed')) feeds++; };
+  page.on('request', countFeed);
+  await page.goto(T.BASE + '/tasks?tab=calendar', { waitUntil: 'networkidle' });
+  await page.waitForTimeout(500);
+  page.off('request', countFeed);
+  ok(feeds === 1, 'the calendar fetches its month once, so init runs once: ' + feeds);
+
+  // Calendar: a change refreshes the day list in place, never blanking it.
+  await page.locator('[role=gridcell][aria-label^="Today"]').first().click();
+  await page.waitForTimeout(300);
+  await page.evaluate(() => {
+    window.__blank = false;
+    new MutationObserver(() => { if (document.body.innerText.includes('Loading…')) window.__blank = true; })
+      .observe(document.body, { subtree: true, childList: true, characterData: true });
+  });
+  await row('Post new arrivals on Instagram').locator('button[role=checkbox]').click();
+  await toast('Done');
+  await page.waitForTimeout(1200);
+  ok(!(await page.evaluate(() => window.__blank)), 'ticking on the calendar does not blank the day list');
+
+  // Undo stays put while it has focus.
+  await page.focus('[role=status] button:has-text("Undo")');
+  await page.waitForTimeout(7000);
+  ok(await page.isVisible('[role=status] button:has-text("Undo")'), 'Undo stays while it has focus');
+  await page.click('[role=status] button:has-text("Undo")'); await waitIdle();
+  ok(q("SELECT done_at IS NULL FROM tasks WHERE title='Post new arrivals on Instagram'") === '1', 'and still works');
+
+  await page.click('button[role=tab]:has-text("Tasks")'); await waitIdle();
+
+  // A job sheet never shows, or ticks, the last job's steps.
+  await page.click('button:has-text("Order for Mrs Folake")');
+  await page.waitForSelector('[role=dialog] ol li');
+  await page.keyboard.press('Escape'); await waitIdle();
+  await page.route(/\/tasks\/job\//, async (rt) => { await new Promise((res) => setTimeout(res, 800)); rt.continue(); });
+  await page.click('button:has-text("Sewing job for Chioma")');
+  await page.waitForTimeout(150);
+  const early = await page.$$eval('[role=dialog] ol li', (els) => els.map((e) => e.textContent));
+  ok(!early.some((t) => /Confirm payment|Get the goods ready|Deliver to Mrs Folake/.test(t)), 'a new job sheet never shows the last job\'s steps');
+  ok(await page.isVisible('text=Loading steps…'), 'it says it is loading instead');
+  await page.waitForTimeout(1200);
+  const steps = await page.$$eval('[role=dialog] ol li', (els) => els.map((e) => e.textContent));
+  ok(steps.length === 5 && steps.some((t) => t.includes('Fitting with Chioma')), 'then shows its own five steps');
+  await page.unroute(/\/tasks\/job\//);
+  await page.keyboard.press('Escape'); await waitIdle();
+
+  // Delete: starts on the safe choice; Escape closes only the question.
+  await row('Ask supplier for the new HD lace price').locator('button', { hasText: 'Ask supplier for the new HD lace price' }).click();
+  await page.waitForSelector('#pl-title');
+  await page.fill('#pl-title', 'Ask supplier for the HD lace price');
+  await page.click('[role=dialog] button:has-text("Delete")');
+  await page.waitForTimeout(250);
+  ok(await page.evaluate(() => document.activeElement.id) === 'pl-del-keep', 'the delete question starts on "Keep it"');
+  await page.keyboard.press('Escape'); await page.waitForTimeout(250);
+  ok(await page.locator('[role=alertdialog]').isHidden() && await page.locator('[role=dialog]').isVisible(), 'Escape closes only the question, not the editor');
+  ok(await page.inputValue('#pl-title') === 'Ask supplier for the HD lace price', 'the edit is still there');
+  ok(await page.evaluate(() => document.activeElement.textContent.trim()) === 'Delete', 'focus is back on Delete');
+  let deletes = 0;
+  const countDelete = (req) => { if (req.url().endsWith('/tasks/delete')) deletes++; };
+  page.on('request', countDelete);
+  await page.click('[role=dialog] button:has-text("Delete")'); await page.waitForTimeout(250);
+  await page.locator('[role=alertdialog] button:has-text("Delete")').dblclick();
+  ok((await toast('Deleted')).includes('Deleted'), 'a double tap on Delete still reads "Deleted."');
+  await waitIdle();
+  page.off('request', countDelete);
+  ok(deletes === 1, 'and sends one delete: ' + deletes);
+
+  // "More details" then save: the quick box empties, so Add cannot repeat it.
+  await page.fill('#pl-quick', 'Ring the courier');
+  await page.click('button:has-text("More details")');
+  await page.waitForSelector('#pl-title');
+  ok(await page.inputValue('#pl-title') === 'Ring the courier', 'More details carries the text over');
+  await page.click('button[type=submit]:has-text("Add task")');
+  ok((await toast('Task added')).includes('Task added'), 'saved from the editor');
+  await waitIdle();
+  ok(await page.inputValue('#pl-quick') === '', 'the quick box is empty afterwards');
+  ok(q("SELECT COUNT(*) FROM tasks WHERE title='Ring the courier' AND deleted_at IS NULL") === '1', 'one task, not two');
+
+  // Repeat chosen, then the date cleared by hand: saves as a plain undated task.
+  await row('Ring the courier').locator('button', { hasText: 'Ring the courier' }).click();
+  await page.waitForSelector('#pl-title');
+  await page.click('[role=dialog] button[role=radio]:has-text("Pick a date")');
+  await page.selectOption('#pl-repeat', 'week');
+  await page.fill('[role=dialog] input[aria-label="Date"]', '');
+  await page.click('button[type=submit]:has-text("Save changes")');
+  ok((await toast('Saved')).includes('Saved'), 'clearing the date after choosing Repeat still saves');
+  await waitIdle();
+  ok(q("SELECT CONCAT(IFNULL(due_date,'-'),'|',IFNULL(repeat_every,'-')) FROM tasks WHERE title='Ring the courier'") === '-|-', 'as an undated task that does not repeat');
+
+  // A page left open overnight reloads into the new day when looked at again.
+  const lagosNow = new Date(new Date(`${today}T23:58:00+01:00`).getTime());
+  await page.clock.install({ time: lagosNow });
+  await page.goto(T.BASE + '/tasks', { waitUntil: 'networkidle' });
+  const reloaded = page.waitForEvent('load', { timeout: 5000 }).then(() => true).catch(() => false);
+  await page.clock.runFor(6 * 60 * 1000);
+  ok(await reloaded, 'past midnight, the page reloads into the new day');
+  await page.waitForLoadState('networkidle');
 
   console.log('Security');
   const r = await page.evaluate(async (b) => (await fetch(b + '/tasks/save', { method: 'POST', body: '{}', headers: { 'Content-Type': 'application/json' } })).status, T.BASE);
