@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<!--
+  Shown by sw.js when a page is opened with no connection and no copy of it
+  is kept on the phone yet. It must work with nothing from the network, so
+  everything it uses is inline or kept by the service worker.
+-->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#FFFFFF">
+    <meta name="robots" content="noindex">
+    <title>No connection | Nfelia</title>
+    <style>
+        @font-face { font-family: 'Plus Jakarta Sans'; font-weight: 200 800; font-display: swap; src: url(/assets/fonts/plus-jakarta-sans-latin.woff2) format('woff2'); }
+        @font-face { font-family: 'Bricolage Grotesque'; font-weight: 200 800; font-display: swap; src: url(/assets/fonts/bricolage-grotesque-latin.woff2) format('woff2'); }
+        :root { --ink: #1F0A14; --ink-2: #5A4650; --accent: #8B004A; --line: #EAE3E6; }
+        * { box-sizing: border-box; }
+        html, body { margin: 0; min-height: 100%; }
+        body {
+            min-height: 100vh; min-height: 100dvh;
+            display: grid; place-items: center;
+            padding: max(24px, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom));
+            font: 400 1rem/1.55 'Plus Jakarta Sans', system-ui, sans-serif; color: var(--ink);
+            background: radial-gradient(120% 70% at 85% -10%, #FBEFF4 0%, transparent 60%),
+                        radial-gradient(90% 60% at -10% 110%, #FBF5EA 0%, transparent 55%), #FFFFFF;
+        }
+        main { width: 100%; max-width: 380px; text-align: center; }
+        .icon { position: relative; width: 72px; height: 72px; margin: 0 auto 22px; }
+        .icon img { width: 72px; height: 72px; border-radius: 18px; display: block; box-shadow: 0 6px 18px rgba(110, 0, 57, .18); }
+        .icon span {
+            position: absolute; right: -8px; bottom: -8px; width: 30px; height: 30px; border-radius: 50%;
+            display: grid; place-items: center; background: #FFFFFF; color: var(--accent);
+            box-shadow: 0 0 0 1px var(--line), 0 2px 6px rgba(31, 10, 20, .12);
+        }
+        .icon svg { width: 17px; height: 17px; }
+        h1 { font: 600 1.5rem/1.2 'Bricolage Grotesque', system-ui, sans-serif; letter-spacing: -.01em; margin: 0 0 8px; }
+        p { margin: 0; color: var(--ink-2); }
+        .actions { display: grid; gap: 10px; margin-top: 28px; }
+        .btn {
+            display: flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 20px;
+            border-radius: 14px; font: 600 1rem/1 'Plus Jakarta Sans', system-ui, sans-serif;
+            text-decoration: none; border: 0; cursor: pointer;
+        }
+        .btn-primary { background: var(--accent); color: #FFFFFF; }
+        .btn-ghost { background: transparent; color: var(--accent); box-shadow: inset 0 0 0 1px var(--line); }
+        .btn:focus-visible { outline: 3px solid rgba(139, 0, 74, .35); outline-offset: 2px; }
+        small { display: block; margin-top: 18px; font-size: .8125rem; color: var(--ink-2); }
+    </style>
+</head>
+<body>
+    <main>
+        <div class="icon">
+            <img src="/android-chrome-192x192.png" alt="">
+            <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 3 18 18M8.5 16a5 5 0 0 1 7 0M12 19.5h.01M5 12.5a10 10 0 0 1 4.2-2.4M16.4 10.6a10 10 0 0 1 2.6 1.9M2 8.8a15 15 0 0 1 5.1-2.9M12.8 5.2A15 15 0 0 1 22 8.8"/></svg></span>
+        </div>
+        <h1>No connection</h1>
+        <p>This page isn’t saved on this phone yet, so it needs the internet. Pages you’ve opened before still open offline.</p>
+        <div class="actions">
+            <button type="button" class="btn btn-primary" onclick="location.reload()">Try again</button>
+            <a class="btn btn-ghost" href="/dashboard">Open Home</a>
+        </div>
+        <small>This page reloads by itself when you’re back online.</small>
+    </main>
+    <script>addEventListener('online', function () { location.reload(); });</script>
+</body>
+</html>

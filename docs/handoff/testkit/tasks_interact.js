@@ -69,7 +69,7 @@ const ok = (c, m) => { if (c) { pass++; console.log('  PASS ', m); } else { fail
   ok((await page.textContent('#pl-title-err')).includes('Write what the appointment is'), 'error says what to write');
   await page.fill('#pl-title', 'Fitting with Adaeze');
   ok(!(await page.isVisible('#pl-title-err')), 'typing clears the error');
-  await page.click('[role=dialog] button[role=radio]:has-text("Tomorrow")');
+  await page.click('[role=dialog][aria-modal=true] button[role=radio]:has-text("Tomorrow")');
   await page.fill('#pl-time', '14:00'); await page.dispatchEvent('#pl-time', 'change');
   ok(await page.inputValue('#pl-remind') === '60', 'timed appointment defaults to 1 hour before');
   await page.fill('#pl-cust', 'adae');
@@ -79,7 +79,7 @@ const ok = (c, m) => { if (c) { pass++; console.log('  PASS ', m); } else { fail
   await waitIdle();
   const ap = q("SELECT CONCAT_WS('|', kind, due_time, remind_before, remind_at, customer_id) FROM tasks WHERE title='Fitting with Adaeze'");
   ok(ap === `appointment|14:00:00|60|${q("SELECT DATE_ADD(CURDATE(), INTERVAL 1 DAY)")} 13:00:00|3`, 'stored with time, reminder at 1pm, customer: ' + ap);
-  ok(await page.locator('[role=dialog]').isHidden(), 'sheet closed after save');
+  ok(await page.locator('[role=dialog][aria-modal=true]').isHidden(), 'sheet closed after save');
 
   console.log('Edit, Escape, delete');
   await page.click('button:has-text("Clean the display shelves")');
@@ -87,14 +87,14 @@ const ok = (c, m) => { if (c) { pass++; console.log('  PASS ', m); } else { fail
   ok(await page.inputValue('#pl-title') === 'Clean the display shelves', 'editor opens with the task');
   await page.keyboard.press('Escape');
   await waitIdle();
-  ok(await page.locator('[role=dialog]').isHidden(), 'Escape closes the sheet');
+  ok(await page.locator('[role=dialog][aria-modal=true]').isHidden(), 'Escape closes the sheet');
   await page.click('button:has-text("Clean the display shelves")');
   await page.fill('#pl-title', 'Clean and dust the display shelves');
   await page.click('button[type=submit]:has-text("Save changes")');
   ok((await toast('Saved')).includes('Saved'), 'edit saved');
   await waitIdle();
   await page.click('button:has-text("Clean and dust the display shelves")');
-  await page.click('[role=dialog] button:has-text("Delete")');
+  await page.click('[role=dialog][aria-modal=true] button:has-text("Delete")');
   await page.waitForTimeout(200);
   ok(await page.isVisible('[role=alertdialog]'), 'delete asks first');
   ok((await page.textContent('#pl-del-title')).includes('Clean and dust the display shelves'), 'confirmation names the task');
@@ -121,15 +121,15 @@ const ok = (c, m) => { if (c) { pass++; console.log('  PASS ', m); } else { fail
 
   console.log('Job plan');
   await page.click('button:has-text("Plan a job")');
-  await page.click('[role=dialog] button:has-text("Sewing job")');
+  await page.click('[role=dialog][aria-modal=true] button:has-text("Sewing job")');
   await page.fill('#pl-plan-cust-q', 'chio');
   await page.click('#pl-plan-cust button:has-text("Chioma Obi")');
   ok(await page.inputValue('#pl-plan-name') === 'Sewing job for Chioma', 'name uses the customer');
   const fin = q("SELECT DATE_ADD(CURDATE(), INTERVAL 12 DAY)");
   await page.fill('#pl-plan-finish', fin); await page.dispatchEvent('#pl-plan-finish', 'change');
-  const dates = await page.$$eval('[role=dialog] ol input[type=date]', (els) => els.map((e) => e.value));
+  const dates = await page.$$eval('[role=dialog][aria-modal=true] ol input[type=date]', (els) => els.map((e) => e.value));
   ok(dates.length === 5 && dates[4] === fin && dates[0] === q("SELECT DATE_ADD(CURDATE(), INTERVAL 1 DAY)"), 'five steps counted back from the finish: ' + dates.join(','));
-  const titles = await page.$$eval('[role=dialog] ol input[type=text]', (els) => els.map((e) => e.value));
+  const titles = await page.$$eval('[role=dialog][aria-modal=true] ol input[type=text]', (els) => els.map((e) => e.value));
   ok(titles[2] === 'Fitting with Chioma' && titles[4] === 'Deliver to Chioma', 'step names use the customer');
   await page.click('button:has-text("Save job plan")');
   ok((await toast('5 steps')).includes('5 steps'), 'plan saved with 5 steps');
@@ -138,8 +138,8 @@ const ok = (c, m) => { if (c) { pass++; console.log('  PASS ', m); } else { fail
   ok(q("SELECT CONCAT(kind,'|',remind_before) FROM tasks WHERE title='Fitting with Chioma'") === 'appointment|1440', 'fitting is an appointment reminded the day before');
   ok(await page.locator('text="Sewing job for Chioma"').count() >= 1, 'job shows under Jobs in progress');
   await page.click('button:has-text("Sewing job for Chioma")');
-  await page.waitForSelector('[role=dialog] ol li');
-  await page.locator('[role=dialog] ol li').first().locator('button[role=checkbox]').click();
+  await page.waitForSelector('[role=dialog][aria-modal=true] ol li');
+  await page.locator('[role=dialog][aria-modal=true] ol li').first().locator('button[role=checkbox]').click();
   await page.waitForTimeout(1500);
   console.log('    job header:', await page.textContent('#pl-job-title + p'), '| steps done in DB:', q("SELECT COUNT(*) FROM tasks t JOIN tasks p ON p.id=t.parent_id WHERE p.title='Sewing job for Chioma' AND t.done_at IS NOT NULL"));
   ok((await page.textContent('#pl-job-title + p')).includes('1 of 5 done'), 'ticking a step updates the count');
@@ -173,7 +173,7 @@ const ok = (c, m) => { if (c) { pass++; console.log('  PASS ', m); } else { fail
 
   console.log('Review fixes');
   await page.keyboard.press('Escape'); await waitIdle();
-  ok(await page.locator('[role=dialog]').isHidden(), 'Escape closes the Reminders sheet');
+  ok(await page.locator('[role=dialog][aria-modal=true]').isHidden(), 'Escape closes the Reminders sheet');
   let feeds = 0;
   const countFeed = (req) => { if (req.url().includes('/tasks/feed')) feeds++; };
   page.on('request', countFeed);
@@ -206,16 +206,16 @@ const ok = (c, m) => { if (c) { pass++; console.log('  PASS ', m); } else { fail
 
   // A job sheet never shows, or ticks, the last job's steps.
   await page.click('button:has-text("Order for Mrs Folake")');
-  await page.waitForSelector('[role=dialog] ol li');
+  await page.waitForSelector('[role=dialog][aria-modal=true] ol li');
   await page.keyboard.press('Escape'); await waitIdle();
   await page.route(/\/tasks\/job\//, async (rt) => { await new Promise((res) => setTimeout(res, 800)); rt.continue(); });
   await page.click('button:has-text("Sewing job for Chioma")');
   await page.waitForTimeout(150);
-  const early = await page.$$eval('[role=dialog] ol li', (els) => els.map((e) => e.textContent));
+  const early = await page.$$eval('[role=dialog][aria-modal=true] ol li', (els) => els.map((e) => e.textContent));
   ok(!early.some((t) => /Confirm payment|Get the goods ready|Deliver to Mrs Folake/.test(t)), 'a new job sheet never shows the last job\'s steps');
   ok(await page.isVisible('text=Loading steps…'), 'it says it is loading instead');
   await page.waitForTimeout(1200);
-  const steps = await page.$$eval('[role=dialog] ol li', (els) => els.map((e) => e.textContent));
+  const steps = await page.$$eval('[role=dialog][aria-modal=true] ol li', (els) => els.map((e) => e.textContent));
   ok(steps.length === 5 && steps.some((t) => t.includes('Fitting with Chioma')), 'then shows its own five steps');
   await page.unroute(/\/tasks\/job\//);
   await page.keyboard.press('Escape'); await waitIdle();
@@ -224,17 +224,17 @@ const ok = (c, m) => { if (c) { pass++; console.log('  PASS ', m); } else { fail
   await row('Ask supplier for the new HD lace price').locator('button', { hasText: 'Ask supplier for the new HD lace price' }).click();
   await page.waitForSelector('#pl-title');
   await page.fill('#pl-title', 'Ask supplier for the HD lace price');
-  await page.click('[role=dialog] button:has-text("Delete")');
+  await page.click('[role=dialog][aria-modal=true] button:has-text("Delete")');
   await page.waitForTimeout(250);
   ok(await page.evaluate(() => document.activeElement.id) === 'pl-del-keep', 'the delete question starts on "Keep it"');
   await page.keyboard.press('Escape'); await page.waitForTimeout(250);
-  ok(await page.locator('[role=alertdialog]').isHidden() && await page.locator('[role=dialog]').isVisible(), 'Escape closes only the question, not the editor');
+  ok(await page.locator('[role=alertdialog]').isHidden() && await page.locator('[role=dialog][aria-modal=true]').isVisible(), 'Escape closes only the question, not the editor');
   ok(await page.inputValue('#pl-title') === 'Ask supplier for the HD lace price', 'the edit is still there');
   ok(await page.evaluate(() => document.activeElement.textContent.trim()) === 'Delete', 'focus is back on Delete');
   let deletes = 0;
   const countDelete = (req) => { if (req.url().endsWith('/tasks/delete')) deletes++; };
   page.on('request', countDelete);
-  await page.click('[role=dialog] button:has-text("Delete")'); await page.waitForTimeout(250);
+  await page.click('[role=dialog][aria-modal=true] button:has-text("Delete")'); await page.waitForTimeout(250);
   await page.locator('[role=alertdialog] button:has-text("Delete")').dblclick();
   ok((await toast('Deleted')).includes('Deleted'), 'a double tap on Delete still reads "Deleted."');
   await waitIdle();
@@ -255,9 +255,9 @@ const ok = (c, m) => { if (c) { pass++; console.log('  PASS ', m); } else { fail
   // Repeat chosen, then the date cleared by hand: saves as a plain undated task.
   await row('Ring the courier').locator('button', { hasText: 'Ring the courier' }).click();
   await page.waitForSelector('#pl-title');
-  await page.click('[role=dialog] button[role=radio]:has-text("Pick a date")');
+  await page.click('[role=dialog][aria-modal=true] button[role=radio]:has-text("Pick a date")');
   await page.selectOption('#pl-repeat', 'week');
-  await page.fill('[role=dialog] input[type=date][aria-labelledby="pl-when"]', '');
+  await page.fill('[role=dialog][aria-modal=true] input[type=date][aria-labelledby="pl-when"]', '');
   await page.click('button[type=submit]:has-text("Save changes")');
   ok((await toast('Saved')).includes('Saved'), 'clearing the date after choosing Repeat still saves');
   await waitIdle();
@@ -271,10 +271,10 @@ const ok = (c, m) => { if (c) { pass++; console.log('  PASS ', m); } else { fail
   await page.fill('#pl-time', '15:00'); await page.dispatchEvent('#pl-time', 'change');
   await page.fill('#pl-end', '14:00'); await page.dispatchEvent('#pl-end', 'change');
   await page.waitForTimeout(150);
-  ok((await page.textContent('[role=dialog]')).includes('The end time must be after the start'), 'an end time before the start is flagged at once');
+  ok((await page.textContent('[role=dialog][aria-modal=true]')).includes('The end time must be after the start'), 'an end time before the start is flagged at once');
   await page.fill('#pl-end', '16:00'); await page.dispatchEvent('#pl-end', 'change');
   await page.waitForTimeout(150);
-  ok(!(await page.textContent('[role=dialog]')).includes('The end time must be after the start'), 'and cleared when fixed');
+  ok(!(await page.textContent('[role=dialog][aria-modal=true]')).includes('The end time must be after the start'), 'and cleared when fixed');
 
   // Half-typed work survives a reload (phones drop tabs in the background).
   await page.fill('#pl-title', 'Fitting with Zainab');
@@ -285,13 +285,13 @@ const ok = (c, m) => { if (c) { pass++; console.log('  PASS ', m); } else { fail
   ok((await toast('unsaved')).includes('Your unsaved changes are back'), 'and says so');
   await page.click('[role=status] button:has-text("Discard")');
   await page.waitForTimeout(400);
-  ok(await page.locator('[role=dialog]').isHidden(), 'Discard closes it');
+  ok(await page.locator('[role=dialog][aria-modal=true]').isHidden(), 'Discard closes it');
   await page.reload({ waitUntil: 'networkidle' }); await page.waitForTimeout(400);
-  ok(await page.locator('[role=dialog]').isHidden(), 'and it stays gone after another reload');
+  ok(await page.locator('[role=dialog][aria-modal=true]').isHidden(), 'and it stays gone after another reload');
   await page.click('button:has-text("Book appointment")'); await page.waitForSelector('#pl-title');
   await page.keyboard.press('Escape'); await waitIdle();
   await page.reload({ waitUntil: 'networkidle' }); await page.waitForTimeout(400);
-  ok(await page.locator('[role=dialog]').isHidden(), 'an untouched sheet leaves no draft behind');
+  ok(await page.locator('[role=dialog][aria-modal=true]').isHidden(), 'an untouched sheet leaves no draft behind');
 
   // A page left open overnight reloads into the new day when looked at again.
   const lagosNow = new Date(new Date(`${today}T23:58:00+01:00`).getTime());

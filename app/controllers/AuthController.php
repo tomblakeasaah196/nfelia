@@ -140,6 +140,10 @@ class AuthController {
 
         // Update last login
         get_db()->prepare("UPDATE users SET last_login_at = NOW() WHERE id = ?")->execute([$user['id']]);
+
+        // The first app page after this offers to add Nfelia to the phone's
+        // home screen (views/layouts/app.php, assets/js/shell.js).
+        $_SESSION['just_signed_in'] = true;
     }
 
     /**

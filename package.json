@@ -1,0 +1,17 @@
+{
+  "name": "nfelia",
+  "private": true,
+  "description": "Front-end build for the app: Tailwind compiled ahead of time, and fonts and scripts served from Nfelia itself so the installed app opens fast and works offline.",
+  "scripts": {
+    "build": "npm run build:vendor && npm run build:css",
+    "build:vendor": "node bin/build-vendor.js",
+    "build:css": "tailwindcss -c tailwind.config.js -i assets/css/src/app.css -o assets/css/app.css --minify"
+  },
+  "devDependencies": {
+    "@fontsource-variable/bricolage-grotesque": "5.3.0",
+    "@fontsource-variable/plus-jakarta-sans": "5.3.0",
+    "alpinejs": "3.14.3",
+    "jquery": "3.7.1",
+    "tailwindcss": "3.4.17"
+  }
+}

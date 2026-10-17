@@ -92,6 +92,33 @@
         dlg.addEventListener('click', function (e) { if (e.target === dlg) dlg.close(); });
     });
 
+    // Get the app: Nfelia installs from the browser. Android offers one tap,
+    // iPhone takes three in Share, other phones use the browser menu, and a
+    // computer is pointed to the phone.
+    var getApp = document.getElementById('get-app');
+    if (getApp) {
+        var installPrompt = null;
+        var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        var isPhone = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+        var installed = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+        var showWay = function () {
+            var way = installed ? 'installed' : installPrompt ? 'prompt' : isIOS ? 'ios' : isPhone ? 'menu' : 'desktop';
+            getApp.querySelectorAll('[data-app]').forEach(function (el) { el.hidden = el.getAttribute('data-app') !== way; });
+        };
+        window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); installPrompt = e; showWay(); });
+        window.addEventListener('appinstalled', function () { installPrompt = null; installed = true; showWay(); });
+        getApp.querySelector('[data-app-install]').addEventListener('click', function () {
+            if (!installPrompt) return;
+            installPrompt.prompt();
+            installPrompt.userChoice.then(function (choice) {
+                installPrompt = null;
+                if (choice && choice.outcome === 'accepted') { installed = true; getApp.close(); }
+                showWay();
+            });
+        });
+        showWay();
+    }
+
     // Forms: check a field when the person leaves it, clear the message as
     // soon as they start fixing it, and on submit show every problem inline
     // instead of the browser's bubbles. The server still validates too.
