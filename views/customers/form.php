@@ -25,6 +25,12 @@
 
         <h2 class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest">Personal Information</h2>
         <p class="text-[10px] text-brand-plum/40 -mt-3">Phone or email is required</p>
+        <?php if (!$editing): ?>
+            <!-- Shown by assets/js/phone.js where the phone can share its contacts (Android Chrome). -->
+            <button type="button" data-pick-contact hidden class="w-full sm:w-auto inline-flex items-center justify-center gap-2 min-h-[44px] px-4 rounded-lg border border-brand-sand bg-brand-cream text-sm font-semibold text-brand-plum hover:border-brand-gold">
+                <?= nav_icon('clients') ?>Pick from phone contacts
+            </button>
+        <?php endif; ?>
 
         <!-- Full Name -->
         <div>

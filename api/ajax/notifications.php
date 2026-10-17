@@ -104,6 +104,34 @@ switch ($action) {
         break;
 
     /* ══════════════════════════════════════════
+     *  ACTION: PREFS
+     *  This person's choices of what reaches their phone and inbox
+     *  (More > Notifications). GET reads, POST saves; app/helpers/notify.php.
+     * ══════════════════════════════════════════ */
+    case 'prefs':
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $token = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+            if ($token === '' || !hash_equals($_SESSION['csrf_token'] ?? '', $token)) {
+                json_response(['error' => 'This page is out of date. Reload it and try again.'], 403);
+            }
+            $in = json_decode((string)file_get_contents('php://input'), true);
+            $in = is_array($in) ? $in : [];
+            $time = fn($v, $fallback) => preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', (string)$v) ? $v . ':00' : $fallback;
+            // Anything not sent keeps its current value.
+            $now = notify_prefs($user_id);
+            $set = [];
+            foreach (['notify_money', 'notify_reminders', 'notify_low_stock', 'quiet_hours', 'morning_email', 'reminder_email'] as $k) {
+                $set[$k] = (int)(array_key_exists($k, $in) ? !empty($in[$k]) : $now[$k]);
+            }
+            $set['quiet_from'] = $time($in['quiet_from'] ?? '', $now['quiet_from'] . ':00');
+            $set['quiet_to']   = $time($in['quiet_to'] ?? '', $now['quiet_to'] . ':00');
+            $db->prepare("UPDATE users SET " . implode(', ', array_map(fn($k) => "{$k} = ?", array_keys($set))) . " WHERE id = ? AND business_id = ?")
+               ->execute([...array_values($set), $user_id, $biz_id]);
+        }
+        json_response(['success' => true, 'prefs' => notify_prefs($user_id)]);
+        break;
+
+    /* ══════════════════════════════════════════
      *  DEFAULT: UNKNOWN ACTION
      * ══════════════════════════════════════════ */
     default:

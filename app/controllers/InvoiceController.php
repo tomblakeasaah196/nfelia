@@ -429,6 +429,18 @@ class InvoiceController {
 
             $this->db->commit();
 
+            // The owner's and admins' phones buzz (app/helpers/notify.php).
+            $stmtWho = $this->db->prepare("SELECT full_name FROM customers WHERE id = ?");
+            $stmtWho->execute([$invoice['customer_id']]);
+            $payer = trim((string)$stmtWho->fetchColumn());
+            notify_money_in(
+                $this->biz_id, (int)$user['id'],
+                notify_money_text($amount) . ' received',
+                ($payer !== '' ? $payer . ' paid ' : 'Payment on ') . $invoice['doc_number'] . '. '
+                    . ($new_balance <= 0 ? 'Fully paid.' : notify_money_text($new_balance) . ' left to pay.'),
+                'invoices/view/' . $id
+            );
+
             $result = [
                 'success'      => true,
                 'payment_id'   => $payment_id,

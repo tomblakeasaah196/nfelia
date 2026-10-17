@@ -257,6 +257,7 @@ $flash = get_flash();
                     <div class="nf-pop-h">
                         <b>Notifications</b>
                         <button type="button" x-show="count > 0" @click="markAllRead()">Mark all read</button>
+                        <a class="nf-icon-btn" href="<?= APP_URL ?>/more#notifications" aria-label="Notification settings" data-tip="Notification settings"><?= nav_icon('settings') ?></a>
                     </div>
                     <div style="overflow-y:auto;max-height:22rem" class="no-scrollbar">
                         <p x-show="loading" style="padding:20px 16px;color:var(--ink-3);font-size:.875rem">Loading…</p>
@@ -471,6 +472,7 @@ $flash = get_flash();
     <script src="<?= $asset('assets/js/shell.js') ?>" defer></script>
     <script src="<?= $asset('assets/js/passkey.js') ?>" defer></script>
     <script src="<?= $asset('assets/js/lock.js') ?>" defer></script>
+    <script src="<?= $asset('assets/js/phone.js') ?>" defer></script>
 
     <!-- Global Feedback Modal -->
     <?php

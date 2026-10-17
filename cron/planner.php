@@ -14,6 +14,11 @@
  *    late items, today's items and deliveries due in the next two days.
  *    A day with nothing in it sends nothing.
  *
+ * 3. Low stock, once a day from 09:00, for people who turned it on.
+ *
+ * The phone buzzes only for people who want it, and never in their quiet
+ * hours (app/helpers/notify.php); the bell entry is always made.
+ *
  * Every time here is Lagos time from planner_now(), the same clock remind_at
  * was worked out with when the task was saved.
  */
@@ -29,6 +34,7 @@ require_once __DIR__ . '/../app/helpers/functions.php';
 require_once __DIR__ . '/../app/helpers/mail.php';
 require_once __DIR__ . '/../app/helpers/webpush.php';
 require_once __DIR__ . '/../app/helpers/planner.php';
+require_once __DIR__ . '/../app/helpers/notify.php';
 
 $db = get_db();
 
@@ -41,7 +47,14 @@ if ((int)$db->query("SELECT GET_LOCK('nfelia_planner', 0)")->fetchColumn() !== 1
 $now   = planner_now();
 $now_s = $now->format('Y-m-d H:i:s');
 $today = $now->format('Y-m-d');
-$done  = ['reminders' => 0, 'stale' => 0, 'skipped' => 0, 'mornings' => 0, 'quiet' => 0, 'errors' => 0];
+$done  = ['reminders' => 0, 'stale' => 0, 'skipped' => 0, 'mornings' => 0, 'quiet' => 0, 'low_stock' => 0, 'hushed' => 0, 'errors' => 0];
+
+/** Whether this person's phone may buzz now for a reminder or the morning plan. */
+function planner_cron_may_buzz(array $user, DateTimeImmutable $now, array &$done): bool {
+    if ((int)($user['notify_reminders'] ?? 1) !== 1) return false;
+    if (notify_quiet($user, $now)) { $done['hushed']++; return false; }
+    return true;
+}
 
 /** A business that can use the app right now (with its subscription), or null. */
 function planner_cron_business(PDO $db, int $id, DateTimeImmutable $now): ?array {
@@ -61,7 +74,8 @@ function planner_cron_business(PDO $db, int $id, DateTimeImmutable $now): ?array
 /** An active member of the business, or null. */
 function planner_cron_user(PDO $db, int $id, int $biz_id): ?array {
     $stmt = $db->prepare("
-        SELECT id, business_id, full_name, email, role, reminder_email, morning_email
+        SELECT id, business_id, full_name, email, role, reminder_email, morning_email,
+               notify_reminders, quiet_hours, quiet_from, quiet_to
         FROM users WHERE id = ? AND business_id = ? AND is_active = 1");
     $stmt->execute([$id, $biz_id]);
     return $stmt->fetch() ?: null;
@@ -95,9 +109,11 @@ foreach ($due->fetchAll() as $row) {
         $line = implode(' · ', array_filter([$when, $it['subtitle']]));
 
         planner_notify($db, (int)$business['id'], (int)$user['id'], $it['title'], $line, 'tasks');
-        push_to_user($db, (int)$user['id'], [
-            'title' => $it['title'], 'body' => $line, 'url' => 'tasks', 'tag' => 'task-' . $it['task_id'],
-        ], 'high');
+        if (planner_cron_may_buzz($user, $now, $done)) {
+            push_to_user($db, (int)$user['id'], [
+                'title' => $it['title'], 'body' => $line, 'url' => 'tasks', 'tag' => 'task-' . $it['task_id'],
+            ], 'high');
+        }
         if ((int)$user['reminder_email'] === 1) {
             $subject = 'Reminder: ' . $it['title'];
             send_branded_mail($user['email'], $user['full_name'], $subject, 'task_reminder', [
@@ -116,7 +132,8 @@ foreach ($due->fetchAll() as $row) {
 $hour = (int)$now->format('G');
 if ($hour >= 7 && $hour < 11) {
     $people = $db->prepare("
-        SELECT id, business_id, full_name, email, role, morning_email
+        SELECT id, business_id, full_name, email, role, morning_email,
+               notify_reminders, quiet_hours, quiet_from, quiet_to
         FROM users u
         WHERE is_active = 1
           AND NOT EXISTS (SELECT 1 FROM planner_sends s WHERE s.user_id = u.id AND s.kind = 'morning' AND s.send_date = ?)
@@ -140,7 +157,9 @@ if ($hour >= 7 && $hour < 11) {
 
             $title = 'Your day: ' . $summary['count'] . ' thing' . ($summary['count'] > 1 ? 's' : '') . ' today';
             planner_notify($db, (int)$business['id'], (int)$user['id'], $title, $summary['line'], 'tasks');
-            push_to_user($db, (int)$user['id'], ['title' => $title, 'body' => $summary['line'], 'url' => 'tasks', 'tag' => 'morning']);
+            if (planner_cron_may_buzz($user, $now, $done)) {
+                push_to_user($db, (int)$user['id'], ['title' => $title, 'body' => $summary['line'], 'url' => 'tasks', 'tag' => 'morning']);
+            }
             if ((int)$user['morning_email'] === 1) {
                 send_branded_mail($user['email'], $user['full_name'], $title, 'morning_plan', [
                     'subject' => $title, 'first_name' => planner_first_name($user['full_name']),
@@ -151,6 +170,53 @@ if ($hour >= 7 && $hour < 11) {
         } catch (Throwable $e) {
             $done['errors']++;
             error_log('Nfelia planner morning plan for user ' . $user['id'] . ': ' . $e->getMessage());
+        }
+    }
+}
+
+/* ── 3. Low stock ──────────────────────────────────────────── */
+
+if ($hour >= 9 && $hour < 21) {
+    $people = $db->prepare("
+        SELECT id, business_id, quiet_hours, quiet_from, quiet_to
+        FROM users u
+        WHERE is_active = 1 AND notify_low_stock = 1
+          AND NOT EXISTS (SELECT 1 FROM planner_sends s WHERE s.user_id = u.id AND s.kind = 'low_stock' AND s.send_date = ?)
+        ORDER BY id
+        LIMIT 500");
+    $people->execute([$today]);
+    $claim = $db->prepare("INSERT IGNORE INTO planner_sends (user_id, kind, send_date) VALUES (?, 'low_stock', ?)");
+    // The three most urgent (empty shelves first), with how many in all.
+    $low = $db->prepare("
+        SELECT name, stock_qty, COUNT(*) OVER () AS n, SUM(stock_qty <= 0) OVER () AS out_n
+        FROM v_low_stock_products WHERE business_id = ?
+        ORDER BY stock_qty <= 0 DESC, units_needed DESC, name
+        LIMIT 3");
+
+    foreach ($people->fetchAll() as $user) {
+        // Quiet now: try again on a later run today, once the quiet hours end.
+        if (notify_quiet($user, $now)) { $done['hushed']++; continue; }
+        $claim->execute([$user['id'], $today]);
+        if ($claim->rowCount() !== 1) continue;
+        try {
+            $business = planner_cron_business($db, (int)$user['business_id'], $now);
+            if (!$business) { $done['skipped']++; continue; }
+            $low->execute([$business['id']]);
+            $items = $low->fetchAll();
+            if (!$items) continue;
+            $n     = (int)$items[0]['n'];
+            $out   = (int)$items[0]['out_n'];
+            $title = $n . ($n === 1 ? ' item ' : ' items ')
+                   . ($out === $n ? ($n === 1 ? 'is out of stock' : 'are out of stock')
+                   : ($out === 0 ? ($n === 1 ? 'is running low' : 'are running low') : 'need restocking'));
+            $names = array_map(fn($p) => $p['name'] . ((float)$p['stock_qty'] <= 0 ? ' (none left)' : ' (' . (float)$p['stock_qty'] . ' left)'), $items);
+            $body  = implode(', ', $names) . ($n > 3 ? ', and ' . ($n - 3) . ' more.' : '.');
+            planner_notify($db, (int)$business['id'], (int)$user['id'], $title, $body, 'products?stock=restock');
+            push_to_user($db, (int)$user['id'], ['title' => $title, 'body' => $body, 'url' => 'products?stock=restock', 'tag' => 'low-stock']);
+            $done['low_stock']++;
+        } catch (Throwable $e) {
+            $done['errors']++;
+            error_log('Nfelia low stock for user ' . $user['id'] . ': ' . $e->getMessage());
         }
     }
 }

@@ -273,6 +273,18 @@ class OrderController
                 (int) $order["id"],
             ]);
 
+            // Paid with proof: that is money in, for the bell and the owner's
+            // and admins' phones (app/helpers/notify.php).
+            if ($receipt_id) {
+                $money_title = notify_money_text((float) $order["total"]) . " received";
+                $money_line = "Shop order {$order["order_number"]} from {$order["customer_name"]}, paid and approved.";
+                $this->db->prepare("
+                    INSERT INTO notifications (business_id, user_id, type, title, message, action_url)
+                    VALUES (?, ?, 'payment_received', ?, ?, ?)
+                ")->execute([$this->biz_id, $this->get_current_user_id(), $money_title, $money_line, APP_URL . "/orders/view/" . (int) $order["id"]]);
+                notify_money_in($this->biz_id, (int) $this->get_current_user_id(), $money_title, $money_line, "orders/view/" . (int) $order["id"]);
+            }
+
             flash("success", "Order {$order["order_number"]} approved. Invoice created.");
         } catch (\Exception $e) {
             if ($this->db->inTransaction()) {

@@ -62,6 +62,9 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
 
 <!-- Share Actions Bar -->
 <div class="bg-brand-white border border-brand-sand rounded-xl p-4 mb-6 shadow-sm flex flex-wrap items-center gap-3">
+    <?php $share_pdf = ['url' => $public_url, 'name' => $receipt['doc_number'] . '.pdf', 'title' => 'Receipt ' . $receipt['doc_number'],
+                        'text' => 'Receipt ' . $receipt['doc_number'] . ' from ' . $business['name'] . ': ' . $public_url];
+          require BASE_PATH . '/views/partials/share_pdf.php'; ?>
     <button onclick="navigator.clipboard.writeText('<?= e($public_url) ?>'); this.querySelector('span').textContent = 'Copied!'; setTimeout(() => this.querySelector('span').textContent = 'Copy Link', 2000);"
             class="flex items-center gap-1.5 bg-brand-cream border border-brand-sand hover:border-brand-gold px-3 py-2 rounded-lg transition-all">
         <svg class="w-3.5 h-3.5 text-brand-plum/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
