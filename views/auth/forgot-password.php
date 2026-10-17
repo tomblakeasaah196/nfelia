@@ -4,13 +4,15 @@
  * 
  * NFELIA FIX — Now supports ALL business users (staff + admin), not just owner — 2026-06-05
  *
- * Three states:
+ * Two states:
  *   State 1: Enter business name → locate workspace
- *   State 2: Select your account from masked email list (NEW)
- *   State 3: Type full email to verify → send reset link
+ *   State 2: Select your account → the reset link is sent immediately
+ *
+ * The "type your full email to confirm" step was removed on 2026-10-17:
+ * the link only ever goes to the address already on file, so confirming
+ * it added friction without changing the outcome.
  */
 
-$masked_hint       = $_SESSION['recovery_masked_hint'] ?? null;       // State 3: single masked email
 $recovery_accounts = $_SESSION['recovery_accounts'] ?? null;          // State 2: array of masked accounts
 ?>
 <!DOCTYPE html>
@@ -76,34 +78,7 @@ $recovery_accounts = $_SESSION['recovery_accounts'] ?? null;          // State 2
             <?php endif; ?>
 
 
-            <?php if ($masked_hint): ?>
-            <!-- ═══ STATE 3: Verify full email ═══ -->
-
-                <div class="mb-6 border-b border-brand-sand pb-6">
-                    <h2 class="font-heading font-bold text-2xl text-brand-plum mb-2">Security Challenge</h2>
-                    <p class="text-xs text-brand-plum/70 font-medium">To authorize the reset, type the full email that matches this account:</p>
-                </div>
-
-                <div class="data-text font-bold text-lg text-brand-burgundy tracking-widest mb-6 p-3 border border-brand-sand bg-brand-cream text-center">
-                    <?= e($masked_hint) ?>
-                </div>
-
-                <form action="<?= APP_URL ?>/forgot-password" method="POST" class="space-y-5">
-                    <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
-                    <input type="hidden" name="verify_email" value="1">
-                    
-                    <div>
-                        <label class="block text-xs font-bold text-brand-plum uppercase tracking-widest mb-2">Full Email Address</label>
-                        <input type="email" name="email" required class="w-full px-4 py-3 bg-brand-white border border-brand-sand text-brand-plum text-sm focus:border-brand-gold focus:ring-0 outline-none transition-all rounded-none placeholder-brand-plum/30" placeholder="Type the exact match...">
-                    </div>
-
-                    <button type="submit" class="w-full bg-brand-burgundy text-brand-white text-xs font-bold py-4 uppercase tracking-widest hover:bg-brand-gold transition-colors mt-4">
-                        Verify & Transmit
-                    </button>
-                </form>
-
-
-            <?php elseif ($recovery_accounts): ?>
+            <?php if ($recovery_accounts): ?>
             <!-- ═══ STATE 2: Select your account ═══ -->
 
                 <div class="mb-6 border-b border-brand-sand pb-6">
