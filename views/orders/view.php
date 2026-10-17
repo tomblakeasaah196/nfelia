@@ -237,8 +237,12 @@ $can_advance = in_array($order['status'], ['approved', 'processing']);
         <?php if ($can_approve): ?>
         <div class="bg-brand-white border border-brand-sand rounded-xl shadow-sm p-5 space-y-3">
             <h3 class="font-heading font-bold text-sm text-brand-plum uppercase tracking-wider mb-2">Actions</h3>
-            <form method="POST" action="<?= APP_URL ?>/orders/approve/<?= $order['id'] ?>">
+            <form method="POST" action="<?= APP_URL ?>/orders/approve/<?= $order['id'] ?>" class="space-y-4">
                 <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
+                <?php
+                $df = ['mode' => '', 'date' => '', 'show' => true, 'handed' => false, 'id' => 'order'];
+                require BASE_PATH . '/views/partials/deliver_fields.php';
+                ?>
                 <button type="submit" class="w-full btn-primary text-white text-xs font-bold uppercase tracking-widest py-3 rounded-xl shadow-sm hover:shadow-md transition-all"
                         onclick="return confirm('Approve this order? This will create an invoice<?= $order['payment_proof_path'] ? ', receipt' : '' ?><?= $order['fulfillment_type'] === 'delivery' ? ', and delivery note' : '' ?>.')">
                     Approve Order

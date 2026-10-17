@@ -232,6 +232,21 @@ if (empty($items_json)) {
                 </div>
             </div>
 
+            <!-- Delivery: when the customer gets it (Tasks & Calendar) -->
+            <div class="bg-brand-white border border-brand-sand rounded-xl p-6 shadow-sm">
+                <h2 class="font-heading font-bold text-xs text-brand-plum uppercase tracking-widest mb-4">Delivery</h2>
+                <?php
+                $df = [
+                    'mode'   => $invoice['deliver_mode'] ?? '',
+                    'date'   => $invoice['deliver_by'] ?? '',
+                    'show'   => !empty($invoice['deliver_show']),
+                    'handed' => empty($invoice['delivered_at']),
+                    'id'     => 'inv',
+                ];
+                require BASE_PATH . '/views/partials/deliver_fields.php';
+                ?>
+            </div>
+
             <!-- Bank Account -->
             <?php if (!empty($banks)): ?>
             <div class="bg-brand-white border border-brand-sand rounded-xl p-6 shadow-sm">

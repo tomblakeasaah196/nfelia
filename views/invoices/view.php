@@ -161,6 +161,70 @@ if ($invoice['due_date'] && in_array($invoice['status'], ['overdue','sent','part
 </div>
 <?php endif; ?>
 
+<!-- Delivery: the promise to the customer (Tasks & Calendar) -->
+<?php if ($invoice['status'] !== 'cancelled'):
+    $today_lagos   = planner_today();
+    $is_delivered  = !empty($invoice['delivered_at']) || !empty($delivered_by_note);
+    $deliver_count = (!$is_delivered && $invoice['deliver_by']) ? planner_countdown($invoice['deliver_by'], $today_lagos, 'Deliver') : null;
+    $tone_cls = ['late' => 'bg-[#FEE4E2] text-[#B42318]', 'today' => 'bg-[#FEE4E2] text-[#B42318]', 'soon' => 'bg-[#FEF0C7] text-[#93370D]', 'later' => 'bg-brand-cream text-brand-plum/70'];
+?>
+<div class="bg-brand-white border rounded-xl p-4 mb-6 shadow-sm <?= !$invoice['deliver_mode'] && !$is_delivered ? 'border-[#F7D9A8]' : 'border-brand-sand' ?>"
+     x-data="{ editing: <?= !$invoice['deliver_mode'] && !$is_delivered ? 'true' : 'false' ?> }">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="min-w-0">
+            <?php if ($is_delivered): ?>
+                <p class="text-sm font-semibold text-[#00764A]">
+                    Delivered<?= !empty($invoice['delivered_at']) ? ' on ' . e(date('D j M', strtotime($invoice['delivered_at']))) : ' (signed delivery note)' ?>
+                </p>
+            <?php elseif ($invoice['deliver_mode']): ?>
+                <p class="text-sm font-semibold text-brand-plum">
+                    <?php $dday = planner_fmt_day($invoice['deliver_by'], $today_lagos); ?>
+                    Deliver <?= $invoice['deliver_mode'] === 'immediate' ? 'immediately' : (in_array($dday, ['Today', 'Tomorrow'], true) ? strtolower($dday) : 'by ' . e($dday)) ?>
+                    <?php if ($deliver_count && !in_array($deliver_count['label'], ['Deliver today', 'Deliver tomorrow'], true)): ?>
+                        <span class="ml-1 px-2 py-0.5 rounded-full text-xs font-semibold <?= $tone_cls[$deliver_count['tone']] ?>"><?= e($deliver_count['label']) ?></span>
+                    <?php endif; ?>
+                </p>
+                <p class="text-xs text-brand-plum/60 mt-0.5"><?= $invoice['deliver_show'] ? 'The customer sees this date on their invoice.' : 'Only you see this date.' ?></p>
+            <?php else: ?>
+                <p class="text-sm font-semibold text-brand-plum">When will <?= e(planner_first_name($customer['full_name'] ?? '') ?: 'the customer') ?> get this order?</p>
+                <p class="text-xs text-brand-plum/60 mt-0.5">Set it once and it shows on your Tasks &amp; Calendar with a countdown.</p>
+            <?php endif; ?>
+            <?php if ($job_plan): ?>
+                <a href="<?= APP_URL ?>/tasks" class="inline-block mt-1 text-xs font-semibold text-brand-burgundy underline underline-offset-2"><?= e($job_plan['title']) ?>: <?= (int)$job_plan['done'] ?> of <?= (int)$job_plan['total'] ?> steps done</a>
+            <?php endif; ?>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+            <?php if ($is_delivered && !empty($invoice['delivered_at'])): ?>
+                <form method="POST" action="<?= APP_URL ?>/invoices/mark-delivered/<?= $invoice['id'] ?>" class="inline">
+                    <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
+                    <input type="hidden" name="undo" value="1">
+                    <button class="h-11 px-3 rounded-lg border border-brand-sand text-xs font-semibold text-brand-plum/70 hover:border-brand-gold">Mark not delivered</button>
+                </form>
+            <?php elseif (!$is_delivered && $invoice['deliver_mode']): ?>
+                <form method="POST" action="<?= APP_URL ?>/invoices/mark-delivered/<?= $invoice['id'] ?>" class="inline">
+                    <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
+                    <button class="h-11 px-4 rounded-lg bg-[#00764A] text-white text-xs font-semibold hover:opacity-90">Mark delivered</button>
+                </form>
+                <button type="button" @click="editing = !editing" :aria-expanded="editing" class="h-11 px-3 rounded-lg border border-brand-sand text-xs font-semibold text-brand-plum hover:border-brand-gold">Change date</button>
+                <?php if (!$job_plan): ?>
+                    <a href="<?= APP_URL ?>/tasks?invoice=<?= $invoice['id'] ?>" class="h-11 px-3 inline-flex items-center rounded-lg border border-brand-sand text-xs font-semibold text-brand-plum hover:border-brand-gold">Plan the job</a>
+                <?php endif; ?>
+            <?php endif; ?>
+        </div>
+    </div>
+    <?php if (!$is_delivered): ?>
+    <form x-show="editing" method="POST" action="<?= APP_URL ?>/invoices/set-delivery/<?= $invoice['id'] ?>" class="mt-4 pt-4 border-t border-brand-sand space-y-3">
+        <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
+        <?php
+        $df = ['mode' => $invoice['deliver_mode'] ?? '', 'date' => $invoice['deliver_by'] ?? '', 'show' => !empty($invoice['deliver_show']), 'handed' => true, 'id' => 'inv-view', 'legend_hidden' => !$invoice['deliver_mode']];
+        require BASE_PATH . '/views/partials/deliver_fields.php';
+        ?>
+        <button class="h-11 px-5 rounded-lg btn-primary text-white text-xs font-semibold">Save delivery</button>
+    </form>
+    <?php endif; ?>
+</div>
+<?php endif; ?>
+
 <!-- Share Actions Bar -->
 <div class="bg-brand-white border border-brand-sand rounded-xl p-4 mb-6 shadow-sm flex flex-wrap items-center gap-3">
     <!-- Copy Link -->
@@ -285,6 +349,9 @@ if ($invoice['due_date'] && in_array($invoice['status'], ['overdue','sent','part
                     <div>Issued: <?= fmt_date($invoice['issue_date'], 'd M Y') ?></div>
                     <?php if ($invoice['due_date']): ?>
                         <div class="<?= $days_overdue > 0 ? 'text-red-600 font-bold' : '' ?>">Due: <?= fmt_date($invoice['due_date'], 'd M Y') ?></div>
+                    <?php endif; ?>
+                    <?php if ($delivery_line = planner_delivery_line($invoice)): ?>
+                        <div><?= e($delivery_line) ?></div>
                     <?php endif; ?>
                 </div>
             </div>

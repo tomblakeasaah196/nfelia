@@ -131,7 +131,7 @@ class OrderController
         $order = $stmt->fetch();
 
         if (!$order) {
-            flash("Order not found.", "error");
+            flash("error", "Order not found.");
             redirect("orders");
         }
 
@@ -197,8 +197,15 @@ class OrderController
         $order = $stmt->fetch();
 
         if (!$order) {
-            flash("Order not found or cannot be approved.", "error");
+            flash("error", "Order not found or cannot be approved.");
             redirect("orders");
+        }
+
+        // When the customer gets it goes on the new invoice and on Tasks & Calendar.
+        [$delivery, $delivery_error] = planner_delivery_from_post($_POST);
+        if ($delivery_error) {
+            flash("error", $delivery_error);
+            redirect("orders/view/{$id}");
         }
 
         // Get order items
@@ -225,6 +232,10 @@ class OrderController
                 $items,
                 $customer_id,
             );
+
+            $this->db
+                ->prepare("UPDATE invoices SET deliver_mode = ?, deliver_by = ?, deliver_show = ?, delivered_at = ? WHERE id = ? AND business_id = ?")
+                ->execute([$delivery["deliver_mode"], $delivery["deliver_by"], $delivery["deliver_show"], $delivery["delivered_at"], $invoice_id, $this->biz_id]);
 
             // 3. If payment proof exists, create receipt (mark invoice paid)
             $receipt_id = null;
@@ -262,16 +273,13 @@ class OrderController
                 (int) $order["id"],
             ]);
 
-            flash(
-                "Order {$order["order_number"]} approved. Invoice created.",
-                "success",
-            );
+            flash("success", "Order {$order["order_number"]} approved. Invoice created.");
         } catch (\Exception $e) {
             if ($this->db->inTransaction()) {
                 $this->db->rollBack();
             }
             error_log("Order approve error: " . $e->getMessage());
-            flash("Error approving order: " . $e->getMessage(), "error");
+            flash("error", "Error approving order: " . $e->getMessage());
         }
 
         redirect("orders/view/{$id}");
@@ -302,9 +310,9 @@ class OrderController
         ]);
 
         if ($stmt->rowCount()) {
-            flash("Order rejected.", "info");
+            flash("info", "Order rejected.");
         } else {
-            flash("Order not found or cannot be rejected.", "error");
+            flash("error", "Order not found or cannot be rejected.");
         }
         redirect("orders/view/{$id}");
     }
@@ -336,7 +344,7 @@ class OrderController
             !isset($allowed_transitions[$order["status"]]) ||
             !in_array($new_status, $allowed_transitions[$order["status"]])
         ) {
-            flash("Invalid status transition.", "error");
+            flash("error", "Invalid status transition.");
             redirect("orders/view/{$id}");
         }
 
@@ -345,7 +353,7 @@ class OrderController
                 "UPDATE orders SET status = ? WHERE id = ? AND business_id = ?",
             )
             ->execute([$new_status, (int) $id, $this->biz_id]);
-        flash("Order status updated to {$new_status}.", "success");
+        flash("success", "Order status updated to {$new_status}.");
         redirect("orders/view/{$id}");
     }
 

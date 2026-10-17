@@ -84,6 +84,10 @@ $quo_status_badge = function($s) {
         <a href="<?= APP_URL ?>/quotations/create?customer_id=<?= $customer['id'] ?>" class="flex items-center gap-1.5 bg-brand-white border border-brand-sand hover:border-brand-gold px-3 py-2 rounded-lg transition-all">
             <span class="text-[10px] font-bold text-brand-plum uppercase tracking-widest">New Quotation</span>
         </a>
+
+        <a href="<?= APP_URL ?>/tasks?new=appointment&customer=<?= $customer['id'] ?>" class="flex items-center gap-1.5 bg-brand-white border border-brand-sand hover:border-brand-gold px-3 py-2 rounded-lg transition-all">
+            <span class="text-[10px] font-bold text-brand-plum uppercase tracking-widest">New Appointment</span>
+        </a>
     </div>
 </div>
 
@@ -114,6 +118,35 @@ $quo_status_badge = function($s) {
         </div>
     <?php endif; ?>
 </div>
+
+<!-- Coming up with this customer (Tasks & Calendar) -->
+<?php if (!empty($upcoming)): ?>
+<div class="bg-brand-white border border-brand-sand rounded-xl shadow-sm mb-6 overflow-hidden">
+    <div class="flex items-center justify-between gap-3 px-5 pt-4 pb-2">
+        <h2 class="font-heading font-bold text-base text-brand-plum">Coming up with <?= e(planner_first_name($customer['full_name'])) ?></h2>
+        <a href="<?= APP_URL ?>/tasks?new=task&customer=<?= $customer['id'] ?>" class="h-11 px-2 inline-flex items-center text-sm font-semibold text-brand-burgundy">Add a task</a>
+    </div>
+    <ul class="divide-y divide-brand-sand">
+        <?php foreach (array_slice($upcoming, 0, 6) as $it): ?>
+            <li class="flex items-center justify-between gap-3 px-5 py-3">
+                <div class="min-w-0">
+                    <p class="text-sm font-semibold text-brand-plum"><?= e($it['title']) ?></p>
+                    <p class="text-xs text-brand-plum/60">
+                        <?= e(planner_fmt_day($it['date'], planner_today())) ?><?= $it['time'] ? ', ' . e(planner_fmt_time($it['time'])) : '' ?><?= $it['kind'] === 'appointment' ? ' · Appointment' : '' ?><?= $it['parent_title'] ? ' · ' . e($it['parent_title']) : '' ?>
+                        <?php if ($it['countdown']): ?><span class="ml-1 font-semibold <?= in_array($it['countdown']['tone'], ['late', 'today'], true) ? 'text-[#B42318]' : 'text-[#93370D]' ?>"><?= e($it['countdown']['label']) ?></span><?php endif; ?>
+                    </p>
+                </div>
+                <?php if ($it['wa']): ?>
+                    <a href="<?= e($it['wa']) ?>" target="_blank" rel="noopener" class="shrink-0 h-11 px-3 inline-flex items-center rounded-lg border border-brand-sand text-xs font-semibold text-[#0E7A3F] hover:border-[#0E7A3F]"><?= e($it['wa_label']) ?></a>
+                <?php endif; ?>
+            </li>
+        <?php endforeach; ?>
+    </ul>
+    <?php if (count($upcoming) > 6): ?>
+        <a href="<?= APP_URL ?>/tasks?tab=calendar" class="block px-5 py-3 text-sm font-semibold text-brand-burgundy border-t border-brand-sand">See all <?= count($upcoming) ?> on the calendar</a>
+    <?php endif; ?>
+</div>
+<?php endif; ?>
 
 <!-- Financial Summary Cards -->
 <div class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
