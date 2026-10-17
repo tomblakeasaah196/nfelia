@@ -184,7 +184,7 @@ check("Studio has no all-caps labels", "uppercase" not in studio and "text-trans
 check("nav says Shop Studio", "Shop Studio" in bisi.get("/dashboard")[2], "")
 data = json.loads(re.search(r'<script type="application/json" id="st-data">(.*?)</script>', studio, re.S).group(1))
 draft = data["settings"]
-check("Studio starts from the saved draft", draft["look"] == "atelier" and len(draft["sections"]) == 11, (draft["look"], len(draft["sections"])))
+check("Studio starts from the saved draft", draft["look"] == "atelier" and len(draft["sections"]) == 12, (draft["look"], len(draft["sections"])))
 
 s, h, prev = bisi.get("/landing-page/preview")
 check("preview draws the draft privately", s == 200 and "no-store" in h.get("cache-control", "") and "noindex" in h.get("x-robots-tag", "") and '"mode":"preview"' in prev, (s, h))
@@ -252,7 +252,7 @@ draft["colours"] = {"set": "look"}
 junk = json.loads(json.dumps(draft))
 junk["look"] = "nonsense"
 junk["font"] = "comic"
-junk["sections"].append({"type": "booking", "on": True})
+junk["sections"].append({"type": "news", "on": True})
 junk["sections"].append({"type": "<script>", "on": True})
 next(x for x in junk["sections"] if x["type"] == "hero")["headline"] = "x" * 500
 next(x for x in junk["sections"] if x["type"] == "about")["text"] = "</script><script>alert(1)</script> <b>bold</b>"
@@ -262,7 +262,7 @@ s, r = bisi.api("/landing-page/save-draft", {"settings": junk})
 st = r.get("settings", {})
 types = [x["type"] for x in st.get("sections", [])]
 check("unknown look and font fall back", st.get("look") == "atelier" and st.get("font") == "", (st.get("look"), st.get("font")))
-check("unknown and later-step sections are dropped", "booking" not in types and "<script>" not in types and len(types) == 11, types)
+check("unknown and later-step sections are dropped", "news" not in types and "<script>" not in types and len(types) == 12, types)
 check("long text is cut", len(next(x for x in st["sections"] if x["type"] == "hero")["headline"]) == 90, "")
 check("another shop's photo can't be used", next(x for x in st["sections"] if x["type"] == "hero")["image"] == "", "")
 own_ids = {int(x[0]) for x in sql("SELECT id FROM products WHERE business_id = 2")}
