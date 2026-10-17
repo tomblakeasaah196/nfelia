@@ -5,14 +5,15 @@
  *
  * Usage:
  *   /og-image.php?biz=5              → Business card style
- *   /og-image.php?biz=5&doc=CHF-QUO-001  → Quotation card style
+ *   /og-image.php?biz=5&doc=CHF-INV-001  → Invoice, receipt or quotation card
  *
  * Place this at the web root (same level as index.php).
  * Requires GD extension (standard on most PHP hosts).
  */
 
-// Bootstrap (adjust path if needed — same bootstrap as index.php)
-require_once __DIR__ . '/app/bootstrap.php';
+// Served directly as a file, not through index.php, so it loads only what it
+// uses: the database connection (config/database.php also reads .env).
+require_once __DIR__ . '/config/database.php';
 
 $biz_id     = (int)($_GET['biz'] ?? 0);
 $doc_number = trim($_GET['doc'] ?? '');
@@ -32,6 +33,29 @@ $biz = $stmt->fetch();
 if (!$biz) {
     http_response_code(404);
     exit('Business not found');
+}
+
+// ── Document card: only for a real document of this business ──
+// Anything else is ignored, so the query string can neither put its own text
+// on an image served from nfelia.com nor add a cache file per made-up number.
+$doc_card = null;
+if ($doc_number !== '') {
+    $doc_cards = [
+        'invoices'   => ['INVOICE', 'Open this link to view and pay your invoice.'],
+        'receipts'   => ['PAYMENT RECEIPT', 'Open this link to view and download your receipt.'],
+        'quotations' => ['REQUEST FOR ENGAGEMENT', 'Open this link to view and download your quotation.'],
+    ];
+    foreach ($doc_cards as $table => $card) {
+        $stmtDoc = $db->prepare("SELECT 1 FROM {$table} WHERE business_id = ? AND doc_number = ?");
+        $stmtDoc->execute([$biz_id, $doc_number]);
+        if ($stmtDoc->fetchColumn()) {
+            $doc_card = $card;
+            break;
+        }
+    }
+    if (!$doc_card) {
+        $doc_number = '';
+    }
 }
 
 // ── Cache: serve cached file if exists and < 24 hours old ──
@@ -78,6 +102,7 @@ imagefilledrectangle($img, 0, $h - 60, $w, $h, $color_primary);
 $font_bold   = null;
 $font_normal = null;
 $font_dirs = [
+    __DIR__ . '/vendor/dompdf/dompdf/lib/fonts',   // installed with dompdf on every deploy
     __DIR__ . '/assets/fonts',
     '/usr/share/fonts/truetype/dejavu',
     '/usr/share/fonts/truetype',
@@ -100,7 +125,7 @@ foreach ($font_dirs as $dir) {
     }
 }
 
-$use_ttf = $font_bold && $font_normal;
+$use_ttf = $font_bold && $font_normal && function_exists('imagettftext');
 
 if ($use_ttf) {
     // ── TTF path: beautiful text ──
@@ -125,10 +150,10 @@ if ($use_ttf) {
     imagefilledrectangle($img, 60, 240, 300, 243, $color_secondary);
 
     if ($doc_number !== '') {
-        // ── Quotation card style ──
-        imagettftext($img, 14, 0, 60, 290, $color_secondary, $font_bold, 'REQUEST FOR ENGAGEMENT');
+        // ── Document card style ──
+        imagettftext($img, 14, 0, 60, 290, $color_secondary, $font_bold, $doc_card[0]);
         imagettftext($img, 32, 0, 60, 345, $color_dark, $font_bold, $doc_number);
-        imagettftext($img, 14, 0, 60, 385, $color_primary, $font_normal, 'Open this link to view and download your quotation.');
+        imagettftext($img, 14, 0, 60, 385, $color_primary, $font_normal, $doc_card[1]);
     } else {
         // ── Business card style ──
         imagettftext($img, 14, 0, 60, 290, $color_secondary, $font_bold, 'PRODUCTS & SERVICES');
@@ -191,9 +216,9 @@ if ($use_ttf) {
     imagefilledrectangle($img, 60, 210, 300, 212, $color_secondary);
 
     if ($doc_number !== '') {
-        imagestring($img, 3, 60, 240, 'REQUEST FOR ENGAGEMENT', $color_secondary);
+        imagestring($img, 3, 60, 240, $doc_card[0], $color_secondary);
         imagestring($img, $f5, 60, 275, $doc_number, $color_dark);
-        imagestring($img, 3, 60, 310, 'Open this link to view and download your quotation.', $color_primary);
+        imagestring($img, 3, 60, 310, $doc_card[1], $color_primary);
     } else {
         imagestring($img, 3, 60, 240, 'PRODUCTS & SERVICES', $color_secondary);
         imagestring($img, 3, 60, 275, 'Browse our catalogue and request a quote.', $color_primary);
