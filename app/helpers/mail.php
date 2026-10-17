@@ -28,13 +28,15 @@ function render_email(string $template, array $vars = [], array $business = []):
     $biz_tagline = $business['tagline']       ?? 'Track everything. Carry nothing.';
     $biz_email   = $business['email']         ?? MAIL_FROM_ADDRESS;
 
-    // Embed logo as base64 for reliable email client rendering
+    // Link the logo from the site rather than embedding it: Gmail and Outlook
+    // strip base64 data: images, so an embedded logo never appeared.
     if (!empty($business['logo_path']) && file_exists(BASE_PATH . '/' . $business['logo_path'])) {
-        $ext  = strtolower(pathinfo($business['logo_path'], PATHINFO_EXTENSION));
-        $mime = in_array($ext, ['png','jpg','jpeg','webp','gif']) ? "image/{$ext}" : 'image/png';
-        $biz_logo = 'data:' . $mime . ';base64,' .
-                    base64_encode(file_get_contents(BASE_PATH . '/' . $business['logo_path']));
+        $biz_logo = APP_URL . '/' . ltrim($business['logo_path'], '/');
     }
+
+    // Nfelia's own emails (recovery, sign-in, billing) rather than a client
+    // workspace's: they carry the Nfelia mark and credit JBS Praxis.
+    $is_platform = $biz_logo === '' && in_array(strtolower($biz_name), ['nfelia', strtolower(APP_NAME)], true);
 
     // Extract vars for use in template
     extract($vars);
