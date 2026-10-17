@@ -63,6 +63,9 @@ class ProductController {
             case 'out':
                 $where[] = "p.is_service = 0 AND p.stock_qty <= 0";
                 break;
+            case 'restock':     // low or out: the low-stock alert opens this
+                $where[] = "p.is_service = 0 AND p.stock_qty <= p.low_stock_threshold";
+                break;
             case 'service':
                 $where[] = "p.is_service = 1";
                 break;

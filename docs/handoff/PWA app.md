@@ -84,9 +84,32 @@ Rules that matter:
 - Test with `docs/handoff/testkit/lock_test.js` against a copy whose `.env` has `APP_URL=http://localhost:…`
   (passkeys refuse IP addresses) and `LOCK_AFTER_SECONDS=40`. It uses Chrome's virtual authenticator.
 
-## 6. Next
+## 6. Built: notifications, PDF sharing, contacts
 
-- **C. Notifications, PDF sharing, contacts.** Notification settings (defaults above), money-in pushes,
-  Web Share for PDFs to WhatsApp, the Android contact picker on Add customer.
+| Piece | Where |
+|---|---|
+| Each person's choices: Money in, Reminders and morning plan, Low stock, Quiet hours, the two emails | columns on `users` (migration `20261017190000`); More → Notifications (`views/partials/notify_sheet.php`, `assets/js/notify.js`); saved by `api/ajax/notifications.php?action=prefs`. The bell links there (`/more#notifications`) |
+| Who buzzes, and when | `app/helpers/notify.php`: `notify_money_in()` (owner and admins, never whoever recorded it), `notify_quiet()` |
+| Money in | invoice payments (`InvoiceController::record_payment`), receipts for sales on the spot (`ReceiptController`), new shop orders (`PublicController::cart_checkout`), orders approved with proof of payment (`OrderController::approve`) |
+| Reminders, morning plan, low stock | `cron/planner.php` (low stock once a day from 9am, for people who turned it on; it opens `products?stock=restock`, low or out) |
+| Share PDF | `views/partials/share_pdf.php` on the invoice, receipt and quote pages; `assets/js/phone.js` |
+| Pick from phone contacts | `data-pick-contact` buttons on New customer and the receipt form's new client box; `assets/js/phone.js` |
+
+Rules that matter:
+
+- Every alert also lands in the bell. The choices only decide whether the phone buzzes.
+- Pushes go out after the page has answered (`after_response()`, which also releases the session), so
+  recording a payment never waits on a push service.
+- Anyone can place a shop order, so new orders buzz at most 20 times an hour per shop. The bell gets all.
+- Share PDF shows only where the browser can share files (Android Chrome and iPhone Safari do); WhatsApp,
+  Copy link and Download PDF stay for everyone. The PDF is fetched before the tap on phones, because some
+  phones only open the share sheet straight from a tap.
+- The contact picker exists on Android Chrome only. Elsewhere the button stays hidden.
+- Test with `docs/handoff/testkit/notify_test.js APPDIR OUTDIR` (67 checks). It stands in for phones with
+  `push_endpoint.php` on :8097 and decrypts every notification, runs the cron with a fake clock, and puts
+  the database and `.env` back as they were.
+
+## 7. Next
+
 - **D. The busiest screens rebuilt.** Home, a Sales hub (invoices, receipts, quotes), invoice and receipt
   pages, Clients, Stock. They still use the old page designs inside the new shell.

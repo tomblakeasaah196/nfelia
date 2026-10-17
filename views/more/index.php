@@ -30,6 +30,7 @@ $tiles = array_values(array_filter($nav_groups['Your business'] ?? [], fn($i) =>
     <?php if ($user_role === 'owner'): ?>
         <a class="nf-row" href="<?= APP_URL ?>/settings?tab=billing"><span class="nf-tile-ic"><?= nav_icon('card') ?></span>Billing<span class="end"><?= nav_icon('chevron') ?></span></a>
     <?php endif; ?>
+    <button type="button" class="nf-row" data-open="nf-notify"><span class="nf-tile-ic"><?= nav_icon('bell') ?></span>Notifications<span class="end"><?= nav_icon('chevron') ?></span></button>
     <button type="button" class="nf-row" data-open="nf-appearance"><span class="nf-tile-ic"><?= nav_icon('textsize') ?></span>Text size and background<span class="end"><?= nav_icon('chevron') ?></span></button>
     <button type="button" class="nf-row" data-open="nf-country"><span class="nf-tile-ic"><?= nav_icon('globe') ?></span>Country and currency<span class="end"><?= e($selected_country['flag_emoji'] ?? '') ?> <?= e($selected_country['currency_symbol'] ?? '') ?><?= nav_icon('chevron') ?></span></button>
     <button type="button" class="nf-row" data-install-row hidden><span class="nf-tile-ic"><?= nav_icon('phone') ?></span>Install the app<span class="end"><?= nav_icon('chevron') ?></span></button>
@@ -49,6 +50,10 @@ $tiles = array_values(array_filter($nav_groups['Your business'] ?? [], fn($i) =>
     <?php endforeach; ?>
 </div>
 <?php endforeach; ?>
+
+<?php require BASE_PATH . '/views/partials/notify_sheet.php'; ?>
+<script src="<?= APP_URL ?>/assets/js/push.js?v=<?= filemtime(BASE_PATH . '/assets/js/push.js') ?>" defer></script>
+<script src="<?= APP_URL ?>/assets/js/notify.js?v=<?= filemtime(BASE_PATH . '/assets/js/notify.js') ?>" defer></script>
 
 <dialog class="nf-sheet" id="nf-appearance" aria-labelledby="nf-appearance-h">
     <div class="nf-grab"></div>

@@ -48,6 +48,10 @@ $currency = $business['currency_symbol'] ?? '₦';
 
                 <!-- Inline New Client -->
                 <div x-show="showNewClient" x-collapse class="mt-3 p-3 bg-brand-cream rounded-lg border border-brand-sand space-y-2">
+                    <button type="button" data-pick-contact hidden data-fill-name='[x-model="newClient.name"]' data-fill-phone='[x-model="newClient.phone"]' data-fill-email='[x-model="newClient.email"]'
+                            class="flex items-center gap-1.5 text-[10px] font-bold text-blue-600 uppercase tracking-widest hover:text-blue-800 transition-colors min-h-[44px]">
+                        <?= nav_icon('clients') ?>Pick from Contacts
+                    </button>
                     <input type="text" x-model="newClient.name" placeholder="Full Name *" class="w-full px-3 py-2 text-xs font-medium bg-brand-white border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">
                     <div class="grid grid-cols-2 gap-2">
                         <input type="text" x-model="newClient.phone" placeholder="Phone" class="w-full px-3 py-2 text-xs font-medium bg-brand-white border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">

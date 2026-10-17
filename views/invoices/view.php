@@ -227,6 +227,10 @@ if ($invoice['due_date'] && in_array($invoice['status'], ['overdue','sent','part
 
 <!-- Share Actions Bar -->
 <div class="bg-brand-white border border-brand-sand rounded-xl p-4 mb-6 shadow-sm flex flex-wrap items-center gap-3">
+    <?php $share_pdf = ['url' => $public_url, 'name' => $invoice['doc_number'] . '.pdf', 'title' => 'Invoice ' . $invoice['doc_number'],
+                        'text' => 'Invoice ' . $invoice['doc_number'] . ' from ' . $business['name'] . '. View and pay here: ' . $public_url];
+          require BASE_PATH . '/views/partials/share_pdf.php'; ?>
+
     <!-- Copy Link -->
     <button onclick="navigator.clipboard.writeText('<?= e($public_url) ?>'); this.querySelector('span').textContent = 'Copied!'; setTimeout(() => this.querySelector('span').textContent = 'Copy Link', 2000);"
             class="flex items-center gap-1.5 bg-brand-cream border border-brand-sand hover:border-brand-gold px-3 py-2 rounded-lg transition-all">

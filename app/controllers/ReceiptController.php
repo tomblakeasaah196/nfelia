@@ -448,7 +448,25 @@ class ReceiptController {
                 ")->execute([$total, $customer_id]);
             }
 
+            // A sale paid on the spot is money in: the bell, and the owner's
+            // and admins' phones (app/helpers/notify.php).
+            $payer = '';
+            if ($customer_id) {
+                $stmtWho = $this->db->prepare("SELECT full_name FROM customers WHERE id = ?");
+                $stmtWho->execute([$customer_id]);
+                $payer = trim((string)$stmtWho->fetchColumn());
+            }
+            $money_title = notify_money_text((float)$total) . ' received';
+            $money_line  = 'Receipt ' . $doc_number . ($payer !== '' ? ' for ' . $payer : ', a sale on the spot') . '.';
+            $this->db->prepare("
+                INSERT INTO notifications (business_id, user_id, type, title, message, action_url)
+                VALUES (?, ?, 'payment_received', ?, ?, ?)
+            ")->execute([$this->biz_id, $user['id'], $money_title, $money_line, APP_URL . '/receipts/view/' . $receipt_id]);
+
             $this->db->commit();
+
+            notify_money_in($this->biz_id, (int)$user['id'], $money_title, $money_line, 'receipts/view/' . $receipt_id);
+
             flash('success', 'Receipt ' . $doc_number . ' created.');
             redirect('receipts/view/' . $receipt_id);
 

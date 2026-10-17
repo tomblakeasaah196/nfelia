@@ -77,6 +77,7 @@ $currency = $business['currency_symbol'] ?? '₦';
             <option value="in_stock" <?= $stock_status === 'in_stock' ? 'selected' : '' ?>>In Stock</option>
             <option value="low" <?= $stock_status === 'low' ? 'selected' : '' ?>>Low Stock</option>
             <option value="out" <?= $stock_status === 'out' ? 'selected' : '' ?>>Out of Stock</option>
+            <option value="restock" <?= $stock_status === 'restock' ? 'selected' : '' ?>>Low or Out</option>
             <option value="service" <?= $stock_status === 'service' ? 'selected' : '' ?>>Services Only</option>
         </select>
 
