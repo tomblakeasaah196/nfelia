@@ -26,7 +26,7 @@ RewriteRule ^storage/ - [F,L]
 # downloadable for three months, because the front-controller rule below
 # only rewrites paths that are NOT real files. Anything that exists on
 # disk is served raw. This is the backstop for that.
-<FilesMatch "\\.(sql|gz|tar|zip|dump|bak|log|md|ini|lock|phar|sh|yml|yaml|example)$">
+<FilesMatch "\.(sql|gz|tar|zip|dump|bak|log|md|ini|lock|phar|sh|yml|yaml|example)$">
     Require all denied
 </FilesMatch>
 
