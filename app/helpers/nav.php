@@ -43,6 +43,20 @@ function nav_icon(string $name): string
         'close'     => '<path d="M18 6 6 18M6 6l12 12"/>',
         'fingerprint' => '<path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4M14 13.12c0 2.38 0 6.38-1 8.88M17.29 21.02c.12-.6.43-2.3.5-3.02M2 12a10 10 0 0 1 18-6M2 16h.01M21.8 16c.2-2 .13-5.35 0-6M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2M8.65 22c.21-.66.45-1.32.57-2M9 6.8a6 6 0 0 1 9 5.2v2"/>',
         'textsize'  => '<path d="m2.5 18 5-12 5 12M4.6 13.5h5.8"/><path d="M14.5 18v-4a2.75 2.75 0 0 1 5.5 0v4M14.5 15.5H20"/>',
+        'search'    => '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+        'share'     => '<path d="M12 3v12M7.5 7.5 12 3l4.5 4.5M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/>',
+        'whatsapp'  => '<path d="M3.6 20.4 4.9 16.2a8.5 8.5 0 1 1 3.1 3Z"/><path d="M9 8.7c.2 3.2 3 5.9 6.3 6.3l1.2-1.5-2.1-1-.9.8a4.6 4.6 0 0 1-2.8-2.8l.8-.9-1-2.1Z"/>',
+        'copy'      => '<rect x="8.5" y="8.5" width="12" height="12" rx="2"/><path d="M15.5 8.5V5A1.5 1.5 0 0 0 14 3.5H5A1.5 1.5 0 0 0 3.5 5v9A1.5 1.5 0 0 0 5 15.5h3.5"/>',
+        'download'  => '<path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19.5h14"/>',
+        'edit'      => '<path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17Z"/><path d="m14.5 7.5 3 3"/>',
+        'dots'      => '<circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/>',
+        'open'      => '<path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',
+        'send'      => '<path d="M21 3 10 14M21 3l-7 18-4-7-7-4Z"/>',
+        'cancel'    => '<circle cx="12" cy="12" r="9"/><path d="m5.6 5.6 12.8 12.8"/>',
+        'alert'     => '<path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/>',
+        'clock'     => '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+        'check'     => '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
+        'receipt'   => '<path d="M6 2.5h12v19l-3-2-3 2-3-2-3 2Z"/><path d="M9 8.5h6M9 12h6"/>',
     ];
     return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">'
         . ($paths[$name] ?? '') . '</svg>';

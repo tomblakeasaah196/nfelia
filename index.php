@@ -26,6 +26,7 @@ require_once __DIR__ . '/app/helpers/nav.php';
 require_once __DIR__ . '/app/helpers/signin.php';
 require_once __DIR__ . '/app/helpers/passkeys.php';
 require_once __DIR__ . '/app/helpers/notify.php';
+require_once __DIR__ . '/app/helpers/screens.php';
  
 // Start session
 session_start();

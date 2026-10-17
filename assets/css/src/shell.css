@@ -138,8 +138,8 @@ h1, h2, h3, .font-heading { font-family: var(--font-heading); }
   padding: 0 max(4px, env(safe-area-inset-right, 0px)) 0 max(4px, env(safe-area-inset-left, 0px)); }
 .nf-tab { height: var(--tab-h); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: var(--ink-3); font: 600 12px/1 var(--font-body); text-decoration: none; background: none; border: 0; width: 100%; cursor: pointer; }
 .nf-tab svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.nf-tab[aria-current="page"] { color: var(--accent-text); }
-.nf-tab[aria-current="page"] svg { stroke-width: 2.1; }
+.nf-tab[aria-current] { color: var(--accent-text); }
+.nf-tab[aria-current] svg { stroke-width: 2.1; }
 .nf-tab-create { justify-self: center; width: 54px; height: 44px; border-radius: 16px; border: 0; cursor: pointer; display: grid; place-items: center;
   background: var(--accent); color: var(--on-accent); box-shadow: 0 6px 16px rgb(var(--accent-rgb) / .3); }
 .nf-tab-create svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; }

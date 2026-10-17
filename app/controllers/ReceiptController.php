@@ -44,6 +44,8 @@ class ReceiptController {
             $where[] = "r.invoice_id IS NOT NULL";
         } elseif ($type === 'standalone') {
             $where[] = "r.invoice_id IS NULL";
+        } else {
+            $type = '';
         }
 
         $where_sql = implode(' AND ', $where);
@@ -81,10 +83,13 @@ class ReceiptController {
                 COALESCE(SUM(amount), 0)                      AS total_value,
                 SUM(CASE WHEN invoice_id IS NOT NULL THEN 1 ELSE 0 END) AS invoice_count,
                 SUM(CASE WHEN invoice_id IS NULL THEN 1 ELSE 0 END)     AS standalone_count,
-                COALESCE(SUM(CASE WHEN invoice_id IS NULL THEN amount ELSE 0 END), 0) AS standalone_value
+                COALESCE(SUM(CASE WHEN invoice_id IS NULL THEN amount ELSE 0 END), 0) AS standalone_value,
+                COALESCE(SUM(CASE WHEN issue_date >= ? THEN amount ELSE 0 END), 0)     AS month_value,
+                SUM(CASE WHEN issue_date >= ? THEN 1 ELSE 0 END)                       AS month_count
             FROM receipts WHERE business_id = ?
         ");
-        $stmtS->execute([$this->biz_id]);
+        $month_start = substr(planner_today(), 0, 8) . '01';
+        $stmtS->execute([$month_start, $month_start, $this->biz_id]);
         $summary = $stmtS->fetch();
 
         $title     = "Receipts";
