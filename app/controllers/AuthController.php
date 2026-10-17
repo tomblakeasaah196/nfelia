@@ -143,7 +143,11 @@ class AuthController {
      */
     public function register() {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            redirect('login');
+            if (is_logged_in()) {
+                redirect('dashboard');
+            }
+            require_once BASE_PATH . '/views/auth/register.php';
+            return;
         }
 
         // CSRF Check using helper
@@ -157,17 +161,17 @@ class AuthController {
 
         if (empty($biz_name) || empty($full_name) || empty($email) || strlen($password) < 8) {
             flash('error', 'All fields are required. Password must be 8+ characters.');
-            redirect('login');
+            $this->back_to_register();
         }
 
         if ($password !== $password_confirm) {
             flash('error', 'Passwords do not match. Please re-enter.');
-            redirect('login');
+            $this->back_to_register();
         }
 
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             flash('error', 'Please provide a valid email address.');
-            redirect('login');
+            $this->back_to_register();
         }
 
         $db = get_db();
@@ -176,8 +180,8 @@ class AuthController {
         $check = $db->prepare("SELECT id FROM users WHERE email = ?");
         $check->execute([$email]);
         if ($check->fetch()) {
-            flash('error', 'This email is already registered with a workspace.');
-            redirect('login');
+            flash('error', 'This email already has an account. Sign in instead, or use another email.');
+            $this->back_to_register();
         }
 
         try {
@@ -305,9 +309,23 @@ class AuthController {
             $db->rollBack();
             
             error_log("Registration Failed: " . $e->getMessage());
-            flash('error', 'System error during deployment. Please contact support.');
-            redirect('login');
+            flash('error', 'Your account could not be created. Please try again, or message us on WhatsApp.');
+            $this->back_to_register();
         }
+    }
+
+    /**
+     * Return to the sign-up page with what the person typed (never the
+     * passwords), so a mistake does not mean filling the form again.
+     */
+    private function back_to_register(): never {
+        $_SESSION['register_old'] = [
+            'full_name'     => trim($_POST['full_name'] ?? ''),
+            'business_name' => trim($_POST['business_name'] ?? ''),
+            'email'         => trim($_POST['email'] ?? ''),
+            'ref_code'      => trim($_POST['ref_code'] ?? ''),
+        ];
+        redirect('register');
     }
     
     /**
@@ -509,7 +527,7 @@ class AuthController {
      */
     public function public_feedback() {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            redirect('login');
+            redirect('');
         }
 
         // CSRF Check using helper
@@ -523,8 +541,8 @@ class AuthController {
 
         // Basic Validation
         if (empty($enterprise) || empty($message)) {
-            flash('error', 'Structural Error: Enterprise name and message are required.');
-            redirect('login');
+            flash('error', 'Please add your business name and a message.');
+            redirect('');
         }
 
         $db = get_db();
@@ -555,8 +573,8 @@ class AuthController {
             $db->commit();
             
             // Feedback to the User
-            flash('success', 'Transmission Received. The Director has been alerted to your request.');
-            redirect('login');
+            flash('success', 'Thank you. We got your message and will reply soon.');
+            redirect('');
             
         } catch (Exception $e) {
             // Roll back if anything fails
@@ -565,8 +583,8 @@ class AuthController {
             }
             
             error_log("General Feedback Error: " . $e->getMessage());
-            flash('error', 'System failure during transmission. Please use direct support.');
-            redirect('login');
+            flash('error', 'Your message did not send. Please try again, or message us on WhatsApp.');
+            redirect('');
         }
     }
 
