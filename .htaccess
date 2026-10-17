@@ -21,6 +21,15 @@ RewriteRule ^app/ - [F,L]
 RewriteRule ^views/ - [F,L]
 RewriteRule ^storage/ - [F,L]
 
+# --- Block file types that must never be served, whatever their name ---
+# A 2026-07 database dump sat at the docroot root and was publicly
+# downloadable for three months, because the front-controller rule below
+# only rewrites paths that are NOT real files. Anything that exists on
+# disk is served raw. This is the backstop for that.
+<FilesMatch "\\.(sql|gz|tar|zip|dump|bak|log|md|ini|lock|phar|sh|yml|yaml|example)$">
+    Require all denied
+</FilesMatch>
+
 # --- Block access to .env and hidden files ---
 <FilesMatch "^\.">
     Order allow,deny
