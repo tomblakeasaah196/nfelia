@@ -142,7 +142,7 @@ s, h, setup_html = bisi.req("GET", "/shop-setup")
 check("setup screen renders", s == 200 and "Set up your shop" in setup_html, (s, setup_html[:300]))
 check("setup preselects Atelier for fashion", re.search(r'value="atelier"[^>]*checked', setup_html), "")
 check("setup offers suggestions", "bisiindigofashion" in setup_html, "")
-check("setup shows ten looks", setup_html.count('name="look"') == 10, setup_html.count('name="look"'))
+check("setup shows ten looks", setup_html.count('type="radio" name="look"') == 10, setup_html.count('type="radio" name="look"'))
 view_part = setup_html.split('max-w-3xl mx-auto')[1].split('shop-link.js')[0]
 check("setup has no all-caps labels", "uppercase" not in view_part, "")
 
@@ -199,7 +199,8 @@ check("og:url is the shop link", re.search(r'og:url" content="http://bisi-indigo
 check("owner text can't end a script block", "</script><script>alert(1)" not in page, "")
 check("JSON-LD priceCurrency NGN", '"priceCurrency":"NGN"' in page, re.findall(r'priceCurrency[^,]*', page)[:2])
 check("WhatsApp number normalised to 234", "wa.me/2348031234567" in page, re.findall(r"wa\.me/\d+", page)[:3])
-check("checkout posts to the shop's own address", "fetch('/checkout'" in page and "fetch('/quote-request'" in page, "")
+# Step 2 moved the shop's script into assets/js/storefront.js; the page tells it where to post.
+check("checkout posts to the shop's own address", re.search(r'"checkout":"\\?/checkout"', page) and re.search(r'"quote":"\\?/quote-request"', page), re.findall(r'"urls":\{[^}]*\}', page))
 check("no Tailwind tag with a broken src", 'cdn.tailwindcss.com>' not in page, "")
 s, h, t = shop("BISI-INDIGO").req("GET", "/")
 check("host is case-insensitive", s == 200, s)
@@ -333,11 +334,12 @@ s, h, t = bisi.req("POST", "/shop-setup/rename", {"csrf_token": token, "shop_nam
 row = sql("SELECT subdomain, subdomain_renames FROM businesses WHERE id = 2")[0]
 check("rename moves the link", row == ["bisi-adire", "1"], row)
 s, h, t = shop("bisi-indigo").req("GET", "/")
-check("old name stops working at once", s == 404, s)
+# Step 2: a renamed shop's old name is held for 90 days and sends people to the new link.
+check("old name sends people to the new link", s in (301, 302) and "bisi-adire" in h.get("location", ""), (s, h.get("location")))
 s, h, t = shop("bisi-adire").req("GET", "/")
 check("new name works", s == 200, s)
 r = name_check(kemi, "bisi-indigo")
-check("old name is free for others", r.get("state") == "ok", r)
+check("old name is held from other shops", r.get("state") == "taken", r)
 s, h, t = bisi.req("POST", "/shop-setup/rename", {"csrf_token": token, "shop_name": "bisi-again"})
 check("second rename is refused", sql("SELECT subdomain FROM businesses WHERE id = 2")[0][0] == "bisi-adire", "")
 s, h, lp = bisi.req("GET", "/landing-page")
