@@ -4,7 +4,7 @@
  * Restricted to business_id = 1 (founder account).
  * Route prefix: /admin/*
  *
- * Tabs: Dashboard, Businesses, Feedback, Referrals, Support, Financials
+ * Tabs: Dashboard, Businesses, Feedback, Referrals, Support, Shop names, Financials
  */
 class AdminController {
 
@@ -448,6 +448,102 @@ class AdminController {
 
         flash('success', 'Reply sent.'); // NFELIA AUDIT FIX L04 2026-06-03
         redirect('admin/support');
+    }
+
+    /* ══════════════════════════════════════════
+     *  SHOP NAMES — names waiting for approval
+     *  Names that look like a bank, telco, government body or an official
+     *  account wait here (see shop_name_needs_review in shop_links.php).
+     * ══════════════════════════════════════════ */
+    public function shop_names() {
+        $stmt = $this->db->query("
+            SELECT b.id, b.name, b.category, b.email, b.phone, b.created_at,
+                   b.subdomain, b.subdomain_requested, b.subdomain_requested_at
+            FROM businesses b
+            WHERE b.subdomain_status = 'pending' AND b.subdomain_requested IS NOT NULL
+            ORDER BY b.subdomain_requested_at ASC
+        ");
+        $pending_names = $stmt->fetchAll();
+
+        $tab       = 'shop_names';
+        $title     = 'Admin — Shop names';
+        $view_file = BASE_PATH . '/views/admin/index.php';
+        require_once BASE_PATH . '/views/layouts/app.php';
+    }
+
+    /* ══════════════════════════════════════════
+     *  APPROVE OR TURN DOWN A SHOP NAME — POST
+     * ══════════════════════════════════════════ */
+    public function review_shop_name() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { redirect('admin/shop-names'); }
+        csrf_verify();
+
+        $biz_id   = (int)($_POST['business_id'] ?? 0);
+        $name     = (string)($_POST['name'] ?? '');
+        $decision = $_POST['decision'] ?? '';
+
+        $stmt = $this->db->prepare("SELECT id, name, subdomain, subdomain_requested, subdomain_status FROM businesses WHERE id = ?");
+        $stmt->execute([$biz_id]);
+        $biz = $stmt->fetch();
+
+        // The owner may have picked another name since this page loaded
+        if (!$biz || $biz['subdomain_status'] !== 'pending' || $biz['subdomain_requested'] !== $name
+            || !in_array($decision, ['approve', 'reject'], true)) {
+            flash('warning', 'That request changed since the page loaded. This is the current list.');
+            redirect('admin/shop-names');
+        }
+
+        $host      = $name . '.' . shop_base_host();
+        $is_rename = $biz['subdomain'] !== null;
+
+        if ($decision === 'reject') {
+            // A shop with a live link keeps it; one without goes back to setup
+            $this->db->prepare("
+                UPDATE businesses
+                SET subdomain_requested = NULL, subdomain_status = ?, subdomain_requested_at = NULL,
+                    subdomain_reviewed_at = NOW(), subdomain_reviewed_by = ?
+                WHERE id = ? AND subdomain_status = 'pending' AND subdomain_requested = ?
+            ")->execute([$is_rename ? 'active' : 'rejected', auth_user()['id'], $biz_id, $name]);
+
+            if ($is_rename) {
+                shop_notify($biz_id, 'Your shop link stays the same', "We couldn't approve {$host}. Your shop keeps its current link.", 'landing-page');
+            } else {
+                shop_notify($biz_id, 'Please choose another shop name', "We couldn't approve {$host}. Choose another name to open your shop.", 'shop-setup');
+            }
+
+            flash('success', $host . ' was turned down. ' . $biz['name'] . ' has been told.');
+            redirect('admin/shop-names');
+        }
+
+        // The rules may have changed since the request, so check once more
+        $check = shop_name_check($name, $biz_id);
+        if (!in_array($check['state'], ['ok', 'review'], true)) {
+            flash('error', $host . ' can\'t be used: ' . $check['message']);
+            redirect('admin/shop-names');
+        }
+
+        try {
+            $this->db->prepare("
+                UPDATE businesses
+                SET subdomain = ?, subdomain_renames = subdomain_renames + ?,
+                    subdomain_requested = NULL, subdomain_status = 'active', subdomain_requested_at = NULL,
+                    subdomain_reviewed_at = NOW(), subdomain_reviewed_by = ?
+                WHERE id = ? AND subdomain_status = 'pending' AND subdomain_requested = ?
+            ")->execute([$name, $is_rename ? 1 : 0, auth_user()['id'], $biz_id, $name]);
+        } catch (PDOException $e) {
+            if ($e->getCode() !== '23000') { throw $e; }
+            flash('error', 'Another shop already has ' . $host . '.');
+            redirect('admin/shop-names');
+        }
+
+        if ($is_rename) {
+            shop_notify($biz_id, 'Your new shop link is live', "{$host} is approved. Your old link has stopped working, so update it anywhere you've shared it.", 'landing-page');
+        } else {
+            shop_notify($biz_id, 'Your shop link is live', "{$host} is approved. Share it with your customers.", 'landing-page');
+        }
+
+        flash('success', $host . ' is live for ' . $biz['name'] . '.');
+        redirect('admin/shop-names');
     }
 
     /* ── Internal helpers ─────────────────────── */

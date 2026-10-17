@@ -9,6 +9,7 @@ $tabs = [
     'feedback'   => ['label' => 'Feedback',   'url' => APP_URL . '/admin/feedback'],
     'referrals'  => ['label' => 'Referrals',  'url' => APP_URL . '/admin/referrals'],
     'support'    => ['label' => 'Support',    'url' => APP_URL . '/admin/support'],
+    'shop_names' => ['label' => 'Shop names', 'url' => APP_URL . '/admin/shop-names'],
     'financials' => ['label' => 'Financials', 'url' => APP_URL . '/admin/financials'],
 ];
 ?>
@@ -437,6 +438,62 @@ $tabs = [
         <?php endforeach; ?>
         <?php if (empty($support_tickets)): ?>
         <div class="text-center py-12 text-gray-400"><p>No support tickets yet.</p></div>
+        <?php endif; ?>
+    </div>
+
+    <?php endif; ?>
+
+
+    <!-- ═══════════════════════════════════════
+         SHOP NAMES TAB
+         ═══════════════════════════════════════ -->
+    <?php if ($tab === 'shop_names'): ?>
+
+    <div class="bg-white rounded-xl border p-5">
+        <h2 class="font-semibold text-brand-plum">Shop names to review</h2>
+        <p class="text-sm text-gray-500 mt-1">
+            These names look like a bank, telco, government body or an official account. Approve the ones that are
+            a real shop's own name. Until you decide, a new shop has no link and a renamed shop keeps its current one.
+        </p>
+    </div>
+
+    <div class="space-y-4">
+        <?php foreach ($pending_names as $shop_req):
+            $req_host = $shop_req['subdomain_requested'] . '.' . shop_base_host();
+        ?>
+        <div class="bg-white rounded-xl border p-5">
+            <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                <div class="min-w-0">
+                    <p class="font-semibold text-base text-gray-900 break-all"><?= e($req_host) ?></p>
+                    <p class="text-sm text-gray-600 mt-1"><?= e($shop_req['name']) ?> · <?= e(ucfirst(str_replace('_', ' ', $shop_req['category']))) ?></p>
+                    <p class="text-sm text-gray-500 mt-1">
+                        <?= $shop_req['subdomain'] ? 'Rename from ' . e($shop_req['subdomain'] . '.' . shop_base_host()) : 'First link' ?>
+                        · asked <?= e(date('M j, Y g:ia', strtotime((string)$shop_req['subdomain_requested_at']))) ?>
+                    </p>
+                    <p class="text-sm text-gray-500 mt-1 break-all"><?= e($shop_req['email']) ?><?= $shop_req['phone'] ? ' · ' . e($shop_req['phone']) : '' ?></p>
+                </div>
+                <div class="flex gap-2 shrink-0">
+                    <form method="POST" action="<?= APP_URL ?>/admin/review-shop-name">
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="business_id" value="<?= (int)$shop_req['id'] ?>">
+                        <input type="hidden" name="name" value="<?= e($shop_req['subdomain_requested']) ?>">
+                        <input type="hidden" name="decision" value="approve">
+                        <button type="submit" class="h-11 px-4 bg-green-700 text-white text-sm font-semibold rounded-lg hover:opacity-90">Approve</button>
+                    </form>
+                    <form method="POST" action="<?= APP_URL ?>/admin/review-shop-name"
+                          onsubmit="return confirm(<?= e(json_encode('Turn down ' . $req_host . '? ' . $shop_req['name'] . ($shop_req['subdomain'] ? ' keeps its current link.' : ' will be asked to choose another name.'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP)) ?>)">
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="business_id" value="<?= (int)$shop_req['id'] ?>">
+                        <input type="hidden" name="name" value="<?= e($shop_req['subdomain_requested']) ?>">
+                        <input type="hidden" name="decision" value="reject">
+                        <button type="submit" class="h-11 px-4 bg-white border border-red-200 text-red-700 text-sm font-semibold rounded-lg hover:bg-red-50">Turn down</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <?php endforeach; ?>
+        <?php if (empty($pending_names)): ?>
+        <div class="text-center py-12 text-gray-400"><p>No shop names waiting for review.</p></div>
         <?php endif; ?>
     </div>
 
