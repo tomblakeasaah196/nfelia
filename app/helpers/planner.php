@@ -171,7 +171,7 @@ function planner_item(array $f): array {
         'tick' => null, 'calendar' => true, 'notes' => '', 'repeat' => null,
         'remind_before' => null, 'parent_id' => null, 'parent_title' => null,
         'steps' => null, 'invoice_id' => null, 'created_by' => null, 'plan' => null,
-        'pressure' => false,
+        'pressure' => false, 'amount' => null,
     ];
 }
 
@@ -464,7 +464,7 @@ function planner_auto_items(PDO $db, int $biz_id, ?string $from, string $to, arr
                 'date' => $r['due_date'],
                 'customer' => $r['cid'] ? ['id' => (int)$r['cid'], 'name' => $r['full_name']] : null,
                 'countdown' => $r['due_date'] <= $today ? planner_countdown($r['due_date'], $today) : null,
-                'url' => 'invoices/view/' . $r['id'], 'invoice_id' => (int)$r['id'],
+                'url' => 'invoices/view/' . $r['id'], 'invoice_id' => (int)$r['id'], 'amount' => (float)$r['balance_due'],
                 'wa' => planner_wa_link($r['phone'],
                     "Hello {$first}, a gentle reminder from {$business['name']}: {$bal} is due on invoice {$r['doc_number']}"
                     . ($r['due_date'] < $today ? ' (it was due ' . planner_fmt_day_inline($r['due_date'], $today) . ')' : '')
@@ -502,7 +502,7 @@ function planner_auto_items(PDO $db, int $biz_id, ?string $from, string $to, arr
                 'date' => $r['due_date'],
                 'customer' => $r['customer_id'] ? ['id' => (int)$r['customer_id'], 'name' => $party] : null,
                 'countdown' => $r['due_date'] <= $today ? planner_countdown($r['due_date'], $today) : null,
-                'url' => 'debts/view/' . $r['id'],
+                'url' => 'debts/view/' . $r['id'], 'amount' => (float)$r['balance'],
                 'wa' => $in && $r['phone'] ? planner_wa_link($r['phone'], "Hello {$first}, a gentle reminder from {$business['name']} about the balance of {$bal}"
                     . ($r['description'] ? ' for ' . $r['description'] : '') . '. Kindly let me know when you send it. Thank you!') : null,
                 'wa_label' => $in && $r['phone'] ? 'Remind ' . $first : null,
@@ -744,13 +744,20 @@ function planner_delivery_line(array $invoice): string {
 
 /* ── One person's day (morning plan, dashboard) ────────────── */
 
-/** Today's plan for one person: late items, today's items, deliveries due soon. */
+/**
+ * Today's plan for one person: late items, today's items, and deliveries due
+ * in the next two days, so a promise is nudged two days before, on the day
+ * and every morning it is late.
+ */
 function planner_day_for_user(PDO $db, array $user, array $business, string $today): array {
     $manager = planner_is_manager($user);
     $tasks = planner_fetch_tasks($db, (int)$business['id'], [
-        'from' => $today, 'to' => $today, 'late' => true,
+        'from' => $today, 'to' => planner_add_days($today, 2), 'late' => true,
         'for_user' => [(int)$user['id'], $manager],
     ]);
+    // After today, only the delivery steps of job plans: the plan's other
+    // steps wait for their own morning.
+    $tasks = array_filter($tasks, fn($t) => $t['due_date'] <= $today || $t['step_key'] === 'deliver');
     $items = array_map(fn($t) => planner_task_item($t, $today, $business), $tasks);
     if ($manager) {
         $items = array_merge($items, planner_auto_items($db, (int)$business['id'], null, planner_add_days($today, 2), $business, ['money' => true, 'undated' => true]));
@@ -760,10 +767,82 @@ function planner_day_for_user(PDO $db, array $user, array $business, string $tod
         if ($it['done'] || !$it['date']) continue;
         if ($it['date'] < $today) $late[] = $it;
         elseif ($it['date'] === $today) $now[] = $it;
-        elseif ($it['source'] === 'deliver') $soon[] = $it;
+        elseif ($it['pressure']) $soon[] = $it;
     }
     $s = planner_sections(array_merge($late, $now), $today);
+    usort($soon, fn($a, $b) => [$a['date'], mb_strtolower($a['title'])] <=> [$b['date'], mb_strtolower($b['title'])]);
     return ['late' => $s['late'], 'today' => $s['today'], 'soon' => $soon];
+}
+
+/**
+ * The morning plan in one line, for the bell, the phone and the email:
+ * "Today: 3 tasks (1 late), 1 delivery, ₦45,000 due". Money is what
+ * customers owe today or already owe, never what the business owes.
+ */
+function planner_day_summary(array $day, string $symbol): array {
+    $tasks = $late = $deliveries = 0;
+    $money = 0.0;
+    foreach (['late', 'today', 'soon'] as $section) {
+        foreach ($day[$section] as $it) {
+            if ($it['pressure']) { $deliveries++; continue; }
+            if (in_array($it['source'], ['invoice_due', 'debt_in'], true)) { $money += (float)$it['amount']; continue; }
+            $tasks++;
+            if ($section === 'late') $late++;
+        }
+    }
+    $parts = [];
+    if ($tasks) $parts[] = $tasks . ' task' . ($tasks > 1 ? 's' : '') . ($late ? " ({$late} late)" : '');
+    if ($deliveries) $parts[] = $deliveries . ' ' . ($deliveries > 1 ? 'deliveries' : 'delivery');
+    if ($money > 0) $parts[] = planner_money($money, $symbol) . ' due';
+    $count = count($day['late']) + count($day['today']) + count($day['soon']);
+    return ['count' => $count, 'line' => $parts ? 'Today: ' . implode(', ', $parts) : ''];
+}
+
+/** When a reminder is for, in a few words: "Today at 2:00pm", "Due tomorrow", "2 days late". */
+function planner_reminder_when(array $it, string $today): string {
+    if (!$it['date']) return '';
+    if ($it['date'] < $today) return planner_countdown($it['date'], $today)['label'];
+    $day = planner_fmt_day($it['date'], $today);
+    if ($it['time'] && $it['end_time']) return $day . ', ' . planner_fmt_time($it['time']) . ' to ' . planner_fmt_time($it['end_time']);
+    if ($it['time']) return $day . ' at ' . planner_fmt_time($it['time']);
+    return $it['kind'] === 'appointment' ? $day : 'Due ' . planner_fmt_day_inline($it['date'], $today);
+}
+
+/**
+ * Can this business use the app right now? The same test as
+ * app/middleware/subscription_check.php, so reminders stop exactly when
+ * access does. $b is a businesses row with the subscription's status,
+ * trial_ends_at, current_period_end and grace_ends_at (null with no
+ * subscription row, which the app lets through).
+ */
+function planner_business_can_use(array $b, DateTimeImmutable $now): bool {
+    if (empty($b['is_active'])) return false;
+    switch ($b['sub_status'] ?? null) {
+        case 'suspended':
+        case 'cancelled':
+            return false;
+        case 'trial':
+            return empty($b['trial_ends_at']) || $now <= new DateTimeImmutable($b['trial_ends_at'], planner_tz());
+        case 'past_due':
+            $grace = $b['grace_ends_at']
+                ? new DateTimeImmutable($b['grace_ends_at'], planner_tz())
+                : (new DateTimeImmutable($b['current_period_end'] ?? 'now', planner_tz()))->modify('+3 days');
+            return $now <= $grace;
+        default:
+            return true;
+    }
+}
+
+/** White or ink text, whichever reads better on a business's own colour. */
+function planner_text_on(string $hex): string {
+    if (!preg_match('/^#([0-9a-f]{6})$/i', $hex, $m)) return '#FFFFFF';
+    $lum = 0.0;
+    foreach ([0.2126, 0.7152, 0.0722] as $i => $w) {
+        $c = hexdec(substr($m[1], $i * 2, 2)) / 255;
+        $lum += $w * ($c <= 0.03928 ? $c / 12.92 : (($c + 0.055) / 1.055) ** 2.4);
+    }
+    // Contrast against white versus against ink (#1F0A14, luminance 0.0068).
+    return 1.05 / ($lum + 0.05) >= ($lum + 0.05) / 0.0568 ? '#FFFFFF' : '#1F0A14';
 }
 
 /* ── Notifications ─────────────────────────────────────────── */

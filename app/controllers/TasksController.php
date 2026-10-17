@@ -36,8 +36,10 @@ class TasksController {
         $tab = ($_GET['tab'] ?? '') === 'calendar' ? 'calendar' : 'tasks';
 
         // Prefill from other pages: /tasks?new=appointment&customer=12,
-        // /tasks?plan=sewing&invoice=7
+        // /tasks?plan=sewing&invoice=7, and /tasks?reminders=1 from the
+        // reminder emails, which opens the Reminders sheet.
         $prefill = [
+            'reminders' => !empty($_GET['reminders']),
             'new'      => in_array($_GET['new'] ?? '', ['task', 'appointment'], true) ? $_GET['new'] : null,
             'plan'     => array_key_exists($_GET['plan'] ?? '', planner_templates()) ? $_GET['plan'] : null,
             'customer' => (int)($_GET['customer'] ?? 0) ?: null,
