@@ -34,12 +34,12 @@ const check = (label, ok, detail = '') => {
   await page.click('#sf-catalogue [data-item] .sf-item__name a >> nth=0');
   await page.waitForSelector('#sf-product[open]');
   check('product sheet opens from a name', await page.isVisible('#sf-product [data-p-add]'));
-  check('opening a product puts it in the address', /#item-\d+$/.test(page.url()), page.url());
+  check('opening a product puts its page address in the bar', /\/p\/\d+-[a-z0-9-]+$/.test(page.url()), page.url());
   await page.screenshot({ path: path.join(OUT, 'flow-sheet.png') });
   await page.click('#sf-product [data-p-step="1"]');
   await page.click('#sf-product [data-p-add]');
   await page.waitForSelector('#sf-product', { state: 'hidden' });
-  check('closing the sheet takes the item out of the address', !/#item-/.test(page.url()), page.url());
+  check('closing the sheet goes back to the shop address', new URL(page.url()).pathname === '/' && !/#item-/.test(page.url()), page.url());
   check('bag badge shows 2', (await page.textContent('[data-bag-count]')) === '2');
   check('bag bar appears', await page.isVisible('[data-bagbar]'));
   const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('nfelia_cart_bisi-indigo') || '[]'));
