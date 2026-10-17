@@ -17,7 +17,8 @@ if (!is_logged_in()) {
                    b.slug, b.doc_prefix, b.primary_color, b.secondary_color,
                    b.logo_path, b.onboarding_complete, b.onboarding_step,
                    b.currency_symbol, b.font_pairing,
-                   b.tagline, b.address, b.phone, b.email as business_email
+                   b.tagline, b.address, b.phone, b.email as business_email,
+                   b.business_type, b.email_verified_at
             FROM sessions s
             JOIN users u ON u.id = s.user_id
             JOIN businesses b ON b.id = s.business_id
@@ -72,6 +73,13 @@ if (!is_logged_in()) {
         flash('error', 'Please log in to continue.');
         redirect('login');
     }
+}
+
+// Every form on the page posts the session's CSRF token. A session restored
+// from the remember-me cookie above is brand new and has none, which made
+// the first form sent after a browser restart fail as "session expired".
+if (empty($_SESSION['csrf_token'])) {
+    csrf_regenerate();
 }
 
 // Redirect to onboarding if setup not complete

@@ -6,6 +6,9 @@
 
 class AuthController {
 
+    /** How long an email-verification link works. */
+    private const VERIFY_LINK_HOURS = 48;
+
     public function __construct() {
         // Initialize CSRF token if it doesn't exist using our new helper
         if (empty($_SESSION['csrf_token'])) {
@@ -130,6 +133,7 @@ class AuthController {
                 'onboarding_step'     => $user['onboarding_step'],
                 'currency_symbol'     => $user['currency_symbol'],
                 'font_pairing'        => $user['font_pairing'],
+                'business_type'       => $user['business_type'],
                 'email_verified_at'   => $user['email_verified_at']
             ]
         );
@@ -274,23 +278,16 @@ class AuthController {
 
             // Send welcome + email verification
             try {
-                $verify_token  = bin2hex(random_bytes(32));
-                $expires_at    = date('Y-m-d H:i:s', strtotime('+48 hours'));
-                $db->prepare("
-                    INSERT INTO email_verifications (user_id, business_id, token, expires_at)
-                    VALUES (?, ?, ?, ?)
-                ")->execute([$user_id, $business_id, $verify_token, $expires_at]);
-
-                $verify_url = APP_URL . '/verify-email/' . $verify_token;
                 send_branded_mail(
                     $email, $full_name,
                     'Welcome to Nfelia — Verify Your Email',
                     'welcome',
                     [
-                        'owner_name' => $full_name,
-                        'biz_name'   => $biz_name,
-                        'trial_days' => TRIAL_DAYS,
-                        'verify_url' => $verify_url,
+                        'owner_name'     => $full_name,
+                        'workspace_name' => $biz_name,
+                        'trial_days'     => TRIAL_DAYS,
+                        'verify_url'     => $this->verification_url((int)$user_id, (int)$business_id),
+                        'expires_hours'  => self::VERIFY_LINK_HOURS,
                     ],
                     [
                         'name'          => 'Nfelia',
@@ -611,76 +608,97 @@ class AuthController {
 
     /**
      * Handle email verification link click
+     *
+     * A link keeps working until it expires, and opening it again changes
+     * nothing: mail scanners open links before people do, and people open
+     * them twice. The session is left alone; is_email_verified() reads the
+     * database on the next page, in whichever browser is signed in.
      */
     public function verify_email($token = null) {
         if (!$token) { redirect('login'); return; }
 
         $db = get_db();
-        $stmt = $db->prepare("
-            SELECT ev.*, u.email FROM email_verifications ev
-            JOIN users u ON u.id = ev.user_id
-            WHERE ev.token = ? AND ev.expires_at > NOW()
-        ");
+        $stmt = $db->prepare("SELECT business_id FROM email_verifications WHERE token = ? AND expires_at > NOW()");
         $stmt->execute([$token]);
-        $ev = $stmt->fetch();
+        $business_id = $stmt->fetchColumn();
 
-        if (!$ev) {
-            flash('error', 'Verification link is invalid or has expired. Please request a new one.');
+        if (!$business_id) {
+            if (is_logged_in() && is_email_verified()) {
+                flash('success', 'Your email is already verified.');
+                redirect('dashboard');
+                return;
+            }
+            flash('error', 'This verification link is no longer valid. If your email is already verified, there is nothing more to do; if not, sign in and choose Resend Link.');
             redirect('login');
             return;
         }
 
-        // Mark business as email verified
-        $db->prepare("UPDATE businesses SET email_verified_at = NOW() WHERE id = ?")
-           ->execute([$ev['business_id']]);
-
-        // Delete the used token
-        $db->prepare("DELETE FROM email_verifications WHERE id = ?")->execute([$ev['id']]);
-
-        // Update session
-        if (is_logged_in()) {
-            update_business_session(['email_verified_at' => date('Y-m-d H:i:s')]);
-        }
+        // COALESCE keeps the time of the first verification
+        $db->prepare("UPDATE businesses SET email_verified_at = COALESCE(email_verified_at, NOW()) WHERE id = ?")
+           ->execute([$business_id]);
 
         flash('success', 'Email verified. Your workspace is fully unlocked.');
         redirect(is_logged_in() ? 'dashboard' : 'login');
     }
 
     /**
-     * Resend verification email (POST, authenticated)
+     * Resend verification email (POST, authenticated, owner only)
      */
     public function resend_verification() {
         if (!is_logged_in()) { redirect('login'); return; }
         csrf_verify();
 
-        $user     = auth_user();
-        $business = auth_business();
+        // Verification stands for the owner's address. A staff member's own
+        // link must not mark the business verified.
+        if (!is_owner()) {
+            redirect('dashboard');
+            return;
+        }
 
-        if (!empty($business['email_verified_at'])) {
+        // Ask the database, not the session: the link may have been opened
+        // on another device.
+        if (is_email_verified()) {
             flash('success', 'Your email is already verified.');
             redirect('dashboard');
             return;
         }
 
-        $db = get_db();
-        // Delete any existing tokens for this user
-        $db->prepare("DELETE FROM email_verifications WHERE user_id = ?")->execute([$user['id']]);
-
-        $token      = bin2hex(random_bytes(32));
-        $expires_at = date('Y-m-d H:i:s', strtotime('+48 hours'));
-        $db->prepare("INSERT INTO email_verifications (user_id, business_id, token, expires_at) VALUES (?, ?, ?, ?)")
-           ->execute([$user['id'], auth_business_id(), $token, $expires_at]);
-
-        $verify_url = APP_URL . '/verify-email/' . $token;
-        send_branded_mail(
+        $user = auth_user();
+        $sent = send_branded_mail(
             $user['email'], $user['full_name'],
             'Verify Your Email — Nfelia',
             'verification',
-            ['owner_name' => $user['full_name'], 'verify_url' => $verify_url, 'expires_hours' => 48],
-            $business
+            [
+                'owner_name'    => $user['full_name'],
+                'verify_url'    => $this->verification_url((int)$user['id'], auth_business_id()),
+                'expires_hours' => self::VERIFY_LINK_HOURS,
+            ],
+            ['name' => 'Nfelia', 'primary_color' => '#8B004A']
         );
 
-        flash('success', 'Verification link sent to ' . $user['email'] . '. Check your inbox.');
+        if ($sent) {
+            flash('success', 'Verification link sent to ' . $user['email'] . '. Check your inbox.');
+        } else {
+            flash('error', 'The verification email could not be sent. Please try again in a few minutes.');
+        }
         redirect('dashboard');
+    }
+
+    /**
+     * A new email-verification link for a business. Links already sent keep
+     * working until they expire, so a resend never breaks the email someone
+     * is about to open.
+     */
+    private function verification_url(int $user_id, int $business_id): string {
+        $db = get_db();
+        $db->exec("DELETE FROM email_verifications WHERE expires_at < NOW()");
+
+        $token = bin2hex(random_bytes(32));
+        $db->prepare("
+            INSERT INTO email_verifications (user_id, business_id, token, expires_at)
+            VALUES (?, ?, ?, NOW() + INTERVAL " . self::VERIFY_LINK_HOURS . " HOUR)
+        ")->execute([$user_id, $business_id, $token]);
+
+        return APP_URL . '/verify-email/' . $token;
     }
 }
