@@ -105,16 +105,17 @@ if ($wa_link && $debt['type'] === 'receivable' && $is_open) {
 
 <!-- Financial Summary + Progress -->
 <div class="bg-brand-white border border-brand-sand rounded-xl p-5 shadow-sm mb-6">
-    <div class="grid grid-cols-3 gap-4 mb-4">
-        <div class="text-center">
+    <!-- Stacked rows on phones: three amounts side by side do not fit at 390px. -->
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4 mb-4">
+        <div class="flex items-baseline justify-between sm:block sm:text-center">
             <div class="data-text text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">Total Owed</div>
             <div class="font-heading font-extrabold text-xl text-brand-plum"><?= money((float)$debt['total_amount'], $currency) ?></div>
         </div>
-        <div class="text-center">
+        <div class="flex items-baseline justify-between sm:block sm:text-center">
             <div class="data-text text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">Settled</div>
             <div class="font-heading font-extrabold text-xl text-green-600"><?= money((float)$debt['amount_settled'], $currency) ?></div>
         </div>
-        <div class="text-center">
+        <div class="flex items-baseline justify-between sm:block sm:text-center">
             <div class="data-text text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">Remaining</div>
             <div class="font-heading font-extrabold text-xl <?= (float)$debt['balance'] > 0 ? 'text-red-600' : 'text-green-600' ?>">
                 <?= (float)$debt['balance'] > 0 ? money((float)$debt['balance'], $currency) : 'Cleared' ?>
