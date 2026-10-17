@@ -58,7 +58,7 @@ RewriteRule ^(.*)$ index.php?url=$1 [QSA,L]
     php_value memory_limit 128M
     php_flag display_errors Off
     php_flag log_errors On
-    php_value error_log /home/smartqaq/public_html/nfelia.lpc.cm/storage/logs/php_errors.log
+    php_value error_log /home/smartqaq/public_html/nfelia.com/storage/logs/php_errors.log
 </IfModule>
 
 # BEGIN cPanel-generated php ini directives, do not edit

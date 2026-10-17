@@ -645,7 +645,7 @@ async function updateRole(memberId, newRole, selectEl) {
                 <strong>Enterprise Limit Reached:</strong> Standard workspaces are limited to 5 total users (You + 4 of your staff). Do you need more capacity? <br><br>
                 Click here to request a custom built enterprise infrastructure just for you:<br>
                 <div class="mt-2 flex gap-4">
-                    <a href="mailto:support@nfelia.lpc.cm" class="text-brand-burgundy font-bold hover:underline tracking-widest uppercase text-[10px]">✉ Email Support</a>
+                    <a href="mailto:support@nfelia.com" class="text-brand-burgundy font-bold hover:underline tracking-widest uppercase text-[10px]">✉ Email Support</a>
                     <a href="https://wa.me/2348169789106" target="_blank" class="text-brand-burgundy font-bold hover:underline tracking-widest uppercase text-[10px]">💬 WhatsApp Us</a>
                 </div>
             </div>

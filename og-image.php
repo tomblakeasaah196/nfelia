@@ -173,7 +173,7 @@ if ($use_ttf) {
 
     // ── Nfelia branding in bottom bar ──
     imagettftext($img, 13, 0, 60, $h - 22, $color_white, $font_bold, 'Powered by Nfelia');
-    imagettftext($img, 11, 0, $w - 340, $h - 22, $color_white, $font_normal, 'nfelia.lpc.cm — Business Operations Platform');
+    imagettftext($img, 11, 0, $w - 340, $h - 22, $color_white, $font_normal, 'nfelia.com — Business Operations Platform');
 
 } else {
     // ── Fallback: GD built-in fonts (no TTF available) ──
@@ -200,7 +200,7 @@ if ($use_ttf) {
     }
 
     // Nfelia branding
-    imagestring($img, 3, 60, $h - 35, 'Powered by Nfelia — nfelia.lpc.cm', $color_white);
+    imagestring($img, 3, 60, $h - 35, 'Powered by Nfelia — nfelia.com', $color_white);
 }
 
 // ── Output ──

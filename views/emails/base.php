@@ -93,8 +93,8 @@
                                         <?php endif; ?>
                                     </td>
                                     <td align="right" style="font-size:10px;color:#c0b8b4;vertical-align:bottom;">
-                                        <a href="<?= APP_URL ?>" style="color:#B69F5E;text-decoration:none;">nfelia.lpc.cm</a><br>
-                                        <span style="color:#c0b8b4;">support@nfelia.lpc.cm</span>
+                                        <a href="<?= APP_URL ?>" style="color:#B69F5E;text-decoration:none;">nfelia.com</a><br>
+                                        <span style="color:#c0b8b4;">support@nfelia.com</span>
                                     </td>
                                 </tr>
                                 <tr>

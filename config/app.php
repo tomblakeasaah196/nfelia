@@ -10,7 +10,7 @@ ini_set('session.use_strict_mode', 1); // Prevents session fixation
 // -----------------------------------------
 
 define('APP_NAME',    $_ENV['APP_NAME']    ?? 'Nfelia');
-define('APP_URL',     rtrim($_ENV['APP_URL'] ?? 'https://nfelia.lpc.cm', '/'));
+define('APP_URL',     rtrim($_ENV['APP_URL'] ?? 'https://nfelia.com', '/'));
 define('APP_ENV',     $_ENV['APP_ENV']     ?? 'production');
 define('APP_DEBUG',   ($_ENV['APP_DEBUG']  ?? 'false') === 'true');
 

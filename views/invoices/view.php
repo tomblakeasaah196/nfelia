@@ -41,7 +41,7 @@ $wa_text = urlencode(
     . "Balance Due: {$currency}" . number_format((float)$invoice['balance_due'], 2) . "\n"
     . ($invoice['due_date'] ? "Due Date: " . fmt_date($invoice['due_date'], 'd M Y') . "\n" : '')
     . "\nView & pay here:\n{$public_url}\n\n"
-    . "_Sent via Nfelia — nfelia.lpc.cm_"
+    . "_Sent via Nfelia — nfelia.com_"
 );
 $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
 

@@ -3,6 +3,12 @@
 **Version: Post-Audit + Multi-Country + Cameroon MoMo Release**
 **Date: 2026-06-04**
 
+> **Superseded: do not follow.** This is the record of the June 2026 release's
+> one-off manual deployment, when the app still lived at `nfelia.lpc.cm`. The
+> app is now at **nfelia.com** (docroot `/home/smartqaq/public_html/nfelia.com`),
+> every push to `main` deploys itself, and [DEPLOY.md](../DEPLOY.md) is the
+> current guide. Do not copy the `.env` values, URLs or paths below.
+
 ---
 
 ## BEFORE YOU START — READ THIS

@@ -23,6 +23,26 @@ function is_owner(): bool {
     return ($_SESSION['user']['role'] ?? '') === 'owner';
 }
 
+/**
+ * Whether the signed-in business has verified its email. The session copy
+ * can only say yes: until it does, the database is asked, because the link
+ * is often opened on another device (the phone the email went to) and this
+ * session would never hear of it.
+ */
+function is_email_verified(): bool {
+    if (!empty($_SESSION['business']['email_verified_at'])) {
+        return true;
+    }
+    $stmt = get_db()->prepare("SELECT email_verified_at FROM businesses WHERE id = ?");
+    $stmt->execute([auth_business_id()]);
+    $verified_at = $stmt->fetchColumn();
+    if (!$verified_at) {
+        return false;
+    }
+    update_business_session(['email_verified_at' => $verified_at]);
+    return true;
+}
+
 function login_user(array $user, array $business): void {
     $_SESSION['user']     = $user;
     $_SESSION['business'] = $business;

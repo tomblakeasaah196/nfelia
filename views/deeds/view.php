@@ -163,7 +163,7 @@ if (!empty($business['logo_path']) && file_exists(BASE_PATH . '/' . $business['l
         <!-- Nfelia watermark -->
         <div class="border-t border-stone-100 px-10 py-4 text-center">
             <p class="text-[9px] text-stone-300 uppercase tracking-[0.2em] font-sans">
-                Issued via Nfelia · nfelia.lpc.cm
+                Issued via Nfelia · nfelia.com
             </p>
         </div>
     </div>

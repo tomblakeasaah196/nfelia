@@ -326,7 +326,7 @@ $og_image  = $business['logo_path']
 
         <!-- Powered by footer -->
         <div class="text-center mt-6">
-            <p class="text-[9px] text-gray-400">Powered by <a href="https://nfelia.lpc.cm" target="_blank" rel="noopener" class="font-bold text-gray-500 hover:text-gray-700">Nfelia</a> — Business Operations Platform</p>
+            <p class="text-[9px] text-gray-400">Powered by <a href="https://nfelia.com" target="_blank" rel="noopener" class="font-bold text-gray-500 hover:text-gray-700">Nfelia</a> — Business Operations Platform</p>
         </div>
     </div>
 

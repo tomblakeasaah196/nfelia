@@ -24,7 +24,7 @@ $secondary = e($business['secondary_color'] ?? '#B69F5E');
 $logo_path = !empty($business['logo_path']) ? APP_URL . '/' . $business['logo_path'] : APP_URL . '/assets/img/nfelia-logo.png';
 $currency      = $business['currency_symbol'] ?? '₦';
 $business_type = $business['business_type'] ?? 'product'; // product | service | mixed
-$is_verified   = !empty($business['email_verified_at']);
+$show_verify_banner = $user_role === 'owner' && !is_email_verified();
 
 // Phase 3 — Country session bootstrap
 // Load selected country from session, fallback to cookie, fallback to Nigeria
@@ -577,7 +577,7 @@ $visible_nav = array_filter($nav_items, function($item) use ($user_role) {
     <?php endif; ?>
 
     <!-- ===== EMAIL VERIFICATION BANNER ===== -->
-    <?php if (!$is_verified && $user_role === 'owner'): ?>
+    <?php if ($show_verify_banner): ?>
         <div class="fixed top-16 left-0 right-0 lg:left-64 z-20 bg-blue-50 border-b border-blue-200 px-4 py-2.5 flex items-center justify-between gap-3"
              x-data="{ show: true }" x-show="show">
             <div class="flex items-center gap-2">
