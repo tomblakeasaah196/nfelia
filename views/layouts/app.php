@@ -62,11 +62,24 @@ $list_sections = ['invoices', 'receipts', 'quotations', 'customers', 'products',
                   'debts', 'expenses', 'orders', 'tasks', 'admin', 'countries', 'deed'];
 $back_url = APP_URL . '/' . (str_contains($current_url, '/') && in_array($current_section, $list_sections, true) ? $current_section : 'more');
 
+// Locked (app/middleware/auth_check.php): the page shows only an outline of
+// the app behind the lock, never the business.
+$locked_page = !empty($locked_page);
+
 // sw.js keeps a copy of app pages so they can be read offline. Not these:
 // what they show should never be left on a phone.
-if (!in_array($current_section, ['settings', 'purge', 'admin', 'momo', 'countries'], true)) {
+if (!$locked_page && !in_array($current_section, ['settings', 'purge', 'admin', 'momo', 'countries'], true)) {
     header('X-Nfelia-Page: app');
 }
+
+$first_name = explode(' ', trim($user['full_name'] ?? ''))[0] ?: 'there';
+$lock_minutes = max(1, intdiv(LOCK_AFTER_SECONDS, 60));
+$lock_words = $lock_minutes % 60 === 0
+    ? ($lock_minutes / 60) . ' hour' . ($lock_minutes === 60 ? '' : 's')
+    : $lock_minutes . ' minute' . ($lock_minutes === 1 ? '' : 's');
+$stmt_pk = get_db()->prepare("SELECT COUNT(*) FROM user_passkeys WHERE user_id = ?");
+$stmt_pk->execute([(int)$user['id']]);
+$passkey_count = (int)$stmt_pk->fetchColumn();
 
 $splash = ($_GET['source'] ?? '') === 'pwa';
 $just_signed_in = !empty($_SESSION['just_signed_in']);
@@ -83,7 +96,7 @@ $avatar  = $logo_path
 $flash = get_flash();
 ?>
 <!DOCTYPE html>
-<html lang="en" data-text="<?= e($ui['text']) ?>" data-bg="<?= e($ui['bg']) ?>"<?= $splash ? ' class="nf-splashing"' : '' ?>>
+<html lang="en" data-text="<?= e($ui['text']) ?>" data-bg="<?= e($ui['bg']) ?>"<?= $splash || $locked_page ? ' class="' . trim(($splash ? 'nf-splashing ' : '') . ($locked_page ? 'nf-locked' : '')) . '"' : '' ?>>
 <head>
     <meta charset="UTF-8">
     <!-- NFELIA AUDIT FIX H01 — CSRF meta tag for JS consumption — 2026-06-03 -->
@@ -118,7 +131,8 @@ $flash = get_flash();
         window.Nfelia = {
             url: '<?= APP_URL ?>',
             csrf: '<?= $_SESSION['csrf_token'] ?? '' ?>',
-            currency: '<?= e($currency) ?>'
+            currency: '<?= e($currency) ?>',
+            lock: { after: <?= LOCK_AFTER_SECONDS ?>, left: <?= $locked_page ? 0 : lock_seconds_left() ?>, locked: <?= $locked_page ? 'true' : 'false' ?>, user: <?= (int)$user['id'] ?>, passkeys: <?= $passkey_count ?> }
         };
     </script>
 </head>
@@ -200,7 +214,7 @@ $flash = get_flash();
 
                 // Fetch initial unread count
                 init() {
-                    fetch(window.Nfelia.url + '/api/notifications?action=count')
+                    fetch(window.Nfelia.url + '/api/notifications?action=count', { headers: { 'X-Nfelia-Background': '1' } })
                         .then(r => r.json())
                         .then(d => { this.count = d.count || 0; })
                         .catch(() => {});
@@ -385,6 +399,44 @@ $flash = get_flash();
         </div>
     </dialog>
 
+    <!-- ===== LOCK (assets/js/lock.js): after <?= e($lock_words) ?> without use ===== -->
+    <dialog class="nf-lock" id="nf-lock" aria-labelledby="nf-lock-h">
+        <div class="nf-lock-card">
+            <span class="nf-lock-avatar"><?= $avatar ?></span>
+            <h2 id="nf-lock-h">Welcome back, <?= e($first_name) ?></h2>
+            <p class="nf-lock-sub">Nfelia locked itself after <?= e($lock_words) ?> without use.</p>
+            <button type="button" class="nf-btn nf-btn-primary nf-lock-pk" data-lock-passkey hidden><?= nav_icon('fingerprint') ?><span>Unlock with <span data-passkey-name>a passkey</span></span></button>
+            <form class="nf-lock-pw" data-lock-password novalidate>
+                <label for="nf-lock-pw">Password</label>
+                <input id="nf-lock-pw" type="password" name="password" autocomplete="current-password" enterkeyhint="go">
+                <button type="submit" class="nf-btn nf-btn-primary">Unlock</button>
+            </form>
+            <button type="button" class="nf-lock-alt" data-lock-use-password hidden>Use password instead</button>
+            <p class="nf-lock-err" data-lock-error role="alert" hidden></p>
+            <p class="nf-lock-offline" data-lock-offline hidden>You’re offline. Connect to the internet to unlock.</p>
+            <form action="<?= APP_URL ?>/logout" method="POST" class="nf-lock-out">
+                <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
+                <button type="submit">Not <?= e($first_name) ?>? Sign out</button>
+            </form>
+        </div>
+    </dialog>
+
+    <!-- ===== PASSKEY OFFER (lock.js, right after signing in) ===== -->
+    <dialog class="nf-sheet" id="nf-passkey" aria-labelledby="nf-passkey-h">
+        <div class="nf-grab"></div>
+        <div class="nf-pk-offer">
+            <span class="nf-pk-badge"><?= nav_icon('fingerprint') ?></span>
+            <h2 id="nf-passkey-h" data-pk-title>Sign in with a passkey next time</h2>
+            <p>No password to type: open Nfelia the way you unlock your phone. Your fingerprint and face never leave your phone.</p>
+            <p class="nf-pk-team">Everyone on your team sets up their own, on their own phone.</p>
+            <p class="nf-lock-err" data-pk-error role="alert" hidden></p>
+        </div>
+        <div class="nf-actions">
+            <button type="button" class="nf-btn nf-btn-ghost" data-pk-later>Not now</button>
+            <button type="button" class="nf-btn nf-btn-primary" data-pk-go>Set it up</button>
+        </div>
+    </dialog>
+
     <!-- Toasts: flash messages from the server, and nfToast() from scripts. -->
     <div class="nf-toasts" id="nf-toasts" role="status" aria-live="polite">
         <?php if ($flash): $type = in_array($flash['type'], ['error', 'warning'], true) ? $flash['type'] : 'success'; ?>
@@ -417,6 +469,8 @@ $flash = get_flash();
     <script src="<?= $asset('assets/vendor/jquery-3.7.1.min.js') ?>"></script>
     <script src="<?= $asset('assets/js/app.js') ?>"></script>
     <script src="<?= $asset('assets/js/shell.js') ?>" defer></script>
+    <script src="<?= $asset('assets/js/passkey.js') ?>" defer></script>
+    <script src="<?= $asset('assets/js/lock.js') ?>" defer></script>
 
     <!-- Global Feedback Modal -->
     <?php

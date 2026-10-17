@@ -63,11 +63,29 @@ Run the older suites too; re-seed with `planner_seed.sql.txt` before each Tasks 
 Not provable in a headless browser: Android's real install prompt, iPhone standalone mode, the film on a
 phone (headless Chromium has no H.264), and push delivery. Check those on real phones after deploy.
 
-## 5. Next
+## 5. Built: passkeys and the lock
 
-- **B. Passkeys and the 120-minute lock.** WebAuthn (e.g. `lbuchs/WebAuthn`), a `user_passkeys` migration,
-  offered after sign-in and in Settings, used automatically by the lock and on the sign-in page. The lock
-  is enforced on the server too. Kept pages must respect it: offline, show the lock with "Connect to unlock".
+| Piece | Where |
+|---|---|
+| Sign-in shared by password, emailed link and passkey; "keep me signed in" | `app/helpers/signin.php` (`account_find`, `signin_start`, `signin_remember`) |
+| The lock: after `LOCK_AFTER_SECONDS` (default 7200) unused | server: `lock_engaged()`/`lock_touch()` in `signin.php`, enforced in `app/middleware/auth_check.php` (pages show `views/lock/outline.php`, scripts get 401 with `X-Nfelia-Locked`) and in `dispatch_ajax` (index.php); browser: `assets/js/lock.js` |
+| Passkeys (WebAuthn, `lbuchs/webauthn`) | `app/helpers/passkeys.php`, `api/ajax/auth.php`, table `user_passkeys`; browser: `assets/js/passkey.js` |
+| Offer after sign-in, then the install invitation | `views/layouts/app.php` (`#nf-passkey`), `lock.js`, `shell.js` (`nfInstallOffer`) |
+| Settings → Profile → Passkeys | `views/partials/passkeys_card.php` |
+
+Rules that matter:
+
+- Passkeys belong to `APP_URL`'s host and are checked against its exact origin. Never derive either
+  from the request's Host header: a phishing proxy could then relay sign-ins.
+- Requests a page makes on its own send `X-Nfelia-Background: 1`, so they do not hold the lock off.
+- Sessions live in `storage/sessions` for 12 hours: longer than the lock, so people come back to the lock,
+  not a sign-in page. A "keep me signed in" device that returns after the lock time opens on the lock.
+- 8 wrong passwords on the lock in 15 minutes end the session.
+- Test with `docs/handoff/testkit/lock_test.js` against a copy whose `.env` has `APP_URL=http://localhost:…`
+  (passkeys refuse IP addresses) and `LOCK_AFTER_SECONDS=40`. It uses Chrome's virtual authenticator.
+
+## 6. Next
+
 - **C. Notifications, PDF sharing, contacts.** Notification settings (defaults above), money-in pushes,
   Web Share for PDFs to WhatsApp, the Android contact picker on Add customer.
 - **D. The busiest screens rebuilt.** Home, a Sales hub (invoices, receipts, quotes), invoice and receipt

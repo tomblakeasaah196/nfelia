@@ -59,7 +59,7 @@ $flash = get_flash();
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700&family=Caveat:wght@600&family=Plus+Jakarta+Sans:wght@400;600&display=swap">
-    <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/home.css?v=3">
+    <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/home.css?v=4">
     <?php if ($hero_img): ?>
     <link rel="preload" as="image" imagesrcset="<?= $img ?>/hero-640.webp 640w, <?= $img ?>/hero-1024.webp 1024w" imagesizes="(min-width: 960px) 492px, 92vw" fetchpriority="high">
     <?php endif; ?>
@@ -575,6 +575,6 @@ $flash = get_flash();
     </div>
 </dialog>
 
-<script src="<?= APP_URL ?>/assets/js/home.js?v=3" defer></script>
+<script src="<?= APP_URL ?>/assets/js/home.js?v=5" defer></script>
 </body>
 </html>

@@ -22,7 +22,8 @@ $splash = ($_GET['source'] ?? '') === 'pwa';
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700&family=Plus+Jakarta+Sans:wght@400;600&display=swap">
-    <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/home.css?v=3">
+    <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/home.css?v=4">
+    <script>window.Nfelia = { url: '<?= APP_URL ?>', csrf: '<?= e(csrf_token()) ?>' };</script>
 </head>
 <body class="auth-page">
 <?php if ($splash) require BASE_PATH . '/views/partials/nf_splash.php'; ?>
@@ -46,7 +47,7 @@ $splash = ($_GET['source'] ?? '') === 'pwa';
                 <?= csrf_field() ?>
                 <div class="field">
                     <label for="email">Email address</label>
-                    <input id="email" type="email" name="email" required autocomplete="email" inputmode="email" autofocus data-error="Enter the email address you signed up with.">
+                    <input id="email" type="email" name="email" required autocomplete="username webauthn" inputmode="email" autofocus data-error="Enter the email address you signed up with.">
                 </div>
                 <div class="field">
                     <div class="auth-row">
@@ -60,6 +61,11 @@ $splash = ($_GET['source'] ?? '') === 'pwa';
             </form>
 
             <p class="auth-divider">or</p>
+            <!-- Shown by assets/js/passkey.js where the browser can use passkeys. -->
+            <div class="passkey-signin" data-passkey-signin hidden>
+                <button type="button" class="btn btn-outline"><?= nav_icon('fingerprint') ?>Sign in with a passkey</button>
+                <p class="field-error" role="alert" hidden></p>
+            </div>
             <a class="btn btn-outline" href="<?= APP_URL ?>/login-link">Email me a sign-in link</a>
 
             <p class="auth-alt">New to Nfelia? <a href="<?= APP_URL ?>/register">Start free for <?= (int)TRIAL_DAYS ?> days</a></p>
@@ -67,6 +73,7 @@ $splash = ($_GET['source'] ?? '') === 'pwa';
     </main>
 
     <p class="auth-links"><a href="<?= APP_URL ?>/">Return to home</a></p>
-    <script src="<?= APP_URL ?>/assets/js/home.js?v=3" defer></script>
+    <script src="<?= APP_URL ?>/assets/js/home.js?v=5" defer></script>
+    <script src="<?= APP_URL ?>/assets/js/passkey.js?v=<?= filemtime(BASE_PATH . '/assets/js/passkey.js') ?>" defer></script>
 </body>
 </html>

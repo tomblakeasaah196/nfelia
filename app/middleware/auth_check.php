@@ -12,7 +12,8 @@ if (!is_logged_in()) {
         $db    = get_db();
         $token = $_COOKIE['nfelia_remember'];
         $stmt  = $db->prepare("
-            SELECT s.*, u.id as user_id, u.full_name, u.email, u.role, u.avatar_path,
+            SELECT s.*, s.id as remember_row_id, TIMESTAMPDIFF(SECOND, s.last_active_at, NOW()) as idle_seconds,
+                   u.id as user_id, u.full_name, u.email, u.role, u.avatar_path,
                    b.id as business_id, b.name as business_name,
                    b.slug, b.doc_prefix, b.primary_color, b.secondary_color,
                    b.logo_path, b.onboarding_complete, b.onboarding_step,
@@ -57,6 +58,13 @@ if (!is_logged_in()) {
                     'email_verified_at'   => $session['email_verified_at'] ?? null,
                 ]
             );
+            // Back after a while: open on the lock, not straight into the business.
+            $_SESSION['remember_id'] = (int)$session['remember_row_id'];
+            $idle = $session['idle_seconds'] === null ? PHP_INT_MAX : (int)$session['idle_seconds'];
+            $_SESSION['last_active'] = time() - min($idle, LOCK_AFTER_SECONDS + 1);
+            if ($idle > LOCK_AFTER_SECONDS) {
+                $_SESSION['locked'] = true;
+            }
         } else {
             // Expired or invalid cookie — clear it
             setcookie('nfelia_remember', '', [
@@ -85,6 +93,23 @@ if (!is_logged_in()) {
 if (empty($_SESSION['csrf_token'])) {
     csrf_regenerate();
 }
+
+// The lock (app/helpers/signin.php): after LOCK_AFTER_SECONDS unused, pages
+// show the lock over an empty outline of the app, and requests from scripts
+// get 401 "locked", until the person unlocks. Signing out always works.
+if (($controller ?? '') !== 'logout' && lock_engaged()) {
+    if (is_ajax() || str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json')) {
+        header('X-Nfelia-Locked: 1');
+        json_response(['success' => false, 'locked' => true, 'message' => 'Nfelia is locked. Unlock it to carry on.'], 401);
+    }
+    http_response_code(401);
+    $locked_page = true;
+    $title       = 'Locked';
+    $view_file   = BASE_PATH . '/views/lock/outline.php';
+    require BASE_PATH . '/views/layouts/app.php';
+    exit;
+}
+lock_touch();
 
 // Redirect to onboarding if setup not complete
 $business = auth_business();

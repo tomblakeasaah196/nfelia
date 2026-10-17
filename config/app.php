@@ -19,6 +19,23 @@ define('BASE_PATH',   dirname(__DIR__));
 define('UPLOAD_PATH', BASE_PATH . '/uploads');
 define('LOG_PATH',    BASE_PATH . '/storage/logs');
 
+// Signed in but unused for this long, Nfelia locks: the screen blurs and asks
+// for the fingerprint, face or password again (app/helpers/signin.php).
+define('LOCK_AFTER_SECONDS', max(30, (int)($_ENV['LOCK_AFTER_SECONDS'] ?? 7200)));
+
+// A session outlives the lock, so someone coming back meets the lock rather
+// than a sign-in page. Sessions live in storage/sessions because the host's
+// own cleanup is set for 24-minute sessions and would end them early.
+if (PHP_SAPI !== 'cli') {
+    ini_set('session.gc_maxlifetime', '43200');
+    ini_set('session.gc_probability', '1');
+    ini_set('session.gc_divisor', '100');
+    $session_dir = BASE_PATH . '/storage/sessions';
+    if (is_dir($session_dir) || @mkdir($session_dir, 0700, true)) {
+        session_save_path($session_dir);
+    }
+}
+
 // Subscription pricing (in Kobo for Paystack — multiply NGN by 100)
 define('PLAN_BASE_PRICE',       1000000);   // ₦10,000 in kobo
 define('PLAN_EXTRA_SEAT_PRICE',  500000);   // ₦5,000 per extra seat

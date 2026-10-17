@@ -62,7 +62,8 @@ async function shotOf(page, locator, name, pad = 16) {
     ok(await card.isVisible(), 'invoice form shows the Delivery card');
     ok(await s.page.isVisible('text=When will the customer get it?') && await s.page.isVisible('label:has-text("Immediate")') && await s.page.isVisible('label:has-text("Pick a date")'), 'it asks: Immediate or Pick a date');
     await s.page.click('label:has-text("Pick a date")');
-    ok(await s.page.isVisible('input[name=deliver_by]'), 'Pick a date reveals the date field');
+    // Alpine shows the field a moment after the click: wait for it, briefly.
+    ok(await s.page.locator('input[name=deliver_by]').waitFor({ state: 'visible', timeout: 2000 }).then(() => true, () => false), 'Pick a date reveals the date field');
     await shotOf(s.page, card, `invoice-form-delivery_${tag}`);
 
     await open(s.page, '/invoices/view/3');

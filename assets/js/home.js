@@ -122,6 +122,9 @@
     // Forms: check a field when the person leaves it, clear the message as
     // soon as they start fixing it, and on submit show every problem inline
     // instead of the browser's bubbles. The server still validates too.
+    // A field nobody has typed in is not checked on leaving it: tabbing past,
+    // or choosing "Sign in with a passkey", must not raise "Enter your email"
+    // (and the message moving the page would swallow that tap).
     document.querySelectorAll('form[data-validate]').forEach(function (form) {
         form.noValidate = true;
         var fields = form.querySelectorAll('input[required], textarea[required], input[data-match]');
@@ -161,8 +164,8 @@
         };
 
         fields.forEach(function (field) {
-            field.addEventListener('blur', function () { show(field); });
-            field.addEventListener('input', function () { clear(field); });
+            field.addEventListener('blur', function () { if (field.value !== '' || field.dataset.typed) show(field); });
+            field.addEventListener('input', function () { field.dataset.typed = '1'; clear(field); });
         });
         form.addEventListener('submit', function (e) {
             var first = null;
