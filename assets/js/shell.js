@@ -251,11 +251,13 @@
     }
     document.addEventListener('click', function (e) { if (e.target.closest('[data-install-row]')) showInstall(); });
     syncInstallRows();
-    // Ask once, right after signing in on a phone, unless "Not now" was
-    // pressed in the last 7 days. Android tells us a moment after load.
-    if (!kept && document.body.hasAttribute('data-just-signed-in') && isPhone && !standalone && Number(store.get('nf.install.snooze') || 0) < Date.now()) {
-        setTimeout(showInstall, deferred || isIOS ? 600 : 2500);
-    }
+    // Right after signing in on a phone (lock.js calls this once the passkey
+    // offer is done), unless "Not now" was pressed in the last 7 days.
+    // Android tells us it can install a moment after load.
+    window.nfInstallOffer = function () {
+        if (kept || !isPhone || standalone || Number(store.get('nf.install.snooze') || 0) >= Date.now()) return;
+        setTimeout(showInstall, deferred || isIOS ? 200 : 2500);
+    };
 
     // ---------- Service worker ----------
     if ('serviceWorker' in navigator && window.isSecureContext) {

@@ -452,6 +452,14 @@ dialog.sheet-small { width: min(440px, calc(100vw - 32px)); }
 .nav-links .linkish { font-weight: 600; font-size: .875rem; color: var(--ink-2); padding: 12px 0; }
 .nav-links .linkish:hover { color: var(--burgundy); }
 
+/* ---------- Sign in with a passkey ---------- */
+.passkey-signin { display: grid; gap: 8px; margin-bottom: 12px; }
+.passkey-signin[hidden] { display: none; }
+.passkey-signin .btn { width: 100%; }
+.passkey-signin .btn svg { color: var(--burgundy); }
+.passkey-signin .field-error { margin: 0; font-size: .875rem; line-height: 1.4; color: var(--red); font-weight: 600; }
+.passkey-signin .field-error[hidden] { display: none; }
+
 /* ---------- Forms (feedback, sign in, sign up) ---------- */
 .field { display: grid; gap: 8px; }
 .field label { font-weight: 600; font-size: .875rem; }

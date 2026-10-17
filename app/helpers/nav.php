@@ -41,6 +41,7 @@ function nav_icon(string $name): string
         'back'      => '<path d="M15 5 8 12l7 7"/>',
         'bell'      => '<path d="M6 16v-5a6 6 0 1 1 12 0v5l1.5 2h-15Z"/><path d="M10 21h4"/>',
         'close'     => '<path d="M18 6 6 18M6 6l12 12"/>',
+        'fingerprint' => '<path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4M14 13.12c0 2.38 0 6.38-1 8.88M17.29 21.02c.12-.6.43-2.3.5-3.02M2 12a10 10 0 0 1 18-6M2 16h.01M21.8 16c.2-2 .13-5.35 0-6M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2M8.65 22c.21-.66.45-1.32.57-2M9 6.8a6 6 0 0 1 9 5.2v2"/>',
         'textsize'  => '<path d="m2.5 18 5-12 5 12M4.6 13.5h5.8"/><path d="M14.5 18v-4a2.75 2.75 0 0 1 5.5 0v4M14.5 15.5H20"/>',
     ];
     return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">'

@@ -38,6 +38,7 @@
 ./uploads
 ./storage/momo_receipts
 ./storage/logs
+./storage/sessions
 
 # PHP error logs, any depth
 error_log

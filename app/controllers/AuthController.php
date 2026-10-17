@@ -40,37 +40,12 @@ class AuthController {
         $email = trim($_POST['email'] ?? '');
         $pass  = $_POST['password'] ?? '';
 
-        $db   = get_db();
-        $user = $this->find_account('email', $email);
+        $user = account_find('email', $email);
 
         if ($user && password_verify($pass, $user['password_hash'])) {
-            $this->begin_session($user);
-
-            // Remember-me: create persistent session if checkbox is checked
+            signin_start($user);
             if (!empty($_POST['remember_me'])) {
-                $remember_token = bin2hex(random_bytes(64));
-                $expires_at     = date('Y-m-d H:i:s', strtotime('+30 days'));
-                
-                $db->prepare("
-                    INSERT INTO sessions (user_id, business_id, session_token, ip_address, user_agent, expires_at)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                ")->execute([
-                    $user['id'],
-                    $user['business_id'],
-                    $remember_token,
-                    $_SERVER['REMOTE_ADDR'] ?? null,
-                    $_SERVER['HTTP_USER_AGENT'] ?? null,
-                    $expires_at
-                ]);
-
-                // Secure, HttpOnly, SameSite cookie — 30 days
-                setcookie('nfelia_remember', $remember_token, [
-                    'expires'  => strtotime('+30 days'),
-                    'path'     => '/',
-                    'secure'   => true,
-                    'httponly' => true,
-                    'samesite' => 'Lax'
-                ]);
+                signin_remember($user);
             }
 
             redirect('dashboard');
@@ -78,72 +53,6 @@ class AuthController {
             flash('error', 'Invalid email or password combination.');
             redirect('login');
         }
-    }
-
-    /**
-     * An active user joined with everything login_user() needs from their
-     * business, looked up by 'email' or 'id'. Null when there is none.
-     */
-    private function find_account(string $column, string|int $value): ?array {
-        $column = $column === 'id' ? 'u.id' : 'u.email';
-        // PATCH: Select ALL business data explicitly
-        $stmt = get_db()->prepare("
-            SELECT u.*,
-                   b.name as business_name, b.slug, b.doc_prefix,
-                   b.primary_color, b.secondary_color, b.logo_path,
-                   b.onboarding_complete, b.onboarding_step,
-                   b.currency_symbol, b.font_pairing,
-                   b.tagline, b.address, b.phone as business_phone, b.email as business_email,
-                   b.business_type, b.email_verified_at
-            FROM users u
-            JOIN businesses b ON b.id = u.business_id
-            WHERE {$column} = ? AND u.is_active = 1
-        ");
-        $stmt->execute([$value]);
-        return $stmt->fetch() ?: null;
-    }
-
-    /**
-     * Sign in a row from find_account(). Shared by password login and the
-     * emailed sign-in link so both put the same data in the session.
-     */
-    private function begin_session(array $user): void {
-        // PATCH: Perfectly map EVERY column to the session
-        login_user(
-            [
-                'id'          => $user['id'],
-                'full_name'   => $user['full_name'],
-                'email'       => $user['email'],
-                'role'        => $user['role'],
-                'avatar_path' => $user['avatar_path'] // Fixes disappearing avatar
-            ],
-            [
-                'id'                  => $user['business_id'],
-                'name'                => $user['business_name'],
-                'slug'                => $user['slug'],
-                'doc_prefix'          => $user['doc_prefix'],
-                'primary_color'       => $user['primary_color'],
-                'secondary_color'     => $user['secondary_color'],
-                'logo_path'           => $user['logo_path'],
-                'tagline'             => $user['tagline'],         // Fixes missing details
-                'address'             => $user['address'],         // Fixes missing details
-                'phone'               => $user['business_phone'],  // Fixes missing details
-                'email'               => $user['business_email'],  // Fixes missing details
-                'onboarding_complete' => $user['onboarding_complete'],
-                'onboarding_step'     => $user['onboarding_step'],
-                'currency_symbol'     => $user['currency_symbol'],
-                'font_pairing'        => $user['font_pairing'],
-                'business_type'       => $user['business_type'],
-                'email_verified_at'   => $user['email_verified_at']
-            ]
-        );
-
-        // Update last login
-        get_db()->prepare("UPDATE users SET last_login_at = NOW() WHERE id = ?")->execute([$user['id']]);
-
-        // The first app page after this offers to add Nfelia to the phone's
-        // home screen (views/layouts/app.php, assets/js/shell.js).
-        $_SESSION['just_signed_in'] = true;
     }
 
     /**
@@ -389,7 +298,7 @@ class AuthController {
             redirect($back);
         }
 
-        $user = $this->find_account('email', $email);
+        $user = account_find('email', $email);
         if ($user) {
             if ($purpose === 'reset') {
                 $url = APP_URL . '/reset-password/' . account_token_issue((int)$user['id'], 'reset', 60);
@@ -502,14 +411,14 @@ class AuthController {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             csrf_verify();
             $account = account_token_find($_POST['token'] ?? '', 'signin');
-            $user    = $account ? $this->find_account('id', (int)$account['id']) : null;
+            $user    = $account ? account_find('id', (int)$account['id']) : null;
 
             if (!$user || !account_token_consume((int)$account['token_id'])) {
                 flash('error', 'That sign-in link is invalid, expired or already used. Request a new one below.');
                 redirect('login-link');
             }
 
-            $this->begin_session($user);
+            signin_start($user);
             redirect('dashboard');
         }
 
@@ -606,7 +515,8 @@ class AuthController {
         }
 
         logout_user();
-        flash('success', 'Workspace session closed.');
+        session_start();   // a fresh session, so this message reaches the sign-in page
+        flash('success', 'You’re signed out.');
         redirect('login');
     }
 

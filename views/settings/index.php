@@ -408,6 +408,8 @@ $current_staff_count = count($staff);
         <?php require BASE_PATH . '/views/partials/appearance.php'; ?>
     </section>
 
+    <?php require BASE_PATH . '/views/partials/passkeys_card.php'; ?>
+
     <!-- Change Password -->
     <form method="POST" action="<?= APP_URL ?>/settings/change-password">
         <?= csrf_field() ?>
