@@ -28,6 +28,7 @@ cgi-bin/
 /uploads/
 /storage/momo_receipts/
 /storage/logs/
+/storage/og-cache/
 
 # Database dumps. Forward migrations under db/migrations/ ARE tracked, and
 # so is db/schema.sql, the structure-only schema (CI rejects rows in it).
