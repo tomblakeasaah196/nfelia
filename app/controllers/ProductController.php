@@ -125,7 +125,7 @@ class ProductController {
         $stmtCats->execute([$this->biz_id]);
         $categories = $stmtCats->fetchAll(PDO::FETCH_COLUMN);
 
-        $title     = "Inventory";
+        $title     = ($business['business_type'] ?? '') === 'service' ? 'Services' : 'Stock';
         $view_file = BASE_PATH . '/views/products/index.php';
         require_once BASE_PATH . '/views/layouts/app.php';
     }

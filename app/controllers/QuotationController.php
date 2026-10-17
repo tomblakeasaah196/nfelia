@@ -41,9 +41,13 @@ class QuotationController {
             $params[] = $like;
             $params[] = $like;
         }
-        if ($status !== '' && in_array($status, ['draft','sent','accepted','declined','expired','converted'])) {
+        if ($status === 'waiting') {
+            $where[] = "q.status IN ('sent','in_negotiation','pending_signature')";
+        } elseif ($status !== '' && in_array($status, ['draft','sent','in_negotiation','pending_signature','accepted','declined','expired','converted'])) {
             $where[]  = "q.status = ?";
             $params[] = $status;
+        } else {
+            $status = '';
         }
 
         $where_sql = implode(' AND ', $where);
@@ -80,7 +84,11 @@ class QuotationController {
                 SUM(CASE WHEN status = 'accepted' THEN total ELSE 0 END)     AS accepted_value,
                 SUM(CASE WHEN status IN ('draft','sent') THEN 1 ELSE 0 END)  AS pending_count,
                 SUM(CASE WHEN status = 'accepted' THEN 1 ELSE 0 END)         AS accepted_count,
-                SUM(CASE WHEN status = 'expired' THEN 1 ELSE 0 END)          AS expired_count
+                SUM(CASE WHEN status = 'expired' THEN 1 ELSE 0 END)          AS expired_count,
+                SUM(CASE WHEN status IN ('sent','in_negotiation','pending_signature') THEN 1 ELSE 0 END)                      AS waiting_count,
+                COALESCE(SUM(CASE WHEN status IN ('sent','in_negotiation','pending_signature') THEN total END), 0)            AS waiting_value,
+                SUM(CASE WHEN status = 'draft' THEN 1 ELSE 0 END)            AS draft_count,
+                SUM(CASE WHEN status = 'converted' THEN 1 ELSE 0 END)        AS converted_count
             FROM quotations WHERE business_id = ?
         ");
         $stmtS->execute([$this->biz_id]);

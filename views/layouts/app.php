@@ -54,7 +54,8 @@ $nav_groups      = nav_groups($user_role, $business_type, $business_id);
 $current_url     = trim($_GET['url'] ?? '', '/');
 $current_section = explode('/', $current_url)[0] ?: 'dashboard';
 $current_tab     = nav_tab_for($current_section);
-$tab_roots       = ['dashboard' => 'home', 'invoices' => 'sales', 'tasks' => 'tasks', 'more' => 'more', '' => 'home'];
+// Sales holds three lists (Invoices, Receipts, Quotes): each is a first page of the tab.
+$tab_roots       = ['dashboard' => 'home', 'invoices' => 'sales', 'receipts' => 'sales', 'quotations' => 'sales', 'tasks' => 'tasks', 'more' => 'more', '' => 'home'];
 $is_tab_root     = isset($tab_roots[$current_url]);
 // Below a tab's first page the bar shows Back: to the section's list when
 // it has one, otherwise to More, where the rest of the app is listed.
@@ -350,7 +351,7 @@ $flash = get_flash();
                     <button type="button" class="nf-tab-create" aria-label="Create" aria-haspopup="dialog" data-open="nf-create"><?= nav_icon('plus') ?></button>
                 <?php else:
                     $here = $current_tab === $key; ?>
-                    <a class="nf-tab" href="<?= APP_URL ?>/<?= $url ?>"<?= $here ? ' aria-current="' . ($current_url === $url || ($key === 'home' && $current_url === '') ? 'page' : 'true') . '"' : '' ?>><?= nav_icon($key) ?><span><?= $label ?></span></a>
+                    <a class="nf-tab" href="<?= APP_URL ?>/<?= $url ?>"<?= $here ? ' aria-current="' . ($is_tab_root ? 'page' : 'true') . '"' : '' ?>><?= nav_icon($key) ?><span><?= $label ?></span></a>
                 <?php endif; ?>
                 </li>
             <?php endforeach; ?>

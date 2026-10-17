@@ -109,7 +109,37 @@ Rules that matter:
   `push_endpoint.php` on :8097 and decrypts every notification, runs the cron with a fake clock, and puts
   the database and `.env` back as they were.
 
-## 7. Next
+## 7. Built: the busiest screens
 
-- **D. The busiest screens rebuilt.** Home, a Sales hub (invoices, receipts, quotes), invoice and receipt
-  pages, Clients, Stock. They still use the old page designs inside the new shell.
+| Screen | Where |
+|---|---|
+| Home: greeting (Lagos time), money this month with the thread, Needs you, Today (from Tasks), latest invoices, search | `views/dashboard/index.php`, `DashboardController::index` and `::search` |
+| Sales: one tab, three lists (Invoices, Receipts, Quotes) at their own addresses | `views/partials/sales_head.php`, `views/{invoices,receipts,quotations}/index.php` |
+| Invoice page: who owes what, Record payment (a sheet), share tiles, More (edit, delivery note, PDF, cancel, delete), delivery, payments, the document | `views/invoices/view.php` |
+| Receipt page | `views/receipts/view.php` |
+| Clients | `views/customers/index.php` |
+| Stock (Services for a service business) | `views/products/index.php` |
+| Shared pieces | `assets/css/src/pages.css` (built into `app.css`), `app/helpers/screens.php` (filter addresses, dates in words, how a document stands), `views/partials/{invoice_row,pager}.php` |
+
+Rules that matter:
+
+- **Money in** on Home is invoice payments plus receipts for sales paid on the spot. A receipt for an
+  invoice payment is the same money as the payment, so it is never added twice.
+- **The thread**: the solid accent part is money in hand, the gold stitches what is still owed. It is the
+  brand's thread put to work; use it only for paid against owed.
+- Text sizes: 1rem for what a row is about, .875rem for what describes it, .8125rem for tags. No all-caps
+  labels and no text under 12px outside the business's own document, which keeps its look.
+- The business's document (the preview on the invoice and receipt pages) is the same markup as before,
+  framed. Its colours and fonts are the business's; don't restyle it with the app's.
+- **The layout runs every page's view in its own scope, after the sidebar.** Never use a plain variable name
+  in the layout's own loops (`$items` once replaced every page's line items). Its loops use `nav_` names.
+- Search results on Home are built as elements, never as HTML: client names come from the public shop.
+- Test with `docs/handoff/testkit/screens_test.js OUTDIR` (133 checks): each screen at 375 and 1280 for
+  sideways scroll, text size, capitals and 44px controls; filters, search, sort, the payment sheet, copy
+  link, the More sheets, staff without money, and a client named with markup.
+
+## 8. Next
+
+- The client page (`views/customers/view.php`), quote page and the forms still use the older design
+  inside the new shell.
+- Shop checkout takes item prices from the shopper's browser (see PR C): price items from the products table.

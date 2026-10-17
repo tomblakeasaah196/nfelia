@@ -6,6 +6,8 @@
  *                        phone's own share sheet. Shown only where the browser
  *                        can share files; the WhatsApp link and Download PDF
  *                        stay for everyone else (views/partials/share_pdf.php).
+ *   [data-copy]          Copy link: puts the link in data-copy on the
+ *                        clipboard, and says so.
  *   [data-pick-contact]  Pick from phone contacts: fills a customer's name,
  *                        phone and email (Android Chrome). Each
  *                        data-fill-name / -phone / -email names the field to
@@ -59,6 +61,19 @@
             label.textContent = 'Getting the PDF…';
             load().then(share).catch(failed).then(done, done);
         });
+    });
+
+    // ---------- Copy a link ----------
+    document.addEventListener('click', function (e) {
+        var btn = e.target.closest('[data-copy]');
+        if (!btn) return;
+        var text = btn.getAttribute('data-copy');
+        var done = function () { if (window.nfToast) window.nfToast('Link copied. Paste it into any chat.', 'success'); };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(done, function () { window.prompt('Copy this link:', text); });
+        } else {
+            window.prompt('Copy this link:', text);
+        }
     });
 
     // ---------- Pick from phone contacts ----------

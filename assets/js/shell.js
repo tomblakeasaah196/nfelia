@@ -196,7 +196,7 @@
         var ref = document.referrer;
         if (ref && ref.indexOf(location.origin) === 0 && history.length > 1) { e.preventDefault(); history.back(); }
     });
-    var TAB_ROOTS = ['/dashboard', '/invoices', '/tasks', '/more', '/'];
+    var TAB_ROOTS = ['/dashboard', '/invoices', '/receipts', '/quotations', '/tasks', '/more', '/'];
     window.addEventListener('pagereveal', function (e) {
         if (!e.viewTransition || !window.navigation || !navigation.activation) return;
         var a = navigation.activation;

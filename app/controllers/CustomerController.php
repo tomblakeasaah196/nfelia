@@ -97,7 +97,7 @@ class CustomerController {
         $stmtS->execute([$this->biz_id]);
         $summary = $stmtS->fetch();
 
-        $title     = "Customers";
+        $title     = "Clients";
         $view_file = BASE_PATH . '/views/customers/index.php';
         require_once BASE_PATH . '/views/layouts/app.php';
     }

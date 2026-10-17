@@ -1,27 +1,18 @@
 <?php
 /**
- * Nfelia — Invoice Detail View + Document Preview + Payment Recording
- * Renders inside views/layouts/app.php
+ * An invoice: who owes what, what has been paid, and what to do next, with
+ * the document itself as the customer sees it. Renders inside
+ * views/layouts/app.php.
  *
  * Available from controller:
  *   $user, $business, $invoice, $customer, $items, $bank,
- *   $payments, $quotation, $public_url
+ *   $payments, $quotation, $public_url, $delivered_by_note, $job_plan
  */
 $currency = $business['currency_symbol'] ?? '₦';
-$font_map = FONT_PAIRINGS[$business['font_pairing'] ?? 'modern_sans'] ?? FONT_PAIRINGS['modern_sans'];
+$today    = planner_today();
+[$status_words, $status_cls] = screen_invoice_tag($invoice['status']);
 
-// Status config
-$status_cfg = match($invoice['status']) {
-    'draft'          => ['bg-gray-100 text-gray-700 border-gray-300', 'Draft', 'gray'],
-    'sent'           => ['bg-blue-100 text-blue-700 border-blue-300', 'Sent', 'blue'],
-    'partially_paid' => ['bg-amber-100 text-amber-700 border-amber-300', 'Partially Paid', 'amber'],
-    'paid'           => ['bg-green-100 text-green-700 border-green-300', 'Paid', 'green'],
-    'overdue'        => ['bg-red-100 text-red-700 border-red-300', 'Overdue', 'red'],
-    'cancelled'      => ['bg-gray-200 text-gray-500 border-gray-400', 'Cancelled', 'gray'],
-    default          => ['bg-gray-100 text-gray-700 border-gray-300', ucfirst($invoice['status']), 'gray'],
-};
-
-// Payment watermark text
+// Watermark on the document
 $watermark_text = match($invoice['status']) {
     'paid'           => 'PAID',
     'partially_paid' => 'PARTIALLY PAID',
@@ -48,267 +39,196 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
 // Payment progress
 $total_val = max(0.01, (float)$invoice['total']);
 $paid_val  = (float)$invoice['amount_paid'];
+$balance   = (float)$invoice['balance_due'];
 $pct_paid  = min(100, round($paid_val / $total_val * 100));
+$can_pay   = in_array($invoice['status'], ['sent', 'partially_paid', 'overdue'], true);
+$live      = !in_array($invoice['status'], ['draft', 'cancelled'], true);
 
 // Days overdue
 $days_overdue = 0;
-if ($invoice['due_date'] && in_array($invoice['status'], ['overdue','sent','partially_paid'])) {
-    $diff = (int)((time() - strtotime($invoice['due_date'])) / 86400);
+if ($invoice['due_date'] && in_array($invoice['status'], ['overdue', 'sent', 'partially_paid'], true)) {
+    $diff = (int)((strtotime($today) - strtotime($invoice['due_date'])) / 86400);
     if ($diff > 0) $days_overdue = $diff;
+}
+$meta = [e($invoice['doc_number']), 'Issued ' . e(screen_date($invoice['issue_date']))];
+if ($invoice['due_date'] && $live) {
+    $meta[] = $days_overdue > 0
+        ? '<span class="is-owed">' . $days_overdue . ' day' . ($days_overdue > 1 ? 's' : '') . ' overdue</span>'
+        : ($invoice['due_date'] === $today ? 'Due today' : 'Due ' . e(screen_date($invoice['due_date'])));
+}
+if ($quotation) {
+    $meta[] = 'from <a href="' . APP_URL . '/quotations/view/' . (int)$quotation['id'] . '">' . e($quotation['doc_number']) . '</a>';
 }
 ?>
 
-<!-- Alpine scope for payment modal -->
-<div x-data="invoiceView()" x-cloak>
+<div x-data="invoiceView()">
+<div class="nf-cols is-doc">
+<div>
 
-<!-- Breadcrumb + Actions -->
-<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-    <div class="flex items-center gap-3">
-        <a href="<?= APP_URL ?>/invoices" class="text-brand-plum/40 hover:text-brand-plum transition-colors">
-            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
-        </a>
-        <div>
-            <h1 class="font-heading font-extrabold text-xl text-brand-plum tracking-tight"><?= e($invoice['doc_number']) ?></h1>
-            <div class="flex items-center gap-2 mt-0.5">
-                <span class="data-text text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded <?= $status_cfg[0] ?>"><?= $status_cfg[1] ?></span>
-                <?php if ($days_overdue > 0): ?>
-                    <span class="data-text text-[9px] font-bold text-red-600"><?= $days_overdue ?> day<?= $days_overdue > 1 ? 's' : '' ?> overdue</span>
-                <?php endif; ?>
-                <?php if ($quotation): ?>
-                    <a href="<?= APP_URL ?>/quotations/view/<?= $quotation['id'] ?>" class="data-text text-[9px] font-bold text-purple-500 hover:text-purple-700">
-                        from <?= e($quotation['doc_number']) ?>
-                    </a>
-                <?php endif; ?>
-            </div>
-        </div>
-    </div>
-
-    <!-- Action buttons -->
-    <div class="flex flex-wrap items-center gap-2">
-        <?php if (in_array($invoice['status'], ['draft', 'sent'])): ?>
-            <a href="<?= APP_URL ?>/invoices/edit/<?= $invoice['id'] ?>" class="flex items-center gap-1.5 bg-brand-white border border-brand-sand hover:border-brand-gold px-3 py-2 rounded-lg transition-all">
-                <svg class="w-3.5 h-3.5 text-brand-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                <span class="text-[10px] font-bold text-brand-plum uppercase tracking-widest">Edit</span>
-            </a>
+<!-- Who owes what -->
+<section class="nf-doc" aria-label="Invoice <?= e($invoice['doc_number']) ?>">
+    <p class="nf-doc-who">
+        <?php if ($customer): ?>
+            <a href="<?= APP_URL ?>/customers/view/<?= (int)$customer['id'] ?>" data-prefetch><?= e($customer['full_name']) ?></a>
+        <?php else: ?>
+            <span>No client</span>
         <?php endif; ?>
-        
+        <span class="nf-tag <?= $status_cls ?>"><?= e($status_words) ?></span>
+    </p>
+    <p class="nf-doc-amt"><?= planner_money((float)$invoice['total'], $currency) ?></p>
+    <p class="nf-doc-meta"><?= implode(' · ', $meta) ?></p>
 
-        <?php if ($invoice['status'] === 'draft'): ?>
-            <form method="POST" action="<?= APP_URL ?>/invoices/send/<?= $invoice['id'] ?>" class="inline"
-                  onsubmit="return confirm('Mark this invoice as sent? Stock will be deducted for physical products.');">
-                <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
-                <button class="flex items-center gap-1.5 btn-primary text-white px-3 py-2 rounded-lg transition-all">
-                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
-                    <span class="text-[10px] font-bold uppercase tracking-widest">Mark Sent</span>
-                </button>
-            </form>
-        <?php endif; ?>
+    <?php if ($live): ?>
+        <div class="nf-thread<?= $paid_val > 0 ? '' : ' is-empty' ?>" style="--done: <?= $pct_paid ?>%" role="img" aria-label="<?= $pct_paid ?>% paid"><i></i></div>
+        <p class="nf-thread-key">
+            <span><b class="is-in"><?= planner_money($paid_val, $currency) ?></b> paid</span>
+            <?php if ($balance > 0): ?>
+                <span><b class="is-owed"><?= planner_money($balance, $currency) ?></b> left to pay</span>
+            <?php else: ?>
+                <span>Paid in full</span>
+            <?php endif; ?>
+        </p>
+    <?php endif; ?>
 
-        <?php if (in_array($invoice['status'], ['sent', 'partially_paid', 'overdue'])): ?>
-            <button @click="showPaymentModal = true" class="flex items-center gap-1.5 bg-green-500 text-white px-3 py-2 rounded-lg hover:bg-green-600 transition-all">
-                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                <span class="text-[10px] font-bold uppercase tracking-widest">Record Payment</span>
-            </button>
-        <?php endif; ?>
-
+    <?php if ($can_pay): ?>
+        <button type="button" class="nf-btn nf-btn-primary" data-open="nf-pay"><?= nav_icon('money') ?>Record payment</button>
         <?php if ($invoice['status'] === 'overdue'): ?>
-            <a href="<?= APP_URL ?>/invoices/send_reminder/<?= $invoice['id'] ?>" class="flex items-center gap-1.5 bg-amber-500 text-white px-3 py-2 rounded-lg hover:bg-amber-600 transition-all">
-                <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-                <span class="text-[10px] font-bold uppercase tracking-widest">Send Reminder</span>
-            </a>
+            <a class="nf-btn nf-btn-ghost nf-wide" href="<?= APP_URL ?>/invoices/send_reminder/<?= (int)$invoice['id'] ?>" data-no-prefetch><?= nav_icon('whatsapp') ?>Send a reminder</a>
         <?php endif; ?>
-        
-        <!-- Create Delivery / Dispatch -->
-        <?php if (!in_array($invoice['status'], ['cancelled', 'draft'])): ?>
-            <a href="<?= APP_URL ?>/deliveries/create?invoice_id=<?= $invoice['id'] ?>" class="flex items-center gap-1.5 bg-brand-white border border-brand-sand hover:border-brand-gold px-3 py-2 rounded-lg transition-all">
-                <svg class="w-3.5 h-3.5 text-brand-plum/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a2 2 0 104 0m-4 0a2 2 0 11-4 0"/></svg>
-                <span class="text-[10px] font-bold text-brand-plum uppercase tracking-widest">Create Delivery</span>
-            </a>
-        <?php endif; ?>
+    <?php elseif ($invoice['status'] === 'draft'): ?>
+        <form method="POST" action="<?= APP_URL ?>/invoices/send/<?= (int)$invoice['id'] ?>"
+              onsubmit="return confirm('Mark <?= e($invoice['doc_number']) ?> as sent? Stock for the items on it is taken off your shelves.');">
+            <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
+            <button class="nf-btn nf-btn-primary"><?= nav_icon('send') ?>Mark as sent</button>
+        </form>
+    <?php endif; ?>
+</section>
 
-        <?php if (!in_array($invoice['status'], ['cancelled', 'draft'])): ?>
-            <form method="POST" action="<?= APP_URL ?>/invoices/cancel/<?= $invoice['id'] ?>" class="inline"
-                  onsubmit="return confirm('Cancel this invoice? Stock will be restored and any debt records cleared.');">
-                <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
-                <button class="flex items-center gap-1.5 bg-brand-white border border-red-200 hover:border-red-400 text-red-600 px-3 py-2 rounded-lg transition-all">
-                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
-                    <span class="text-[10px] font-bold uppercase tracking-widest">Cancel</span>
-                </button>
-            </form>
-        <?php endif; ?>
-    </div>
+<!-- Share it -->
+<div class="nf-do">
+    <?php $share_pdf = ['url' => $public_url, 'name' => $invoice['doc_number'] . '.pdf', 'title' => 'Invoice ' . $invoice['doc_number'],
+                        'text' => 'Invoice ' . $invoice['doc_number'] . ' from ' . $business['name'] . '. View and pay here: ' . $public_url, 'tile' => true];
+          require BASE_PATH . '/views/partials/share_pdf.php'; ?>
+    <a class="is-wa" href="<?= e($wa_link) ?>" target="_blank" rel="noopener"><?= nav_icon('whatsapp') ?><span>WhatsApp</span></a>
+    <button type="button" data-copy="<?= e($public_url) ?>"><?= nav_icon('copy') ?><span>Copy link</span></button>
+    <button type="button" data-open="nf-inv-more" aria-haspopup="dialog"><?= nav_icon('dots') ?><span>More</span></button>
 </div>
-
-<!-- Payment Progress Bar -->
-<?php if ($invoice['status'] !== 'draft' && $invoice['status'] !== 'cancelled'): ?>
-<div class="bg-brand-white border border-brand-sand rounded-xl p-4 mb-6 shadow-sm">
-    <div class="flex items-center justify-between mb-2">
-        <div class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest">Payment Progress</div>
-        <div class="text-xs font-bold text-brand-plum"><?= $pct_paid ?>%</div>
-    </div>
-    <div class="w-full h-3 bg-brand-cream rounded-full overflow-hidden">
-        <div class="h-full rounded-full transition-all duration-500 <?= $pct_paid >= 100 ? 'bg-green-500' : ($pct_paid > 0 ? 'bg-amber-500' : 'bg-gray-300') ?>"
-             style="width: <?= $pct_paid ?>%;"></div>
-    </div>
-    <div class="flex items-center justify-between mt-2">
-        <div class="data-text text-[10px] text-brand-plum/50">
-            Paid: <span class="font-bold text-green-600"><?= money($paid_val, $currency) ?></span>
-        </div>
-        <div class="data-text text-[10px] text-brand-plum/50">
-            Balance: <span class="font-bold <?= (float)$invoice['balance_due'] > 0 ? 'text-red-600' : 'text-green-600' ?>"><?= money((float)$invoice['balance_due'], $currency) ?></span>
-        </div>
-    </div>
-</div>
-<?php endif; ?>
 
 <!-- Delivery: the promise to the customer (Tasks & Calendar) -->
 <?php if ($invoice['status'] !== 'cancelled'):
-    $today_lagos   = planner_today();
     $is_delivered  = !empty($invoice['delivered_at']) || !empty($delivered_by_note);
-    $deliver_count = (!$is_delivered && $invoice['deliver_by']) ? planner_countdown($invoice['deliver_by'], $today_lagos, 'Deliver') : null;
-    $tone_cls = ['late' => 'bg-[#FEE4E2] text-[#B42318]', 'today' => 'bg-[#FEE4E2] text-[#B42318]', 'soon' => 'bg-[#FEF0C7] text-[#93370D]', 'later' => 'bg-brand-cream text-brand-plum/70'];
+    $deliver_count = (!$is_delivered && $invoice['deliver_by']) ? planner_countdown($invoice['deliver_by'], $today, 'Deliver') : null;
+    $tone_cls = ['late' => 'is-owed', 'today' => 'is-owed', 'soon' => 'is-warn', 'later' => ''];
 ?>
-<div class="bg-brand-white border rounded-xl p-4 mb-6 shadow-sm <?= !$invoice['deliver_mode'] && !$is_delivered ? 'border-[#F7D9A8]' : 'border-brand-sand' ?>"
+<section class="nf-card<?= !$invoice['deliver_mode'] && !$is_delivered ? ' is-warn' : '' ?>" aria-label="Delivery"
      x-data="{ editing: <?= !$invoice['deliver_mode'] && !$is_delivered ? 'true' : 'false' ?> }">
-    <div class="flex flex-wrap items-center justify-between gap-3">
-        <div class="min-w-0">
+    <div class="nf-deliver">
+        <div class="nf-deliver-txt">
             <?php if ($is_delivered): ?>
-                <p class="text-sm font-semibold text-[#00764A]">
+                <p class="nf-deliver-h is-in">
                     Delivered<?= !empty($invoice['delivered_at']) ? ' on ' . e(date('D j M', strtotime($invoice['delivered_at']))) : ' (signed delivery note)' ?>
                 </p>
             <?php elseif ($invoice['deliver_mode']): ?>
-                <p class="text-sm font-semibold text-brand-plum">
-                    <?php $dday = planner_fmt_day($invoice['deliver_by'], $today_lagos); ?>
+                <p class="nf-deliver-h">
+                    <?php $dday = planner_fmt_day($invoice['deliver_by'], $today); ?>
                     Deliver <?= $invoice['deliver_mode'] === 'immediate' ? 'immediately' : (in_array($dday, ['Today', 'Tomorrow'], true) ? strtolower($dday) : 'by ' . e($dday)) ?>
                     <?php if ($deliver_count && !in_array($deliver_count['label'], ['Deliver today', 'Deliver tomorrow'], true)): ?>
-                        <span class="ml-1 px-2 py-0.5 rounded-full text-xs font-semibold <?= $tone_cls[$deliver_count['tone']] ?>"><?= e($deliver_count['label']) ?></span>
+                        <span class="nf-tag <?= $tone_cls[$deliver_count['tone']] ?>"><?= e($deliver_count['label']) ?></span>
                     <?php endif; ?>
                 </p>
-                <p class="text-xs text-brand-plum/60 mt-0.5"><?= $invoice['deliver_show'] ? 'The customer sees this date on their invoice.' : 'Only you see this date.' ?></p>
+                <p class="nf-deliver-sub"><?= $invoice['deliver_show'] ? 'The customer sees this date on their invoice.' : 'Only you see this date.' ?></p>
             <?php else: ?>
-                <p class="text-sm font-semibold text-brand-plum">When will <?= e(planner_first_name($customer['full_name'] ?? '') ?: 'the customer') ?> get this order?</p>
-                <p class="text-xs text-brand-plum/60 mt-0.5">Set it once and it shows on your Tasks &amp; Calendar with a countdown.</p>
+                <p class="nf-deliver-h">When will <?= e(planner_first_name($customer['full_name'] ?? '') ?: 'the customer') ?> get this order?</p>
+                <p class="nf-deliver-sub">Set it once and it shows on your Tasks &amp; Calendar with a countdown.</p>
             <?php endif; ?>
             <?php if ($job_plan): ?>
-                <a href="<?= APP_URL ?>/tasks" class="inline-block mt-1 text-xs font-semibold text-brand-burgundy underline underline-offset-2"><?= e($job_plan['title']) ?>: <?= (int)$job_plan['done'] ?> of <?= (int)$job_plan['total'] ?> steps done</a>
+                <a href="<?= APP_URL ?>/tasks" class="nf-link"><?= e($job_plan['title']) ?>: <?= (int)$job_plan['done'] ?> of <?= (int)$job_plan['total'] ?> steps done</a>
             <?php endif; ?>
         </div>
-        <div class="flex flex-wrap items-center gap-2">
+        <div class="nf-deliver-do">
             <?php if ($is_delivered && !empty($invoice['delivered_at'])): ?>
-                <form method="POST" action="<?= APP_URL ?>/invoices/mark-delivered/<?= $invoice['id'] ?>" class="inline">
+                <form method="POST" action="<?= APP_URL ?>/invoices/mark-delivered/<?= (int)$invoice['id'] ?>">
                     <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
                     <input type="hidden" name="undo" value="1">
-                    <button class="h-11 px-3 rounded-lg border border-brand-sand text-xs font-semibold text-brand-plum/70 hover:border-brand-gold">Mark not delivered</button>
+                    <button class="nf-btn nf-btn-ghost">Mark not delivered</button>
                 </form>
             <?php elseif (!$is_delivered && $invoice['deliver_mode']): ?>
-                <form method="POST" action="<?= APP_URL ?>/invoices/mark-delivered/<?= $invoice['id'] ?>" class="inline">
+                <form method="POST" action="<?= APP_URL ?>/invoices/mark-delivered/<?= (int)$invoice['id'] ?>">
                     <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
-                    <button class="h-11 px-4 rounded-lg bg-[#00764A] text-white text-xs font-semibold hover:opacity-90">Mark delivered</button>
+                    <button class="nf-btn nf-btn-in">Mark delivered</button>
                 </form>
-                <button type="button" @click="editing = !editing" :aria-expanded="editing" class="h-11 px-3 rounded-lg border border-brand-sand text-xs font-semibold text-brand-plum hover:border-brand-gold">Change date</button>
+                <button type="button" @click="editing = !editing" :aria-expanded="editing" class="nf-btn nf-btn-ghost">Change date</button>
                 <?php if (!$job_plan): ?>
-                    <a href="<?= APP_URL ?>/tasks?invoice=<?= $invoice['id'] ?>" class="h-11 px-3 inline-flex items-center rounded-lg border border-brand-sand text-xs font-semibold text-brand-plum hover:border-brand-gold">Plan the job</a>
+                    <a href="<?= APP_URL ?>/tasks?invoice=<?= (int)$invoice['id'] ?>" class="nf-btn nf-btn-ghost">Plan the job</a>
                 <?php endif; ?>
             <?php endif; ?>
         </div>
     </div>
     <?php if (!$is_delivered): ?>
-    <form x-show="editing" method="POST" action="<?= APP_URL ?>/invoices/set-delivery/<?= $invoice['id'] ?>" class="mt-4 pt-4 border-t border-brand-sand space-y-3">
+    <form x-show="editing" method="POST" action="<?= APP_URL ?>/invoices/set-delivery/<?= (int)$invoice['id'] ?>" class="nf-deliver-form">
         <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
         <?php
         $df = ['mode' => $invoice['deliver_mode'] ?? '', 'date' => $invoice['deliver_by'] ?? '', 'show' => !empty($invoice['deliver_show']), 'handed' => true, 'id' => 'inv-view', 'legend_hidden' => !$invoice['deliver_mode']];
         require BASE_PATH . '/views/partials/deliver_fields.php';
         ?>
-        <button class="h-11 px-5 rounded-lg btn-primary text-white text-xs font-semibold">Save delivery</button>
+        <button class="nf-btn nf-btn-primary">Save delivery</button>
     </form>
     <?php endif; ?>
-</div>
+</section>
 <?php endif; ?>
 
-<!-- Share Actions Bar -->
-<div class="bg-brand-white border border-brand-sand rounded-xl p-4 mb-6 shadow-sm flex flex-wrap items-center gap-3">
-    <?php $share_pdf = ['url' => $public_url, 'name' => $invoice['doc_number'] . '.pdf', 'title' => 'Invoice ' . $invoice['doc_number'],
-                        'text' => 'Invoice ' . $invoice['doc_number'] . ' from ' . $business['name'] . '. View and pay here: ' . $public_url];
-          require BASE_PATH . '/views/partials/share_pdf.php'; ?>
-
-    <!-- Copy Link -->
-    <button onclick="navigator.clipboard.writeText('<?= e($public_url) ?>'); this.querySelector('span').textContent = 'Copied!'; setTimeout(() => this.querySelector('span').textContent = 'Copy Link', 2000);"
-            class="flex items-center gap-1.5 bg-brand-cream border border-brand-sand hover:border-brand-gold px-3 py-2 rounded-lg transition-all">
-        <svg class="w-3.5 h-3.5 text-brand-plum/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
-        <span class="text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest">Copy Link</span>
-    </button>
-
-    <!-- WhatsApp -->
-    <a href="<?= $wa_link ?>" target="_blank" class="flex items-center gap-1.5 bg-green-500 text-white px-3 py-2 rounded-lg hover:bg-green-600 transition-all">
-        <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-        <span class="text-[10px] font-bold uppercase tracking-widest">WhatsApp</span>
-    </a>
-
-    <!-- Download PDF -->
-    <button onclick="downloadPDF()" class="flex items-center gap-1.5 bg-brand-cream border border-brand-sand hover:border-brand-gold px-3 py-2 rounded-lg transition-all">
-        <svg class="w-3.5 h-3.5 text-brand-plum/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-        <span class="text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest">Download PDF</span>
-    </button>
-
-    <!-- Open Public -->
-    <a href="<?= e($public_url) ?>" target="_blank" class="flex items-center gap-1.5 bg-brand-cream border border-brand-sand hover:border-brand-gold px-3 py-2 rounded-lg transition-all">
-        <svg class="w-3.5 h-3.5 text-brand-plum/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
-        <span class="text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest">Public View</span>
-    </a>
-
-    <!-- Delete (drafts only) -->
-    <?php if ($invoice['status'] === 'draft'): ?>
-    <form method="POST" action="<?= APP_URL ?>/invoices/delete/<?= $invoice['id'] ?>" class="inline ml-auto"
-          onsubmit="return confirm('Permanently delete this invoice?');">
-        <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
-        <button class="text-[10px] font-bold text-red-400 uppercase tracking-widest hover:text-red-600 transition-colors">Delete</button>
-    </form>
-    <?php endif; ?>
-</div>
-
-<!-- Payment History -->
+<!-- Payments -->
 <?php if (!empty($payments)): ?>
-<div class="bg-brand-white border border-brand-sand rounded-xl shadow-sm overflow-hidden mb-6">
-    <div class="px-5 py-3 border-b border-brand-sand bg-brand-cream/50">
-        <h2 class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest">Payment History — <?= count($payments) ?> payment<?= count($payments) > 1 ? 's' : '' ?></h2>
+<section class="nf-card is-flush" aria-labelledby="nf-pays-h">
+    <div class="nf-card-h"><h2 id="nf-pays-h">Payments</h2></div>
+    <div class="nf-items">
+        <?php foreach ($payments as $pay): ?>
+            <div class="nf-item">
+                <span class="nf-item-main">
+                    <b class="is-in"><?= planner_money((float)$pay['amount'], $currency) ?></b>
+                    <small><?= e(screen_date($pay['payment_date'])) ?> · <?= e(screen_method($pay['method'])) ?><?= $pay['reference'] ? ' · ' . e($pay['reference']) : '' ?></small>
+                </span>
+                <?php if ($pay['receipt_id']): ?>
+                    <a class="nf-link" href="<?= APP_URL ?>/receipts/view/<?= (int)$pay['receipt_id'] ?>" data-prefetch><?= e($pay['receipt_number']) ?></a>
+                <?php else: ?>
+                    <a class="nf-link" href="<?= APP_URL ?>/receipts/from_payment/<?= (int)$pay['id'] ?>" data-no-prefetch>Make a receipt</a>
+                <?php endif; ?>
+            </div>
+        <?php endforeach; ?>
     </div>
-    <div class="overflow-x-auto">
-        <table class="w-full text-left">
-            <thead>
-                <tr class="border-b border-brand-sand/50">
-                    <th class="px-5 py-2.5 text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest">Date</th>
-                    <th class="px-5 py-2.5 text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest text-right">Amount</th>
-                    <th class="px-5 py-2.5 text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest">Method</th>
-                    <th class="px-5 py-2.5 text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest">Reference</th>
-                    <th class="px-5 py-2.5 text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest">Receipt</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-brand-sand/30">
-                <?php foreach ($payments as $pay): ?>
-                    <tr class="hover:bg-brand-cream/20">
-                        <td class="px-5 py-3 data-text text-[10px] text-brand-plum/60"><?= fmt_date($pay['payment_date'], 'd M Y') ?></td>
-                        <td class="px-5 py-3 data-text text-xs font-bold text-green-600 text-right"><?= money((float)$pay['amount'], $currency) ?></td>
-                        <td class="px-5 py-3">
-                            <span class="data-text text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-gray-100 text-gray-600"><?= ucfirst(str_replace('_', ' ', $pay['method'])) ?></span>
-                        </td>
-                        <td class="px-5 py-3 data-text text-[10px] text-brand-plum/50"><?= $pay['reference'] ? e($pay['reference']) : '—' ?></td>
-                        <td class="px-5 py-3">
-                            <?php if ($pay['receipt_id']): ?>
-                                <a href="<?= APP_URL ?>/receipts/view/<?= $pay['receipt_id'] ?>" class="text-[10px] font-bold text-brand-gold uppercase tracking-widest hover:text-brand-burgundy"><?= e($pay['receipt_number']) ?></a>
-                            <?php else: ?>
-                                <a href="<?= APP_URL ?>/receipts/from_payment/<?= $pay['id'] ?>" class="text-[10px] font-bold text-purple-500 uppercase tracking-widest hover:text-purple-700">Generate</a>
-                            <?php endif; ?>
-                        </td>
-                    </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
-    </div>
-</div>
+</section>
 <?php endif; ?>
+
+<?php if (in_array($invoice['status'] ?? '', ['paid', 'partially_paid'])): ?>
+<!-- Deed of Acquisition -->
+<section class="nf-card" x-data="{ showDeed: false }" aria-labelledby="nf-deed-h">
+    <div class="nf-card-h">
+        <div>
+            <h2 id="nf-deed-h">Deed of Acquisition</h2>
+            <p>A formal record of what <?= e($customer['full_name'] ?? '') ?: 'the customer' ?> bought and now owns.</p>
+        </div>
+    </div>
+    <button type="button" class="nf-btn nf-btn-ghost nf-wide" @click="showDeed = !showDeed" :aria-expanded="showDeed">Issue a deed</button>
+    <form x-show="showDeed" action="<?= APP_URL ?>/deed/create" method="POST" class="nf-form nf-deed-form" style="display:none">
+        <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
+        <input type="hidden" name="source" value="invoice">
+        <input type="hidden" name="source_id" value="<?= (int)$invoice['id'] ?>">
+        <label>The story of the piece <small>Optional. It appears on the deed as its description.</small>
+            <textarea name="provenance_text" rows="3" placeholder="For example: hand-made from premium materials in our Lagos studio."></textarea>
+        </label>
+        <button type="submit" class="nf-btn nf-btn-primary">Issue the deed</button>
+    </form>
+</section>
+<?php endif; ?>
+
+</div>
+<div>
 
 <!-- ===== DOCUMENT PREVIEW ===== -->
-<div id="invoice-document" class="bg-white border border-brand-sand rounded-xl shadow-sm overflow-hidden mb-8 relative">
+<section class="nf-paper" aria-labelledby="nf-paper-h">
+    <h2 class="nf-paper-h" id="nf-paper-h">What your customer sees <a class="nf-link" href="<?= e($public_url) ?>" target="_blank" rel="noopener">Open</a></h2>
+    <div class="nf-sheet-doc">
+<div id="invoice-document" class="bg-white overflow-hidden relative">
 
     <!-- Payment Status Watermark -->
     <?php if ($watermark_text): ?>
@@ -491,126 +411,106 @@ if ($invoice['due_date'] && in_array($invoice['status'], ['overdue','sent','part
         <?php endif; ?>
     </div>
 </div>
-
-<!-- ===== PAYMENT MODAL ===== -->
-<div x-show="showPaymentModal" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
-     x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
-     class="fixed inset-0 z-50 flex items-center justify-center p-4" style="background: rgba(0,0,0,.45);">
-
-    <div @click.outside="showPaymentModal = false" @keydown.escape.window="showPaymentModal = false"
-         x-show="showPaymentModal" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
-         class="bg-brand-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
-
-        <!-- Modal Header -->
-        <div class="px-6 py-4 border-b border-brand-sand" style="background: <?= e($business['primary_color'] ?? '#8B004A') ?>0A;">
-            <div class="flex items-center justify-between">
-                <div>
-                    <h3 class="font-heading font-bold text-lg text-brand-plum">Record Payment</h3>
-                    <p class="text-[10px] text-brand-plum/50 font-medium mt-0.5"><?= e($invoice['doc_number']) ?> — Balance: <strong class="text-red-600"><?= money((float)$invoice['balance_due'], $currency) ?></strong></p>
-                </div>
-                <button @click="showPaymentModal = false" class="text-brand-plum/30 hover:text-brand-plum transition-colors">
-                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
-                </button>
-            </div>
-        </div>
-
-        <!-- Modal Body -->
-        <form @submit.prevent="submitPayment" class="p-6 space-y-4">
-            <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
-
-            <!-- Amount -->
-            <div>
-                <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1">Amount <span class="text-red-500">*</span></label>
-                <div class="relative">
-                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-brand-plum/40"><?= $currency ?></span>
-                    <input type="number" x-model="payForm.amount" step="0.01" min="0.01" max="<?= (float)$invoice['balance_due'] ?>"
-                           class="w-full pl-8 pr-3 py-2.5 text-sm font-bold bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum"
-                           placeholder="0.00" required>
-                </div>
-                <!-- Quick amount buttons -->
-                <div class="flex gap-2 mt-2">
-                    <button type="button" @click="payForm.amount = <?= (float)$invoice['balance_due'] ?>"
-                            class="text-[9px] font-bold text-brand-gold uppercase tracking-widest bg-brand-cream border border-brand-sand px-2 py-1 rounded hover:border-brand-gold">Full Balance</button>
-                    <?php if ((float)$invoice['balance_due'] > 1000): ?>
-                        <button type="button" @click="payForm.amount = Math.round(<?= (float)$invoice['balance_due'] ?> / 2 * 100) / 100"
-                                class="text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest bg-brand-cream border border-brand-sand px-2 py-1 rounded hover:border-brand-gold">Half</button>
-                    <?php endif; ?>
-                </div>
-            </div>
-
-            <!-- Date + Method -->
-            <div class="grid grid-cols-2 gap-3">
-                <div>
-                    <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1">Date</label>
-                    <input type="date" x-model="payForm.payment_date"
-                           class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">
-                </div>
-                <div>
-                    <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1">Method</label>
-                    <select x-model="payForm.method"
-                            class="w-full px-3 py-2.5 text-xs font-semibold bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">
-                        <option value="cash">Cash</option>
-                        <option value="bank_transfer">Bank Transfer</option>
-                        <option value="pos">POS</option>
-                        <option value="mobile_money">Mobile Money</option>
-                        <option value="cheque">Cheque</option>
-                        <option value="other">Other</option>
-                    </select>
-                </div>
-            </div>
-
-            <!-- Reference -->
-            <div>
-                <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1">Reference / Transaction ID</label>
-                <input type="text" x-model="payForm.reference" placeholder="e.g. TRF-12345"
-                       class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/30">
-            </div>
-
-            <!-- Note -->
-            <div>
-                <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1">Note</label>
-                <textarea x-model="payForm.note" rows="2" placeholder="Optional note..."
-                          class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/30 resize-none"></textarea>
-            </div>
-
-            <!-- Error -->
-            <div x-show="payError" x-text="payError" class="text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2"></div>
-
-            <!-- Submit -->
-            <button type="submit" :disabled="payLoading"
-                    class="w-full btn-primary text-white py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-sm hover:shadow-md transition-all disabled:opacity-50">
-                <span x-show="!payLoading">Record Payment</span>
-                <span x-show="payLoading">Processing...</span>
-            </button>
-        </form>
     </div>
+</section>
+
 </div>
+</div>
+
+<!-- ===== RECORD PAYMENT ===== -->
+<?php if ($can_pay): ?>
+<dialog class="nf-sheet" id="nf-pay" aria-labelledby="nf-pay-h">
+    <div class="nf-grab"></div>
+    <div class="nf-sheet-h">
+        <h2 id="nf-pay-h">Record payment</h2>
+        <button type="button" class="nf-icon-btn" data-close aria-label="Close"><?= nav_icon('close') ?></button>
+    </div>
+    <form @submit.prevent="submitPayment" class="nf-form" novalidate>
+        <p class="nf-help"><?= e($invoice['doc_number']) ?><?= $customer ? ' · ' . e($customer['full_name']) : '' ?> · <?= planner_money($balance, $currency) ?> left to pay</p>
+        <label>Amount received
+            <span class="nf-amount"><span><?= e($currency) ?></span>
+                <input type="number" x-model="payForm.amount" step="0.01" min="0.01" max="<?= $balance ?>" inputmode="decimal" placeholder="0" required>
+            </span>
+        </label>
+        <div class="nf-quick">
+            <button type="button" @click="payForm.amount = <?= $balance ?>">All of it, <?= planner_money($balance, $currency) ?></button>
+            <?php if ($balance > 1000): ?>
+                <button type="button" @click="payForm.amount = Math.round(<?= $balance ?> / 2 * 100) / 100">Half</button>
+            <?php endif; ?>
+        </div>
+        <div class="nf-two">
+            <label>Date <input type="date" x-model="payForm.payment_date"></label>
+            <label>How they paid
+                <select x-model="payForm.method">
+                    <option value="cash">Cash</option>
+                    <option value="bank_transfer">Bank transfer</option>
+                    <option value="pos">POS</option>
+                    <option value="mobile_money">Mobile money</option>
+                    <option value="cheque">Cheque</option>
+                    <option value="other">Other</option>
+                </select>
+            </label>
+        </div>
+        <label>Reference <small>Optional, like the transfer number</small>
+            <input type="text" x-model="payForm.reference" autocomplete="off">
+        </label>
+        <label>Note <small>Optional</small>
+            <textarea x-model="payForm.note" rows="2"></textarea>
+        </label>
+        <p class="nf-err" x-show="payError" x-text="payError" x-cloak role="alert"></p>
+        <div class="nf-actions nf-actions-flush">
+            <button type="submit" class="nf-btn nf-btn-primary" :disabled="payLoading">
+                <span x-show="!payLoading">Record payment</span>
+                <span x-show="payLoading" x-cloak>Recording…</span>
+            </button>
+        </div>
+    </form>
+</dialog>
+<?php endif; ?>
 
 </div><!-- end Alpine scope -->
 
-<!-- html2pdf.js for PDF download -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-<script>
-function downloadPDF() {
-    const element = document.getElementById('invoice-document');
-    const opt = {
-        margin:       [0.3, 0.3, 0.3, 0.3],
-        filename:     '<?= e($invoice['doc_number']) ?>.pdf',
-        image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2, useCORS: true },
-        jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
-    };
-    html2pdf().set(opt).from(element).save();
-}
+<!-- ===== MORE ===== -->
+<dialog class="nf-sheet" id="nf-inv-more" aria-labelledby="nf-inv-more-h">
+    <div class="nf-grab"></div>
+    <div class="nf-sheet-h">
+        <h2 id="nf-inv-more-h"><?= e($invoice['doc_number']) ?></h2>
+        <button type="button" class="nf-icon-btn" data-close aria-label="Close"><?= nav_icon('close') ?></button>
+    </div>
+    <div class="nf-menu-sheet">
+        <?php if (in_array($invoice['status'], ['draft', 'sent'], true)): ?>
+            <a class="nf-row" href="<?= APP_URL ?>/invoices/edit/<?= (int)$invoice['id'] ?>"><span class="nf-tile-ic"><?= nav_icon('edit') ?></span>Edit the invoice</a>
+        <?php endif; ?>
+        <?php if ($live): ?>
+            <a class="nf-row" href="<?= APP_URL ?>/deliveries/create?invoice_id=<?= (int)$invoice['id'] ?>"><span class="nf-tile-ic"><?= nav_icon('delivery') ?></span>Make a delivery note</a>
+        <?php endif; ?>
+        <a class="nf-row" href="<?= e($public_url) ?>?format=pdf" download="<?= e(preg_replace('/[^A-Za-z0-9._-]+/', '-', $invoice['doc_number'])) ?>.pdf"><span class="nf-tile-ic"><?= nav_icon('download') ?></span>Download PDF</a>
+        <a class="nf-row" href="<?= e($public_url) ?>" target="_blank" rel="noopener"><span class="nf-tile-ic"><?= nav_icon('open') ?></span>Open the customer's page</a>
+        <?php if ($live): ?>
+            <form method="POST" action="<?= APP_URL ?>/invoices/cancel/<?= (int)$invoice['id'] ?>"
+                  onsubmit="return confirm('Cancel <?= e($invoice['doc_number']) ?>? Its stock goes back on your shelves, and what is owed on it is cleared.');">
+                <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
+                <button class="nf-row is-danger"><span class="nf-tile-ic"><?= nav_icon('cancel') ?></span>Cancel the invoice</button>
+            </form>
+        <?php endif; ?>
+        <?php if ($invoice['status'] === 'draft'): ?>
+            <form method="POST" action="<?= APP_URL ?>/invoices/delete/<?= (int)$invoice['id'] ?>"
+                  onsubmit="return confirm('Delete the draft <?= e($invoice['doc_number']) ?> for good?');">
+                <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
+                <button class="nf-row is-danger"><span class="nf-tile-ic"><?= nav_icon('trash') ?></span>Delete the draft</button>
+            </form>
+        <?php endif; ?>
+    </div>
+</dialog>
 
+<script>
 function invoiceView() {
     return {
-        showPaymentModal: false,
         payLoading: false,
         payError: '',
         payForm: {
             amount: '',
-            payment_date: new Date().toISOString().split('T')[0],
+            payment_date: '<?= $today ?>',
             method: 'cash',
             reference: '',
             note: ''
@@ -620,84 +520,41 @@ function invoiceView() {
             this.payError = '';
             const amt = parseFloat(this.payForm.amount);
             if (!amt || amt <= 0) {
-                this.payError = 'Please enter a valid amount.';
+                this.payError = 'Enter how much they paid.';
                 return;
             }
-            if (amt > <?= (float)$invoice['balance_due'] ?>) {
-                this.payError = 'Amount exceeds the remaining balance.';
+            if (amt > <?= $balance ?>) {
+                this.payError = 'That is more than the <?= e(planner_money($balance, $currency)) ?> left to pay.';
                 return;
             }
 
             this.payLoading = true;
 
             const formData = new FormData();
-            formData.append('csrf_token', '<?= $_SESSION['csrf_token'] ?? '' ?>');
+            formData.append('csrf_token', window.Nfelia.csrf);
             formData.append('amount', this.payForm.amount);
             formData.append('payment_date', this.payForm.payment_date);
             formData.append('method', this.payForm.method);
             formData.append('reference', this.payForm.reference);
             formData.append('note', this.payForm.note);
 
-            $.ajax({
-                url: '<?= APP_URL ?>/invoices/record_payment/<?= $invoice['id'] ?>',
-                type: 'POST',
-                data: formData,
-                processData: false,
-                contentType: false,
+            fetch('<?= APP_URL ?>/invoices/record_payment/<?= (int)$invoice['id'] ?>', {
+                method: 'POST',
+                credentials: 'same-origin',
                 headers: { 'X-Requested-With': 'XMLHttpRequest' },
-                success: (res) => {
-                    if (res.success) {
-                        // Reload to show updated state
-                        window.location.reload();
-                    } else {
-                        this.payError = res.error || 'An error occurred.';
-                        this.payLoading = false;
-                    }
-                },
-                error: (xhr) => {
-                    const err = xhr.responseJSON;
-                    this.payError = err?.error || 'Network error. Please try again.';
+                body: formData
+            }).then((r) => r.json().catch(() => ({}))).then((res) => {
+                if (res.success) {
+                    window.location.reload();      // the server leaves a "recorded" message for the next page
+                } else {
+                    this.payError = res.error || 'The payment was not recorded. Try again.';
                     this.payLoading = false;
                 }
+            }).catch(() => {
+                this.payError = 'No connection, so the payment was not recorded. Try again when you are online.';
+                this.payLoading = false;
             });
         }
     };
 }
 </script>
-
-<?php if (in_array($invoice['status'] ?? '', ['paid', 'partially_paid'])): ?>
-<!-- Deed of Acquisition Button -->
-<div class="mt-6 bg-white border border-brand-sand rounded-2xl p-5 shadow-sm" x-data="{ showDeed: false }">
-    <div class="flex items-center justify-between">
-        <div>
-            <h3 class="font-heading font-bold text-sm text-brand-plum uppercase tracking-wider">
-                Deed of Acquisition
-            </h3>
-            <p class="text-xs text-brand-plum/60 mt-0.5">Issue a formal acquisition document to this client.</p>
-        </div>
-        <button @click="showDeed = !showDeed"
-                class="text-xs font-bold uppercase tracking-widest px-4 py-2.5 border border-brand-gold text-brand-gold hover:bg-brand-gold hover:text-white transition-colors rounded-xl">
-            Issue Deed
-        </button>
-    </div>
-
-    <form x-show="showDeed" x-transition action="<?= APP_URL ?>/deed/create" method="POST" class="mt-5 pt-5 border-t border-brand-sand space-y-4" style="display:none;">
-        <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
-        <input type="hidden" name="source" value="invoice">
-        <input type="hidden" name="source_id" value="<?= (int)$invoice['id'] ?>">
-        <div>
-            <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-2">
-                Editorial / Provenance Text
-                <span class="text-brand-plum/30 normal-case tracking-normal font-medium">(optional — appears on the deed as the narrative description)</span>
-            </label>
-            <textarea name="provenance_text" rows="3"
-                      class="w-full px-4 py-3 border border-brand-sand rounded-xl text-sm focus:border-brand-gold outline-none resize-none"
-                      placeholder="e.g. Hand-crafted from premium materials, this piece represents the intersection of craft and commerce..."></textarea>
-        </div>
-        <button type="submit"
-                class="btn-primary text-white text-xs font-bold px-6 py-3 rounded-xl uppercase tracking-widest">
-            Generate &amp; Issue Deed
-        </button>
-    </form>
-</div>
-<?php endif; ?>
