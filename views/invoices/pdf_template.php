@@ -173,7 +173,7 @@ $status_color = match($invoice['status'] ?? '') {
     <?php endif; ?>
 
     <div class="footer">
-        <?= e($business['name']) ?> · Powered by Nfelia · nfelia.lpc.cm
+        <?= e($business['name']) ?> · Powered by Nfelia · nfelia.com
     </div>
 </body>
 </html>

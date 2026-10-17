@@ -443,7 +443,7 @@ class MoMoController {
                 "- The exact amount sent\n" .
                 "- The transaction reference number\n\n" .
                 "Resubmit here: " . $momo_link . "\n\n" .
-                "If you need help, contact us at support@nfelia.lpc.cm\n\n" .
+                "If you need help, contact us at support@nfelia.com\n\n" .
                 "The Nfelia Team";
             send_mail($payment['owner_email'], $payment['owner_name'], 'Action Required: Payment Resubmission — Nfelia', $msg);
 

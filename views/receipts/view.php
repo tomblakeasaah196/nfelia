@@ -23,7 +23,7 @@ $wa_text = urlencode(
     . "Method: " . ucfirst(str_replace('_', ' ', $receipt['method'])) . "\n"
     . ($receipt['balance_remaining'] > 0 ? "Balance Remaining: {$currency}" . number_format((float)$receipt['balance_remaining'], 2) . "\n" : '')
     . "\nView & download here:\n{$public_url}\n\n"
-    . "_Sent via Nfelia — nfelia.lpc.cm_"
+    . "_Sent via Nfelia — nfelia.com_"
 );
 $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
 ?>

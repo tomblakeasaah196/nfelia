@@ -155,7 +155,7 @@ $og_image = $business['logo_path']
         "branding": {
             "@type": "Organization",
             "name": "Nfelia",
-            "url": "https://nfelia.lpc.cm"
+            "url": "https://nfelia.com"
         }
     }
     </script>
@@ -915,7 +915,7 @@ $og_image = $business['logo_path']
         <p class="text-[10px] text-gray-400 font-medium">
             &copy; <?= date('Y') ?> <?= e($business['name']) ?>. All rights reserved.
         </p>
-        <p class="text-[9px] text-gray-300 mt-1">Powered by <a href="https://nfelia.lpc.cm" target="_blank" rel="noopener" class="font-bold text-gray-400 hover:text-gray-600">Nfelia</a> — Business Operations Platform</p>
+        <p class="text-[9px] text-gray-300 mt-1">Powered by <a href="https://nfelia.com" target="_blank" rel="noopener" class="font-bold text-gray-400 hover:text-gray-600">Nfelia</a> — Business Operations Platform</p>
     </footer>
 
     <!-- Alpine Store: must be before Alpine CDN -->

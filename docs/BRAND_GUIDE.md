@@ -174,7 +174,7 @@ Body:
 - Plain text only currently (no HTML email templates — future enhancement)
 - No emojis in email body
 - Always sign as "The Nfelia Team"
-- Support email: support@nfelia.lpc.cm
+- Support email: support@nfelia.com
 
 ---
 

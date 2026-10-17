@@ -376,7 +376,7 @@ $total = (float)$deed['total_amount'];
         </tr>
     </table>
 
-    <div class="nfelia-watermark">Issued via Nfelia Workspace · nfelia.lpc.cm · <?= e($deed['doc_number']) ?></div>
+    <div class="nfelia-watermark">Issued via Nfelia Workspace · nfelia.com · <?= e($deed['doc_number']) ?></div>
 
 </body>
 </html>

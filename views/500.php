@@ -57,7 +57,7 @@
             </a>
             
             <div class="mt-6 data-text text-[9px] text-brand-plum/40 uppercase tracking-widest">
-                If this persists, please contact support@nfelia.lpc.cm
+                If this persists, please contact support@nfelia.com
             </div>
         </div>
     </div>

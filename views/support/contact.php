@@ -39,14 +39,14 @@ $user = auth_user();
         </a>
 
         <!-- Email -->
-        <a href="mailto:support@nfelia.lpc.cm?subject=Support%20Request%20-%20<?= urlencode(auth_business()['name'] ?? 'Business') ?>"
+        <a href="mailto:support@nfelia.com?subject=Support%20Request%20-%20<?= urlencode(auth_business()['name'] ?? 'Business') ?>"
            class="bg-white rounded-xl border p-5 text-center hover:border-purple-300 hover:shadow-sm transition-all group">
             <div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:bg-purple-200 transition-colors">
                 <svg class="w-6 h-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"/></svg>
             </div>
             <p class="font-semibold text-sm text-gray-900">Email</p>
             <p class="text-xs text-gray-500 mt-1">We reply within 24 hours</p>
-            <p class="text-xs text-purple-600 font-medium mt-2">support@nfelia.lpc.cm</p>
+            <p class="text-xs text-purple-600 font-medium mt-2">support@nfelia.com</p>
         </a>
     </div>
 

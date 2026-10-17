@@ -555,7 +555,7 @@ class InvoiceController {
             . ($invoice['due_date'] ? "Due Date: " . fmt_date($invoice['due_date'], 'd M Y') . "\n" : '')
             . "\nView invoice: {$public_url}\n\n"
             . "Kindly let us know once payment is made. Thank you!\n\n"
-            . "_Sent via Nfelia — nfelia.lpc.cm_"
+            . "_Sent via Nfelia — nfelia.com_"
         );
 
         $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";

@@ -30,7 +30,7 @@ $wa_text = urlencode(
     . "Total: {$currency}" . number_format((float)$quotation['total'], 2) . "\n"
     . ($quotation['expiry_date'] ? "Valid until: " . fmt_date($quotation['expiry_date'], 'd M Y') . "\n" : '')
     . "\nView & download here:\n{$public_url}\n\n"
-    . "_Sent via Nfelia — nfelia.lpc.cm_"
+    . "_Sent via Nfelia — nfelia.com_"
 );
 $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
 ?>

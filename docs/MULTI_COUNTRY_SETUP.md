@@ -11,7 +11,7 @@ Nfelia is built to operate across multiple countries, each with its own currency
 
 ## Step 1 — Log In as the Nfelia Admin
 
-Go to `https://nfelia.lpc.cm` and log in with the **Nfelia Admin** credentials (the founder account, Business ID 1).
+Go to `https://nfelia.com` and log in with the **Nfelia Admin** credentials (the founder account, Business ID 1).
 
 Once logged in, you will see three new items in the left sidebar under **"Founder Panel"**:
 - **Admin Panel** — general platform management
@@ -153,5 +153,5 @@ Before activating a new country for real users, confirm:
 
 ## Support
 
-For technical issues: support@nfelia.lpc.cm  
+For technical issues: support@nfelia.com  
 WhatsApp: +234 816 978 9106
