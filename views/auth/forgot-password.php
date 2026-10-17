@@ -1,19 +1,12 @@
 <?php
 /**
- * Nfelia — Forgot Password View (Workspace Challenge Flow)
- * 
- * NFELIA FIX — Now supports ALL business users (staff + admin), not just owner — 2026-06-05
+ * Nfelia — Forgot Password View
  *
- * Two states:
- *   State 1: Enter business name → locate workspace
- *   State 2: Select your account → the reset link is sent immediately
- *
- * The "type your full email to confirm" step was removed on 2026-10-17:
- * the link only ever goes to the address already on file, so confirming
- * it added friction without changing the outcome.
+ * One field: the email address. The next screen says the same thing whether
+ * or not the address has an account, so this page cannot be used to look up
+ * who is registered. (Replaced the workspace-name lookup on 2026-10-17, which
+ * listed every user of any workspace whose name someone could guess.)
  */
-
-$recovery_accounts = $_SESSION['recovery_accounts'] ?? null;          // State 2: array of masked accounts
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -78,60 +71,29 @@ $recovery_accounts = $_SESSION['recovery_accounts'] ?? null;          // State 2
             <?php endif; ?>
 
 
-            <?php if ($recovery_accounts): ?>
-            <!-- ═══ STATE 2: Select your account ═══ -->
+            <div class="mb-8 border-b border-brand-sand pb-6">
+                <h2 class="font-heading font-bold text-2xl text-brand-plum mb-2">Initiate Recovery</h2>
+                <p class="text-xs text-brand-plum/70 font-medium">Enter the email address you sign in with and we'll send you a link to set a new password.</p>
+            </div>
 
-                <div class="mb-6 border-b border-brand-sand pb-6">
-                    <h2 class="font-heading font-bold text-2xl text-brand-plum mb-2">Select Your Account</h2>
-                    <p class="text-xs text-brand-plum/70 font-medium">Workspace located. Select your account to continue recovery:</p>
+            <form action="<?= APP_URL ?>/forgot-password" method="POST" class="space-y-5">
+                <?= csrf_field() ?>
+
+                <div>
+                    <label class="block text-xs font-bold text-brand-plum uppercase tracking-widest mb-2">Email Address</label>
+                    <input type="email" name="email" required autocomplete="email" autofocus class="w-full px-4 py-3 bg-brand-white border border-brand-sand text-brand-plum text-sm focus:border-brand-gold focus:ring-0 outline-none transition-all rounded-none placeholder-brand-plum/30" placeholder="director@company.com">
+                    <p class="mt-2 text-[11px] text-brand-plum/60 leading-relaxed">Not sure which address you used? Try each one. Only an address with an account will receive a link.</p>
                 </div>
 
-                <div class="space-y-2 mb-6">
-                    <?php foreach ($recovery_accounts as $idx => $acct): ?>
-                        <form action="<?= APP_URL ?>/forgot-password" method="POST">
-                            <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
-                            <input type="hidden" name="select_account" value="1">
-                            <input type="hidden" name="account_index" value="<?= $idx ?>">
-                            <button type="submit" class="w-full text-left px-4 py-3 border border-brand-sand bg-brand-cream hover:border-brand-gold hover:bg-brand-gold/5 transition-all flex items-center gap-3">
-                                <div class="w-8 h-8 rounded-full bg-brand-burgundy/10 flex items-center justify-center flex-shrink-0">
-                                    <svg class="w-4 h-4 text-brand-burgundy" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
-                                    </svg>
-                                </div>
-                                <div>
-                                    <div class="text-xs font-bold text-brand-plum"><?= e($acct['name']) ?></div>
-                                    <div class="data-text text-[10px] text-brand-plum/50 tracking-wider"><?= e($acct['masked_email']) ?></div>
-                                    <div class="text-[9px] text-brand-plum/30 uppercase tracking-widest mt-0.5"><?= e($acct['role']) ?></div>
-                                </div>
-                            </button>
-                        </form>
-                    <?php endforeach; ?>
-                </div>
+                <button type="submit" class="w-full bg-brand-burgundy text-brand-white text-xs font-bold py-4 uppercase tracking-widest hover:bg-brand-gold transition-colors mt-4">
+                    Send Reset Link
+                </button>
+            </form>
 
-
-            <?php else: ?>
-            <!-- ═══ STATE 1: Enter business name ═══ -->
-
-                <div class="mb-8 border-b border-brand-sand pb-6">
-                    <h2 class="font-heading font-bold text-2xl text-brand-plum mb-2">Initiate Recovery</h2>
-                    <p class="text-xs text-brand-plum/70 font-medium">Enter your registered Enterprise Name to locate your workspace.</p>
-                </div>
-
-                <form action="<?= APP_URL ?>/forgot-password" method="POST" class="space-y-5">
-                    <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
-                    <input type="hidden" name="search_enterprise" value="1">
-                    
-                    <div>
-                        <label class="block text-xs font-bold text-brand-plum uppercase tracking-widest mb-2">Enterprise Name</label>
-                        <input type="text" name="enterprise_name" required class="w-full px-4 py-3 bg-brand-white border border-brand-sand text-brand-plum text-sm focus:border-brand-gold focus:ring-0 outline-none transition-all rounded-none placeholder-brand-plum/30" placeholder="e.g. Chukwudi Fabrics">
-                    </div>
-
-                    <button type="submit" class="w-full bg-brand-burgundy text-brand-white text-xs font-bold py-4 uppercase tracking-widest hover:bg-brand-gold transition-colors mt-4">
-                        Locate Workspace
-                    </button>
-                </form>
-
-            <?php endif; ?>
+            <div class="mt-6 pt-6 border-t border-brand-sand space-y-2 text-[11px] text-brand-plum/60 leading-relaxed">
+                <p>Just want to get in? <a href="<?= APP_URL ?>/login-link" class="font-bold text-brand-burgundy hover:text-brand-gold">Email me a sign-in link</a> instead.</p>
+                <p>Team member? Your workspace owner can also send you a reset link from Settings &rarr; Staff.</p>
+            </div>
             <div class="mt-6 text-center">
                 <a href="<?= APP_URL ?>/login" class="text-[10px] text-brand-plum/50 font-mono uppercase tracking-widest hover:text-brand-burgundy transition-colors">Abort & Return to Login</a>
             </div>

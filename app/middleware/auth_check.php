@@ -22,6 +22,7 @@ if (!is_logged_in()) {
             JOIN users u ON u.id = s.user_id
             JOIN businesses b ON b.id = s.business_id
             WHERE s.session_token = :token AND s.expires_at > NOW()
+              AND u.is_active = 1  -- a removed team member's cookie must stop working
         ");
         $stmt->execute([':token' => $token]);
         $session = $stmt->fetch();

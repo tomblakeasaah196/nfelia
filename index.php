@@ -67,7 +67,7 @@ if (preg_match('#^cron/expire/([a-zA-Z0-9]+)$#', $url, $m)) {
  
 // ---- ROUTE TABLE ----
 // Public routes (no auth required)
-$public_routes = ['login', 'register', 'verify', 'forgot-password', 'reset-password', 'recovery-sent', 'biz', 'doc', 'sign', 'public-feedback', 'public', 'delivery', 'verify-email', 'deed'];
+$public_routes = ['login', 'register', 'verify', 'forgot-password', 'reset-password', 'recovery-sent', 'login-link', 'signin', 'biz', 'doc', 'sign', 'public-feedback', 'public', 'delivery', 'verify-email', 'deed'];
  
 // API/AJAX routes
 $ajax_routes = ['api'];
@@ -95,6 +95,8 @@ function dispatch_public(string $controller, string $action, ?string $param): vo
         'forgot-password' => 'AuthController',
         'reset-password'  => 'AuthController',
         'recovery-sent'   => 'AuthController',
+        'login-link'      => 'AuthController',
+        'signin'          => 'AuthController',
         'biz'             => 'PublicController',
         'doc'             => 'PublicController',
         'sign'            => 'PublicController',
@@ -116,6 +118,8 @@ function dispatch_public(string $controller, string $action, ?string $param): vo
         'forgot-password' => 'forgot_password',
         'reset-password'  => 'reset_password',
         'recovery-sent'   => 'recovery_sent',
+        'login-link'      => 'login_link',
+        'signin'          => 'signin',
     ];
     
     if ($action === 'index' && isset($controller_default_methods[$controller])) {
@@ -130,7 +134,7 @@ function dispatch_public(string $controller, string $action, ?string $param): vo
     // --- PATCH: PARAMETERIZED TOKEN ROUTING ---
     // If URL is /reset-password/TOKEN, then $controller='reset-password' and $action='TOKEN'
     // We intercept this, shift the action to $param, and force the correct method.
-    $is_dynamic_route = in_array($controller, ['biz', 'doc', 'sign', 'delivery', 'reset-password', 'deed', 'verify-email']);
+    $is_dynamic_route = in_array($controller, ['biz', 'doc', 'sign', 'delivery', 'reset-password', 'signin', 'deed', 'verify-email']);
     // For deed: 'download' is a real method, don't rewrite it
     $known_controller_methods = ['download', 'create', 'submit', 'approve', 'reject', 'review'];
     $action_is_not_method = (

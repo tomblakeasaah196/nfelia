@@ -515,6 +515,70 @@ class SettingsController {
     }
 
     /* ──────────────────────────────────────────
+     *  STAFF: SEND PASSWORD RESET LINK — POST
+     *  The link goes to the staff member's own inbox; the owner never sees
+     *  or chooses their password.
+     * ────────────────────────────────────────── */
+    public function send_staff_reset($id = null) {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { redirect('settings?tab=staff'); return; }
+        csrf_verify();
+
+        $user = auth_user();
+        if (($user['role'] ?? 'staff') !== 'owner') {
+            flash('error', 'Only the business owner can manage staff.');
+            redirect('settings?tab=staff');
+            return;
+        }
+
+        $staff_id = (int)$id;
+        if ($staff_id === (int)$user['id']) {
+            flash('error', 'To change your own password, use Change Password on your profile.');
+            redirect('settings?tab=staff');
+            return;
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT id, full_name, email FROM users
+            WHERE id = ? AND business_id = ? AND is_active = 1
+        ");
+        $stmt->execute([$staff_id, $this->biz_id]);
+        $staff_member = $stmt->fetch();
+
+        if (!$staff_member) {
+            flash('error', 'Team member not found.');
+            redirect('settings?tab=staff');
+            return;
+        }
+
+        if (!throttle_allows('staff_reset', (string)$staff_id, 3, 60)) {
+            flash('error', 'A reset link was already sent to ' . $staff_member['full_name'] . ' recently. Ask them to check their inbox and spam folder.');
+            redirect('settings?tab=staff');
+            return;
+        }
+
+        // A day rather than an hour: the staff member may not see it at once.
+        $token = account_token_issue($staff_id, 'reset', 60 * 24);
+        $sent  = send_branded_mail(
+            $staff_member['email'], $staff_member['full_name'],
+            'Password Reset — Nfelia Workspace',
+            'password_reset',
+            [
+                'reset_url'     => APP_URL . '/reset-password/' . $token,
+                'expires_label' => '24 hours',
+                'requested_by'  => $user['full_name'] ?? 'Your workspace owner',
+            ],
+            ['name' => 'Nfelia', 'primary_color' => '#8B004A']
+        );
+
+        if ($sent) {
+            flash('success', 'Reset link sent to ' . $staff_member['email'] . '.');
+        } else {
+            flash('error', 'The email could not be sent. Please try again shortly.');
+        }
+        redirect('settings?tab=staff');
+    }
+
+    /* ──────────────────────────────────────────
      *  GENERATE AUTO-LOGO SVG
      * ────────────────────────────────────────── */
     public function generate_logo() {

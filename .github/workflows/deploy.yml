@@ -43,8 +43,13 @@ jobs:
           # utf8mb4_0900_ai_ci (MySQL 8 only) in MYSQL_ATTR_INIT_COMMAND, so
           # every connection threw 1273 on MariaDB and the whole app returned
           # "Database connection failed." Never pin a versioned collation.
-          if grep -rn 'utf8mb4_0900' --include='*.php' \
-               --exclude-dir=vendor --exclude-dir=lib . ; then
+          # Comment-only lines are skipped: the note in config/database.php
+          # explaining why there is no COLLATE names the collation itself.
+          hits=$(grep -rn 'utf8mb4_0900' --include='*.php' \
+                   --exclude-dir=vendor --exclude-dir=lib . \
+                 | grep -vE '^[^:]+:[0-9]+:[[:space:]]*(//|#|/?\*)' || true)
+          if [ -n "$hits" ]; then
+            echo "$hits"
             echo "::error::utf8mb4_0900_* is MySQL-8 only and does not exist on MariaDB. Remove the pinned collation."
             exit 1
           fi
@@ -60,8 +65,12 @@ jobs:
             fail=1
           fi
 
-          if git ls-files | grep -qiE '\.(sql|sql\.gz|dump)$' \
-             | grep -v '^db/migrations/'; then
+          # Collect first: with -q on the first grep nothing reaches the
+          # second, so the check could never fire.
+          dumps=$(git ls-files | grep -iE '\.(sql|sql\.gz|dump)$' \
+                  | grep -v '^db/migrations/' || true)
+          if [ -n "$dumps" ]; then
+            echo "$dumps"
             echo "::error::a database dump is tracked in git"
             fail=1
           fi
