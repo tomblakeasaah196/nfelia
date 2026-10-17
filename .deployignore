@@ -53,6 +53,7 @@ error_log
 ./db
 ./DEPLOY.md
 ./README.md
+./.ux-profile.md
 
 # Database dumps must never reach the web root
 *.sql

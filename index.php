@@ -54,6 +54,16 @@ register_shutdown_function(function () {
 // Parse the URL
 $url = trim($_GET['url'] ?? '', '/');
 $segments = $url ? explode('/', $url) : [];
+
+// Visitors get the landing page at /. Signed-in users, and anyone holding a
+// "keep me signed in" cookie, carry on to the dashboard below.
+if ($url === '' && !is_logged_in() && !isset($_COOKIE['nfelia_remember'])) {
+    if (empty($_SESSION['csrf_token'])) {
+        csrf_regenerate();   // the feedback form on the page posts with it
+    }
+    require __DIR__ . '/views/home/index.php';
+    exit;
+}
 $controller = $segments[0] ?? 'dashboard';
 $action     = $segments[1] ?? 'index';
 $param      = $segments[2] ?? null;
@@ -120,6 +130,7 @@ function dispatch_public(string $controller, string $action, ?string $param): vo
         'recovery-sent'   => 'recovery_sent',
         'login-link'      => 'login_link',
         'signin'          => 'signin',
+        'register'        => 'register',   // GET shows the sign-up page; POST creates the account
     ];
     
     if ($action === 'index' && isset($controller_default_methods[$controller])) {
