@@ -81,4 +81,14 @@ define('FONT_PAIRINGS', [
         'heading' => 'Syne',
         'body'    => 'Outfit',
     ],
+    // These two are offered in Settings (SettingsController::FONT_OPTIONS) and
+    // were missing here, so choosing them quietly showed Inter + DM Sans.
+    'classic_tech' => [
+        'heading' => 'Roboto Mono',
+        'body'    => 'Roboto',
+    ],
+    'elegant_serif' => [
+        'heading' => 'Playfair Display',
+        'body'    => 'Lato',
+    ],
 ]);
