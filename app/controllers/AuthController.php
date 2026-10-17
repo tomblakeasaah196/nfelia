@@ -302,59 +302,52 @@ class AuthController {
      * State 2: Select your account from masked email list (NEW)
      * State 3: Type full email to verify → send reset link
      */
+    /**
+     * Issue a reset token for $email, mail the link, and send the visitor on
+     * to the "Transmission Sent" screen. Always redirects; never returns.
+     *
+     * Shared by both entry points so the single-account and multi-account
+     * paths cannot drift apart.
+     */
+    private function dispatch_reset(PDO $db, string $email): void {
+        $token        = bin2hex(random_bytes(32));
+        $hashed_token = hash('sha256', $token);
+
+        $db->prepare("DELETE FROM password_resets WHERE email = ?")->execute([$email]);
+        $db->prepare("INSERT INTO password_resets (email, token) VALUES (?, ?)")->execute([$email, $hashed_token]);
+
+        $reset_link = APP_URL . "/reset-password/" . $token;
+
+        $parts  = explode("@", $email);
+        $prefix = $parts[0] ?? 'user';
+        $domain = $parts[1] ?? 'domain.com';
+        $masked = substr($prefix, 0, 3) . str_repeat('*', max(3, strlen($prefix) - 3));
+
+        $_SESSION['recovery_masked'] = $masked . "@" . $domain;
+        $_SESSION['recovery_domain'] = strtolower($domain);
+
+        // Nothing identifying survives into the next request.
+        unset($_SESSION['recovery_target_email'],
+              $_SESSION['recovery_masked_hint'],
+              $_SESSION['recovery_accounts']);
+
+        send_branded_mail(
+            $email, 'Team Member',
+            'Password Reset — Nfelia Workspace',
+            'password_reset',
+            ['reset_url' => $reset_link],
+            ['name' => 'Nfelia', 'primary_color' => '#8B004A']
+        );
+
+        session_write_close();
+        redirect('recovery-sent');
+    }
+
     public function forgot_password() {
         $db = get_db();
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             csrf_verify();
-
-            // =========================================================
-            // STATE 3: The Security Challenge (User submits full email)
-            // =========================================================
-            if (isset($_POST['verify_email'])) {
-                $guessed_email = trim($_POST['email'] ?? '');
-                $actual_email  = $_SESSION['recovery_target_email'] ?? '';
-
-                if (strtolower($guessed_email) === strtolower($actual_email)) {
-                    // Match Confirmed! Generate token and send.
-                    $token = bin2hex(random_bytes(32));
-                    $hashed_token = hash('sha256', $token);
-                    
-                    $db->prepare("DELETE FROM password_resets WHERE email = ?")->execute([$actual_email]);
-                    $db->prepare("INSERT INTO password_resets (email, token) VALUES (?, ?)")->execute([$actual_email, $hashed_token]);
-                    
-                    $reset_link = APP_URL . "/reset-password/" . $token;
-                    
-                    // Set session variables for the 'recovery-sent' screen
-                    $parts = explode("@", $actual_email);
-                    $domain = $parts[1] ?? 'domain.com';
-                    $prefix = $parts[0] ?? 'user';
-                    $masked_name = substr($prefix, 0, 3) . str_repeat('*', max(3, strlen($prefix) - 3));
-                    
-                    $_SESSION['recovery_masked'] = $masked_name . "@" . $domain;
-                    $_SESSION['recovery_domain'] = strtolower($domain);
-                    
-                    // Wipe sensitive data from session
-                    unset($_SESSION['recovery_target_email']);
-                    unset($_SESSION['recovery_masked_hint']);
-                    unset($_SESSION['recovery_accounts']);
-                    
-                    // Dispatch the email
-                    send_branded_mail(
-                        $actual_email, 'Team Member',
-                        'Password Reset — Nfelia Workspace',
-                        'password_reset',
-                        ['reset_url' => $reset_link],
-                        ['name' => 'Nfelia', 'primary_color' => '#8B004A']
-                    );
-                    
-                    session_write_close();
-                    redirect('recovery-sent');
-                } else {
-                    flash('error', 'Authorization failed. Email does not match the registry.');
-                    redirect('forgot-password');
-                }
-            }
 
             // =========================================================
             // STATE 2: Account Selection (User picks their masked email)
@@ -368,15 +361,10 @@ class AuthController {
                     redirect('forgot-password');
                 }
 
-                $selected = $accounts[$idx];
-                $_SESSION['recovery_target_email'] = $selected['email'];
-                $_SESSION['recovery_masked_hint']  = $selected['masked_email'];
-
-                // Clear the accounts list so the view shows State 3
-                unset($_SESSION['recovery_accounts']);
-
-                session_write_close();
-                redirect('forgot-password');
+                // Send the reset straight away. The link only ever goes to the
+                // address already on file, so an extra confirmation step added
+                // friction without changing where the email lands.
+                $this->dispatch_reset($db, $accounts[$idx]['email']);
             }
 
             // =========================================================
@@ -413,15 +401,8 @@ class AuthController {
                     $users = $stmtUsers->fetchAll();
 
                     if (count($users) === 1) {
-                        // Only one user — skip selection, go straight to State 3
-                        $u = $users[0];
-                        $parts = explode("@", $u['email']);
-                        $prefix_length = strlen($parts[0]);
-                        $visible_chars = min(3, max(1, $prefix_length - 1));
-                        $masked_name = substr($parts[0], 0, $visible_chars) . str_repeat('*', 5);
-
-                        $_SESSION['recovery_target_email'] = $u['email'];
-                        $_SESSION['recovery_masked_hint']  = $masked_name . "@" . $parts[1];
+                        // Only one account in the workspace — nothing to choose.
+                        $this->dispatch_reset($db, $users[0]['email']);
                     } else {
                         // Multiple users — build account list for State 2
                         $accounts = [];
