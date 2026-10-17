@@ -1,0 +1,288 @@
+<?php
+/**
+ * Nfelia — Public Delivery Note (Business View)
+ * Standalone page: /delivery/{token}
+ * Shows the branded dispatch confirmation document.
+ * If signed off, shows the e-signature block.
+ *
+ * Available from PublicController:
+ *   $delivery, $business, $items, $customer, $statuses, $providers
+ */
+$currency  = $business['currency_symbol'] ?? '₦';
+$primary   = $business['primary_color'] ?? '#1a1a2e';
+$secondary = $business['secondary_color'] ?? '#c5a55a';
+$font      = $business['font_pairing'] ?? 'Inter';
+$logo_url  = !empty($business['logo_path']) ? APP_URL . '/' . $business['logo_path'] : null;
+
+$status_label = $statuses[$delivery['status']]['label'] ?? ucfirst($delivery['status']);
+$status_color = $statuses[$delivery['status']]['color'] ?? 'bg-gray-100 text-gray-700';
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><?= e($delivery['doc_number']) ?> — <?= e($business['business_name']) ?></title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=<?= urlencode($font) ?>:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        :root {
+            --brand-primary: <?= e($primary) ?>;
+            --brand-secondary: <?= e($secondary) ?>;
+        }
+        body { font-family: '<?= e($font) ?>', sans-serif; }
+        .brand-primary { color: var(--brand-primary); }
+        .brand-secondary { color: var(--brand-secondary); }
+        .bg-brand-primary { background-color: var(--brand-primary); }
+        .bg-brand-secondary { background-color: var(--brand-secondary); }
+        .border-brand-primary { border-color: var(--brand-primary); }
+        .border-brand-secondary { border-color: var(--brand-secondary); }
+        @media print { .no-print { display: none !important; } }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+
+    <!-- Action Bar -->
+    <div class="no-print bg-white border-b border-gray-200 sticky top-0 z-50">
+        <div class="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <?php if ($logo_url): ?>
+                    <img src="<?= e($logo_url) ?>" alt="Logo" class="h-8 w-8 object-contain rounded">
+                <?php endif; ?>
+                <span class="text-sm font-bold brand-primary"><?= e($business['business_name']) ?></span>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="window.print()" class="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">Print</button>
+                <button onclick="downloadPDF()" class="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-white rounded-lg transition-colors bg-brand-primary hover:opacity-90">Download PDF</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Document -->
+    <div class="max-w-3xl mx-auto my-8 px-4" id="delivery-document">
+        <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+
+            <!-- Header -->
+            <div class="bg-brand-primary text-white px-8 py-6">
+                <div class="flex items-start justify-between">
+                    <div>
+                        <?php if ($logo_url): ?>
+                            <img src="<?= e($logo_url) ?>" alt="Logo" class="h-12 w-12 object-contain rounded-lg bg-white/10 p-1 mb-3">
+                        <?php endif; ?>
+                        <h1 class="text-2xl font-extrabold tracking-tight"><?= e($business['business_name']) ?></h1>
+                        <?php if (!empty($business['address'])): ?>
+                            <p class="text-xs opacity-70 mt-1"><?= e($business['address']) ?></p>
+                        <?php endif; ?>
+                        <?php if (!empty($business['phone'])): ?>
+                            <p class="text-xs opacity-70"><?= e($business['phone']) ?></p>
+                        <?php endif; ?>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-[10px] font-bold uppercase tracking-widest opacity-60">Dispatch Confirmation</div>
+                        <div class="text-xl font-extrabold mt-1"><?= e($delivery['doc_number']) ?></div>
+                        <div class="inline-block mt-2 px-2.5 py-1 rounded text-[9px] font-bold uppercase tracking-wider <?= $status_color ?>"><?= $status_label ?></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dates Bar -->
+            <div class="bg-gray-50 border-b border-gray-200 px-8 py-3 flex flex-wrap gap-6 text-[10px]">
+                <div>
+                    <span class="font-bold text-gray-400 uppercase tracking-widest">Created</span>
+                    <span class="ml-2 font-bold text-gray-700"><?= fmt_date($delivery['created_at'], 'd M Y') ?></span>
+                </div>
+                <?php if ($delivery['dispatch_date']): ?>
+                <div>
+                    <span class="font-bold text-gray-400 uppercase tracking-widest">Dispatched</span>
+                    <span class="ml-2 font-bold text-gray-700"><?= fmt_date($delivery['dispatch_date'], 'd M Y, H:i') ?></span>
+                </div>
+                <?php endif; ?>
+                <?php if ($delivery['estimated_delivery']): ?>
+                <div>
+                    <span class="font-bold text-gray-400 uppercase tracking-widest">ETA</span>
+                    <span class="ml-2 font-bold text-gray-700"><?= fmt_date($delivery['estimated_delivery'], 'd M Y, H:i') ?></span>
+                </div>
+                <?php endif; ?>
+                <?php if ($delivery['actual_delivery']): ?>
+                <div>
+                    <span class="font-bold text-green-500 uppercase tracking-widest">Delivered</span>
+                    <span class="ml-2 font-bold text-green-700"><?= fmt_date($delivery['actual_delivery'], 'd M Y, H:i') ?></span>
+                </div>
+                <?php endif; ?>
+            </div>
+
+            <div class="px-8 py-6 space-y-6">
+
+                <!-- From / To -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div>
+                        <div class="text-[9px] font-bold uppercase tracking-widest text-gray-400 mb-2">From (Sender)</div>
+                        <div class="text-sm font-bold brand-primary"><?= e($business['business_name']) ?></div>
+                        <?php if ($delivery['pickup_address']): ?>
+                            <p class="text-xs text-gray-600 mt-1 leading-relaxed"><?= nl2br(e($delivery['pickup_address'])) ?></p>
+                        <?php endif; ?>
+                        <?php if (!empty($business['phone'])): ?>
+                            <p class="text-xs text-gray-500 mt-1"><?= e($business['phone']) ?></p>
+                        <?php endif; ?>
+                    </div>
+                    <div>
+                        <div class="text-[9px] font-bold uppercase tracking-widest text-gray-400 mb-2">To (Recipient)</div>
+                        <div class="text-sm font-bold brand-primary"><?= e($delivery['recipient_name']) ?></div>
+                        <p class="text-xs text-gray-600 mt-1 leading-relaxed"><?= nl2br(e($delivery['delivery_address'])) ?></p>
+                        <?php if ($delivery['recipient_phone']): ?>
+                            <p class="text-xs text-gray-500 mt-1"><?= e($delivery['recipient_phone']) ?></p>
+                        <?php endif; ?>
+                    </div>
+                </div>
+
+                <!-- Items Table -->
+                <div>
+                    <div class="text-[9px] font-bold uppercase tracking-widest text-gray-400 mb-3">Items Dispatched</div>
+                    <table class="w-full text-left border border-gray-200 rounded-lg overflow-hidden">
+                        <thead>
+                            <tr class="bg-gray-50">
+                                <th class="px-4 py-2.5 text-[9px] font-bold text-gray-400 uppercase tracking-widest border-b border-gray-200">#</th>
+                                <th class="px-4 py-2.5 text-[9px] font-bold text-gray-400 uppercase tracking-widest border-b border-gray-200">Description</th>
+                                <th class="px-4 py-2.5 text-[9px] font-bold text-gray-400 uppercase tracking-widest border-b border-gray-200 text-center">Qty</th>
+                                <th class="px-4 py-2.5 text-[9px] font-bold text-gray-400 uppercase tracking-widest border-b border-gray-200">Unit</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($items as $i => $item): ?>
+                            <tr class="<?= $i % 2 ? 'bg-gray-50/50' : '' ?>">
+                                <td class="px-4 py-2.5 text-[10px] text-gray-400 border-b border-gray-100"><?= $i + 1 ?></td>
+                                <td class="px-4 py-2.5 text-xs font-semibold text-gray-800 border-b border-gray-100">
+                                    <?= e($item['product_name'] ?: $item['description']) ?>
+                                    <?php if ($item['notes']): ?>
+                                        <span class="text-[10px] text-gray-400 block"><?= e($item['notes']) ?></span>
+                                    <?php endif; ?>
+                                </td>
+                                <td class="px-4 py-2.5 text-xs font-bold text-gray-800 border-b border-gray-100 text-center"><?= number_format((float)$item['quantity'], $item['quantity'] == (int)$item['quantity'] ? 0 : 2) ?></td>
+                                <td class="px-4 py-2.5 text-[10px] text-gray-500 border-b border-gray-100"><?= $item['unit'] ? e($item['unit']) : '—' ?></td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Provider / Rider -->
+                <?php if ($delivery['provider'] || $delivery['rider_name']): ?>
+                <div>
+                    <div class="text-[9px] font-bold uppercase tracking-widest text-gray-400 mb-3">Courier / Rider Details</div>
+                    <div class="bg-gray-50 rounded-lg p-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <?php if ($delivery['provider']): ?>
+                        <div>
+                            <div class="text-[9px] text-gray-400 uppercase">Provider</div>
+                            <div class="text-xs font-bold text-gray-700"><?= $providers[$delivery['provider']] ?? ucfirst($delivery['provider']) ?></div>
+                        </div>
+                        <?php endif; ?>
+                        <?php if ($delivery['rider_name']): ?>
+                        <div>
+                            <div class="text-[9px] text-gray-400 uppercase">Rider</div>
+                            <div class="text-xs font-bold text-gray-700"><?= e($delivery['rider_name']) ?></div>
+                        </div>
+                        <?php endif; ?>
+                        <?php if ($delivery['rider_phone']): ?>
+                        <div>
+                            <div class="text-[9px] text-gray-400 uppercase">Rider Phone</div>
+                            <div class="text-xs text-gray-700"><?= e($delivery['rider_phone']) ?></div>
+                        </div>
+                        <?php endif; ?>
+                        <?php if ($delivery['booking_reference']): ?>
+                        <div>
+                            <div class="text-[9px] text-gray-400 uppercase">Booking Ref</div>
+                            <div class="text-xs font-bold text-gray-700"><?= e($delivery['booking_reference']) ?></div>
+                        </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <?php endif; ?>
+
+                <!-- Tracking -->
+                <?php if ($delivery['tracking_number'] || $delivery['tracking_url']): ?>
+                <div>
+                    <div class="text-[9px] font-bold uppercase tracking-widest text-gray-400 mb-3">Tracking</div>
+                    <div class="bg-blue-50 rounded-lg p-4 flex items-center justify-between">
+                        <div>
+                            <?php if ($delivery['tracking_number']): ?>
+                                <span class="text-xs font-bold text-blue-800"><?= e($delivery['tracking_number']) ?></span>
+                            <?php endif; ?>
+                        </div>
+                        <?php if ($delivery['tracking_url']): ?>
+                            <a href="<?= e($delivery['tracking_url']) ?>" target="_blank" class="text-[10px] font-bold text-blue-600 uppercase tracking-widest hover:text-blue-800">Track Shipment &rarr;</a>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <?php endif; ?>
+
+                <!-- Special Instructions -->
+                <?php if ($delivery['special_instructions']): ?>
+                <div>
+                    <div class="text-[9px] font-bold uppercase tracking-widest text-gray-400 mb-2">Special Instructions</div>
+                    <div class="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-xs text-amber-800 leading-relaxed"><?= nl2br(e($delivery['special_instructions'])) ?></div>
+                </div>
+                <?php endif; ?>
+
+                <!-- E-Signature Block -->
+                <div class="border-t-2 border-dashed border-gray-200 pt-6">
+                    <div class="text-[9px] font-bold uppercase tracking-widest text-gray-400 mb-4">Proof of Delivery — E-Signature</div>
+
+                    <?php if ($delivery['status'] === 'signed_off' && $delivery['signoff_name']): ?>
+                        <div class="bg-green-50 border border-green-200 rounded-xl p-5">
+                            <div class="flex items-center gap-2 mb-3">
+                                <svg class="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                <span class="text-sm font-bold text-green-700">Receipt Confirmed</span>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                                <div>
+                                    <div class="text-[9px] text-green-500 uppercase font-bold tracking-widest">Received By</div>
+                                    <div class="text-sm font-bold text-green-900"><?= e($delivery['signoff_name']) ?></div>
+                                </div>
+                                <div>
+                                    <div class="text-[9px] text-green-500 uppercase font-bold tracking-widest">Date & Time</div>
+                                    <div class="text-sm text-green-900"><?= $delivery['signoff_timestamp'] ? fmt_date($delivery['signoff_timestamp'], 'd M Y, H:i') : '—' ?></div>
+                                </div>
+                            </div>
+                            <?php if ($delivery['signoff_signature_path']): ?>
+                                <div>
+                                    <div class="text-[9px] text-green-500 uppercase font-bold tracking-widest mb-2">Signature</div>
+                                    <div class="bg-white rounded-lg border border-green-200 p-4 inline-block">
+                                        <img src="<?= APP_URL . '/' . e($delivery['signoff_signature_path']) ?>" alt="Signature" class="max-h-24">
+                                    </div>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    <?php else: ?>
+                        <div class="bg-gray-50 border border-gray-200 rounded-xl p-5 text-center">
+                            <svg class="w-8 h-8 text-gray-300 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                            <p class="text-xs text-gray-400 font-medium">Awaiting recipient signature</p>
+                        </div>
+                    <?php endif; ?>
+                </div>
+
+            </div>
+
+            <!-- Footer -->
+            <div class="bg-gray-50 border-t border-gray-200 px-8 py-4 text-center">
+                <p class="text-[10px] text-gray-400">This is a computer-generated document from <strong><?= e($business['business_name']) ?></strong> via Nfelia.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    function downloadPDF() {
+        const el = document.getElementById('delivery-document');
+        const opt = {
+            margin: 0,
+            filename: '<?= e($delivery['doc_number']) ?>.pdf',
+            image: { type: 'jpeg', quality: 0.98 },
+            html2pdf: { scrollX: 0, scrollY: 0 },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+        html2pdf().set(opt).from(el).save();
+    }
+    </script>
+</body>
+</html>

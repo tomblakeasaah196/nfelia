@@ -1,0 +1,49 @@
+# ============================================================================
+# Nfelia — repository ignore rules
+# ============================================================================
+
+# Secrets. The docroot copy of .env is the only authoritative one; it is
+# never committed and never deployed over.
+.env
+.env.local
+.env.*.local
+*.bak
+*.bak-*
+
+# cPanel-generated / runtime files at the docroot root. Anchored with a
+# leading slash so nested config files stay trackable.
+/error_log
+*.log
+/.user.ini
+/php.ini
+cgi-bin/
+
+# Composer-managed dependencies — reinstalled by bin/deploy.sh on every
+# deploy. NOTE: lib/PHPMailer is hand-vendored, NOT Composer-managed, and
+# MUST stay tracked; the root anchor below is what keeps it safe.
+/vendor/
+/composer.phar
+
+# Runtime uploads and generated artefacts (user data — never in git)
+/uploads/
+/storage/momo_receipts/
+/storage/logs/
+
+# Database dumps. Forward migrations under db/migrations/ ARE tracked.
+*.sql
+*.sql.gz
+*.dump
+!db/migrations/*.sql
+
+# IDE / OS junk
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Ad-hoc scratch scripts — never commit
+_scratch/
+scratch_*.php

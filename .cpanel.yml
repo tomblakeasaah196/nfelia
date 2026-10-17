@@ -1,0 +1,12 @@
+---
+# cPanel Git Version Control deployment recipe.
+#
+# The primary deploy path is the webhook (webhook/deploy.php), driven by
+# GitHub Actions on push to main. This file only runs when you click
+# "Deploy HEAD Commit" in cPanel > Git Version Control > Manage — the
+# manual fallback for when Actions or the webhook is unavailable.
+#
+# Both paths call the same script, so behaviour cannot drift between them.
+deployment:
+  tasks:
+    - /usr/bin/env bash /home/smartqaq/repositories/nfelia/bin/deploy.sh

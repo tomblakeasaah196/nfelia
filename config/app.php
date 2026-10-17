@@ -1,0 +1,59 @@
+<?php
+/**
+ * Nfelia Application Configuration
+ */
+
+// --- PATCH: Session Security Hardening ---
+ini_set('session.cookie_httponly', 1); // Prevents XSS from reading the cookie
+ini_set('session.cookie_secure', 1);   // Forces cookies over HTTPS only
+ini_set('session.use_strict_mode', 1); // Prevents session fixation
+// -----------------------------------------
+
+define('APP_NAME',    $_ENV['APP_NAME']    ?? 'Nfelia');
+define('APP_URL',     rtrim($_ENV['APP_URL'] ?? 'https://nfelia.lpc.cm', '/'));
+define('APP_ENV',     $_ENV['APP_ENV']     ?? 'production');
+define('APP_DEBUG',   ($_ENV['APP_DEBUG']  ?? 'false') === 'true');
+
+// Document root for file paths
+define('BASE_PATH',   dirname(__DIR__));
+define('UPLOAD_PATH', BASE_PATH . '/uploads');
+define('LOG_PATH',    BASE_PATH . '/storage/logs');
+
+// Subscription pricing (in Kobo for Paystack — multiply NGN by 100)
+define('PLAN_BASE_PRICE',       1000000);   // ₦10,000 in kobo
+define('PLAN_EXTRA_SEAT_PRICE',  500000);   // ₦5,000 per extra seat
+define('TRIAL_DAYS',             14);
+define('MAX_SEATS',              5);
+define('MAX_BANK_ACCOUNTS',      3);
+define('MAX_PRODUCTS',           500);
+
+// Document prefix for each type
+define('DOC_TYPES', ['QUO', 'INV', 'REC', 'DEL']);
+
+// Business categories
+define('BUSINESS_CATEGORIES', [
+    'fashion'          => 'Fashion & Apparel',
+    'food_beverage'    => 'Food & Beverage',
+    'tech_repair'      => 'Tech Repair',
+    'distribution'     => 'Distribution & Logistics',
+    'services'         => 'Professional Services',
+    'wholesale_retail' => 'Wholesale & Retail',
+    'creative'         => 'Creative & Media',
+    'other'            => 'Other',
+]);
+
+// Font pairings for dynamic theming
+define('FONT_PAIRINGS', [
+    'corporate_serif' => [
+        'heading' => 'EB Garamond',
+        'body'    => 'Questrial',
+    ],
+    'modern_sans' => [
+        'heading' => 'Inter',
+        'body'    => 'DM Sans',
+    ],
+    'bold_display' => [
+        'heading' => 'Syne',
+        'body'    => 'Outfit',
+    ],
+]);

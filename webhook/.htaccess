@@ -1,0 +1,6 @@
+# The deploy endpoint authenticates with a shared token; this file only
+# stops directory listing and keeps the endpoint out of search results.
+Options -Indexes
+<IfModule mod_headers.c>
+    Header always set X-Robots-Tag "noindex, nofollow"
+</IfModule>

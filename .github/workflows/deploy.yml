@@ -1,0 +1,194 @@
+name: CI + Deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  checks:
+    name: Lint, secret sweep, deploy-exclusion proof
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      - name: PHP syntax check over the tree
+        run: |
+          set -euo pipefail
+          fail=0
+          while IFS= read -r -d '' f; do
+            if ! out=$(php -l "$f" 2>&1); then
+              echo "::error file=$f::${out}"
+              fail=1
+            fi
+          done < <(find . -type f -name '*.php' \
+                    ! -path './vendor/*' ! -path './lib/*' -print0)
+          exit $fail
+
+      - name: No server-specific collation may be pinned
+        run: |
+          set -euo pipefail
+          # The 2026-10-17 outage: config/database.php pinned
+          # utf8mb4_0900_ai_ci (MySQL 8 only) in MYSQL_ATTR_INIT_COMMAND, so
+          # every connection threw 1273 on MariaDB and the whole app returned
+          # "Database connection failed." Never pin a versioned collation.
+          if grep -rn 'utf8mb4_0900' --include='*.php' \
+               --exclude-dir=vendor --exclude-dir=lib . ; then
+            echo "::error::utf8mb4_0900_* is MySQL-8 only and does not exist on MariaDB. Remove the pinned collation."
+            exit 1
+          fi
+          echo "OK: no version-pinned collation in the tree."
+
+      - name: Secret sweep
+        run: |
+          set -euo pipefail
+          fail=0
+
+          if git ls-files | grep -qxE '\.env'; then
+            echo "::error::.env is tracked in git"
+            fail=1
+          fi
+
+          if git ls-files | grep -qiE '\.(sql|sql\.gz|dump)$' \
+             | grep -v '^db/migrations/'; then
+            echo "::error::a database dump is tracked in git"
+            fail=1
+          fi
+
+          # Live Paystack keys must never be committed. The .env.example
+          # placeholders are pk_live_xxxx / sk_live_xxxx, so require real
+          # key material (hex-ish, 20+ chars) to trigger.
+          if grep -rnE '\b[ps]k_live_[0-9a-f]{20,}' \
+               --exclude-dir=vendor --exclude-dir=lib --exclude-dir=.git \
+               --exclude='.env.example' . ; then
+            echo "::error::a live Paystack key appears in the tree"
+            fail=1
+          fi
+
+          # Credentials must come from .env, never literal PHP.
+          if grep -rnE "(DB_PASS|DB_USER|MAIL_PASSWORD)\s*=>?\s*['\"][A-Za-z0-9@_.!-]{6,}" \
+               --include='*.php' --exclude-dir=vendor --exclude-dir=lib \
+               --exclude='.env.example' . ; then
+            echo "::error::hardcoded credential found in PHP"
+            fail=1
+          fi
+
+          exit $fail
+
+      - name: Deploy exclusions must hold under tar (.deployignore)
+        run: |
+          set -euo pipefail
+
+          # bin/deploy.sh copies the repo into the PUBLIC docroot with
+          #   tar cf - --exclude-from=.deployignore -C "$REPO" .
+          # Same invocation here, to a temp archive we can list. tar silently
+          # ignores patterns that start or end with "/", so one rsync-style
+          # entry puts .git, docs/ or a database dump on the public web with
+          # no error anywhere. On 2026-10-17 a 252KB dump of the production
+          # database was in fact being served at /smartqaq_nfelia_core.sql.
+          tarball=$(mktemp); members=$(mktemp)
+          trap 'rm -f "$tarball" "$members"' EXIT
+          tar cf "$tarball" --exclude-from=.deployignore -C . .
+          tar tf "$tarball" > "$members"
+
+          fail=0
+          for path in .git .github .gitignore .deployignore .cpanel.yml \
+                      .env .user.ini php.ini docs bin db README.md; do
+            if grep -qE "^\./${path//./\\.}(/|\$)" "$members"; then
+              echo "::error file=.deployignore::'${path}' would be copied into the PUBLIC docroot — its .deployignore entry does not match under tar (patterns must not start or end with '/'; a root-only entry looks like './${path}')"
+              fail=1
+            fi
+          done
+
+          if grep -qE '\.sql$' "$members"; then
+            echo "::error file=.deployignore::a .sql file would be copied into the public docroot"
+            fail=1
+          fi
+
+          # And it must still be a real deploy: a pattern excluding everything
+          # would otherwise sail through the checks above.
+          for path in index.php config/database.php webhook/deploy.php \
+                      lib/PHPMailer/src/PHPMailer.php; do
+            if ! grep -qxF "./${path}" "$members"; then
+              echo "::error file=.deployignore::'${path}' would NOT be deployed — a .deployignore pattern is too broad"
+              fail=1
+            fi
+          done
+
+          if [ "$fail" -eq 0 ]; then
+            echo "OK: $(wc -l < "$members") members would deploy; none of the excluded paths among them."
+          fi
+          exit $fail
+
+  deploy:
+    name: Deploy via webhook
+    needs: [checks]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Check secrets are configured
+        id: check
+        env:
+          DEPLOY_WEBHOOK_SECRET: ${{ secrets.DEPLOY_WEBHOOK_SECRET }}
+          DEPLOY_WEBHOOK_URL:    ${{ vars.DEPLOY_WEBHOOK_URL }}
+        run: |
+          if [ -z "${DEPLOY_WEBHOOK_SECRET:-}" ] || [ -z "${DEPLOY_WEBHOOK_URL:-}" ]; then
+            echo "::warning::DEPLOY_WEBHOOK_SECRET or DEPLOY_WEBHOOK_URL not set; skipping deploy. See DEPLOY.md."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: POST to deploy webhook (streams server output back)
+        if: steps.check.outputs.skip == 'false'
+        env:
+          DEPLOY_WEBHOOK_URL:    ${{ vars.DEPLOY_WEBHOOK_URL }}
+          DEPLOY_WEBHOOK_SECRET: ${{ secrets.DEPLOY_WEBHOOK_SECRET }}
+        run: |
+          set -euo pipefail
+
+          # The secret travels only in the request header, never in the URL,
+          # so it cannot leak into web-server access logs.
+          body_file=$(mktemp)
+          trap 'rm -f "$body_file"' EXIT
+
+          http_status=$(curl -sS -X POST \
+            --max-time 900 \
+            --output "$body_file" \
+            --write-out "%{http_code}" \
+            -H "X-Deploy-Token: ${DEPLOY_WEBHOOK_SECRET}" \
+            -H "User-Agent: github-actions-nfelia/1.0" \
+            "${DEPLOY_WEBHOOK_URL}") || {
+              rc=$?
+              echo "::error::curl failed with exit code ${rc} — check DEPLOY_WEBHOOK_URL and reachability"
+              exit "$rc"
+            }
+
+          echo "----- webhook response body -----"
+          cat "$body_file"
+          echo ""
+          echo "----- webhook returned HTTP ${http_status} -----"
+
+          if [ "${http_status}" != "200" ]; then
+            echo "::error::Deploy webhook returned HTTP ${http_status}"
+            exit 1
+          fi
+
+          # Output is streamed, so the 200 is sent before the deploy finishes.
+          # The marker line is the only trustworthy result.
+          if ! grep -q '^\[webhook\] DEPLOY OK$' "$body_file"; then
+            echo "::error::Deploy failed on the server (no '[webhook] DEPLOY OK' in response)"
+            exit 1
+          fi
