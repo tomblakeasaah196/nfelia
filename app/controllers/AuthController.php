@@ -64,7 +64,7 @@ class AuthController {
                 ]);
 
                 // Secure, HttpOnly, SameSite cookie — 30 days
-                setcookie('nfelia_remember', $remember_token, [
+                setcookie(REMEMBER_COOKIE, $remember_token, [
                     'expires'  => strtotime('+30 days'),
                     'path'     => '/',
                     'secure'   => true,
@@ -595,10 +595,10 @@ class AuthController {
         }
 
         // Delete the sessions table row if remember-me was active
-        if (isset($_COOKIE['nfelia_remember'])) {
+        if (isset($_COOKIE[REMEMBER_COOKIE])) {
             $db = get_db();
             $db->prepare("DELETE FROM sessions WHERE session_token = ?")
-               ->execute([$_COOKIE['nfelia_remember']]);
+               ->execute([$_COOKIE[REMEMBER_COOKIE]]);
         }
 
         logout_user();

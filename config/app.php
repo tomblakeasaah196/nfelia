@@ -24,6 +24,11 @@ session_set_cookie_params([
     'samesite' => 'Lax',
 ]);
 
+// "Keep me signed in" carries the same prefix for the same reason. The old
+// cookie, nfelia_remember, is never read again (a shop subdomain could have
+// planted one) and is cleared when a browser still sends it.
+define('REMEMBER_COOKIE', '__Host-nfelia_remember');
+
 define('APP_NAME',    $_ENV['APP_NAME']    ?? 'Nfelia');
 define('APP_URL',     rtrim($_ENV['APP_URL'] ?? 'https://nfelia.com', '/'));
 define('APP_ENV',     $_ENV['APP_ENV']     ?? 'production');

@@ -7,10 +7,22 @@
  * NFELIA AUDIT FIX — C03 — Fixed remember-me session restore missing fields — 2026-06-03
  */
 
+// The remember-me cookie before it carried the __Host- prefix is never
+// trusted again (see REMEMBER_COOKIE in config/app.php); clear it
+if (isset($_COOKIE['nfelia_remember'])) {
+    setcookie('nfelia_remember', '', [
+        'expires'  => time() - 3600,
+        'path'     => '/',
+        'secure'   => true,
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
+}
+
 if (!is_logged_in()) {
-    if (isset($_COOKIE['nfelia_remember'])) {
+    if (isset($_COOKIE[REMEMBER_COOKIE])) {
         $db    = get_db();
-        $token = $_COOKIE['nfelia_remember'];
+        $token = $_COOKIE[REMEMBER_COOKIE];
         $stmt  = $db->prepare("
             SELECT s.*, u.id as user_id, u.full_name, u.email, u.role, u.avatar_path,
                    b.id as business_id, b.name as business_name,
@@ -59,7 +71,7 @@ if (!is_logged_in()) {
             );
         } else {
             // Expired or invalid cookie — clear it
-            setcookie('nfelia_remember', '', [
+            setcookie(REMEMBER_COOKIE, '', [
                 'expires'  => time() - 3600,
                 'path'     => '/',
                 'secure'   => true,

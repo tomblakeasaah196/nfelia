@@ -172,7 +172,8 @@ function shop_name_needs_review(string $name): bool {
  * Check a typed name for a business. Returns
  *   ['state' => ok|review|invalid|reserved|taken, 'name' => normalised, 'message' => …]
  * 'review' means the name is free but waits for the founder to approve it.
- * Names held by another shop, live or waiting for review, count as taken.
+ * Names held by another shop, live, waiting for review or given up in a
+ * rename less than 90 days ago (shop_name_holds), count as taken.
  */
 function shop_name_check(string $raw, int $business_id): array {
     $name   = shop_name_normalise($raw);
@@ -209,6 +210,10 @@ function shop_name_check(string $raw, int $business_id): array {
     if ($stmt->fetch()) {
         return $result('taken', 'Another shop already has this name.');
     }
+    $holder = shop_name_holder($name);
+    if ($holder && (int)$holder['id'] !== $business_id) {
+        return $result('taken', 'Another shop used this name until recently. Try another one.');
+    }
 
     if (shop_name_needs_review($name)) {
         return $result('review', 'This name needs a quick check by our team. Your link goes live as soon as it is approved.');
@@ -237,6 +242,44 @@ function shop_name_suggestions(string $seed, int $business_id, int $limit = 3): 
         }
     }
     return $suggestions;
+}
+
+/**
+ * The business that gave up $name in a rename less than 90 days ago, or null.
+ * Its old links keep reaching it until then.
+ */
+function shop_name_holder(string $name): ?array {
+    try {
+        $stmt = get_db()->prepare("
+            SELECT b.* FROM shop_name_holds h
+            JOIN businesses b ON b.id = h.business_id
+            WHERE h.name = ? AND h.held_until > NOW() AND b.is_active = 1 AND b.subdomain IS NOT NULL
+            LIMIT 1
+        ");
+        $stmt->execute([$name]);
+        return $stmt->fetch() ?: null;
+    } catch (PDOException $e) {
+        // The table arrives with the 20261018120000 migration
+        error_log('[Nfelia] shop_name_holder: ' . $e->getMessage());
+        return null;
+    }
+}
+
+/**
+ * Keep the name a business is giving up, so its old links keep working for
+ * 90 days and nobody else can take it meanwhile. Taking the name back (or
+ * claiming any held name of its own) ends the hold.
+ */
+function shop_name_hold(int $business_id, string $old_name): void {
+    get_db()->prepare("
+        INSERT INTO shop_name_holds (name, business_id, held_until)
+        VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 90 DAY))
+        ON DUPLICATE KEY UPDATE business_id = VALUES(business_id), held_until = VALUES(held_until)
+    ")->execute([$old_name, $business_id]);
+}
+
+function shop_name_release(int $business_id, string $name): void {
+    get_db()->prepare("DELETE FROM shop_name_holds WHERE name = ? AND business_id = ?")->execute([$name, $business_id]);
 }
 
 /**
