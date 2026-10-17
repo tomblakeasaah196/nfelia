@@ -117,7 +117,7 @@ $flash = get_flash();
                 <a class="btn btn-primary" href="<?= APP_URL ?>/register">Start free for 14 days</a>
                 <a class="btn btn-outline" href="<?= e($wa_link($wa_messages[3][2])) ?>" target="_blank" rel="noopener"><?= nf_icon('whatsapp') ?>Chat on WhatsApp</a>
             </div>
-            <p class="hero-note"><?= nf_icon('check-circle') ?>No card needed to start.</p>
+            <p class="hero-note"><?= nf_icon('check-circle') ?>No card needed. Free setup help on WhatsApp.</p>
         </div>
 
         <div class="hero-visual <?= $hero_img ? '' : 'no-photo' ?>">
@@ -240,6 +240,19 @@ $flash = get_flash();
             </li>
             <li class="fix" data-reveal>
                 <div class="fix-media">
+                    <div class="phone"><img src="<?= $img ?>/shop-phone.webp" width="780" height="1688" loading="lazy" alt="Ivie's online shop: wigs and bundles with prices, ready to add to cart or order on WhatsApp"></div>
+                </div>
+                <div class="fix-copy">
+                    <h3>Turn your Instagram into a shop</h3>
+                    <p>One link for your bio and your WhatsApp status. Customers see your products and prices, then order from the cart or chat you on WhatsApp.</p>
+                    <ul class="ticks">
+                        <li><?= nf_icon('check') ?>Orders land in Nfelia, not lost in your DMs</li>
+                        <li><?= nf_icon('check') ?>Customers pay into your own bank account</li>
+                    </ul>
+                </div>
+            </li>
+            <li class="fix" data-reveal>
+                <div class="fix-media">
                     <div class="laptop">
                         <div class="laptop-screen"><img src="<?= $img ?>/dashboard-laptop.webp" width="1440" height="900" loading="lazy" alt="Dashboard: today's sales, money owed to you and products running low"></div>
                         <div class="laptop-base"></div>
@@ -276,7 +289,7 @@ $flash = get_flash();
             <li><?= nf_icon('quote') ?><div><strong>Quotes in seconds</strong><span>Turn a quote into an invoice in one tap.</span></div></li>
             <li><?= nf_icon('pen') ?><div><strong>Proof of delivery</strong><span>Your customer signs on the phone when goods arrive.</span></div></li>
             <li><?= nf_icon('receipt') ?><div><strong>Receipts</strong><span>Send a receipt the moment you are paid.</span></div></li>
-            <li><?= nf_icon('globe') ?><div><strong>Your own business page</strong><span>A web page customers can visit and request a quote.</span></div></li>
+            <li><?= nf_icon('globe') ?><div><strong>Nothing to install</strong><span>Open it in the browser on any smartphone.</span></div></li>
             <li><?= nf_icon('users') ?><div><strong>Staff accounts</strong><span>Give each staff member their own login.</span></div></li>
             <li><?= nf_icon('bell') ?><div><strong>Low-stock alerts</strong><span>Know what to restock before customers ask.</span></div></li>
         </ul>
@@ -287,7 +300,7 @@ $flash = get_flash();
 <section class="section stories" aria-labelledby="stories-title">
     <div class="wrap">
         <div class="section-head center" data-reveal>
-            <h2 id="stories-title">Made for businesses like these</h2>
+            <h2 id="stories-title">Made for businesses like yours</h2>
         </div>
         <div class="stories-grid" data-reveal-group>
             <article class="story">
@@ -316,6 +329,13 @@ $flash = get_flash();
             </article>
         </div>
         <p class="stories-note">These are example stories to show how Nfelia fits a business. They are not customer reviews.</p>
+
+        <ul class="fits" data-reveal-group>
+            <li><strong>Fashion designers</strong><span>Quote fabric and sewing, take a deposit, collect the balance at pickup.</span></li>
+            <li><strong>Salons and beauty</strong><span>A receipt for every client, and stock of the products you sell.</span></li>
+            <li><strong>Food and catering</strong><span>Party quotes, deposits, and what you spent on foodstuff.</span></li>
+            <li><strong>Phones and gadgets</strong><span>Stock for every model, receipts with your logo, and who owes you.</span></li>
+        </ul>
     </div>
 </section>
 
@@ -363,7 +383,7 @@ $flash = get_flash();
             <div class="price-main">
                 <p class="price-amount"><?= $naira($plan_price) ?> <small>a month</small></p>
                 <p class="price-day">About <?= $naira($per_day) ?> a day</p>
-                <p class="price-compare">Less than one customer who never pays you back.</p>
+                <p class="price-compare">Collect one ₦30,000 debt with a reminder and Nfelia has paid for itself for three months.</p>
                 <div class="price-trial">
                     <strong>Free for <?= (int)TRIAL_DAYS ?> days</strong>
                     <span>Use everything. No card needed to start.</span>
@@ -378,7 +398,8 @@ $flash = get_flash();
                     <li><?= nf_icon('check') ?>Stock tracking for up to <?= number_format(MAX_PRODUCTS) ?> products</li>
                     <li><?= nf_icon('check') ?>Monthly profit report</li>
                     <li><?= nf_icon('check') ?>Delivery notes your customer signs</li>
-                    <li><?= nf_icon('check') ?>Your own business web page</li>
+                    <li><?= nf_icon('check') ?>Your own online shop link</li>
+                    <li><?= nf_icon('check') ?>Free setup help on WhatsApp</li>
                 </ul>
                 <p class="price-extra">Need staff on it? <?= $naira($seat_price) ?> a month for each extra person.</p>
             </div>
@@ -394,8 +415,8 @@ $flash = get_flash();
         </div>
         <div class="faq-list" data-reveal>
             <details>
-                <summary>Do I need a laptop?</summary>
-                <p>No. Nfelia works in the browser on any smartphone with internet. You can use a laptop too, and your records are the same on both.</p>
+                <summary>Do I need a laptop or a lot of data?</summary>
+                <p>No laptop needed. Nfelia opens in the browser on any smartphone, with nothing to install. It needs a little data, like WhatsApp does. Use a laptop too if you like; your records are the same on both.</p>
             </details>
             <details>
                 <summary>What happens after the 14 days?</summary>
@@ -406,16 +427,20 @@ $flash = get_flash();
                 <p>Online with Paystack, the payment service many Nigerian businesses already use.</p>
             </details>
             <details>
-                <summary>Can my staff use it?</summary>
-                <p>Yes. Add each staff member for <?= $naira($seat_price) ?> a month. Everyone gets their own login, and you can remove anyone at any time.</p>
+                <summary>Can my staff use it? What if someone is not honest?</summary>
+                <p>Each staff member gets their own login for <?= $naira($seat_price) ?> a month. Every sale reduces your stock, so missing goods show up quickly, and only you can add or remove staff.</p>
             </details>
             <details>
-                <summary>Is my business information safe?</summary>
-                <p>Your records belong to you. We never sell your data or contact your customers. Links you share with customers are random and cannot be guessed.</p>
+                <summary>Is my business information safe? Can I take it with me?</summary>
+                <p>Your records belong to you. We never sell your data or contact your customers. Download your invoices, receipts and profit report as PDF, and your product list as a spreadsheet, any time.</p>
+            </details>
+            <details>
+                <summary>I'm a fashion designer. Where do I keep measurements?</summary>
+                <p>Save each client's measurements in the notes on their customer profile, next to their quotes, deposits and balances. A proper measurement book is coming soon.</p>
             </details>
             <details>
                 <summary>I'm not good with computers. Can I still use it?</summary>
-                <p>Yes. If you can send a WhatsApp message, you can send an invoice on Nfelia. And if you get stuck, we are one WhatsApp message away.</p>
+                <p>Yes. If you can send a WhatsApp message, you can send an invoice on Nfelia. We help you set up for free, and we are one WhatsApp message away if you get stuck.</p>
             </details>
         </div>
     </div>
@@ -462,7 +487,6 @@ $flash = get_flash();
                 <ul>
                     <li><a href="<?= e($wa_link()) ?>" target="_blank" rel="noopener">WhatsApp: +234 816 978 9106</a></li>
                     <li><a href="tel:+2348169789106">Call: +234 816 978 9106</a></li>
-                    <li><a href="mailto:support@nfelia.lpc.cm">support@nfelia.lpc.cm</a></li>
                 </ul>
             </div>
         </div>
