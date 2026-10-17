@@ -26,6 +26,7 @@ require_once __DIR__ . '/app/helpers/storefront.php';
 require_once __DIR__ . '/app/helpers/cloudflare.php';
 require_once __DIR__ . '/app/helpers/shop_orders.php';
 require_once __DIR__ . '/app/helpers/bookings.php';
+require_once __DIR__ . '/app/helpers/seo.php';
 
 // --- GLOBAL EXCEPTION & FATAL ERROR HANDLER ---
 // Start output buffering so we can erase half-loaded pages if a crash happens
@@ -71,6 +72,26 @@ if ($shop_label !== null) {
     require_once __DIR__ . '/app/controllers/PublicController.php';
     require_once __DIR__ . '/app/controllers/StorefrontController.php';
     (new StorefrontController())->handle($shop_label, trim($_GET['url'] ?? '', '/'));
+    exit;
+}
+
+// --- BEING FOUND ---
+// robots.txt, the sitemaps and the shop directory are the same for everyone:
+// no session, no cookie, cacheable.
+$seo_path = trim($_GET['url'] ?? '', '/');
+if (in_array($seo_path, ['robots.txt', 'sitemap.xml', 'sitemap-pages.xml'], true)) {
+    header('Cache-Control: public, max-age=3600, s-maxage=3600');
+    if ($seo_path === 'robots.txt') {
+        header('Content-Type: text/plain; charset=utf-8');
+        echo main_robots();
+    } else {
+        header('Content-Type: application/xml; charset=utf-8');
+        echo $seo_path === 'sitemap.xml' ? main_sitemap_index(get_db()) : main_pages_sitemap(get_db());
+    }
+    exit;
+}
+if (preg_match('#^shops(?:/([a-z0-9-]{1,60}))?(?:/([a-z0-9-]{1,60}))?$#', $seo_path, $m)) {
+    require __DIR__ . '/views/directory/index.php';
     exit;
 }
 
@@ -243,6 +264,7 @@ function dispatch_app(string $controller, string $action, ?string $param): void 
         'reports'         => 'ReportController',  // profit_loss + profit_loss_pdf
         'orders'          => 'OrderController',
         'bookings'        => 'BookingController',
+        'posts'           => 'PostController',
         'purge'           => 'PurgeController',
         'landing-page'    => 'LandingPageController',
         'settings'        => 'SettingsController',

@@ -882,6 +882,13 @@
                     editorEl.appendChild(checkbox(s, k, f[k].label));
                 });
                 break;
+            case 'news':
+                editorEl.appendChild(field('Title', textInput(s, 'title', f.title, 'News and offers')));
+                var newsHelp = el('p', { class: 'st-help' }, 'Your three newest posts show here, each with its own page Google can find. Write them in ');
+                newsHelp.appendChild(el('a', { href: D.urls.posts }, 'News and offers'));
+                newsHelp.appendChild(document.createTextNode('.'));
+                editorEl.appendChild(newsHelp);
+                break;
             case 'booking':
                 editorEl.appendChild(field('Title', textInput(s, 'title', f.title, 'Book a time')));
                 editorEl.appendChild(field('A line under the title', textInput(s, 'text', f.text, 'Pick a free time and pay a small deposit to hold it.')));
@@ -1108,7 +1115,56 @@
 
     /* ── Start ───────────────────────────────────── */
 
+    /* ── Found on Google (More tab) ─────────────── */
+    // Search words, the directory listing and the city live in the draft
+    // like everything else, and go live when the owner publishes.
+
+    var seoBox = $('[data-seo-box]');
+    var SEO_LIMITS = { title: 60, description: 158 };
+    function renderSeo() {
+        if (!seoBox) { return; }
+        var seo = state.seo || {};
+        $$('[data-seo]', seoBox).forEach(function (input) {
+            var key = input.dataset.seo;
+            if (input.type === 'checkbox') {
+                input.checked = !!seo[key];
+            } else if (document.activeElement !== input) {
+                input.value = seo[key] || '';
+            }
+        });
+        $('[data-seo-city-row]', seoBox).hidden = !seo.directory;
+        var title = (seo.title || '').trim() || D.seoDefaults.title;
+        var desc = (seo.description || '').trim() || D.seoDefaults.description;
+        $('[data-serp-title]', seoBox).textContent = short(title, SEO_LIMITS.title);
+        $('[data-serp-desc]', seoBox).textContent = short(desc, SEO_LIMITS.description);
+        Object.keys(SEO_LIMITS).forEach(function (key) {
+            var used = (seo[key] || '').trim().length;
+            var note = $('[data-seo-count="' + key + '"]', seoBox);
+            note.textContent = !used ? '' : used > SEO_LIMITS[key]
+                ? used + ' letters. Google shows about ' + SEO_LIMITS[key] + '; the rest is cut.'
+                : used + ' of about ' + SEO_LIMITS[key] + ' letters';
+        });
+    }
+    if (seoBox) {
+        var setSeo = function (key, value, opts) {
+            commit(function (st) {
+                st.seo = Object.assign({}, st.seo || {});
+                st.seo[key] = value;
+            }, opts);
+            renderSeo();
+        };
+        seoBox.addEventListener('input', function (e) {
+            var input = e.target.closest('[data-seo]');
+            if (input && input.type !== 'checkbox') { setSeo(input.dataset.seo, input.value, { key: 'seo.' + input.dataset.seo }); }
+        });
+        seoBox.addEventListener('change', function (e) {
+            var input = e.target.closest('[data-seo]');
+            if (input && input.type === 'checkbox') { setSeo(input.dataset.seo, input.checked, {}); }
+        });
+    }
+
     function renderAll() {
+        renderSeo();
         renderLooks();
         renderColours();
         renderFonts();

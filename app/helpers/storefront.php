@@ -225,8 +225,8 @@ function storefront_colour_sets(): array {
 /**
  * Section types. 'pin' keeps a section at the top or bottom of the page;
  * the rest can be moved. 'switch' => false means it is always shown.
- * 'available' => false types belong to a later step (news): they are known
- * here but never stored, shown or offered yet.
+ * 'available' => false would keep a type known here but never stored, shown
+ * or offered (for sections still being built).
  *
  * Field kinds: line (one line), text (paragraphs), bool, youtube, image,
  * products (a list of product ids), faq (question and answer pairs).
@@ -277,7 +277,8 @@ function storefront_section_types(): array {
         'booking' => ['name' => 'Bookings', 'hint' => 'Services people book: they pick a free time and pay the deposit. Shows once a product can be booked.', 'pin' => null, 'switch' => true, 'on' => true, 'available' => true,
             'fields' => ['title' => ['kind' => 'line', 'max' => 50, 'label' => 'Title'],
                          'text' => ['kind' => 'text', 'max' => 300, 'label' => 'A line under the title']]],
-        'news'    => ['name' => 'News and offers', 'hint' => '', 'pin' => null, 'switch' => true, 'on' => false, 'available' => false, 'fields' => []],
+        'news'    => ['name' => 'News and offers', 'hint' => 'Your newest posts. Write them in News and offers; they show once the first one is published.', 'pin' => null, 'switch' => true, 'on' => true, 'available' => true,
+            'fields' => ['title' => ['kind' => 'line', 'max' => 50, 'label' => 'Title']]],
         'contact' => ['name' => 'Contact and footer', 'hint' => 'Your WhatsApp, socials and address', 'pin' => 'bottom', 'switch' => false, 'on' => true, 'available' => true,
             'fields' => [
                 'text'         => ['kind' => 'text', 'max' => 200, 'label' => 'A short line, like your opening hours'],
@@ -401,7 +402,56 @@ function storefront_normalise(array $raw, array $business): array {
         'colours'  => sf_clean_colours(is_array($raw['colours'] ?? null) ? $raw['colours'] : []),
         'font'     => $font,
         'sections' => array_merge($top, $middle, $bottom),
+        'seo'      => sf_clean_seo(is_array($raw['seo'] ?? null) ? $raw['seo'] : [], $business),
     ];
+}
+
+/**
+ * How the shop shows in Google and in link previews, and whether it is in
+ * Nfelia's shop directory:
+ *   title, description  override the words drawn from the hero (empty: use those)
+ *   directory           list the shop at nfelia.com/shops (paid shops only)
+ *   city                where it is, for the directory and the shop's data
+ */
+function sf_clean_seo(array $raw, array $business): array {
+    $city = sf_clean_line($raw['city'] ?? null, 60);
+    return [
+        'title'       => sf_clean_line($raw['title'] ?? null, 70),
+        'description' => sf_clean_line(preg_replace('/\s+/u', ' ', is_string($raw['description'] ?? null) ? $raw['description'] : '') ?? '', 170),
+        'directory'   => sf_bool($raw['directory'] ?? false),
+        'city'        => array_key_exists('city', $raw) ? $city : sf_guess_city((string)($business['address'] ?? '')),
+    ];
+}
+
+/**
+ * Cities people search for, for the directory and the city picker.
+ */
+const NG_CITIES = ['Aba', 'Abakaliki', 'Abeokuta', 'Abuja', 'Ado-Ekiti', 'Akure', 'Asaba', 'Awka', 'Bauchi', 'Benin City',
+    'Calabar', 'Enugu', 'Gombe', 'Ibadan', 'Ijebu-Ode', 'Ikeja', 'Ilorin', 'Jos', 'Kaduna', 'Kano', 'Katsina', 'Lafia', 'Lagos',
+    'Lekki', 'Lokoja', 'Maiduguri', 'Makurdi', 'Minna', 'Nnewi', 'Ogbomoso', 'Onitsha', 'Osogbo', 'Owerri', 'Port Harcourt',
+    'Sokoto', 'Umuahia', 'Uyo', 'Warri', 'Yenagoa', 'Yola', 'Zaria'];
+
+/**
+ * A city named in an address ("Bodija, Ibadan" → "Ibadan"), or ''. Parts
+ * of Lagos (Ikeja, Lekki) count as Lagos.
+ */
+function sf_guess_city(string $address): string {
+    $text = strtolower($address);
+    foreach (NG_CITIES as $city) {
+        if (preg_match('/\b' . preg_quote(strtolower($city), '/') . '\b/', $text)) {
+            return in_array($city, ['Ikeja', 'Lekki'], true) ? 'Lagos' : $city;
+        }
+    }
+    foreach (['victoria island', 'ikoyi', 'yaba', 'surulere', 'ajah', 'idumota', 'lagos island', 'computer village'] as $area) {
+        if (str_contains($text, $area)) {
+            return 'Lagos';
+        }
+    }
+    return '';
+}
+
+function sf_city_slug(string $city): string {
+    return $city === '' ? '' : sf_product_slug($city);
 }
 
 /**

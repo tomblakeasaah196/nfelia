@@ -571,6 +571,11 @@
             openProduct(open.dataset.open);
             return;
         }
+        var shareUrl = t.closest('[data-share-url]');
+        if (shareUrl) {
+            shareLink(shareUrl.dataset.shareUrl, shareUrl.dataset.shareTitle || S.name);
+            return;
+        }
         var shareBtn = t.closest('[data-share-item]');
         if (shareBtn) {
             var shared = S.items[shareBtn.dataset.shareItem || (current && current.id)];

@@ -43,8 +43,15 @@ foreach ($products as $p) {
 $logo = (string)($business['logo_path'] ?? '');
 $logo_url = $logo !== '' && str_starts_with($logo, 'uploads/') && is_file(BASE_PATH . '/' . $logo) ? sf_media_url($logo) : '';
 
+// What Google shows when the owner leaves the search words empty (as shell.php)
+$hero_draft    = sf_section($draft, 'hero') ?? [];
+$about_draft   = sf_section($draft, 'about') ?? [];
+$seo_default_title = (string)$business['name'] . (($hero_draft['headline'] ?? '') !== '' && $hero_draft['headline'] !== $business['name'] ? ' — ' . $hero_draft['headline'] : '');
+$seo_default_desc  = trim(preg_replace('/\s+/u', ' ', ($hero_draft['text'] ?? '') ?: (($about_draft['text'] ?? '') ?: (string)($business['tagline'] ?? ''))) ?? '');
+
 $studio = [
     'csrf'        => csrf_token(),
+    'seoDefaults' => ['title' => $seo_default_title, 'description' => $seo_default_desc],
     'urls'        => [
         'save'       => APP_URL . '/landing-page/save-draft',
         'publish'    => APP_URL . '/landing-page/publish',
@@ -57,6 +64,7 @@ $studio = [
         'products'   => APP_URL . '/products/create',
         'settings'   => APP_URL . '/settings?tab=business',
         'bookings'   => APP_URL . '/bookings/settings',
+        'posts'      => APP_URL . '/posts',
     ],
     'settings'    => $draft,
     'unpublished' => $unpublished,
@@ -185,6 +193,39 @@ $samples_url = 'https://fonts.googleapis.com/css2?family=' . implode('&family=',
                 </div>
 
                 <div class="st-tabpanel" role="tabpanel" id="st-panel-more" aria-labelledby="st-tab-more" data-tab-panel="more" hidden>
+                    <section class="st-card st-seo" data-seo-box>
+                        <h2 class="st-h2">Found on Google</h2>
+                        <p class="st-help">How your shop shows in Google and when you share its link. Leave them empty to use your headline and the line under it. Shops on a free trial stay out of Google until the first payment.</p>
+                        <div class="st-serp" aria-hidden="true">
+                            <p class="st-serp__url"><?= e($shop_host ?: shop_base_host()) ?></p>
+                            <p class="st-serp__title" data-serp-title></p>
+                            <p class="st-serp__desc" data-serp-desc></p>
+                        </div>
+                        <div class="st-field">
+                            <label class="st-label" for="st-seo-title">Title</label>
+                            <input id="st-seo-title" type="text" maxlength="70" autocomplete="off" data-seo="title" placeholder="<?= e($seo_default_title) ?>">
+                            <span class="st-help" data-seo-count="title" aria-live="polite"></span>
+                        </div>
+                        <div class="st-field">
+                            <label class="st-label" for="st-seo-desc">Description</label>
+                            <textarea id="st-seo-desc" maxlength="170" rows="3" data-seo="description" placeholder="<?= e($seo_default_desc) ?>"></textarea>
+                            <span class="st-help" data-seo-count="description" aria-live="polite"></span>
+                        </div>
+                        <label class="st-check">
+                            <input type="checkbox" data-seo="directory">
+                            <span>List my shop in the Nfelia directory</span>
+                        </label>
+                        <p class="st-help">nfelia.com/shops lists paid shops by city and by what they sell, each with a link to its shop.</p>
+                        <div class="st-field" data-seo-city-row>
+                            <label class="st-label" for="st-seo-city">City</label>
+                            <input id="st-seo-city" type="text" maxlength="60" autocomplete="off" list="st-cities" data-seo="city" placeholder="Lagos">
+                            <datalist id="st-cities">
+                                <?php foreach (NG_CITIES as $city_name): ?><option value="<?= e($city_name) ?>"><?php endforeach; ?>
+                            </datalist>
+                        </div>
+                        <p class="st-help">Publish to put these live.</p>
+                    </section>
+
                     <section class="st-card">
                         <h2 class="st-h2">Your shop link</h2>
                         <?php if ($public_url): ?>

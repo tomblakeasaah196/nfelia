@@ -16,6 +16,9 @@
  *   GET  /book/{id}/free    free days of a month (?month=) or times of a day (?date=)
  *   POST /book/{id}         send a booking
  *   GET  /booking/{token}   a booking's private page (and /calendar.ics)
+ *   GET  /news              the shop's news and offers
+ *   GET  /news/{id}-{title} one post
+ *   GET  /robots.txt, /sitemap.xml   for search engines (paid shops only)
  *
  * Anything else is a 404.
  *
@@ -61,6 +64,10 @@ class StorefrontController extends PublicController
             }
         }
 
+        if ($path === 'robots.txt' && (!$business || !(int)$business['landing_enabled'])) {
+            $this->plain("User-agent: *\nDisallow: /\n", 'text/plain');
+        }
+
         // Names waiting for review, retired names and shops whose owner
         // switched the page off all look the same from outside.
         if (!$business || !(int)$business['landing_enabled']) {
@@ -69,6 +76,27 @@ class StorefrontController extends PublicController
         }
 
         $visibility = shop_visibility($this->subscription((int)$business['id']));
+
+        // Search engines: paid shops are open to them, others are not
+        if ($path === 'robots.txt') {
+            $this->plain(shop_robots($business, $visibility), 'text/plain');
+        }
+        if ($path === 'sitemap.xml') {
+            if ($visibility !== 'live') {
+                $this->notice(['title' => 'This page isn\'t here', 'body' => 'Everything ' . $business['name'] . ' sells is on the shop\'s front page.']);
+                return;
+            }
+            $this->plain(shop_sitemap($this->db, $business), 'application/xml');
+        }
+
+        if (preg_match('#^news(?:/(\d{1,10})(?:-([a-z0-9-]{0,80}))?)?$#', $path, $m) && in_array($method, ['GET', 'HEAD'], true)) {
+            if ($visibility === 'closed') {
+                $this->closed($business);
+                return;
+            }
+            $this->news_page($business, isset($m[1]) ? (int)$m[1] : 0, $path, $visibility);
+            return;
+        }
 
         if (preg_match('#^p/(\d{1,10})(?:-([a-z0-9-]{0,80}))?$#', $path, $m) && in_array($method, ['GET', 'HEAD'], true)) {
             if ($visibility === 'closed') {
@@ -262,6 +290,66 @@ class StorefrontController extends PublicController
             'orders/view/' . (int)$review['order_id']
         );
         storefront_purge((int)$business['id']);
+    }
+
+    /* ── News and offers ─────────────────────────────── */
+
+    /**
+     * The shop's posts (/news) or one post (/news/{id}-{title}, other names
+     * sent on). Cached like the shop; publishing a post purges it.
+     */
+    private function news_page(array $business, int $id, string $path, string $visibility): void
+    {
+        $settings = storefront_settings($business, 'published');
+        if ($id) {
+            $post = shop_post($this->db, (int)$business['id'], $id);
+            if (!$post) {
+                $this->notice([
+                    'title'        => 'This post isn\'t here any more',
+                    'body'         => 'It may have been taken down. ' . $business['name'] . '\'s news is on the shop.',
+                    'action_url'   => shop_url($business['subdomain'], '/news'),
+                    'action_label' => 'See the news',
+                ]);
+                return;
+            }
+            header('Cache-Control: public, max-age=0, s-maxage=300');
+            $canonical = shop_post_path($post);
+            if ('/' . $path !== $canonical) {
+                header('Location: ' . shop_url($business['subdomain'], $canonical), true, 301);
+                exit;
+            }
+            if ($visibility !== 'live') {
+                header('X-Robots-Tag: noindex, nofollow');
+            }
+            storefront_render($business, $settings, 'live', $visibility, ['kind' => 'post', 'post' => $post]);
+            return;
+        }
+        $posts = shop_posts($this->db, (int)$business['id'], 60);
+        if (!$posts) {
+            $this->notice([
+                'title'        => 'No news yet',
+                'body'         => 'Everything ' . $business['name'] . ' sells is on the shop\'s front page.',
+                'action_url'   => shop_url($business['subdomain']),
+                'action_label' => 'Go to the shop',
+            ]);
+            return;
+        }
+        header('Cache-Control: public, max-age=0, s-maxage=300');
+        if ($visibility !== 'live') {
+            header('X-Robots-Tag: noindex, nofollow');
+        }
+        storefront_render($business, $settings, 'live', $visibility, ['kind' => 'news', 'posts' => $posts]);
+    }
+
+    /**
+     * A plain-text or XML answer for search engines, cached for an hour.
+     */
+    private function plain(string $body, string $type): void
+    {
+        header('Cache-Control: public, max-age=3600, s-maxage=3600');
+        header('Content-Type: ' . $type . '; charset=utf-8');
+        echo $body;
+        exit;
     }
 
     /* ── Bookings ────────────────────────────────────── */

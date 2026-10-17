@@ -44,6 +44,8 @@ $contact   = $sections['contact'];
 $reviews = !empty($sections['reviews']['on']) && in_array($kind, ['shop', 'product'], true)
     ? shop_reviews(get_db(), (int)$business['id'])
     : null;
+// The newest posts, for the news section
+$news = !empty($sections['news']['on']) && $kind === 'shop' ? shop_posts(get_db(), (int)$business['id'], 3) : [];
 
 // Shared with every partial
 $ctx = [
@@ -69,6 +71,14 @@ if ($summary === '') {
     $summary = $business['name'] . ($count ? ': ' . $count . ' item' . ($count === 1 ? '' : 's') . ' to order online or on WhatsApp.' : '.');
 }
 $seo_desc = mb_strlen($summary) > 158 ? rtrim(mb_substr($summary, 0, 155)) . '…' : $summary;
+// The owner's own words for Google, from Shop Studio, come first
+$seo = $settings['seo'];
+if ($seo['title'] !== '') {
+    $seo_title = $seo['title'];
+}
+if ($seo['description'] !== '') {
+    $seo_desc = $seo['description'];
+}
 $og_image = $business['logo_path'] && !str_ends_with((string)$business['logo_path'], '.svg')
     ? sf_media_url((string)$business['logo_path'])
     : APP_URL . '/og-image.php?biz=' . (int)$business['id'];
@@ -94,6 +104,23 @@ if ($business['logo_path'])       { $ld['logo'] = $ld['image'] = sf_media_url((s
 if ($business['phone'])           { $ld['telephone'] = (string)$business['phone']; }
 if ($business['email'])           { $ld['email'] = (string)$business['email']; }
 if ($business['address'])         { $ld['address'] = ['@type' => 'PostalAddress', 'streetAddress' => (string)$business['address'], 'addressCountry' => 'NG']; }
+if ($seo['city'] !== '')          { $ld['address'] = ($ld['address'] ?? ['@type' => 'PostalAddress', 'addressCountry' => 'NG']) + ['addressLocality' => $seo['city']]; }
+if ($catalogue['min_price'] !== null) {
+    $prices = array_filter(array_column($catalogue['items'], 'price'), fn($p) => $p > 0);
+    $ld['priceRange'] = sf_money(min($prices), $currency) . (max($prices) > min($prices) ? ' – ' . sf_money(max($prices), $currency) : '');
+}
+// Opening hours, when the owner has set booking hours
+if (!empty($business['booking_settings'])) {
+    $ld_hours = [];
+    foreach (booking_settings($business)['hours'] as $key => $open) {
+        if ($open) {
+            $ld_hours[] = ['@type' => 'OpeningHoursSpecification', 'dayOfWeek' => 'https://schema.org/' . BOOKING_DAYS[$key], 'opens' => $open['open'], 'closes' => $open['close']];
+        }
+    }
+    if ($ld_hours) {
+        $ld['openingHoursSpecification'] = $ld_hours;
+    }
+}
 if ($socials)                     { $ld['sameAs'] = array_values($socials); }
 if ($catalogue['items']) {
     $ld['hasOfferCatalog'] = [
@@ -165,6 +192,45 @@ if ($kind === 'product') {
         'itemListElement' => [
             ['@type' => 'ListItem', 'position' => 1, 'name' => (string)$business['name'], 'item' => $shop_url],
             ['@type' => 'ListItem', 'position' => 2, 'name' => $item['name'], 'item' => $canonical],
+        ],
+    ]];
+}
+
+// News: the list, and each post as an article
+if ($kind === 'news') {
+    $canonical = $shop_url . '/news';
+    $seo_title = 'News and offers — ' . $business['name'];
+    $seo_desc  = 'The latest news and offers from ' . $business['name'] . '.';
+    $ld        = null;
+}
+if ($kind === 'post') {
+    $post      = $page['post'];
+    $canonical = $shop_url . shop_post_path($post);
+    $seo_title = $post['title'] . ' — ' . $business['name'];
+    $seo_desc  = shop_post_excerpt((string)$post['body'], 158);
+    $og_type   = 'article';
+    if ($post['image_path'] && ($og = sf_og_image((string)$post['image_path']))) {
+        [$og_image, $og_w, $og_h] = $og;
+        $og_size = [$og_w, $og_h];
+    }
+    $ld = [[
+        '@context'         => 'https://schema.org',
+        '@type'            => 'BlogPosting',
+        'headline'         => mb_substr((string)$post['title'], 0, 110),
+        'description'      => $seo_desc,
+        'datePublished'    => date('c', strtotime((string)$post['published_at'])),
+        'dateModified'     => date('c', strtotime((string)$post['updated_at'])),
+        'mainEntityOfPage' => $canonical,
+        'author'           => ['@type' => 'Organization', 'name' => (string)$business['name'], 'url' => $shop_url],
+        'publisher'        => ['@type' => 'Organization', 'name' => (string)$business['name'], 'url' => $shop_url]
+                              + ($business['logo_path'] ? ['logo' => ['@type' => 'ImageObject', 'url' => sf_media_url((string)$business['logo_path'])]] : []),
+    ] + ($post['image_path'] && sf_image_size((string)$post['image_path']) ? ['image' => [sf_media_url((string)$post['image_path'])]] : []), [
+        '@context' => 'https://schema.org',
+        '@type'    => 'BreadcrumbList',
+        'itemListElement' => [
+            ['@type' => 'ListItem', 'position' => 1, 'name' => (string)$business['name'], 'item' => $shop_url],
+            ['@type' => 'ListItem', 'position' => 2, 'name' => 'News', 'item' => $shop_url . '/news'],
+            ['@type' => 'ListItem', 'position' => 3, 'name' => (string)$post['title'], 'item' => $canonical],
         ],
     ]];
 }
@@ -271,10 +337,14 @@ $asset = fn(string $path) => APP_URL . '/' . $path . '?v=' . (@filemtime(BASE_PA
     <?php if ($og_size): ?>
     <meta property="og:image:width" content="<?= (int)$og_size[0] ?>">
     <meta property="og:image:height" content="<?= (int)$og_size[1] ?>">
-    <meta property="og:image:alt" content="<?= e($page['item']['name']) ?>">
+    <meta property="og:image:alt" content="<?= e($kind === 'post' ? $page['post']['title'] : ($page['item']['name'] ?? $business['name'])) ?>">
     <?php endif; ?>
     <?php if ($canonical !== null): ?>
     <meta property="og:url" content="<?= e($canonical) ?>">
+    <?php endif; ?>
+    <?php if ($kind === 'post'): ?>
+    <meta property="article:published_time" content="<?= e(date('c', strtotime((string)$page['post']['published_at']))) ?>">
+    <meta property="article:modified_time" content="<?= e(date('c', strtotime((string)$page['post']['updated_at']))) ?>">
     <?php endif; ?>
     <?php if ($kind === 'product' && $page['item']['price'] > 0): ?>
     <meta property="product:price:amount" content="<?= e(number_format($page['item']['price'], 2, '.', '')) ?>">

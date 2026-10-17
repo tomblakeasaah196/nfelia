@@ -128,11 +128,16 @@ class LandingPageController {
 
         $this->db->beginTransaction();
         try {
+            // The directory listing and city are copied out, so the directory
+            // (nfelia.com/shops) can filter shops without reading their settings
             $this->db->prepare("
                 UPDATE businesses
-                SET storefront_draft = ?, storefront_published = ?, storefront_published_at = NOW(), storefront_look = ?
+                SET storefront_draft = ?, storefront_published = ?, storefront_published_at = NOW(), storefront_look = ?,
+                    directory_opt_in = ?, city = ?, city_slug = ?
                 WHERE id = ?
-            ")->execute([$json, $json, $settings['look'], $this->biz_id]);
+            ")->execute([$json, $json, $settings['look'], (int)$settings['seo']['directory'],
+                         $settings['seo']['city'] !== '' ? $settings['seo']['city'] : null,
+                         $settings['seo']['city'] !== '' ? sf_city_slug($settings['seo']['city']) : null, $this->biz_id]);
             $this->db->prepare("INSERT INTO storefront_versions (business_id, settings, published_by) VALUES (?, ?, ?)")
                      ->execute([$this->biz_id, $json, (int)auth_user()['id']]);
             // Keep the ten newest
