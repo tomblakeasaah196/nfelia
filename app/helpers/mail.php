@@ -88,6 +88,10 @@ function send_mail(string $to_email, string $to_name, string $subject, string $b
             ];
         }
 
+        // PHPMailer defaults to ISO-8859-1, but every subject and template
+        // here is UTF-8: without this, "—" arrives as "â€”" and "₦" as junk.
+        $mail->CharSet = PHPMailer::CHARSET_UTF8;
+
         $mail->setFrom(MAIL_FROM_ADDRESS, MAIL_FROM_NAME);
         $mail->addAddress($to_email, $to_name);
 
