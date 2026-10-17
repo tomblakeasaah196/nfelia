@@ -1,10 +1,15 @@
 <?php
 /**
  * Nfelia — Recovery Transmission Sent
+ *
+ * Shown after every reset or sign-in link request, whether or not the
+ * address has an account. It only repeats back what the visitor typed.
  */
 
-$masked_email = $_SESSION['recovery_masked'] ?? '';
-$domain = $_SESSION['recovery_domain'] ?? '';
+$sent     = $_SESSION['link_sent'] ?? [];
+$email    = $sent['email'] ?? '';
+$is_reset = ($sent['purpose'] ?? 'reset') === 'reset';
+$domain   = strtolower(substr(strrchr($email, '@') ?: '', 1));
 
 // Determine the best Mail App Link
 $mail_link = 'mailto:';
@@ -64,11 +69,17 @@ if ($domain === 'gmail.com') {
             </div>
 
             <h2 class="font-heading font-bold text-2xl text-brand-plum mb-2">Transmission Sent</h2>
-            <p class="text-sm text-brand-plum/70 font-medium mb-6">If the directory matched, a secure URL token was dispatched to:</p>
-            
-            <div class="data-text font-bold text-lg text-brand-burgundy tracking-widest mb-8 p-3 border border-brand-sand bg-brand-cream">
-                <?= e($masked_email) ?>
+            <p class="text-sm text-brand-plum/70 font-medium mb-6">If an account uses this address, we've emailed it a <?= $is_reset ? 'password reset link' : 'one-time sign-in link' ?>:</p>
+
+            <div class="data-text font-bold text-base text-brand-burgundy tracking-wide mb-4 p-3 border border-brand-sand bg-brand-cream break-all">
+                <?= e($email) ?>
             </div>
+
+            <p class="text-[11px] text-brand-plum/60 leading-relaxed mb-8">
+                The link expires in <?= $is_reset ? '1 hour' : '15 minutes' ?>. Nothing after a few minutes?
+                Check your spam folder, or
+                <a href="<?= APP_URL ?>/<?= $is_reset ? 'forgot-password' : 'login-link' ?>" class="font-bold text-brand-burgundy hover:text-brand-gold">try another address you use</a>.
+            </p>
 
             <a href="<?= $mail_link ?>" target="_blank" class="block w-full bg-brand-burgundy text-brand-white text-xs font-bold py-4 uppercase tracking-widest hover:bg-brand-gold transition-colors">
                 <?= $mail_label ?>

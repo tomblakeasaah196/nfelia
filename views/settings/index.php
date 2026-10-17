@@ -489,9 +489,16 @@ $current_staff_count = count($staff);
                     <?php else: ?>
                         <span class="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-gray-100 text-gray-600"><?= ucfirst($member['role']) ?></span>
                     <?php endif; ?>
+                    <?php if ($is_owner && (int)$member['id'] !== (int)$user['id'] && $member['role'] !== 'owner'): ?>
+                        <form method="POST" action="<?= APP_URL ?>/settings/send-staff-reset/<?= (int)$member['id'] ?>" class="inline"
+                              onsubmit="return confirm(<?= e(json_encode('Email ' . $member['full_name'] . ' a link to set a new password?', JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_TAG | JSON_HEX_AMP)) ?>)">
+                            <?= csrf_field() ?>
+                            <button type="submit" class="text-[10px] font-bold text-brand-plum/50 uppercase tracking-widest hover:text-brand-burgundy">Send reset link</button>
+                        </form>
+                    <?php endif; ?>
                     <?php if ((int)$member['id'] !== (int)$user['id'] && $member['role'] !== 'owner'): ?>
                         <form method="POST" action="<?= APP_URL ?>/settings/remove-staff/<?= $member['id'] ?>" class="inline"
-                              onsubmit="return confirm('Remove <?= e($member['full_name']) ?> from your team?')">
+                              onsubmit="return confirm(<?= e(json_encode('Remove ' . $member['full_name'] . ' from your team?', JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_TAG | JSON_HEX_AMP)) ?>)">
                             <?= csrf_field() ?>
                             <button type="submit" class="text-[10px] font-bold text-red-400 uppercase tracking-widest hover:text-red-600">Remove</button>
                         </form>

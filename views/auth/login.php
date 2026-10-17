@@ -276,6 +276,11 @@
                                     Authenticate
                                 </button>
                             </form>
+
+                            <p class="mt-5 text-center text-[11px] text-brand-plum/60">
+                                Can't remember your password?
+                                <a href="<?= APP_URL ?>/login-link" class="font-bold text-brand-burgundy hover:text-brand-gold transition-colors">Email me a sign-in link</a>
+                            </p>
                         </div>
 
                         <!-- Registration Form -->

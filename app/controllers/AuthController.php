@@ -37,55 +37,11 @@ class AuthController {
         $email = trim($_POST['email'] ?? '');
         $pass  = $_POST['password'] ?? '';
 
-        $db = get_db();
-        // PATCH: Select ALL business data explicitly
-        $stmt = $db->prepare("
-            SELECT u.*,
-                   b.name as business_name, b.slug, b.doc_prefix,
-                   b.primary_color, b.secondary_color, b.logo_path,
-                   b.onboarding_complete, b.onboarding_step,
-                   b.currency_symbol, b.font_pairing,
-                   b.tagline, b.address, b.phone as business_phone, b.email as business_email,
-                   b.business_type, b.email_verified_at
-            FROM users u 
-            JOIN businesses b ON b.id = u.business_id 
-            WHERE u.email = ? AND u.is_active = 1
-        ");
-        $stmt->execute([$email]);
-        $user = $stmt->fetch();
+        $db   = get_db();
+        $user = $this->find_account('email', $email);
 
         if ($user && password_verify($pass, $user['password_hash'])) {
-            // PATCH: Perfectly map EVERY column to the session
-            login_user(
-                [
-                    'id'          => $user['id'], 
-                    'full_name'   => $user['full_name'], 
-                    'email'       => $user['email'], 
-                    'role'        => $user['role'],
-                    'avatar_path' => $user['avatar_path'] // Fixes disappearing avatar
-                ],
-                [
-                    'id'                  => $user['business_id'], 
-                    'name'                => $user['business_name'], 
-                    'slug'                => $user['slug'],
-                    'doc_prefix'          => $user['doc_prefix'],
-                    'primary_color'       => $user['primary_color'],
-                    'secondary_color'     => $user['secondary_color'],
-                    'logo_path'           => $user['logo_path'],
-                    'tagline'             => $user['tagline'],         // Fixes missing details
-                    'address'             => $user['address'],         // Fixes missing details
-                    'phone'               => $user['business_phone'],  // Fixes missing details
-                    'email'               => $user['business_email'],  // Fixes missing details
-                    'onboarding_complete' => $user['onboarding_complete'],
-                    'onboarding_step'     => $user['onboarding_step'],
-                    'currency_symbol'     => $user['currency_symbol'],
-                    'font_pairing'        => $user['font_pairing'],
-                    'email_verified_at'   => $user['email_verified_at']
-                ]
-            );
-
-            // Update last login
-            $db->prepare("UPDATE users SET last_login_at = NOW() WHERE id = ?")->execute([$user['id']]);
+            $this->begin_session($user);
 
             // Remember-me: create persistent session if checkbox is checked
             if (!empty($_POST['remember_me'])) {
@@ -119,6 +75,67 @@ class AuthController {
             flash('error', 'Invalid email or password combination.');
             redirect('login');
         }
+    }
+
+    /**
+     * An active user joined with everything login_user() needs from their
+     * business, looked up by 'email' or 'id'. Null when there is none.
+     */
+    private function find_account(string $column, string|int $value): ?array {
+        $column = $column === 'id' ? 'u.id' : 'u.email';
+        // PATCH: Select ALL business data explicitly
+        $stmt = get_db()->prepare("
+            SELECT u.*,
+                   b.name as business_name, b.slug, b.doc_prefix,
+                   b.primary_color, b.secondary_color, b.logo_path,
+                   b.onboarding_complete, b.onboarding_step,
+                   b.currency_symbol, b.font_pairing,
+                   b.tagline, b.address, b.phone as business_phone, b.email as business_email,
+                   b.business_type, b.email_verified_at
+            FROM users u
+            JOIN businesses b ON b.id = u.business_id
+            WHERE {$column} = ? AND u.is_active = 1
+        ");
+        $stmt->execute([$value]);
+        return $stmt->fetch() ?: null;
+    }
+
+    /**
+     * Sign in a row from find_account(). Shared by password login and the
+     * emailed sign-in link so both put the same data in the session.
+     */
+    private function begin_session(array $user): void {
+        // PATCH: Perfectly map EVERY column to the session
+        login_user(
+            [
+                'id'          => $user['id'],
+                'full_name'   => $user['full_name'],
+                'email'       => $user['email'],
+                'role'        => $user['role'],
+                'avatar_path' => $user['avatar_path'] // Fixes disappearing avatar
+            ],
+            [
+                'id'                  => $user['business_id'],
+                'name'                => $user['business_name'],
+                'slug'                => $user['slug'],
+                'doc_prefix'          => $user['doc_prefix'],
+                'primary_color'       => $user['primary_color'],
+                'secondary_color'     => $user['secondary_color'],
+                'logo_path'           => $user['logo_path'],
+                'tagline'             => $user['tagline'],         // Fixes missing details
+                'address'             => $user['address'],         // Fixes missing details
+                'phone'               => $user['business_phone'],  // Fixes missing details
+                'email'               => $user['business_email'],  // Fixes missing details
+                'onboarding_complete' => $user['onboarding_complete'],
+                'onboarding_step'     => $user['onboarding_step'],
+                'currency_symbol'     => $user['currency_symbol'],
+                'font_pairing'        => $user['font_pairing'],
+                'email_verified_at'   => $user['email_verified_at']
+            ]
+        );
+
+        // Update last login
+        get_db()->prepare("UPDATE users SET last_login_at = NOW() WHERE id = ?")->execute([$user['id']]);
     }
 
     /**
@@ -294,150 +311,97 @@ class AuthController {
     }
     
     /**
-     * Forgot Password — 3-State Recovery Flow
+     * Password recovery: ask for an email address and send a reset link.
      *
-     * NFELIA FIX — Now supports ALL business users (staff, admin, owner) — 2026-06-05
-     *
-     * State 1: Enter business name → fuzzy match → find ALL users
-     * State 2: Select your account from masked email list (NEW)
-     * State 3: Type full email to verify → send reset link
+     * The answer is the same whether or not the address has an account, so
+     * the form cannot be used to find out who is registered. Someone unsure
+     * which address they signed up with can try each one; only an address
+     * with an account receives anything.
      */
-    /**
-     * Issue a reset token for $email, mail the link, and send the visitor on
-     * to the "Transmission Sent" screen. Always redirects; never returns.
-     *
-     * Shared by both entry points so the single-account and multi-account
-     * paths cannot drift apart.
-     */
-    private function dispatch_reset(PDO $db, string $email): void {
-        $token        = bin2hex(random_bytes(32));
-        $hashed_token = hash('sha256', $token);
-
-        $db->prepare("DELETE FROM password_resets WHERE email = ?")->execute([$email]);
-        $db->prepare("INSERT INTO password_resets (email, token) VALUES (?, ?)")->execute([$email, $hashed_token]);
-
-        $reset_link = APP_URL . "/reset-password/" . $token;
-
-        $parts  = explode("@", $email);
-        $prefix = $parts[0] ?? 'user';
-        $domain = $parts[1] ?? 'domain.com';
-        $masked = substr($prefix, 0, 3) . str_repeat('*', max(3, strlen($prefix) - 3));
-
-        $_SESSION['recovery_masked'] = $masked . "@" . $domain;
-        $_SESSION['recovery_domain'] = strtolower($domain);
-
-        // Nothing identifying survives into the next request.
-        unset($_SESSION['recovery_target_email'],
-              $_SESSION['recovery_masked_hint'],
-              $_SESSION['recovery_accounts']);
-
-        send_branded_mail(
-            $email, 'Team Member',
-            'Password Reset — Nfelia Workspace',
-            'password_reset',
-            ['reset_url' => $reset_link],
-            ['name' => 'Nfelia', 'primary_color' => '#8B004A']
-        );
-
-        session_write_close();
-        redirect('recovery-sent');
-    }
-
     public function forgot_password() {
-        $db = get_db();
-
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             csrf_verify();
-
-            // =========================================================
-            // STATE 2: Account Selection (User picks their masked email)
-            // =========================================================
-            if (isset($_POST['select_account'])) {
-                $idx = (int)($_POST['account_index'] ?? -1);
-                $accounts = $_SESSION['recovery_accounts'] ?? [];
-
-                if ($idx < 0 || $idx >= count($accounts) || empty($accounts[$idx]['email'])) {
-                    flash('error', 'Invalid selection. Please try again.');
-                    redirect('forgot-password');
-                }
-
-                // Send the reset straight away. The link only ever goes to the
-                // address already on file, so an extra confirmation step added
-                // friction without changing where the email lands.
-                $this->dispatch_reset($db, $accounts[$idx]['email']);
-            }
-
-            // =========================================================
-            // STATE 1: Identify Workspace (80% Fuzzy Name Match)
-            // =========================================================
-            if (isset($_POST['search_enterprise'])) {
-                $search_name = strtolower(trim($_POST['enterprise_name'] ?? ''));
-
-                // Find the matching business (not just owner — match by business name)
-                $stmt = $db->query("
-                    SELECT b.id, b.name 
-                    FROM businesses b 
-                    WHERE b.id IN (SELECT DISTINCT business_id FROM users WHERE is_active = 1)
-                ");
-                
-                $matched_business_id = null;
-                while ($row = $stmt->fetch()) {
-                    similar_text($search_name, strtolower($row['name']), $percent);
-                    if ($percent >= 80) {
-                        $matched_business_id = (int)$row['id'];
-                        break;
-                    }
-                }
-
-                if ($matched_business_id) {
-                    // Get ALL active users in this business
-                    $stmtUsers = $db->prepare("
-                        SELECT id, full_name, email, role 
-                        FROM users 
-                        WHERE business_id = ? AND is_active = 1
-                        ORDER BY FIELD(role, 'owner', 'admin', 'staff'), full_name ASC
-                    ");
-                    $stmtUsers->execute([$matched_business_id]);
-                    $users = $stmtUsers->fetchAll();
-
-                    if (count($users) === 1) {
-                        // Only one account in the workspace — nothing to choose.
-                        $this->dispatch_reset($db, $users[0]['email']);
-                    } else {
-                        // Multiple users — build account list for State 2
-                        $accounts = [];
-                        foreach ($users as $u) {
-                            $parts = explode("@", $u['email']);
-                            $prefix_length = strlen($parts[0]);
-                            $visible_chars = min(3, max(1, $prefix_length - 1));
-                            $masked_name = substr($parts[0], 0, $visible_chars) . str_repeat('*', 5);
-
-                            $accounts[] = [
-                                'email'        => $u['email'],
-                                'name'         => $u['full_name'],
-                                'role'         => $u['role'],
-                                'masked_email' => $masked_name . "@" . $parts[1],
-                            ];
-                        }
-                        $_SESSION['recovery_accounts'] = $accounts;
-                    }
-                } else {
-                    flash('error', 'Enterprise not found in the directory. Please check spelling.');
-                }
-                
-                session_write_close();
-                redirect('forgot-password');
-            }
+            $this->send_account_link('reset');
         }
 
         require_once BASE_PATH . '/views/auth/forgot-password.php';
     }
 
     /**
-     * Display the "Transmission Sent" Screen
+     * "Email me a sign-in link": the same request flow as recovery, but the
+     * link signs the person straight in instead of asking for a new password.
+     */
+    public function login_link() {
+        if (is_logged_in()) {
+            redirect('dashboard');
+        }
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            csrf_verify();
+            $this->send_account_link('signin');
+        }
+
+        require_once BASE_PATH . '/views/auth/login-link.php';
+    }
+
+    /**
+     * Handle a reset or sign-in link request. Always ends on the same
+     * "check your email" screen, and the mail goes out after the response,
+     * so neither the page nor its timing reveals whether the address exists.
+     */
+    private function send_account_link(string $purpose): never {
+        $back  = $purpose === 'reset' ? 'forgot-password' : 'login-link';
+        $email = strtolower(trim($_POST['email'] ?? ''));
+
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            flash('error', 'Enter a valid email address.');
+            redirect($back);
+        }
+
+        // Both limits count every request, account or not, so hitting one
+        // says nothing about who is registered. The per-address limit stops
+        // anyone flooding a person's inbox; reset and sign-in links share it.
+        if (!throttle_allows('link_ip', $_SERVER['REMOTE_ADDR'] ?? '', 30, 60)) {
+            flash('error', 'Too many requests from this network. Please try again in an hour.');
+            redirect($back);
+        }
+        if (!throttle_allows('link_email', $email, 5, 60)) {
+            flash('error', 'Several links were already sent to this address in the last hour. Use the most recent one, or try again later.');
+            redirect($back);
+        }
+
+        $user = $this->find_account('email', $email);
+        if ($user) {
+            if ($purpose === 'reset') {
+                $url = APP_URL . '/reset-password/' . account_token_issue((int)$user['id'], 'reset', 60);
+                $subject  = 'Password Reset — Nfelia Workspace';
+                $template = 'password_reset';
+                $vars     = ['reset_url' => $url, 'expires_label' => '1 hour'];
+            } else {
+                $url = APP_URL . '/signin/' . account_token_issue((int)$user['id'], 'signin', 15);
+                $subject  = 'Your sign-in link — Nfelia Workspace';
+                $template = 'signin_link';
+                $vars     = ['signin_url' => $url];
+            }
+
+            $to_email = $user['email'];
+            $to_name  = $user['full_name'];
+            after_response(fn() => send_branded_mail(
+                $to_email, $to_name, $subject, $template, $vars,
+                ['name' => 'Nfelia', 'primary_color' => '#8B004A']
+            ));
+        }
+
+        $_SESSION['link_sent'] = ['email' => $email, 'purpose' => $purpose];
+        session_write_close();
+        redirect('recovery-sent');
+    }
+
+    /**
+     * Display the "check your email" screen
      */
     public function recovery_sent() {
-        if (empty($_SESSION['recovery_masked'])) {
+        if (empty($_SESSION['link_sent'])) {
             redirect('login');
         }
         require_once BASE_PATH . '/views/auth/recovery-sent.php';
@@ -447,42 +411,96 @@ class AuthController {
      * Handle Password Reset Validation & Update
      */
     public function reset_password($token = null) {
-        if (!$token && $_SERVER['REQUEST_METHOD'] === 'GET') {
-            redirect('login');
-        }
-
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             csrf_verify();
             $token    = $_POST['token'] ?? '';
             $password = $_POST['password'] ?? '';
             $confirm  = $_POST['password_confirm'] ?? '';
 
+            $account = account_token_find($token, 'reset');
+            if (!$account) {
+                flash('error', 'Recovery token invalid or expired. Please initiate a new request.');
+                redirect('forgot-password');
+            }
+
             if (strlen($password) < 8 || $password !== $confirm) {
                 flash('error', 'Passkeys do not match or fail security protocols.');
                 redirect("reset-password/$token");
             }
 
-            $db = get_db();
-            $hashed_token = hash('sha256', $token);
-
-            $stmt = $db->prepare("SELECT email FROM password_resets WHERE token = ? AND created_at > NOW() - INTERVAL 1 HOUR");
-            $stmt->execute([$hashed_token]);
-            $reset = $stmt->fetch();
-
-            if ($reset) {
-                $new_hash = password_hash($password, PASSWORD_DEFAULT);
-                $db->prepare("UPDATE users SET password_hash = ? WHERE email = ?")->execute([$new_hash, $reset['email']]);
-                $db->prepare("DELETE FROM password_resets WHERE email = ?")->execute([$reset['email']]);
-
-                flash('success', 'Security clearance updated. You may now access the workspace.');
-                redirect('login');
-            } else {
+            if (!account_token_consume((int)$account['token_id'])) {
                 flash('error', 'Recovery token invalid or expired. Please initiate a new request.');
                 redirect('forgot-password');
             }
+
+            $db = get_db();
+            $db->prepare("UPDATE users SET password_hash = ? WHERE id = ?")->execute([
+                password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]),
+                $account['id'],
+            ]);
+
+            // Close every other way in: links still sitting in the inbox, and
+            // "keep me signed in" sessions on other devices. If someone else
+            // had the account, the reset now locks them out.
+            $db->prepare("UPDATE account_tokens SET used_at = NOW() WHERE user_id = ? AND used_at IS NULL")
+               ->execute([$account['id']]);
+            $db->prepare("DELETE FROM sessions WHERE user_id = ?")->execute([$account['id']]);
+
+            // Tell the owner of the address, so a reset they did not make
+            // does not go unnoticed.
+            $to_email = $account['email'];
+            $to_name  = $account['full_name'];
+            after_response(fn() => send_branded_mail(
+                $to_email, $to_name,
+                'Your Nfelia password was changed',
+                'password_changed',
+                ['recover_url' => APP_URL . '/forgot-password'],
+                ['name' => 'Nfelia', 'primary_color' => '#8B004A']
+            ));
+
+            flash('success', 'Security clearance updated. You may now access the workspace.');
+            session_write_close();
+            redirect('login');
+        }
+
+        // Check the link up front, so an expired one fails before the person
+        // has typed a new password twice.
+        if (!account_token_find($token, 'reset')) {
+            flash('error', 'Recovery token invalid or expired. Please initiate a new request.');
+            redirect('forgot-password');
         }
 
         require_once BASE_PATH . '/views/auth/reset-password.php';
+    }
+
+    /**
+     * Emailed sign-in link. Opening it only shows a "Sign in" button; the
+     * sign-in itself takes a POST. Mail scanners open links in emails
+     * automatically, and would otherwise use up the one-time token before
+     * the person ever clicked it.
+     */
+    public function signin($token = null) {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            csrf_verify();
+            $account = account_token_find($_POST['token'] ?? '', 'signin');
+            $user    = $account ? $this->find_account('id', (int)$account['id']) : null;
+
+            if (!$user || !account_token_consume((int)$account['token_id'])) {
+                flash('error', 'That sign-in link is invalid, expired or already used. Request a new one below.');
+                redirect('login-link');
+            }
+
+            $this->begin_session($user);
+            redirect('dashboard');
+        }
+
+        $account = account_token_find($token, 'signin');
+        if (!$account) {
+            flash('error', 'That sign-in link is invalid, expired or already used. Request a new one below.');
+            redirect('login-link');
+        }
+
+        require_once BASE_PATH . '/views/auth/signin.php';
     }
     
     /**
