@@ -28,13 +28,15 @@ function render_email(string $template, array $vars = [], array $business = []):
     $biz_tagline = $business['tagline']       ?? 'Track everything. Carry nothing.';
     $biz_email   = $business['email']         ?? MAIL_FROM_ADDRESS;
 
-    // Embed logo as base64 for reliable email client rendering
+    // Link the logo from the site rather than embedding it: Gmail and Outlook
+    // strip base64 data: images, so an embedded logo never appeared.
     if (!empty($business['logo_path']) && file_exists(BASE_PATH . '/' . $business['logo_path'])) {
-        $ext  = strtolower(pathinfo($business['logo_path'], PATHINFO_EXTENSION));
-        $mime = in_array($ext, ['png','jpg','jpeg','webp','gif']) ? "image/{$ext}" : 'image/png';
-        $biz_logo = 'data:' . $mime . ';base64,' .
-                    base64_encode(file_get_contents(BASE_PATH . '/' . $business['logo_path']));
+        $biz_logo = APP_URL . '/' . ltrim($business['logo_path'], '/');
     }
+
+    // Nfelia's own emails (recovery, sign-in, billing) rather than a client
+    // workspace's: they carry the Nfelia mark and credit JBS Praxis.
+    $is_platform = $biz_logo === '' && in_array(strtolower($biz_name), ['nfelia', strtolower(APP_NAME)], true);
 
     // Extract vars for use in template
     extract($vars);
@@ -87,6 +89,10 @@ function send_mail(string $to_email, string $to_name, string $subject, string $b
                 ],
             ];
         }
+
+        // PHPMailer defaults to ISO-8859-1, but every subject and template
+        // here is UTF-8: without this, "—" arrives as "â€”" and "₦" as junk.
+        $mail->CharSet = PHPMailer::CHARSET_UTF8;
 
         $mail->setFrom(MAIL_FROM_ADDRESS, MAIL_FROM_NAME);
         $mail->addAddress($to_email, $to_name);

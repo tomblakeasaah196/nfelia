@@ -148,20 +148,24 @@ jobs:
     environment: production
     steps:
       - name: Check secrets are configured
-        id: check
         env:
           DEPLOY_WEBHOOK_SECRET: ${{ secrets.DEPLOY_WEBHOOK_SECRET }}
           DEPLOY_WEBHOOK_URL:    ${{ vars.DEPLOY_WEBHOOK_URL }}
         run: |
-          if [ -z "${DEPLOY_WEBHOOK_SECRET:-}" ] || [ -z "${DEPLOY_WEBHOOK_URL:-}" ]; then
-            echo "::warning::DEPLOY_WEBHOOK_SECRET or DEPLOY_WEBHOOK_URL not set; skipping deploy. See DEPLOY.md."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
+          # Fail, never skip. A skipped deploy used to finish green, so a
+          # push to main could look deployed when nothing reached the server.
+          fail=0
+          if [ -z "${DEPLOY_WEBHOOK_SECRET:-}" ]; then
+            echo "::error::DEPLOY_WEBHOOK_SECRET is not set. Add it under Settings → Secrets and variables → Actions → Secrets. See DEPLOY.md."
+            fail=1
           fi
+          if [ -z "${DEPLOY_WEBHOOK_URL:-}" ]; then
+            echo "::error::DEPLOY_WEBHOOK_URL is not set. It must be a Variable (Settings → Secrets and variables → Actions → Variables), not a Secret. See DEPLOY.md."
+            fail=1
+          fi
+          exit $fail
 
       - name: POST to deploy webhook (streams server output back)
-        if: steps.check.outputs.skip == 'false'
         env:
           DEPLOY_WEBHOOK_URL:    ${{ vars.DEPLOY_WEBHOOK_URL }}
           DEPLOY_WEBHOOK_SECRET: ${{ secrets.DEPLOY_WEBHOOK_SECRET }}

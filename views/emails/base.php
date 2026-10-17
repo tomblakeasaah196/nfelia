@@ -1,7 +1,8 @@
 <?php
 /**
  * Nfelia — Email Base Layout
- * Variables available: $biz_name, $biz_color, $biz_logo, $biz_tagline, $biz_email, $inner_content
+ * Variables available: $biz_name, $biz_color, $biz_logo, $biz_tagline, $biz_email, $inner_content,
+ * $is_platform (true for Nfelia's own emails: Nfelia mark, "Powered by JBS Praxis")
  * All email clients have poor CSS support — use table-based layout, inline styles only.
  */
 ?>
@@ -33,9 +34,26 @@
                             <table width="100%" cellpadding="0" cellspacing="0" border="0">
                                 <tr>
                                     <td style="vertical-align:middle;">
-                                        <?php if ($biz_logo): ?>
-                                            <img src="<?= $biz_logo ?>" alt="<?= htmlspecialchars($biz_name, ENT_QUOTES) ?>"
-                                                 style="max-height:48px;max-width:160px;display:block;">
+                                        <?php if ($is_platform): ?>
+                                            <!-- Mark as an image, name as text: with images blocked the name still shows. -->
+                                            <table cellpadding="0" cellspacing="0" border="0">
+                                                <tr>
+                                                    <td style="vertical-align:middle;padding-right:12px;">
+                                                        <img src="<?= htmlspecialchars(APP_URL . '/assets/img/nfelia-mark-email.png', ENT_QUOTES) ?>"
+                                                             width="55" height="40" alt=""
+                                                             style="display:block;border:0;outline:none;width:55px;height:40px;">
+                                                    </td>
+                                                    <td style="vertical-align:middle;">
+                                                        <span style="font-size:20px;font-weight:700;color:<?= htmlspecialchars($biz_color, ENT_QUOTES) ?>;letter-spacing:0.15em;text-transform:uppercase;">
+                                                            <?= htmlspecialchars($biz_name, ENT_QUOTES) ?>
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                        <?php elseif ($biz_logo): ?>
+                                            <!-- Styled alt text stands in for the logo when images are blocked. -->
+                                            <img src="<?= htmlspecialchars($biz_logo, ENT_QUOTES) ?>" alt="<?= htmlspecialchars($biz_name, ENT_QUOTES) ?>"
+                                                 style="max-height:48px;max-width:160px;display:block;border:0;font-size:20px;font-weight:700;color:<?= htmlspecialchars($biz_color, ENT_QUOTES) ?>;letter-spacing:0.15em;">
                                         <?php else: ?>
                                             <span style="font-size:20px;font-weight:700;color:<?= htmlspecialchars($biz_color, ENT_QUOTES) ?>;letter-spacing:0.15em;text-transform:uppercase;">
                                                 <?= htmlspecialchars($biz_name, ENT_QUOTES) ?>
@@ -44,7 +62,7 @@
                                     </td>
                                     <td align="right" style="vertical-align:middle;">
                                         <span style="font-size:9px;color:#B69F5E;letter-spacing:0.25em;text-transform:uppercase;font-weight:700;">
-                                            POWERED BY NFELIA
+                                            POWERED BY <?= $is_platform ? 'JBS PRAXIS' : 'NFELIA' ?>
                                         </span>
                                     </td>
                                 </tr>
