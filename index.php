@@ -19,6 +19,8 @@ require_once __DIR__ . '/app/helpers/functions.php';
 require_once __DIR__ . '/app/helpers/auth.php';
 require_once __DIR__ . '/app/helpers/token.php';
 require_once __DIR__ . '/app/helpers/mail.php';
+require_once __DIR__ . '/app/helpers/webpush.php';
+require_once __DIR__ . '/app/helpers/planner.php';
  
 // Start session
 session_start();
@@ -209,6 +211,7 @@ function dispatch_app(string $controller, string $action, ?string $param): void 
         'debts'           => 'DebtController',
         'expenses'        => 'ExpenseController',
         'feedback'        => 'FeedbackController',
+        'tasks'           => 'TasksController',
         
         // Management & Settings
         'reports'         => 'ReportController',  // profit_loss + profit_loss_pdf

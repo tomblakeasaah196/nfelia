@@ -27,6 +27,16 @@ define('MAX_SEATS',              5);
 define('MAX_BANK_ACCOUNTS',      3);
 define('MAX_PRODUCTS',           500);
 
+// Web push (phone notifications). Generate the pair once with
+// `php bin/vapid-keys.php`; leave empty and push stays switched off.
+define('VAPID_PUBLIC_KEY',  trim($_ENV['VAPID_PUBLIC_KEY']  ?? ''));
+define('VAPID_PRIVATE_KEY', trim($_ENV['VAPID_PRIVATE_KEY'] ?? ''));
+define('VAPID_SUBJECT',     trim($_ENV['VAPID_SUBJECT']     ?? '') ?: 'mailto:' . ($_ENV['MAIL_FROM_ADDRESS'] ?? 'no-reply@nfelia.com'));
+
+// Nigeria first. Every planner date (today, late, reminder times) is worked
+// out in this zone, matching the database session (+01:00).
+define('APP_TIMEZONE', 'Africa/Lagos');
+
 // Document prefix for each type
 define('DOC_TYPES', ['QUO', 'INV', 'REC', 'DEL']);
 

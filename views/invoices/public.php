@@ -203,6 +203,9 @@ $og_image  = $business['logo_path']
                             <?php if ($invoice['due_date']): ?>
                                 <div class="<?= $days_overdue > 0 ? 'text-red-600 font-bold' : '' ?>">Due: <?= fmt_date($invoice['due_date'], 'd M Y') ?></div>
                             <?php endif; ?>
+                            <?php if ($delivery_line = planner_delivery_line($invoice)): ?>
+                                <div><?= e($delivery_line) ?></div>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>

@@ -91,6 +91,9 @@ $status_color = match($invoice['status'] ?? '') {
                         <?php if ($invoice['due_date']): ?>
                             <strong>Due Date:</strong> <?= date('d M Y', strtotime($invoice['due_date'])) ?>
                         <?php endif; ?>
+                        <?php if ($delivery_line = planner_delivery_line($invoice)): [$dl_label, $dl_value] = explode(':', $delivery_line, 2); ?>
+                            <br><strong><?= e($dl_label) ?>:</strong> <?= e(trim($dl_value)) ?>
+                        <?php endif; ?>
                     </div>
                 </td>
             </tr>

@@ -224,6 +224,17 @@ class CustomerController {
         ]);
         $stats = $stmtStats->fetch();
 
+        // Coming up with this customer: appointments, tasks and job steps
+        // not yet done (Tasks & Calendar).
+        $today    = planner_today();
+        $upcoming = array_map(
+            fn($t) => planner_task_item($t, $today, $business),
+            array_filter(
+                planner_fetch_tasks($this->db, $this->biz_id, ['customer_id' => (int)$id, 'from' => $today, 'to' => planner_add_days($today, 60), 'late' => true]),
+                fn($t) => $t['done_at'] === null
+            )
+        );
+
         // WhatsApp number
         $wa_number = $customer['whatsapp'] ?: $customer['phone'] ?: '';
         $wa_number = preg_replace('/[^0-9]/', '', $wa_number);

@@ -1,0 +1,54 @@
+SET time_zone = '+01:00';
+DELETE FROM tasks WHERE business_id IN (1,2);
+DELETE FROM planner_dismissals WHERE business_id IN (1,2);
+-- Promised deliveries on Ivie's invoices
+UPDATE invoices SET deliver_mode='date', deliver_by=CURDATE(), deliver_show=1, delivered_at=NULL WHERE id=3;
+UPDATE invoices SET deliver_mode='date', deliver_by=DATE_ADD(CURDATE(), INTERVAL 2 DAY), deliver_show=1, delivered_at=NULL WHERE id=1;
+UPDATE invoices SET deliver_mode='date', deliver_by=DATE_SUB(CURDATE(), INTERVAL 1 DAY), deliver_show=0, delivered_at=NULL WHERE id=6;
+-- A manual debt with a promise, like the notebook on the landing page
+DELETE FROM debts WHERE id=50;
+INSERT INTO debts (id,business_id,customer_id,user_id,type,source,description,counterparty_name,counterparty_phone,total_amount,amount_settled,balance,due_date,status)
+VALUES (50,1,NULL,1,'receivable','manual','2 bundles, Body Wave 18"','Mama Bisi','08035550190',15000,0,15000,CURDATE(),'active');
+-- A quote waiting on an answer, a shop order waiting for a yes
+DELETE FROM quotations WHERE id=40;
+INSERT INTO quotations (id,business_id,customer_id,user_id,doc_number,status,issue_date,expiry_date,subtotal,total,token)
+VALUES (40,1,9,1,'IVL-QUO-022','sent',DATE_SUB(CURDATE(), INTERVAL 3 DAY),DATE_ADD(CURDATE(), INTERVAL 11 DAY),210000,210000,REPEAT('a',64));
+DELETE FROM orders WHERE id=40;
+INSERT INTO orders (id,business_id,order_number,channel,fulfillment_type,customer_name,customer_phone,delivery_address,payment_method,currency_code,subtotal,total,status,created_at)
+VALUES (40,1,'ORD-0041','cart_pop','delivery','Ifeoma Chukwu','08125550211','12 Admiralty Way, Lekki','bank_transfer','NGN',65000,65000,'pending_verification',NOW());
+
+-- Ivie's own plan
+INSERT INTO tasks (business_id,kind,title,due_date,due_time,end_time,customer_id,remind_before,remind_at,created_by,is_starred,notes) VALUES
+(1,'appointment','Wig install',CURDATE(),'14:00:00','16:00:00',9,60,CONCAT(CURDATE(),' 13:00:00'),1,0,'Frontal, 20 inches. She brings her own cap.'),
+(1,'task','Pick up 22" bundles at Balogun market',CURDATE(),NULL,NULL,NULL,NULL,NULL,1,1,NULL),
+(1,'task','Post new arrivals on Instagram',CURDATE(),'18:00:00',NULL,NULL,0,CONCAT(CURDATE(),' 18:00:00'),1,0,NULL),
+(1,'appointment','Revamp pickup',DATE_ADD(CURDATE(), INTERVAL 1 DAY),'11:00:00',NULL,4,60,CONCAT(DATE_ADD(CURDATE(), INTERVAL 1 DAY),' 10:00:00'),1,0,NULL),
+(1,'task','Ask supplier for the new HD lace price',DATE_ADD(CURDATE(), INTERVAL 3 DAY),NULL,NULL,NULL,NULL,NULL,1,0,NULL),
+(1,'task','Clean the display shelves',NULL,NULL,NULL,NULL,NULL,NULL,1,0,NULL);
+INSERT INTO tasks (business_id,kind,title,due_date,repeat_every,created_by) VALUES (1,'task','Pay shop rent',DATE_ADD(CURDATE(), INTERVAL 5 DAY),'month',1);
+INSERT INTO tasks (business_id,kind,title,due_date,created_by,done_at,done_by) VALUES (1,'task','Open shop and count stock',CURDATE(),1,NOW(),1);
+
+-- Job plan linked to Mrs Folake's invoice
+INSERT INTO tasks (business_id,kind,title,due_date,customer_id,invoice_id,plan,created_by) VALUES (1,'task','Order for Mrs Folake',DATE_ADD(CURDATE(), INTERVAL 2 DAY),1,1,'order',1);
+SET @p = LAST_INSERT_ID();
+INSERT INTO tasks (business_id,parent_id,kind,title,due_date,customer_id,invoice_id,step_key,created_by,sort_order,done_at,done_by) VALUES
+(1,@p,'task','Confirm payment',DATE_SUB(CURDATE(), INTERVAL 1 DAY),1,1,NULL,1,1,NOW(),1),
+(1,@p,'task','Get the goods ready',DATE_ADD(CURDATE(), INTERVAL 1 DAY),1,1,NULL,1,2,NULL,NULL),
+(1,@p,'task','Deliver to Mrs',DATE_ADD(CURDATE(), INTERVAL 2 DAY),1,1,'deliver',1,3,NULL,NULL);
+UPDATE tasks SET title='Deliver to Mrs Folake' WHERE title='Deliver to Mrs';
+
+-- Kemi: an event plan with a dated countdown
+INSERT INTO tasks (business_id,kind,title,due_date,customer_id,invoice_id,plan,created_by) VALUES (2,'task','Event for Ngozi',DATE_ADD(CURDATE(), INTERVAL 13 DAY),20,20,'event',2);
+SET @k = LAST_INSERT_ID();
+INSERT INTO tasks (business_id,parent_id,kind,title,due_date,due_time,customer_id,created_by,sort_order,done_at,done_by,remind_before,remind_at) VALUES
+(2,@k,'task','Collect the deposit',DATE_SUB(CURDATE(), INTERVAL 8 DAY),NULL,20,2,1,NOW(),2,NULL,NULL),
+(2,@k,'task','Book vendors',DATE_SUB(CURDATE(), INTERVAL 1 DAY),NULL,20,2,2,NOW(),2,NULL,NULL),
+(2,@k,'task','Confirm guest numbers with Ngozi',DATE_ADD(CURDATE(), INTERVAL 6 DAY),NULL,20,2,3,NULL,NULL,NULL,NULL),
+(2,@k,'task','Collect the balance',DATE_ADD(CURDATE(), INTERVAL 10 DAY),NULL,20,2,4,NULL,NULL,NULL,NULL),
+(2,@k,'task','Set-up',DATE_ADD(CURDATE(), INTERVAL 12 DAY),NULL,20,2,5,NULL,NULL,NULL,NULL),
+(2,@k,'appointment','Event day',DATE_ADD(CURDATE(), INTERVAL 13 DAY),'12:00:00',20,2,6,NULL,NULL,1440,CONCAT(DATE_ADD(CURDATE(), INTERVAL 12 DAY),' 12:00:00'));
+UPDATE invoices SET deliver_mode='date', deliver_by=DATE_ADD(CURDATE(), INTERVAL 13 DAY) WHERE id=20;
+INSERT INTO tasks (business_id,kind,title,due_date,due_time,end_time,customer_id,created_by,remind_before,remind_at) VALUES
+(2,'appointment','Venue visit with Ngozi',DATE_ADD(CURDATE(), INTERVAL 2 DAY),'10:00:00','11:30:00',20,2,60,CONCAT(DATE_ADD(CURDATE(), INTERVAL 2 DAY),' 09:00:00')),
+(2,'appointment','Tasting with the caterer',DATE_ADD(CURDATE(), INTERVAL 4 DAY),'15:00:00',NULL,NULL,2,60,CONCAT(DATE_ADD(CURDATE(), INTERVAL 4 DAY),' 14:00:00')),
+(2,'task','Send mood board to Ngozi',CURDATE(),NULL,NULL,20,2,NULL,NULL);

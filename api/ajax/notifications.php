@@ -12,6 +12,9 @@ if (!is_logged_in()) {
 
 $db = get_db();
 $biz_id = auth_business_id();
+// Business-wide alerts have no user_id; reminders and assigned tasks are
+// addressed to one person and only that person sees them.
+$user_id = (int)(auth_user()['id'] ?? 0);
 $action = $_GET['action'] ?? 'list';
 
 switch ($action) {
@@ -21,8 +24,8 @@ switch ($action) {
      *  Used for the red notification bubble/badge
      * ══════════════════════════════════════════ */
     case 'count':
-        $stmt = $db->prepare("SELECT COUNT(*) FROM notifications WHERE business_id = ? AND is_read = 0");
-        $stmt->execute([$biz_id]);
+        $stmt = $db->prepare("SELECT COUNT(*) FROM notifications WHERE business_id = ? AND (user_id IS NULL OR user_id = ?) AND is_read = 0");
+        $stmt->execute([$biz_id, $user_id]);
         $count = (int)$stmt->fetchColumn();
 
         json_response([
@@ -41,13 +44,14 @@ switch ($action) {
         $stmt = $db->prepare("
             SELECT id, type, title, message, action_url, is_read, created_at 
             FROM notifications 
-            WHERE business_id = ? 
-            ORDER BY created_at DESC 
+            WHERE business_id = ? AND (user_id IS NULL OR user_id = ?)
+            ORDER BY created_at DESC, id DESC
             LIMIT ?
         ");
         // Use bindValue because PDO gets weird with LIMIT parameters sometimes
         $stmt->bindValue(1, $biz_id, PDO::PARAM_INT);
-        $stmt->bindValue(2, $limit, PDO::PARAM_INT);
+        $stmt->bindValue(2, $user_id, PDO::PARAM_INT);
+        $stmt->bindValue(3, $limit, PDO::PARAM_INT);
         $stmt->execute();
         
         $notifications = $stmt->fetchAll();
@@ -86,12 +90,12 @@ switch ($action) {
 
         if ($notif_id === 'all') {
             // Mark every unread notification as read
-            $stmt = $db->prepare("UPDATE notifications SET is_read = 1 WHERE business_id = ? AND is_read = 0");
-            $stmt->execute([$biz_id]);
+            $stmt = $db->prepare("UPDATE notifications SET is_read = 1 WHERE business_id = ? AND (user_id IS NULL OR user_id = ?) AND is_read = 0");
+            $stmt->execute([$biz_id, $user_id]);
         } else {
             // Mark a specific single notification as read
-            $stmt = $db->prepare("UPDATE notifications SET is_read = 1 WHERE business_id = ? AND id = ?");
-            $stmt->execute([$biz_id, (int)$notif_id]);
+            $stmt = $db->prepare("UPDATE notifications SET is_read = 1 WHERE business_id = ? AND (user_id IS NULL OR user_id = ?) AND id = ?");
+            $stmt->execute([$biz_id, $user_id, (int)$notif_id]);
         }
 
         json_response(['success' => true]);

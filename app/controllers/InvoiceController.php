@@ -221,6 +221,22 @@ class InvoiceController {
 
         $public_url = APP_URL . '/doc/' . $invoice['token'];
 
+        // A signed delivery note also counts as delivered.
+        $stmtDn = $this->db->prepare("SELECT 1 FROM deliveries WHERE invoice_id = ? AND business_id = ? AND deleted_at IS NULL AND status IN ('delivered','signed_off') LIMIT 1");
+        $stmtDn->execute([$id, $this->biz_id]);
+        $delivered_by_note = (bool)$stmtDn->fetchColumn();
+
+        // A job plan following this invoice, if any.
+        $stmtJob = $this->db->prepare("
+            SELECT p.id, p.title,
+                   (SELECT COUNT(*) FROM tasks s WHERE s.parent_id = p.id AND s.deleted_at IS NULL) AS total,
+                   (SELECT COUNT(*) FROM tasks s WHERE s.parent_id = p.id AND s.deleted_at IS NULL AND s.done_at IS NOT NULL) AS done
+            FROM tasks p
+            WHERE p.invoice_id = ? AND p.business_id = ? AND p.plan IS NOT NULL AND p.parent_id IS NULL AND p.deleted_at IS NULL
+            ORDER BY p.id DESC LIMIT 1");
+        $stmtJob->execute([$id, $this->biz_id]);
+        $job_plan = $stmtJob->fetch() ?: null;
+
         $title     = e($invoice['doc_number']);
         $view_file = BASE_PATH . '/views/invoices/view.php';
         require_once BASE_PATH . '/views/layouts/app.php';
@@ -570,6 +586,59 @@ class InvoiceController {
     }
 
     /* ──────────────────────────────────────────
+     *  DELIVERY — set or change when the customer gets it
+     * ────────────────────────────────────────── */
+    public function set_delivery($id = null) {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { redirect('invoices/view/' . (int)$id); }
+        csrf_verify();
+        $invoice = $this->find_invoice($id);
+        if (!$invoice) { not_found(); return; }
+
+        [$delivery, $error] = planner_delivery_from_post($_POST, $invoice);
+        if ($error) {
+            flash('error', $error);
+            redirect('invoices/view/' . $invoice['id']);
+        }
+        $this->db->prepare("UPDATE invoices SET deliver_mode = ?, deliver_by = ?, deliver_show = ?, delivered_at = ? WHERE id = ? AND business_id = ?")
+                 ->execute([$delivery['deliver_mode'], $delivery['deliver_by'], $delivery['deliver_show'], $delivery['delivered_at'], $invoice['id'], $this->biz_id]);
+        // A job plan's delivery step follows the invoice's new date.
+        $this->db->prepare("UPDATE tasks SET due_date = ? WHERE invoice_id = ? AND business_id = ? AND step_key = 'deliver' AND done_at IS NULL AND deleted_at IS NULL")
+                 ->execute([$delivery['deliver_by'], $invoice['id'], $this->biz_id]);
+
+        flash('success', $delivery['delivered_at'] ? 'Saved as delivered.' : 'Delivery date saved. It is on your Tasks & Calendar.');
+        redirect('invoices/view/' . $invoice['id']);
+    }
+
+    /* ──────────────────────────────────────────
+     *  DELIVERY — mark delivered, or undo
+     * ────────────────────────────────────────── */
+    public function mark_delivered($id = null) {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { redirect('invoices/view/' . (int)$id); }
+        csrf_verify();
+        $invoice = $this->find_invoice($id);
+        if (!$invoice) { not_found(); return; }
+
+        $undo = !empty($_POST['undo']);
+        $this->db->prepare("UPDATE invoices SET delivered_at = " . ($undo ? 'NULL' : 'NOW()') . " WHERE id = ? AND business_id = ?")
+                 ->execute([$invoice['id'], $this->biz_id]);
+        $this->db->prepare("UPDATE tasks SET done_at = " . ($undo ? 'NULL' : 'COALESCE(done_at, NOW())') . " WHERE invoice_id = ? AND business_id = ? AND step_key = 'deliver' AND deleted_at IS NULL")
+                 ->execute([$invoice['id'], $this->biz_id]);
+
+        // Keep the job plan's own done state in step with its steps.
+        $stmtP = $this->db->prepare("SELECT DISTINCT parent_id FROM tasks WHERE invoice_id = ? AND business_id = ? AND step_key = 'deliver' AND deleted_at IS NULL");
+        $stmtP->execute([$invoice['id'], $this->biz_id]);
+        foreach ($stmtP->fetchAll(PDO::FETCH_COLUMN) as $parent_id) {
+            $left = $this->db->prepare("SELECT COUNT(*) FROM tasks WHERE parent_id = ? AND done_at IS NULL AND deleted_at IS NULL");
+            $left->execute([$parent_id]);
+            $this->db->prepare("UPDATE tasks SET done_at = " . ((int)$left->fetchColumn() === 0 ? 'COALESCE(done_at, NOW())' : 'NULL') . " WHERE id = ?")
+                     ->execute([$parent_id]);
+        }
+
+        flash('success', $undo ? 'Marked as not delivered yet.' : 'Marked delivered.');
+        redirect('invoices/view/' . $invoice['id']);
+    }
+
+    /* ──────────────────────────────────────────
      *  AJAX — search products
      * ────────────────────────────────────────── */
     public function search_products() {
@@ -653,6 +722,9 @@ class InvoiceController {
         if (empty($item_descs) || count(array_filter($item_descs, 'trim')) === 0) {
             $errors[] = 'At least one line item is required.';
         }
+        // When the customer gets it: required on our side (Tasks & Calendar).
+        [$delivery, $delivery_error] = planner_delivery_from_post($_POST, $id ? $this->find_invoice($id) : null);
+        if ($delivery_error) $errors[] = $delivery_error;
 
         if (!empty($errors)) {
             flash('error', implode(' ', $errors));
@@ -707,12 +779,14 @@ class InvoiceController {
                     UPDATE invoices SET
                         customer_id = ?, bank_account_id = ?, issue_date = ?, due_date = ?,
                         subtotal = ?, discount_amount = ?, tax_rate = ?, tax_amount = ?, total = ?,
-                        balance_due = ? - amount_paid, payment_terms = ?, notes = ?
+                        balance_due = ? - amount_paid, payment_terms = ?, notes = ?,
+                        deliver_mode = ?, deliver_by = ?, deliver_show = ?, delivered_at = ?
                     WHERE id = ? AND business_id = ?
                 ")->execute([
                     $customer_id, $bank_id, $issue_date, $due_date,
                     $subtotal, $discount_amount, $tax_rate, $tax_amount, $total,
                     $total, $payment_terms ?: null, $notes ?: null,
+                    $delivery['deliver_mode'], $delivery['deliver_by'], $delivery['deliver_show'], $delivery['delivered_at'],
                     $id, $this->biz_id
                 ]);
 
@@ -723,13 +797,15 @@ class InvoiceController {
                 $token = generate_token();
 
                 $this->db->prepare("
-                    INSERT INTO invoices (business_id, customer_id, bank_account_id, user_id, doc_number, status, issue_date, due_date, subtotal, discount_amount, tax_rate, tax_amount, total, amount_paid, balance_due, payment_terms, notes, token)
-                    VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)
+                    INSERT INTO invoices (business_id, customer_id, bank_account_id, user_id, doc_number, status, issue_date, due_date, subtotal, discount_amount, tax_rate, tax_amount, total, amount_paid, balance_due, payment_terms, notes, token,
+                                          deliver_mode, deliver_by, deliver_show, delivered_at)
+                    VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?)
                 ")->execute([
                     $this->biz_id, $customer_id, $bank_id, $user['id'],
                     $doc_number, $issue_date, $due_date,
                     $subtotal, $discount_amount, $tax_rate, $tax_amount, $total,
-                    $total, $payment_terms ?: null, $notes ?: null, $token
+                    $total, $payment_terms ?: null, $notes ?: null, $token,
+                    $delivery['deliver_mode'], $delivery['deliver_by'], $delivery['deliver_show'], $delivery['delivered_at']
                 ]);
                 $id = (int)$this->db->lastInsertId();
             }
