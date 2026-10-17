@@ -5,6 +5,11 @@ session built the core and ran out of budget. Your job: finish the two remaining
 open the PR, drive it to green, and report back briefly. The owner is Tom (tomblakeasaah@gmail.com).
 Read this whole file before touching code.
 
+> **Status (second session): parts A, B and C are done** and in the "Tasks & Calendar" PR. A review of
+> the first pass found and fixed real bugs (see that PR's commits and body). Suites: `cron_test.php`
+> 71/71, `tasks_interact.js` 83/83, `deliver_test.js` 25/25, `visual_check.js` 25/25, `audit.js` 37/37,
+> `interact.js` 15/15. Sections 5–7 below describe the state before that work.
+
 ---
 
 ## 1. Who this is for, and how to talk
@@ -249,6 +254,19 @@ It loads `config/database.php`, `config/app.php`, `config/mail.php`, `app/helper
 5. Test deps: in the testkit dir `npm i tailwindcss@3 alpinejs@3.14.3 jquery@3.7.1 chart.js@4`;
    Playwright is global (`NODE_PATH=/opt/node22/lib/node_modules`); Chromium at `/opt/pw-browsers`.
    The scripts expect `../apptest` next to the kit and a `node_modules` folder beside them; adjust `S`/`APP`.
+6. Learned the second time:
+   - The dump's `v_low_stock_products` view is owned by `smartqaq@localhost`: create that user locally
+     (`CREATE USER 'smartqaq'@'localhost' …; GRANT ALL …`) or the dashboard returns 500 after login.
+   - Run `seed.php`, then `local_proc.sql.txt`, then `planner_seed.sql.txt`. `seed.php` can be re-run any time.
+   - Demo logos are not in git: drop any PNG at `<app>/uploads/logos/{1,2}/logo.png` or screenshots show a
+     broken image.
+   - Mail: `python3 smtp_sink.py MAILDIR sink.crt sink.key` (make a throwaway pair with the `openssl req`
+     line at the top of the script). The mailer insists on STARTTLS unless `MAIL_ENCRYPTION=ssl`.
+   - Clock: `apt-get install -y faketime`; `cron_test.php` runs the cron at any Lagos time with it.
+   - Push: `PUSH_DIR=… php -S 127.0.0.1:8098 push_endpoint.php` is a stand-in push service for `cron_test.php`.
+   - Scripts added: `cron_test.php` (APPDIR MAILDIR PUSHDIR), `email_shot.js` (screenshot saved email HTML),
+     `shoot_tasks_phone.js` (the landing page's Tasks phone shot), `visual_check.js` (Part C screens + staff).
+   - `tasks_interact.js` runs without compiled Tailwind: sizes and colours are checked in `tasks_test.js`.
 
 Be better than the last session: verify every claim with a run, look at every screen you change, keep the
 copy honest and short, and leave Tom with a green PR and two clear setup steps.
