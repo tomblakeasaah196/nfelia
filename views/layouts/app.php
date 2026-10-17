@@ -143,13 +143,14 @@ $flash = get_flash();
     <aside class="nf-side" aria-label="Main menu">
         <a class="nf-side-brand" href="<?= APP_URL ?>/dashboard" style="text-decoration:none;color:inherit"><?= $avatar ?><b><?= e($business['name']) ?></b></a>
         <nav class="nf-side-nav">
-            <?php foreach ($nav_groups as $group => $items): ?>
-                <?php if ($group !== 'Your business'): ?><p class="nf-side-h"><?= e($group) ?></p><?php endif; ?>
-                <?php foreach ($items as $item):
-                    $on = $current_section === explode('/', $item['url'])[0]; ?>
-                    <a class="nf-side-link" href="<?= APP_URL ?>/<?= $item['url'] ?>"<?= $on ? ' aria-current="page"' : '' ?>>
-                        <?= nav_icon($item['icon']) ?><?= e($item['label']) ?>
-                        <?php if ($item['url'] === 'momo/review'):
+            <?php // nav_ names: the page's own view runs in this same scope after the sidebar.
+            foreach ($nav_groups as $nav_group => $nav_items): ?>
+                <?php if ($nav_group !== 'Your business'): ?><p class="nf-side-h"><?= e($nav_group) ?></p><?php endif; ?>
+                <?php foreach ($nav_items as $nav_item):
+                    $nav_on = $current_section === explode('/', $nav_item['url'])[0]; ?>
+                    <a class="nf-side-link" href="<?= APP_URL ?>/<?= $nav_item['url'] ?>"<?= $nav_on ? ' aria-current="page"' : '' ?>>
+                        <?= nav_icon($nav_item['icon']) ?><?= e($nav_item['label']) ?>
+                        <?php if ($nav_item['url'] === 'momo/review'):
                             try {
                                 $mm_count = (int)get_db()->query("SELECT COUNT(*) FROM subscription_payments WHERE status='pending_verification'")->fetchColumn();
                                 if ($mm_count > 0): ?><span class="nf-pill"><?= $mm_count ?></span><?php endif;
