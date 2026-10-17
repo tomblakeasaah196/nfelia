@@ -29,11 +29,13 @@ cgi-bin/
 /storage/momo_receipts/
 /storage/logs/
 
-# Database dumps. Forward migrations under db/migrations/ ARE tracked.
+# Database dumps. Forward migrations under db/migrations/ ARE tracked, and
+# so is db/schema.sql, the structure-only schema (CI rejects rows in it).
 *.sql
 *.sql.gz
 *.dump
 !db/migrations/*.sql
+!db/schema.sql
 
 # IDE / OS junk
 .vscode/

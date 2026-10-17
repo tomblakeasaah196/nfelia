@@ -32,6 +32,7 @@ api/
 lib/PHPMailer/     hand-vendored, tracked
 bin/               operational scripts (never deployed to the docroot)
 db/
+  schema.sql       structure-only snapshot of the production schema
   migrate.php      forward-only migration runner
   migrations/      YYYYMMDDhhmmss_description.sql
 webhook/deploy.php authenticated deploy endpoint
@@ -43,6 +44,9 @@ docs/              internal notes; never served
 ```
 cp .env.example .env     # then fill it in
 composer install
+mariadb -e "CREATE DATABASE smartqaq_nfelia_core CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+mariadb smartqaq_nfelia_core < db/schema.sql
+php db/migrate.php       # applies the migrations newer than the schema snapshot
 ```
 
 There is no local web server config in the repo; point any PHP 8.3 server at
