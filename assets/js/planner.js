@@ -60,6 +60,7 @@ function planner() {
         panel: null,
         lastFocus: null,
         form: {},
+        formBase: '',
         err: {},
         custQuery: '',
         confirmDelete: false,
@@ -76,7 +77,7 @@ function planner() {
         calLoading: false,
 
         pushState: 'unavailable',
-        toast: { show: false, text: '', undo: null, error: false },
+        toast: { show: false, text: '', undo: null, error: false, label: 'Undo' },
         toastTimer: null,
 
         init: function () {
@@ -88,6 +89,8 @@ function planner() {
                 this.openEditor({ kind: p.new, date: p.date || this.today, customer_id: p.customer });
             } else if (p.reminders) {
                 this.openPanel('reminders');
+            } else {
+                this.restoreDraft();
             }
             if (p.plan || p.new || p.invoice || p.customer || p.date || p.reminders) {
                 history.replaceState(null, '', BASE + '/tasks' + (this.tab === 'calendar' ? '?tab=calendar' : ''));
@@ -95,6 +98,8 @@ function planner() {
             if (this.tab === 'calendar') this.loadMonth();
             this.checkPush();
             this.$watch('panel', function (v) { document.body.style.overflow = v ? 'hidden' : ''; });
+            this.$watch('form', function () { self.saveDraft(); });
+            this.$watch('plan', function () { self.saveDraft(); });
             document.addEventListener('keydown', function (e) { if (e.key === 'Tab' && self.panel) self.trapFocus(e); });
 
             // A page left open overnight starts the new day fresh, unless a
@@ -157,9 +162,9 @@ function planner() {
                 });
         },
 
-        say: function (text, undo, error) {
+        say: function (text, undo, error, label) {
             clearTimeout(this.toastTimer);
-            this.toast = { show: true, text: text, undo: undo || null, error: !!error };
+            this.toast = { show: true, text: text, undo: undo || null, error: !!error, label: label || 'Undo' };
             this.releaseToast(undo ? 6000 : 3500);
         },
 
@@ -193,6 +198,36 @@ function planner() {
             });
         },
 
+        /* ── Drafts ─────────────────────────────────── */
+
+        // Half-typed work survives a reload: phones often drop a tab in the
+        // background while someone checks WhatsApp. Saving, deleting or
+        // closing the sheet clears it.
+        draftKey: function () { return 'nfelia.planner.draft.' + this.me.id; },
+
+        saveDraft: function () {
+            var d = null;
+            var changed = JSON.stringify(this.form) !== this.formBase;
+            if (this.panel === 'editor' && changed && (String(this.form.title || '').trim() || String(this.form.notes || '').trim())) d = { panel: 'editor', form: this.form };
+            if (this.panel === 'plan' && this.plan.template) d = { panel: 'plan', plan: this.plan };
+            try {
+                if (d) { d.at = Date.now(); localStorage.setItem(this.draftKey(), JSON.stringify(d)); }
+                else localStorage.removeItem(this.draftKey());
+            } catch (e) {}
+        },
+
+        clearDraft: function () { try { localStorage.removeItem(this.draftKey()); } catch (e) {} },
+
+        restoreDraft: function () {
+            var self = this, d = null;
+            try { d = JSON.parse(localStorage.getItem(this.draftKey()) || 'null'); } catch (e) {}
+            if (!d || !d.at || Date.now() - d.at > DAY) return;
+            if (d.panel === 'editor' && d.form) { this.form = d.form; this.formBase = ''; this.openPanel('editor'); }
+            else if (d.panel === 'plan' && d.plan) { this.plan = d.plan; this.openPanel('plan'); }
+            else return;
+            this.say('Your unsaved changes are back.', function () { self.closePanel(); }, false, 'Discard');
+        },
+
         /* ── Tabs and lists ─────────────────────────── */
 
         setTab: function (t) {
@@ -215,7 +250,7 @@ function planner() {
             var out = [];
             var late = f(s.late), today = f(s.today), soon = f(s.soon), undated = f(s.undated), done = f(s.done);
             if (late.length) out.push({ key: 'late', label: 'Late', items: late });
-            out.push({ key: 'today', label: 'Today', items: today, empty: today.length ? '' : 'Nothing planned for today. Add a task above, or start a job plan.' });
+            out.push({ key: 'today', label: 'Today', items: today, empty: today.length ? '' : 'Nothing planned for today. Write down what you must do, and tick it off as you go.' });
             if (soon.length) out.push({ key: 'soon', label: 'Coming up', items: soon, byDay: true });
             if (undated.length) out.push({ key: 'undated', label: 'No date', items: undated });
             if (done.length) out.push({ key: 'done', label: 'Done today', items: done });
@@ -275,6 +310,12 @@ function planner() {
 
         /* ── Quick add ──────────────────────────────── */
 
+        startTask: function () {
+            var el = document.getElementById('pl-quick');
+            this.quick.when = 'today';
+            if (el) { el.focus(); el.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'center' }); }
+        },
+
         quickChips: function () {
             return [{ value: 'today', label: 'Today' }, { value: 'tomorrow', label: 'Tomorrow' }, { value: 'pick', label: 'Pick a date' }, { value: 'none', label: 'No date' }];
         },
@@ -312,6 +353,7 @@ function planner() {
             var self = this;
             if (!this.panel) return;
             this.panel = null;
+            this.clearDraft();
             this.custQuery = '';
             this.confirmDelete = false;
             this.job = {};
@@ -378,6 +420,7 @@ function planner() {
                 wa_label: src.wa_label || null,
                 fromQuick: !!src.fromQuick
             };
+            this.formBase = JSON.stringify(this.form);
             this.custQuery = '';
             this.openPanel('editor');
         },
@@ -429,6 +472,11 @@ function planner() {
         touch: function (field) {
             if (field === 'title' && !String(this.form.title || '').trim()) this.setErr('title', this.form.kind === 'appointment' ? 'Write what the appointment is.' : 'Write what needs doing.');
         },
+        checkEnd: function () {
+            var f = this.form;
+            if (f.end_time && f.time && f.end_time <= f.time) this.setErr('end_time', 'The end time must be after the start.');
+            else this.clearErr('end_time');
+        },
         setErr: function (f, msg) { var e = Object.assign({}, this.err); e[f] = msg; this.err = e; },
         clearErr: function (f) { if (this.err[f]) this.setErr(f, ''); },
 
@@ -464,6 +512,7 @@ function planner() {
                 end_time: f.end_time, customer_id: f.customer_id, assigned_to: f.assigned_to,
                 remind_before: f.remind_before, repeat: f.date ? f.repeat : '', notes: f.notes, starred: f.starred
             }).then(function (d) {
+                self.clearDraft();
                 self.say(d.message);
                 if (f.fromQuick) self.quick.title = '';
                 if (parent && self.job.task_id === parent) { self.openPanel('job'); self.reloadJob(); }
@@ -478,6 +527,7 @@ function planner() {
             var self = this, f = this.form;
             if (this.busy) return;
             this.api('delete', { id: f.id }).then(function (d) {
+                self.clearDraft();
                 self.confirmDelete = false;
                 if (f.parent_id && self.job.task_id === f.parent_id) { self.openPanel('job'); self.reloadJob(); }
                 else self.closePanel();

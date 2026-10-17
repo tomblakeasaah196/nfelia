@@ -15,6 +15,7 @@
     .pl-sheet-enter { transition: transform 200ms cubic-bezier(.16,1,.3,1), opacity 200ms cubic-bezier(.16,1,.3,1); }
     .pl-sheet-leave { transition: transform 150ms cubic-bezier(.7,0,.84,0), opacity 150ms cubic-bezier(.7,0,.84,0); }
     .pl-fade { transition: opacity 150ms ease-out; }
+    .pl-fade-out { transition: opacity 150ms ease-in; }
     [data-tip] { position: relative; }
     @media (hover: hover) and (min-width: 768px) {
         [data-tip]:hover::after, [data-tip]:focus-visible::after {
@@ -31,7 +32,7 @@
         }
     }
     @media (prefers-reduced-motion: reduce) {
-        .pl-sheet-enter, .pl-sheet-leave, .pl-fade { transition: none; }
+        .pl-sheet-enter, .pl-sheet-leave, .pl-fade, .pl-fade-out { transition: none; }
     }
 </style>
 
@@ -40,12 +41,12 @@
 <div x-data="planner()" x-cloak @keydown.escape.window="onEscape()" class="max-w-5xl mx-auto text-[#1F0A14]">
 
     <!-- Header -->
-    <div class="flex items-center justify-between gap-3 mb-5">
-        <h1 class="font-heading font-bold text-2xl tracking-tight">Tasks &amp; Calendar</h1>
+    <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 mb-5">
+        <h1 class="font-heading font-bold text-2xl tracking-tight whitespace-nowrap">Tasks &amp; Calendar</h1>
         <button type="button" @click="openPanel('reminders')"
-                class="h-11 px-3 inline-flex items-center gap-2 rounded-xl border border-brand-sand bg-white text-sm font-semibold hover:border-brand-gold">
+                class="h-11 px-3 inline-flex items-center gap-2 whitespace-nowrap rounded-xl border border-brand-sand bg-white text-sm font-semibold hover:border-brand-gold">
             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0"/></svg>
-            <span>Reminders</span>
+            <span>Set up reminders</span>
         </button>
     </div>
 
@@ -62,25 +63,25 @@
     <!-- ═════════ TASKS TAB: add, jobs ═════════ -->
     <div x-show="tab === 'tasks'">
         <form @submit.prevent="quickAdd()" class="bg-white border border-brand-sand rounded-2xl p-4 mb-4">
-            <label for="pl-quick" class="sr-only">New task</label>
+            <label for="pl-quick" class="block text-sm font-semibold mb-2">Add a task</label>
             <div class="flex gap-2">
                 <input id="pl-quick" type="text" x-model="quick.title" maxlength="200" autocomplete="off"
-                       placeholder="Add a task…"
-                       class="flex-1 min-w-0 h-12 px-4 text-[15px] bg-brand-cream border border-brand-sand rounded-xl focus:outline-none focus:border-brand-burgundy placeholder-[#5B4650]/70">
+                       placeholder="e.g. Buy 3 bundles from the supplier"
+                       class="flex-1 min-w-0 h-12 px-4 text-base bg-brand-cream border border-brand-sand rounded-xl focus:outline-none focus:border-brand-burgundy placeholder-[#5B4650]/70">
                 <button type="submit" class="h-12 px-5 rounded-xl bg-brand-burgundy text-white text-sm font-semibold disabled:opacity-50" :disabled="busy">Add</button>
             </div>
-            <div class="mt-3 flex flex-wrap items-center gap-2" role="radiogroup" aria-label="When">
-                <span class="text-sm text-[#5B4650] mr-1">When?</span>
+            <div class="mt-3 flex flex-wrap items-center gap-2" role="radiogroup" aria-labelledby="pl-quick-when">
+                <span id="pl-quick-when" class="text-sm text-[#5B4650] mr-1">When?</span>
                 <template x-for="c in quickChips()" :key="c.value">
                     <button type="button" role="radio" :aria-checked="quick.when === c.value" @click="quick.when = c.value"
                             class="h-11 px-4 rounded-full border text-sm font-semibold"
                             :class="quick.when === c.value ? 'border-brand-burgundy bg-[#F8EEF3] text-brand-burgundy' : 'border-brand-sand text-[#5B4650]'"
                             x-text="c.label"></button>
                 </template>
-                <input x-show="quick.when === 'pick'" type="date" x-model="quick.date" :min="today" aria-label="Pick a date"
+                <input x-show="quick.when === 'pick'" type="date" x-model="quick.date" :min="today" aria-labelledby="pl-quick-when"
                        class="h-11 px-3 text-sm bg-brand-cream border border-brand-sand rounded-xl focus:outline-none focus:border-brand-burgundy">
                 <button type="button" @click="openEditor({ title: quick.title, date: quickDate(), fromQuick: true })"
-                        class="h-11 px-2 text-sm font-semibold text-brand-burgundy underline underline-offset-4 ml-auto">More details</button>
+                        class="h-11 px-2 text-sm font-semibold text-brand-burgundy underline underline-offset-4 ml-auto">Add details</button>
             </div>
         </form>
 
@@ -88,12 +89,12 @@
             <button type="button" @click="openEditor({ kind: 'appointment' })"
                     class="h-11 px-4 inline-flex items-center gap-2 rounded-xl border border-brand-sand bg-white text-sm font-semibold hover:border-brand-gold">
                 <svg class="w-5 h-5 text-brand-burgundy" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5m-9-6h.008v.008H12v-.008zM12 15h.008v.008H12V15zm0 2.25h.008v.008H12v-.008z"/></svg>
-                New appointment
+                Book appointment
             </button>
             <button type="button" @click="openPlan()"
                     class="h-11 px-4 inline-flex items-center gap-2 rounded-xl border border-brand-sand bg-white text-sm font-semibold hover:border-brand-gold">
                 <svg class="w-5 h-5 text-brand-burgundy" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"/></svg>
-                New job plan
+                Plan a job
             </button>
             <div x-show="staff.length" class="inline-flex p-1 rounded-xl bg-white border border-brand-sand ml-auto" role="radiogroup" aria-label="Whose tasks">
                 <button type="button" role="radio" :aria-checked="!mine" @click="mine = false" class="h-11 px-3 rounded-lg text-sm font-semibold" :class="!mine ? 'bg-brand-cream text-[#1F0A14]' : 'text-[#5B4650]'">Everyone</button>
@@ -110,17 +111,17 @@
                         <button type="button" @click="openJob(j)" class="w-full text-left bg-white border border-brand-sand rounded-2xl p-4 hover:border-brand-gold">
                             <span class="flex items-start justify-between gap-3">
                                 <span class="min-w-0">
-                                    <span class="block font-semibold text-[15px] truncate" x-text="j.title"></span>
-                                    <span class="block text-[13px] text-[#5B4650] truncate" x-text="j.customer ? j.customer.name : 'No customer'"></span>
+                                    <span class="block font-semibold text-base truncate" x-text="j.title"></span>
+                                    <span class="block text-sm text-[#5B4650] truncate" x-text="j.customer ? j.customer.name : 'No customer'"></span>
                                 </span>
                                 <span x-show="j.countdown" class="shrink-0 px-2 py-1 rounded-full text-xs font-semibold" :class="toneClass(j.countdown && j.countdown.tone)" x-text="j.countdown && j.countdown.label"></span>
                             </span>
                             <span class="mt-3 block h-2 rounded-full bg-brand-cream overflow-hidden" aria-hidden="true">
                                 <span class="block h-full rounded-full bg-brand-burgundy" :style="'width:' + jobPct(j) + '%'"></span>
                             </span>
-                            <span class="mt-2 flex items-center justify-between gap-2 text-[13px] text-[#5B4650]">
-                                <span x-text="j.steps.done + ' of ' + j.steps.total + ' done'"></span>
-                                <span x-show="j.steps.next" class="truncate" x-text="j.steps.next ? 'Next: ' + j.steps.next.title + (j.steps.next.when ? ', ' + j.steps.next.when : '') : ''"></span>
+                            <span class="mt-2 flex items-center justify-between gap-2 text-sm text-[#5B4650]">
+                                <span class="shrink-0" x-text="j.steps.done + ' of ' + j.steps.total + ' done'"></span>
+                                <span x-show="j.steps.next" class="min-w-0 truncate" x-text="j.steps.next ? 'Next: ' + j.steps.next.title + (j.steps.next.when ? ', ' + j.steps.next.when : '') : ''"></span>
                             </span>
                         </button>
                     </li>
@@ -154,7 +155,7 @@
                             :aria-label="dayAria(d)"
                             class="relative bg-white min-h-[52px] sm:min-h-[96px] p-1.5 text-left flex flex-col focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-burgundy focus-visible:ring-inset"
                             :class="{ 'bg-brand-cream/60': !d.inMonth, 'ring-2 ring-inset ring-brand-burgundy': selected === d.date }">
-                        <span class="w-7 h-7 inline-flex items-center justify-center rounded-full text-[13px] font-semibold"
+                        <span class="w-7 h-7 inline-flex items-center justify-center rounded-full text-sm font-semibold"
                               :class="d.date === today ? 'bg-brand-burgundy text-white' : (d.inMonth ? '' : 'text-[#5B4650]/60')" x-text="d.day"></span>
                         <!-- phone: dots -->
                         <span class="sm:hidden mt-auto flex gap-1 justify-center pb-0.5" aria-hidden="true">
@@ -200,13 +201,17 @@
                                 class="h-11 px-3 text-sm font-semibold text-brand-burgundy" x-text="showDone ? 'Hide' : 'Show'"></button>
                     </div>
 
-                    <div x-show="g.empty" class="bg-white border border-brand-sand rounded-2xl p-5 text-[15px] text-[#5B4650]" x-text="g.empty"></div>
+                    <div x-show="g.empty" class="bg-white border border-brand-sand rounded-2xl p-5 text-base text-[#5B4650]">
+                        <p x-text="g.empty"></p>
+                        <button type="button" x-show="g.key === 'today'" @click="startTask()"
+                                class="mt-3 h-11 px-4 rounded-xl bg-brand-burgundy text-white text-sm font-semibold">Add a task for today</button>
+                    </div>
 
                     <ul x-show="g.items.length && (g.key !== 'done' || showDone)" class="bg-white border border-brand-sand rounded-2xl divide-y divide-brand-sand overflow-hidden">
                         <template x-for="(it, i) in g.items" :key="it.id">
                             <li>
-                                <div x-show="g.byDay && (i === 0 || g.items[i - 1].date !== it.date)" class="px-4 pt-3 pb-1 text-[13px] font-semibold text-[#5B4650] bg-brand-cream/40" x-text="dayHeading(it.date)"></div>
-                                <div class="flex items-start gap-1 pl-1 pr-2 py-1.5">
+                                <div x-show="g.byDay && (i === 0 || g.items[i - 1].date !== it.date)" class="px-4 pt-3 pb-1 text-sm font-semibold text-[#5B4650] bg-brand-cream/40" x-text="dayHeading(it.date)"></div>
+                                <div class="flex items-start gap-1 pl-1 pr-2 py-2">
                                     <!-- Tick, or the source icon for items done elsewhere -->
                                     <template x-if="it.tick">
                                         <button type="button" role="checkbox" :aria-checked="it.done" @click="tick(it)"
@@ -227,9 +232,9 @@
                                     <button type="button" @click="openItem(it)" class="flex-1 min-w-0 min-h-[44px] text-left py-2">
                                         <span class="flex items-start gap-2">
                                             <span x-show="it.kind === 'auto' && it.tick" class="mt-0.5 shrink-0" :class="sourceColor(it)" aria-hidden="true" x-html="it.tick ? sourceIcon(it, 'w-4 h-4') : ''"></span>
-                                            <span class="block text-[15px] font-semibold leading-snug break-words" :class="it.done ? 'line-through text-[#5B4650]/70' : ''" x-text="it.title"></span>
+                                            <span class="block text-base font-semibold leading-snug break-words" :class="it.done ? 'line-through text-[#5B4650]/70' : ''" x-text="it.title"></span>
                                         </span>
-                                        <span class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-[#5B4650]">
+                                        <span class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-[#5B4650]">
                                             <span x-show="it.time" class="font-semibold text-[#1F0A14]" x-text="timeRange(it)"></span>
                                             <span x-show="it.kind === 'appointment'" class="text-brand-burgundy font-semibold">Appointment</span>
                                             <span x-show="it.countdown" class="px-2 py-0.5 rounded-full text-xs font-semibold" :class="toneClass(it.countdown && it.countdown.tone)" x-text="it.countdown && it.countdown.label"></span>
@@ -266,7 +271,7 @@
     <div x-show="panel" class="fixed inset-0 z-50" role="presentation">
         <div class="absolute inset-0 bg-[#1F0A14]/40" x-show="panel" @click="closePanel()"
              x-transition:enter="pl-fade" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
-             x-transition:leave="pl-fade" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"></div>
+             x-transition:leave="pl-fade-out" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"></div>
 
         <div x-show="panel" role="dialog" aria-modal="true" :aria-labelledby="'pl-' + panel + '-title'" x-ref="sheet"
              x-transition:enter="pl-sheet-enter" x-transition:enter-start="translate-y-6 opacity-0 md:translate-y-0 md:translate-x-6" x-transition:enter-end="translate-y-0 opacity-100 md:translate-x-0"
@@ -293,7 +298,7 @@
                             <input id="pl-title" type="text" x-model="form.title" maxlength="200" @blur="touch('title')" @input="clearErr('title')"
                                    :placeholder="form.kind === 'appointment' ? 'e.g. Fitting with Ada' : 'e.g. Buy 3 bundles from supplier'"
                                    :aria-invalid="!!err.title" aria-describedby="pl-title-err"
-                                   class="w-full h-12 px-4 text-[15px] bg-brand-cream border rounded-xl focus:outline-none focus:border-brand-burgundy" :class="err.title ? 'border-[#B42318]' : 'border-brand-sand'">
+                                   class="w-full h-12 px-4 text-base bg-brand-cream border rounded-xl focus:outline-none focus:border-brand-burgundy" :class="err.title ? 'border-[#B42318]' : 'border-brand-sand'">
                             <p id="pl-title-err" x-show="err.title" class="mt-1.5 text-sm text-[#B42318]" x-text="err.title"></p>
                         </div>
 
@@ -307,7 +312,7 @@
                                             x-text="c.label"></button>
                                 </template>
                             </div>
-                            <input x-show="dateChoice() === 'pick'" type="date" x-model="form.date" aria-label="Date" @change="clearErr('date')"
+                            <input x-show="dateChoice() === 'pick'" type="date" x-model="form.date" aria-labelledby="pl-when" @change="clearErr('date')"
                                    :aria-invalid="!!err.date" aria-describedby="pl-date-err"
                                    class="mt-2 h-11 px-3 text-sm bg-brand-cream border rounded-xl focus:outline-none focus:border-brand-burgundy" :class="err.date ? 'border-[#B42318]' : 'border-brand-sand'">
                             <p id="pl-date-err" x-show="err.date" class="mt-1.5 text-sm text-[#B42318]" x-text="err.date"></p>
@@ -320,26 +325,26 @@
                             </div>
                             <div x-show="form.kind === 'appointment'">
                                 <label for="pl-end" class="block text-sm font-semibold mb-1.5">To (optional)</label>
-                                <input id="pl-end" type="time" x-model="form.end_time" @change="clearErr('end_time')" :aria-invalid="!!err.end_time" class="w-full h-11 px-3 text-sm bg-brand-cream border rounded-xl focus:outline-none focus:border-brand-burgundy" :class="err.end_time ? 'border-[#B42318]' : 'border-brand-sand'">
+                                <input id="pl-end" type="time" x-model="form.end_time" @change="checkEnd()" @input="clearErr('end_time')" :aria-invalid="!!err.end_time" class="w-full h-11 px-3 text-sm bg-brand-cream border rounded-xl focus:outline-none focus:border-brand-burgundy" :class="err.end_time ? 'border-[#B42318]' : 'border-brand-sand'">
                                 <p x-show="err.end_time" class="mt-1.5 text-sm text-[#B42318]" x-text="err.end_time"></p>
                             </div>
                         </div>
 
                         <div>
-                            <span class="block text-sm font-semibold mb-1.5">Customer (optional)</span>
+                            <label for="pl-cust" class="block text-sm font-semibold mb-1.5">Customer (optional)</label>
                             <div x-show="form.customer_id" class="flex items-center justify-between gap-2 h-12 pl-4 pr-1 rounded-xl border border-brand-sand bg-brand-cream">
-                                <span class="font-semibold text-[15px] truncate" x-text="customerName(form.customer_id)"></span>
+                                <span class="font-semibold text-base truncate" x-text="customerName(form.customer_id)"></span>
                                 <button type="button" @click="form.customer_id = null; custQuery = ''" aria-label="Remove customer" data-tip="Remove customer" data-tip-side="left" class="w-11 h-11 inline-flex items-center justify-center rounded-full hover:bg-white">
                                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
                                 </button>
                             </div>
                             <div x-show="!form.customer_id" class="relative">
-                                <input type="search" x-model="custQuery" aria-label="Search customers" placeholder="Search your customers"
+                                <input id="pl-cust" type="search" x-model="custQuery" placeholder="Type a name or phone number"
                                        role="combobox" :aria-expanded="custMatches().length > 0" aria-controls="pl-cust-list" autocomplete="off"
-                                       class="w-full h-12 px-4 text-[15px] bg-brand-cream border border-brand-sand rounded-xl focus:outline-none focus:border-brand-burgundy">
+                                       class="w-full h-12 px-4 text-base bg-brand-cream border border-brand-sand rounded-xl focus:outline-none focus:border-brand-burgundy">
                                 <ul id="pl-cust-list" role="listbox" x-show="custMatches().length" class="absolute z-10 left-0 right-0 mt-1 bg-white border border-brand-sand rounded-xl overflow-hidden shadow-[0_8px_24px_rgba(31,10,20,.07)]">
                                     <template x-for="c in custMatches()" :key="c.id">
-                                        <li role="option"><button type="button" @click="form.customer_id = c.id; custQuery = ''" class="w-full text-left px-4 py-3 text-[15px] hover:bg-brand-cream" x-text="c.name"></button></li>
+                                        <li role="option"><button type="button" @click="form.customer_id = c.id; custQuery = ''" class="w-full text-left px-4 py-3 text-base hover:bg-brand-cream" x-text="c.name"></button></li>
                                     </template>
                                 </ul>
                             </div>
@@ -374,7 +379,7 @@
 
                         <div>
                             <label for="pl-notes" class="block text-sm font-semibold mb-1.5">Notes (optional)</label>
-                            <textarea id="pl-notes" x-model="form.notes" rows="3" class="w-full px-4 py-3 text-[15px] bg-brand-cream border border-brand-sand rounded-xl focus:outline-none focus:border-brand-burgundy resize-y"></textarea>
+                            <textarea id="pl-notes" x-model="form.notes" rows="3" class="w-full px-4 py-3 text-base bg-brand-cream border border-brand-sand rounded-xl focus:outline-none focus:border-brand-burgundy resize-y"></textarea>
                         </div>
 
                         <button type="button" @click="form.starred = !form.starred" :aria-pressed="form.starred"
@@ -407,12 +412,12 @@
                     </div>
 
                     <div x-show="!plan.template" class="overflow-y-auto px-5 py-4">
-                        <p class="text-[15px] text-[#5B4650] mb-4">Pick a plan. Nfelia adds the steps with dates, counted back from when you must finish. You can change any of them.</p>
+                        <p class="text-base text-[#5B4650] mb-4">Pick a plan. Nfelia adds the steps with dates, counted back from when you must finish. You can change any of them.</p>
                         <ul class="space-y-2">
                             <template x-for="t in templates" :key="t.key">
                                 <li><button type="button" @click="chooseTemplate(t.key)" class="w-full text-left p-4 rounded-xl border border-brand-sand hover:border-brand-burgundy">
-                                    <span class="block font-semibold text-[15px]" x-text="t.label"></span>
-                                    <span class="block text-[13px] text-[#5B4650]" x-text="t.hint"></span>
+                                    <span class="block font-semibold text-base" x-text="t.label"></span>
+                                    <span class="block text-sm text-[#5B4650]" x-text="t.hint"></span>
                                 </button></li>
                             </template>
                         </ul>
@@ -420,20 +425,20 @@
 
                     <div x-show="plan.template" class="overflow-y-auto px-5 py-4 space-y-5">
                         <div>
-                            <span class="block text-sm font-semibold mb-1.5">Customer (optional)</span>
+                            <label for="pl-plan-cust-q" class="block text-sm font-semibold mb-1.5">Customer (optional)</label>
                             <div x-show="plan.customer_id" class="flex items-center justify-between gap-2 h-12 pl-4 pr-1 rounded-xl border border-brand-sand bg-brand-cream">
-                                <span class="font-semibold text-[15px] truncate" x-text="customerName(plan.customer_id)"></span>
+                                <span class="font-semibold text-base truncate" x-text="customerName(plan.customer_id)"></span>
                                 <button type="button" @click="setPlanCustomer(null)" aria-label="Remove customer" data-tip="Remove customer" data-tip-side="left" class="w-11 h-11 inline-flex items-center justify-center rounded-full hover:bg-white">
                                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
                                 </button>
                             </div>
                             <div x-show="!plan.customer_id" class="relative">
-                                <input type="search" x-model="custQuery" aria-label="Search customers" placeholder="Search your customers" autocomplete="off"
+                                <input id="pl-plan-cust-q" type="search" x-model="custQuery" placeholder="Type a name or phone number" autocomplete="off"
                                        role="combobox" :aria-expanded="custMatches().length > 0" aria-controls="pl-plan-cust"
-                                       class="w-full h-12 px-4 text-[15px] bg-brand-cream border border-brand-sand rounded-xl focus:outline-none focus:border-brand-burgundy">
+                                       class="w-full h-12 px-4 text-base bg-brand-cream border border-brand-sand rounded-xl focus:outline-none focus:border-brand-burgundy">
                                 <ul id="pl-plan-cust" role="listbox" x-show="custMatches().length" class="absolute z-10 left-0 right-0 mt-1 bg-white border border-brand-sand rounded-xl overflow-hidden shadow-[0_8px_24px_rgba(31,10,20,.07)]">
                                     <template x-for="c in custMatches()" :key="c.id">
-                                        <li role="option"><button type="button" @click="setPlanCustomer(c.id)" class="w-full text-left px-4 py-3 text-[15px] hover:bg-brand-cream" x-text="c.name"></button></li>
+                                        <li role="option"><button type="button" @click="setPlanCustomer(c.id)" class="w-full text-left px-4 py-3 text-base hover:bg-brand-cream" x-text="c.name"></button></li>
                                     </template>
                                 </ul>
                             </div>
@@ -445,7 +450,7 @@
                                 <option value="">Not linked</option>
                                 <template x-for="inv in planInvoices()" :key="inv.id"><option :value="inv.id" :selected="String(plan.invoice_id) === String(inv.id)" x-text="inv.label"></option></template>
                             </select>
-                            <p class="mt-1.5 text-[13px] text-[#5B4650]">Linked, the delivery step marks the invoice delivered and its date becomes the delivery date.</p>
+                            <p class="mt-1.5 text-sm text-[#5B4650]">Linked, the delivery step marks the invoice delivered and its date becomes the delivery date.</p>
                         </div>
 
                         <div class="grid grid-cols-2 gap-3">
@@ -468,19 +473,19 @@
                             <label for="pl-plan-name" class="block text-sm font-semibold mb-1.5">Job name</label>
                             <input id="pl-plan-name" type="text" x-model="plan.title" maxlength="200" @input="plan.titleTouched = true; clearErr('title')"
                                    @blur="if (!plan.title.trim()) setErr('title', 'Give the job a name.')" :aria-invalid="!!err.title"
-                                   class="w-full h-12 px-4 text-[15px] bg-brand-cream border rounded-xl focus:outline-none focus:border-brand-burgundy" :class="err.title ? 'border-[#B42318]' : 'border-brand-sand'">
+                                   class="w-full h-12 px-4 text-base bg-brand-cream border rounded-xl focus:outline-none focus:border-brand-burgundy" :class="err.title ? 'border-[#B42318]' : 'border-brand-sand'">
                             <p x-show="err.title" class="mt-1.5 text-sm text-[#B42318]" x-text="err.title"></p>
                         </div>
 
                         <div>
-                            <span class="block text-sm font-semibold mb-2">Steps</span>
+                            <span id="pl-steps" class="block text-sm font-semibold mb-2">Steps</span>
                             <ol class="space-y-3">
                                 <template x-for="(s, i) in plan.steps" :key="s.uid">
                                     <li class="p-3 rounded-xl border border-brand-sand">
                                         <div class="flex items-center gap-2">
-                                            <span class="w-6 text-sm font-semibold text-[#5B4650]" x-text="(i + 1) + '.'"></span>
-                                            <input type="text" x-model="s.title" maxlength="200" :aria-label="'Step ' + (i + 1)" placeholder="What happens" @input="clearErr('steps')" :aria-invalid="!!err.steps && !s.title.trim()"
-                                                   class="flex-1 min-w-0 h-11 px-3 text-[15px] bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-burgundy">
+                                            <span :id="'pl-step-' + s.uid" class="w-6 text-sm font-semibold text-[#5B4650]" x-text="(i + 1) + '.'"></span>
+                                            <input type="text" x-model="s.title" maxlength="200" :aria-labelledby="'pl-steps pl-step-' + s.uid" placeholder="e.g. Take measurements" @input="clearErr('steps')" :aria-invalid="!!err.steps && !s.title.trim()"
+                                                   class="flex-1 min-w-0 h-11 px-3 text-base bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-burgundy">
                                             <button type="button" @click="plan.steps.splice(i, 1)" :aria-label="'Remove step ' + (i + 1)" data-tip="Remove step" data-tip-side="left" class="w-11 h-11 shrink-0 inline-flex items-center justify-center rounded-full text-[#5B4650] hover:bg-brand-cream">
                                                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
                                             </button>
@@ -488,8 +493,8 @@
                                         <div class="mt-2 pl-8 flex flex-wrap items-center gap-2">
                                             <input type="date" x-model="s.date" @change="s.touched = true; clearErr('steps')" :aria-invalid="!!err.steps && !s.date" :aria-label="'Date for step ' + (i + 1)" class="h-11 px-3 text-sm bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-burgundy">
                                             <input x-show="s.kind === 'appointment'" type="time" x-model="s.time" :aria-label="'Time for step ' + (i + 1)" class="h-11 px-3 text-sm bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-burgundy">
-                                            <span x-show="s.kind === 'appointment'" class="text-[13px] font-semibold text-brand-burgundy">Appointment</span>
-                                            <span x-show="s.deliver && plan.invoice_id" class="text-[13px] font-semibold text-[#B54708]">Marks the invoice delivered</span>
+                                            <span x-show="s.kind === 'appointment'" class="text-sm font-semibold text-brand-burgundy">Appointment</span>
+                                            <span x-show="s.deliver && plan.invoice_id" class="text-sm font-semibold text-[#B54708]">Marks the invoice delivered</span>
                                         </div>
                                     </li>
                                 </template>
@@ -512,7 +517,7 @@
                     <div class="flex items-center justify-between gap-3 px-5 py-4 border-b border-brand-sand">
                         <div class="min-w-0">
                             <h2 id="pl-job-title" class="font-heading font-bold text-lg truncate" x-text="job.title"></h2>
-                            <p class="text-[13px] text-[#5B4650]" x-text="(job.customer ? job.customer.name + ' · ' : '') + (job.steps ? job.steps.done + ' of ' + job.steps.total + ' done' : '')"></p>
+                            <p class="text-sm text-[#5B4650]" x-text="(job.customer ? job.customer.name + ' · ' : '') + (job.steps ? job.steps.done + ' of ' + job.steps.total + ' done' : '')"></p>
                         </div>
                         <button type="button" @click="closePanel()" aria-label="Close" data-tip="Close" data-tip-side="left" class="w-11 h-11 shrink-0 inline-flex items-center justify-center rounded-full hover:bg-brand-cream">
                             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
@@ -520,18 +525,18 @@
                     </div>
                     <div class="overflow-y-auto px-5 py-4">
                         <div x-show="job.countdown" class="mb-4 inline-flex px-3 py-1 rounded-full text-sm font-semibold" :class="toneClass(job.countdown && job.countdown.tone)" x-text="job.countdown && job.countdown.label"></div>
-                        <p x-show="jobLoading" class="text-[15px] text-[#5B4650]">Loading steps…</p>
+                        <p x-show="jobLoading" class="text-base text-[#5B4650]">Loading steps…</p>
                         <ol class="bg-white border border-brand-sand rounded-2xl divide-y divide-brand-sand overflow-hidden">
                             <template x-for="s in jobSteps" :key="s.id">
-                                <li class="flex items-start gap-1 pl-1 pr-2 py-1.5">
+                                <li class="flex items-start gap-1 pl-1 pr-2 py-2">
                                     <button type="button" role="checkbox" :aria-checked="s.done" @click="tick(s, true)" :aria-label="(s.done ? 'Mark not done: ' : 'Mark done: ') + s.title" :data-tip="s.done ? 'Mark not done' : 'Mark done'" data-tip-side="right" class="w-11 h-11 shrink-0 inline-flex items-center justify-center">
                                         <span class="w-6 h-6 rounded-full border-2 inline-flex items-center justify-center" :class="s.done ? 'bg-[#00764A] border-[#00764A] text-white' : 'border-[#5B4650]/60'">
                                             <svg x-show="s.done" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
                                         </span>
                                     </button>
                                     <button type="button" @click="openEditor(s)" class="flex-1 min-w-0 text-left py-2">
-                                        <span class="block text-[15px] font-semibold" :class="s.done ? 'line-through text-[#5B4650]/70' : ''" x-text="s.title"></span>
-                                        <span class="block text-[13px] text-[#5B4650]" x-text="dayHeading(s.date) + (s.time ? ', ' + timeRange(s) : '') + (s.kind === 'appointment' ? ' · Appointment' : '')"></span>
+                                        <span class="block text-base font-semibold" :class="s.done ? 'line-through text-[#5B4650]/70' : ''" x-text="s.title"></span>
+                                        <span class="block text-sm text-[#5B4650]" x-text="dayHeading(s.date) + (s.time ? ', ' + timeRange(s) : '') + (s.kind === 'appointment' ? ' · Appointment' : '')"></span>
                                     </button>
                                 </li>
                             </template>
@@ -554,19 +559,19 @@
                         </button>
                     </div>
                     <div class="overflow-y-auto px-5 py-4 space-y-4">
-                        <p class="text-[15px] text-[#5B4650]">The bell at the top always shows what is due. Choose how else Nfelia should reach you.</p>
+                        <p class="text-base text-[#5B4650]">The bell at the top always shows what is due. Choose how else Nfelia should reach you.</p>
 
                         <div class="p-4 rounded-xl border border-brand-sand">
                             <div class="flex items-start justify-between gap-3">
                                 <div>
-                                    <p class="font-semibold text-[15px]">Phone notifications</p>
-                                    <p class="text-[13px] text-[#5B4650] mt-0.5">Your phone buzzes at the reminder time, even with Nfelia closed.</p>
+                                    <p class="font-semibold text-base">Phone notifications</p>
+                                    <p class="text-sm text-[#5B4650] mt-0.5">Your phone buzzes at the reminder time, even with Nfelia closed.</p>
                                 </div>
                                 <span x-show="pushState === 'on'" class="shrink-0 px-2 py-1 rounded-full bg-[#E7F6EC] text-[#00764A] text-xs font-semibold">On</span>
                             </div>
-                            <p x-show="pushState === 'unsupported'" class="mt-3 text-[13px] text-[#5B4650]">This browser cannot show notifications. On iPhone, tap Share, then "Add to Home Screen", and open Nfelia from there.</p>
-                            <p x-show="pushState === 'blocked'" class="mt-3 text-[13px] text-[#B42318]">Notifications are blocked for Nfelia. Allow them in your browser's site settings, then come back.</p>
-                            <p x-show="pushState === 'unavailable'" class="mt-3 text-[13px] text-[#5B4650]">Coming soon. Until then, reminders arrive by bell and email.</p>
+                            <p x-show="pushState === 'unsupported'" class="mt-3 text-sm text-[#5B4650]">This browser cannot show notifications. On iPhone, tap Share, then "Add to Home Screen", and open Nfelia from there.</p>
+                            <p x-show="pushState === 'blocked'" class="mt-3 text-sm text-[#B42318]">Notifications are blocked for Nfelia. Allow them in your browser's site settings, then come back.</p>
+                            <p x-show="pushState === 'unavailable'" class="mt-3 text-sm text-[#5B4650]">Coming soon. Until then, reminders arrive by bell and email.</p>
                             <div class="mt-3 flex flex-wrap gap-2">
                                 <button type="button" x-show="pushState === 'off'" @click="pushOn()" :disabled="busy" class="h-11 px-4 rounded-xl bg-brand-burgundy text-white text-sm font-semibold disabled:opacity-50">Turn on for this phone</button>
                                 <button type="button" x-show="pushState === 'on'" @click="pushTest()" :disabled="busy" class="h-11 px-4 rounded-xl border border-brand-sand text-sm font-semibold">Send me a test</button>
@@ -576,16 +581,16 @@
 
                         <label class="flex items-start justify-between gap-3 p-4 rounded-xl border border-brand-sand cursor-pointer">
                             <span>
-                                <span class="block font-semibold text-[15px]">Morning plan by email</span>
-                                <span class="block text-[13px] text-[#5B4650] mt-0.5">At 7am: today's appointments, tasks, deliveries and money due. Only on days with something on.</span>
+                                <span class="block font-semibold text-base">Morning plan by email</span>
+                                <span class="block text-sm text-[#5B4650] mt-0.5">At 7am: today's appointments, tasks, deliveries and money due. Only on days with something on.</span>
                             </span>
                             <input type="checkbox" x-model="prefs.morning_email" @change="savePrefs()" class="mt-1 w-6 h-6 accent-[#8B004A] shrink-0">
                         </label>
 
                         <label class="flex items-start justify-between gap-3 p-4 rounded-xl border border-brand-sand cursor-pointer">
                             <span>
-                                <span class="block font-semibold text-[15px]">Reminder emails</span>
-                                <span class="block text-[13px] text-[#5B4650] mt-0.5">An email at the time you chose on a task or appointment.</span>
+                                <span class="block font-semibold text-base">Reminder emails</span>
+                                <span class="block text-sm text-[#5B4650] mt-0.5">An email at the time you chose on a task or appointment.</span>
                             </span>
                             <input type="checkbox" x-model="prefs.reminder_email" @change="savePrefs()" class="mt-1 w-6 h-6 accent-[#8B004A] shrink-0">
                         </label>
@@ -600,7 +605,7 @@
         <div class="absolute inset-0 bg-[#1F0A14]/40" @click="closeConfirm()"></div>
         <div class="relative w-full max-w-sm bg-white rounded-2xl border border-brand-sand p-5">
             <h2 id="pl-del-title" class="font-heading font-bold text-lg" x-text="'Delete “' + (form.title || '') + '”?'"></h2>
-            <p class="mt-1 text-[15px] text-[#5B4650]" x-text="form.plan ? 'The job plan and all its steps will be removed.' : 'It will be removed from your list and calendar.'"></p>
+            <p class="mt-1 text-base text-[#5B4650]" x-text="form.plan ? 'The job plan and all its steps will be removed.' : 'It will be removed from your list and calendar.'"></p>
             <div class="mt-5 flex gap-3">
                 <button type="button" id="pl-del-keep" @click="closeConfirm()" class="h-12 flex-1 rounded-xl border border-brand-sand text-sm font-semibold">Keep it</button>
                 <button type="button" @click="remove()" :disabled="busy" class="h-12 flex-1 rounded-xl bg-[#B42318] text-white text-sm font-semibold disabled:opacity-50" x-text="form.plan ? 'Delete job plan' : 'Delete'"></button>
@@ -612,10 +617,10 @@
     <div class="fixed left-1/2 -translate-x-1/2 bottom-24 lg:bottom-8 z-[70] w-[calc(100%-32px)] max-w-md" role="status" aria-live="polite" aria-atomic="true">
         <div x-show="toast.show" @mouseenter="holdToast()" @mouseleave="releaseToast()" @focusin="holdToast()" @focusout="releaseToast()"
              x-transition:enter="pl-fade" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
-             x-transition:leave="pl-fade" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+             x-transition:leave="pl-fade-out" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
              class="flex items-center gap-3 pl-4 pr-2 py-2 rounded-xl text-white text-sm font-semibold" :class="toast.error ? 'bg-[#B42318]' : 'bg-[#1F0A14]'">
             <span class="flex-1 py-1" x-text="toast.text"></span>
-            <button type="button" x-show="!!toast.undo" @click="undo()" class="h-11 px-4 rounded-lg bg-white/15 hover:bg-white/25">Undo</button>
+            <button type="button" x-show="!!toast.undo" @click="undo()" class="h-11 px-4 rounded-lg bg-white/15 hover:bg-white/25" x-text="toast.label"></button>
         </div>
     </div>
 </div>

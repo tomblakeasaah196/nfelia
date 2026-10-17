@@ -58,7 +58,7 @@ if (require.main === module) (async () => {
         .filter((el) => { const r = el.getBoundingClientRect(); return el.offsetParent !== null && r.height > 0 && r.height < 44; })
         .map((el) => (el.textContent || el.getAttribute('aria-label') || '').trim().replace(/\s+/g, ' ').slice(0, 24) + ' ' + Math.round(el.getBoundingClientRect().height)));
       const found = await small();
-      await page.click('button:has-text("New appointment")'); await page.waitForSelector('#pl-title');
+      await page.click('button:has-text("Book appointment")'); await page.waitForSelector('#pl-title');
       found.push(...await small());
       console.log(name, 'tap targets under 44px:', found.length ? found.join(' | ') : 'none');
       if (found.length) errors.push(name + ' small tap targets');

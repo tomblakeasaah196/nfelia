@@ -60,7 +60,7 @@ const ok = (c, m) => { if (c) { pass++; console.log('  PASS ', m); } else { fail
   ok(q("SELECT is_starred FROM tasks WHERE title='Clean the display shelves'") === '1', 'starred in DB');
 
   console.log('New appointment with validation');
-  await page.click('button:has-text("New appointment")');
+  await page.click('button:has-text("Book appointment")');
   await page.waitForSelector('#pl-title');
   ok(await page.evaluate(() => document.activeElement.id) === 'pl-title', 'focus starts on the title');
   await page.click('button[type=submit]:has-text("Add appointment")');
@@ -72,7 +72,7 @@ const ok = (c, m) => { if (c) { pass++; console.log('  PASS ', m); } else { fail
   await page.click('[role=dialog] button[role=radio]:has-text("Tomorrow")');
   await page.fill('#pl-time', '14:00'); await page.dispatchEvent('#pl-time', 'change');
   ok(await page.inputValue('#pl-remind') === '60', 'timed appointment defaults to 1 hour before');
-  await page.fill('[role=dialog] input[aria-label="Search customers"]', 'adae');
+  await page.fill('#pl-cust', 'adae');
   await page.click('#pl-cust-list button:has-text("Adaeze Nwosu")');
   await page.click('button[type=submit]:has-text("Add appointment")');
   ok((await toast('Appointment added')).includes('Appointment added'), 'appointment added');
@@ -120,9 +120,9 @@ const ok = (c, m) => { if (c) { pass++; console.log('  PASS ', m); } else { fail
   ok(await page.locator('a[aria-label="Remind Chioma"]').getAttribute('href').then((h) => h.startsWith('https://wa.me/234806555012')), 'WhatsApp reminder uses the customer number in 234 format');
 
   console.log('Job plan');
-  await page.click('button:has-text("New job plan")');
+  await page.click('button:has-text("Plan a job")');
   await page.click('[role=dialog] button:has-text("Sewing job")');
-  await page.fill('[role=dialog] input[aria-label="Search customers"]', 'chio');
+  await page.fill('#pl-plan-cust-q', 'chio');
   await page.click('#pl-plan-cust button:has-text("Chioma Obi")');
   ok(await page.inputValue('#pl-plan-name') === 'Sewing job for Chioma', 'name uses the customer');
   const fin = q("SELECT DATE_ADD(CURDATE(), INTERVAL 12 DAY)");
@@ -162,7 +162,7 @@ const ok = (c, m) => { if (c) { pass++; console.log('  PASS ', m); } else { fail
   ok(page.url().endsWith('/tasks?tab=calendar'), 'URL remembers the tab');
 
   console.log('Reminders');
-  await page.click('button:has-text("Reminders")');
+  await page.click('button:has-text("Set up reminders")');
   await page.waitForTimeout(400);
   ok(await page.locator('text=Coming soon').isVisible(), 'push says coming soon without keys');
   await page.locator('label:has-text("Morning plan by email") input').uncheck();
@@ -241,11 +241,11 @@ const ok = (c, m) => { if (c) { pass++; console.log('  PASS ', m); } else { fail
   page.off('request', countDelete);
   ok(deletes === 1, 'and sends one delete: ' + deletes);
 
-  // "More details" then save: the quick box empties, so Add cannot repeat it.
+  // "Add details" then save: the quick box empties, so Add cannot repeat it.
   await page.fill('#pl-quick', 'Ring the courier');
-  await page.click('button:has-text("More details")');
+  await page.click('button:has-text("Add details")');
   await page.waitForSelector('#pl-title');
-  ok(await page.inputValue('#pl-title') === 'Ring the courier', 'More details carries the text over');
+  ok(await page.inputValue('#pl-title') === 'Ring the courier', 'Add details carries the text over');
   await page.click('button[type=submit]:has-text("Add task")');
   ok((await toast('Task added')).includes('Task added'), 'saved from the editor');
   await waitIdle();
@@ -257,11 +257,41 @@ const ok = (c, m) => { if (c) { pass++; console.log('  PASS ', m); } else { fail
   await page.waitForSelector('#pl-title');
   await page.click('[role=dialog] button[role=radio]:has-text("Pick a date")');
   await page.selectOption('#pl-repeat', 'week');
-  await page.fill('[role=dialog] input[aria-label="Date"]', '');
+  await page.fill('[role=dialog] input[type=date][aria-labelledby="pl-when"]', '');
   await page.click('button[type=submit]:has-text("Save changes")');
   ok((await toast('Saved')).includes('Saved'), 'clearing the date after choosing Repeat still saves');
   await waitIdle();
   ok(q("SELECT CONCAT(IFNULL(due_date,'-'),'|',IFNULL(repeat_every,'-')) FROM tasks WHERE title='Ring the courier'") === '-|-', 'as an undated task that does not repeat');
+
+  // Every field has a label people can see; placeholders are only examples.
+  ok(await page.isVisible('label[for=pl-quick]') && (await page.textContent('label[for=pl-quick]')).trim() === 'Add a task', 'quick add has a visible label');
+
+  // End time is checked as soon as it is set.
+  await page.click('button:has-text("Book appointment")'); await page.waitForSelector('#pl-title');
+  await page.fill('#pl-time', '15:00'); await page.dispatchEvent('#pl-time', 'change');
+  await page.fill('#pl-end', '14:00'); await page.dispatchEvent('#pl-end', 'change');
+  await page.waitForTimeout(150);
+  ok((await page.textContent('[role=dialog]')).includes('The end time must be after the start'), 'an end time before the start is flagged at once');
+  await page.fill('#pl-end', '16:00'); await page.dispatchEvent('#pl-end', 'change');
+  await page.waitForTimeout(150);
+  ok(!(await page.textContent('[role=dialog]')).includes('The end time must be after the start'), 'and cleared when fixed');
+
+  // Half-typed work survives a reload (phones drop tabs in the background).
+  await page.fill('#pl-title', 'Fitting with Zainab');
+  await page.waitForTimeout(300);
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(500);
+  ok(await page.isVisible('#pl-title') && await page.inputValue('#pl-title') === 'Fitting with Zainab', 'after a reload the editor comes back with what was typed');
+  ok((await toast('unsaved')).includes('Your unsaved changes are back'), 'and says so');
+  await page.click('[role=status] button:has-text("Discard")');
+  await page.waitForTimeout(400);
+  ok(await page.locator('[role=dialog]').isHidden(), 'Discard closes it');
+  await page.reload({ waitUntil: 'networkidle' }); await page.waitForTimeout(400);
+  ok(await page.locator('[role=dialog]').isHidden(), 'and it stays gone after another reload');
+  await page.click('button:has-text("Book appointment")'); await page.waitForSelector('#pl-title');
+  await page.keyboard.press('Escape'); await waitIdle();
+  await page.reload({ waitUntil: 'networkidle' }); await page.waitForTimeout(400);
+  ok(await page.locator('[role=dialog]').isHidden(), 'an untouched sheet leaves no draft behind');
 
   // A page left open overnight reloads into the new day when looked at again.
   const lagosNow = new Date(new Date(`${today}T23:58:00+01:00`).getTime());

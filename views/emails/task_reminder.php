@@ -23,7 +23,7 @@ $on_brand = planner_text_on($biz_color);
     <tr>
         <td style="background-color:#0E7A3F;">
             <a href="<?= $h($item['wa']) ?>"
-               style="display:inline-block;padding:14px 24px;font-size:16px;line-height:1.25;font-weight:600;color:#FFFFFF;text-decoration:none;">
+               style="display:inline-block;padding:12px 24px;font-size:16px;line-height:1.25;font-weight:600;color:#FFFFFF;text-decoration:none;">
                 <?= $h($item['wa_label']) ?> on WhatsApp
             </a>
         </td>
@@ -37,7 +37,7 @@ $on_brand = planner_text_on($biz_color);
     <tr>
         <td style="background-color:<?= $h($biz_color) ?>;">
             <a href="<?= $h($open_url) ?>"
-               style="display:inline-block;padding:14px 24px;font-size:16px;line-height:1.25;font-weight:600;color:<?= $on_brand ?>;text-decoration:none;">
+               style="display:inline-block;padding:12px 24px;font-size:16px;line-height:1.25;font-weight:600;color:<?= $on_brand ?>;text-decoration:none;">
                 Open my tasks
             </a>
         </td>

@@ -198,7 +198,7 @@ if ($invoice['due_date'] && in_array($invoice['status'], ['overdue','sent','part
                 <form method="POST" action="<?= APP_URL ?>/invoices/mark-delivered/<?= $invoice['id'] ?>" class="inline">
                     <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
                     <input type="hidden" name="undo" value="1">
-                    <button class="h-11 px-3 rounded-lg border border-brand-sand text-xs font-semibold text-brand-plum/70 hover:border-brand-gold">Not delivered yet</button>
+                    <button class="h-11 px-3 rounded-lg border border-brand-sand text-xs font-semibold text-brand-plum/70 hover:border-brand-gold">Mark not delivered</button>
                 </form>
             <?php elseif (!$is_delivered && $invoice['deliver_mode']): ?>
                 <form method="POST" action="<?= APP_URL ?>/invoices/mark-delivered/<?= $invoice['id'] ?>" class="inline">

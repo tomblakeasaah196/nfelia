@@ -31,9 +31,9 @@ $max = 8;   // a longer list belongs in the app, not an email
     <tr>
         <td style="padding:12px 0;border-top:1px solid #E8E4DA;font-size:14px;line-height:1.5;color:#5B4650;">
             <?php if ($it['countdown']): ?>
-                <span style="display:inline-block;margin:0 6px 4px 0;padding:2px 8px;font-size:12px;line-height:1.4;font-weight:600;<?= $chip[$it['countdown']['tone']] ?>"><?= $h($it['countdown']['label']) ?></span>
+                <span style="display:inline-block;margin:0 8px 4px 0;padding:4px 8px;font-size:12px;line-height:1.4;font-weight:600;<?= $chip[$it['countdown']['tone']] ?>"><?= $h($it['countdown']['label']) ?></span>
             <?php elseif ($it['time']): ?>
-                <span style="display:inline-block;margin:0 6px 4px 0;font-size:14px;font-weight:600;color:#5B4650;"><?= $h(planner_fmt_time($it['time'])) ?></span>
+                <span style="display:inline-block;margin:0 8px 4px 0;font-size:14px;font-weight:600;color:#5B4650;"><?= $h(planner_fmt_time($it['time'])) ?></span>
             <?php endif; ?>
             <a href="<?= $h(APP_URL . '/' . ($it['url'] ?: 'tasks')) ?>"
                style="font-size:16px;line-height:1.4;font-weight:600;color:#1F0A14;text-decoration:none;"><?= $h($it['title']) ?></a>
@@ -53,7 +53,7 @@ $max = 8;   // a longer list belongs in the app, not an email
     <tr>
         <td style="background-color:<?= $h($biz_color) ?>;">
             <a href="<?= $h($open_url) ?>"
-               style="display:inline-block;padding:14px 24px;font-size:16px;line-height:1.25;font-weight:600;color:<?= $on_brand ?>;text-decoration:none;">
+               style="display:inline-block;padding:12px 24px;font-size:16px;line-height:1.25;font-weight:600;color:<?= $on_brand ?>;text-decoration:none;">
                 Open my day
             </a>
         </td>

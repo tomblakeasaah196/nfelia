@@ -253,6 +253,19 @@ $flash = get_flash();
             </li>
             <li class="fix" data-reveal>
                 <div class="fix-media">
+                    <div class="phone"><img src="<?= $img ?>/tasks-phone.webp" width="780" height="1688" loading="lazy" alt="Ivie's tasks: an order to deliver in 2 days, a payment 5 days late, a delivery 1 day late, a delivery due today and a 2pm wig install"></div>
+                </div>
+                <div class="fix-copy">
+                    <h3>Never miss a delivery date</h3>
+                    <p>Deliveries, fittings and money due, on one list every morning. A countdown shows what is due and what is late, so no customer is left waiting.</p>
+                    <ul class="ticks">
+                        <li><?= nf_icon('check') ?>Reminders on your phone and by email</li>
+                        <li><?= nf_icon('check') ?>Ready-made plans for sewing jobs and events</li>
+                    </ul>
+                </div>
+            </li>
+            <li class="fix" data-reveal>
+                <div class="fix-media">
                     <div class="laptop">
                         <div class="laptop-screen"><img src="<?= $img ?>/dashboard-laptop.webp" width="1440" height="900" loading="lazy" alt="Dashboard: today's sales, money owed to you and products running low"></div>
                         <div class="laptop-base"></div>
@@ -292,6 +305,8 @@ $flash = get_flash();
             <li><?= nf_icon('globe') ?><div><strong>Nothing to install</strong><span>Open it in the browser on any smartphone.</span></div></li>
             <li><?= nf_icon('users') ?><div><strong>Staff accounts</strong><span>Give each staff member their own login.</span></div></li>
             <li><?= nf_icon('bell') ?><div><strong>Low-stock alerts</strong><span>Know what to restock before customers ask.</span></div></li>
+            <li><?= nf_icon('calendar') ?><div><strong>Appointments</strong><span>Book fittings and visits, and remind customers on WhatsApp.</span></div></li>
+            <li><?= nf_icon('check-circle') ?><div><strong>Tasks for your staff</strong><span>Give a job to anyone on your team. It shows on their own list.</span></div></li>
         </ul>
     </div>
 </section>
@@ -397,6 +412,7 @@ $flash = get_flash();
                     <li><?= nf_icon('check') ?>Debt tracker with WhatsApp reminders</li>
                     <li><?= nf_icon('check') ?>Stock tracking for up to <?= number_format(MAX_PRODUCTS) ?> products</li>
                     <li><?= nf_icon('check') ?>Monthly profit report</li>
+                    <li><?= nf_icon('check') ?>Tasks and calendar with reminders</li>
                     <li><?= nf_icon('check') ?>Delivery notes your customer signs</li>
                     <li><?= nf_icon('check') ?>Your own online shop link</li>
                     <li><?= nf_icon('check') ?>Free setup help on WhatsApp</li>
@@ -417,6 +433,10 @@ $flash = get_flash();
             <details>
                 <summary>Do I need a laptop or a lot of data?</summary>
                 <p>No laptop needed. Nfelia opens in the browser on any smartphone, with nothing to install. It needs a little data, like WhatsApp does. Use a laptop too if you like; your records are the same on both.</p>
+            </details>
+            <details>
+                <summary>Will it remind me?</summary>
+                <p>Yes. On mornings with something planned, Nfelia emails you the day at 7am: deliveries, appointments and money due. Any task can also remind you at the time you choose, by email and on your phone. On iPhone, add Nfelia to your Home Screen first (tap Share, then Add to Home Screen).</p>
             </details>
             <details>
                 <summary>What happens after the 14 days?</summary>
