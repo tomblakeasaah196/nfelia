@@ -168,6 +168,7 @@ $tabs = [
                         <th class="px-4 py-2 text-left">Users</th>
                         <th class="px-4 py-2 text-left">Last Login</th>
                         <th class="px-4 py-2 text-left">Created</th>
+                        <th class="px-4 py-2 text-left">Shop by Nfelia</th>
                         <th class="px-4 py-2 text-left">Actions</th>
                     </tr>
                 </thead>
@@ -186,6 +187,16 @@ $tabs = [
                         <td class="px-4 py-2.5 text-gray-600"><?= $biz['user_count'] ?>/<?= ($biz['user_seats'] ?? 1) + ($biz['extra_seats'] ?? 0) ?></td>
                         <td class="px-4 py-2.5 text-gray-400 text-xs"><?= $biz['last_login'] ? date('M j, g:ia', strtotime($biz['last_login'])) : 'Never' ?></td>
                         <td class="px-4 py-2.5 text-gray-400 text-xs"><?= date('M j, Y', strtotime($biz['created_at'])) ?></td>
+                        <td class="px-4 py-2.5">
+                            <?php $hidden = (int)($biz['hide_nfelia_credit'] ?? 0) === 1; ?>
+                            <form method="POST" action="<?= APP_URL ?>/admin/shop-credit" class="flex items-center gap-2">
+                                <?= csrf_field() ?>
+                                <input type="hidden" name="business_id" value="<?= (int)$biz['id'] ?>">
+                                <input type="hidden" name="hide" value="<?= $hidden ? '0' : '1' ?>">
+                                <span class="text-xs <?= $hidden ? 'text-green-700' : 'text-gray-500' ?>"><?= $hidden ? 'Hidden (add-on)' : 'Shown' ?></span>
+                                <button class="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs hover:bg-gray-200"><?= $hidden ? 'Show it' : 'Hide it' ?></button>
+                            </form>
+                        </td>
                         <td class="px-4 py-2.5">
                             <div class="flex gap-1">
                                 <?php if (($biz['sub_status'] ?? 'trial') !== 'active'): ?>

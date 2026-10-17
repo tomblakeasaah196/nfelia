@@ -8,11 +8,13 @@
  *
  * GET  /shop-setup          the screen
  * GET  /shop-setup/check    live check for a name (JSON)
+ * GET  /shop-setup/preview  one look, full size, with the owner's own products
  * POST /shop-setup/save     save the link and the look
- * POST /shop-setup/rename   the one rename owners get, from Landing Page
+ * POST /shop-setup/rename   the one rename owners get, from Shop Studio
  *
  * Names that look like a bank, telco, government body or an official account
  * wait for the founder in Admin → Shop names; everything else is live at once.
+ * A name given up in a rename stays with its shop for 90 days (shop_name_hold).
  */
 class ShopSetupController {
 
@@ -80,7 +82,7 @@ class ShopSetupController {
             $errors['look'] = 'Choose one of the ten looks.';
         }
 
-        // A live link is changed from Landing Page, not here. Without one, the
+        // A live link is changed from Shop Studio, not here. Without one, the
         // name is checked again: the live check only helps while typing.
         $result = null;
         if ($business['subdomain'] === null) {
@@ -103,10 +105,12 @@ class ShopSetupController {
                     SET subdomain = ?, subdomain_requested = NULL, subdomain_status = 'active', subdomain_requested_at = NULL
                     WHERE id = ?
                 ")->execute([$result['name'], $this->biz_id]);
+                shop_name_release($this->biz_id, $result['name']);
             } elseif ($result && $result['state'] === 'review') {
                 $this->request_review($business, $result['name']);
             }
             $this->db->prepare("UPDATE businesses SET storefront_look = ? WHERE id = ?")->execute([$look, $this->biz_id]);
+            $this->apply_look($business, $look);
             $this->db->commit();
         } catch (PDOException $e) {
             $this->db->rollBack();
@@ -122,9 +126,10 @@ class ShopSetupController {
         }
 
         unset($_SESSION['business']['shop_ready']);   // auth_check works it out again
+        storefront_purge($this->biz_id);
 
         if (!$result) {
-            // Only the look changed: the owner came from Landing Page
+            // Only the look changed: the owner came from Shop Studio
             flash('success', 'Your shop\'s look is saved.');
             redirect('landing-page');
         }
@@ -137,9 +142,33 @@ class ShopSetupController {
     }
 
     /* ──────────────────────────────────────────
+     *  ONE LOOK, FULL SIZE — GET /shop-setup/preview?look=buka
+     *  For the setup screen: the shop drawn in that look with the owner's
+     *  own products and words. Private and never cached; it can't take
+     *  orders.
+     * ────────────────────────────────────────── */
+    public function preview() {
+        if (!is_owner()) { redirect('dashboard'); }
+        $look = (string)($_GET['look'] ?? '');
+        if (!isset(STOREFRONT_LOOKS[$look])) {
+            not_found();
+        }
+        $business = $this->business();
+        $settings = storefront_settings($business, 'draft');
+        $settings['look']    = $look;
+        $settings['colours'] = ['set' => 'look'];
+        $settings['font']    = '';
+
+        header('Cache-Control: private, no-store');
+        header('X-Robots-Tag: noindex, nofollow');
+        storefront_render($business, $settings, 'look');
+    }
+
+    /* ──────────────────────────────────────────
      *  CHANGE THE LINK — POST /shop-setup/rename
      *  Owners get one rename after the first claim; then support does it.
-     *  The old name stops working straight away and is free for others.
+     *  The old name stays with the shop for 90 days and sends visitors on
+     *  to the new one; after that it is free for others.
      * ────────────────────────────────────────── */
     public function rename() {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') { redirect('landing-page'); }
@@ -171,17 +200,23 @@ class ShopSetupController {
 
         try {
             if ($result['state'] === 'ok') {
+                $this->db->beginTransaction();
                 $this->db->prepare("
                     UPDATE businesses
                     SET subdomain = ?, subdomain_renames = subdomain_renames + 1, subdomain_status = 'active'
                     WHERE id = ?
                 ")->execute([$result['name'], $this->biz_id]);
-                flash('success', 'Your shop link is now ' . $result['name'] . '.' . shop_base_host() . '.');
+                shop_name_hold($this->biz_id, $business['subdomain']);
+                shop_name_release($this->biz_id, $result['name']);
+                $this->db->commit();
+                storefront_purge($this->biz_id, [$business['subdomain']]);
+                flash('success', 'Your shop link is now ' . $result['name'] . '.' . shop_base_host() . '. Your old link sends people to it for the next 90 days.');
             } else {
                 $this->request_review($business, $result['name']);
                 flash('warning', "We're checking " . $result['name'] . '.' . shop_base_host() . '. Your current link keeps working until then.');
             }
         } catch (PDOException $e) {
+            if ($this->db->inTransaction()) { $this->db->rollBack(); }
             if ($e->getCode() !== '23000') { throw $e; }
             flash('error', 'Another shop took this name a moment ago. Try another one.');
         }
@@ -189,6 +224,25 @@ class ShopSetupController {
     }
 
     /* ── Helpers ── */
+
+    /**
+     * Choosing a look here changes the shop straight away, as it always has:
+     * Shop Studio's draft and the published settings both move to the new
+     * look, with its own colours and fonts. Sections and words stay.
+     */
+    private function apply_look(array $business, string $look): void {
+        foreach (['storefront_draft', 'storefront_published'] as $column) {
+            if (empty($business[$column])) {
+                continue;
+            }
+            $settings = storefront_normalise(json_decode((string)$business[$column], true) ?: [], $business);
+            $settings['look']    = $look;
+            $settings['colours'] = ['set' => 'look'];
+            $settings['font']    = '';
+            $this->db->prepare("UPDATE businesses SET {$column} = ? WHERE id = ?")
+                     ->execute([json_encode($settings, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), $this->biz_id]);
+        }
+    }
 
     private function business(): array {
         $stmt = $this->db->prepare("SELECT * FROM businesses WHERE id = ?");

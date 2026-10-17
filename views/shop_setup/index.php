@@ -3,9 +3,12 @@
  * Nfelia — Shop setup (renders inside views/layouts/app.php)
  *
  * The shop's link and its look on one screen. Owners land here until both are
- * chosen; afterwards it is where the look is changed (the link is changed from
- * Landing Page). The name field is assets/js/shop-link.js. The server checks
+ * chosen; afterwards looks are usually changed in Shop Studio, where the link
+ * is changed too. The name field is assets/js/shop-link.js. The server checks
  * everything again on save.
+ *
+ * Each look has a "See it full size" button: a dialog shows the owner's own
+ * shop in that look (ShopSetupController::preview).
  *
  * Available from ShopSetupController::index():
  *   $live_name, $pending_name, $was_rejected, $first_setup, $suggestions,
@@ -34,7 +37,7 @@ $look_fonts_url = 'https://fonts.googleapis.com/css2?' . implode('&', array_uniq
         <p class="mt-2 text-base text-[#5B4650]">
             <?= $first_setup
                 ? 'Choose the address people will use to find your shop, and how your shop looks. You need both to carry on.'
-                : 'Choose how your shop looks. Your link is changed from Landing Page.' ?>
+                : 'Choose how your shop looks. Your link is changed from Shop Studio.' ?>
         </p>
     </div>
 
@@ -117,7 +120,7 @@ $look_fonts_url = 'https://fonts.googleapis.com/css2?' . implode('&', array_uniq
         <section class="bg-white border border-brand-sand rounded-xl p-5">
             <fieldset>
                 <legend class="font-heading font-bold text-lg">Your look</legend>
-                <p class="mt-1 text-sm text-[#5B4650]">Pick the style that suits what you sell. You can change it later.</p>
+                <p class="mt-1 text-sm text-[#5B4650]">Pick the style that suits what you sell. See any of them full size with your own products. You can change it later.</p>
                 <?php if (!empty($errors['look'])): ?>
                     <p class="mt-2 text-sm font-medium text-[#B42318]"><?= e($errors['look']) ?></p>
                 <?php endif; ?>
@@ -126,6 +129,7 @@ $look_fonts_url = 'https://fonts.googleapis.com/css2?' . implode('&', array_uniq
                     <?php foreach (STOREFRONT_LOOKS as $key => $look):
                         $button_shape = $look['shape'] === '50%' ? '9999px' : $look['shape'];
                     ?>
+                    <div class="flex flex-col gap-1">
                     <label class="relative block cursor-pointer rounded-xl border border-brand-sand bg-white p-2 hover:border-brand-burgundy/50
                                   has-[:checked]:border-brand-burgundy has-[:checked]:ring-2 has-[:checked]:ring-brand-burgundy
                                   has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-brand-burgundy">
@@ -149,6 +153,9 @@ $look_fonts_url = 'https://fonts.googleapis.com/css2?' . implode('&', array_uniq
                         <span class="block mt-2 px-1 text-sm font-semibold"><?= e($look['name']) ?></span>
                         <span class="block px-1 pb-1 text-xs text-[#5B4650] leading-snug"><?= e($look['for']) ?></span>
                     </label>
+                    <button type="button" class="min-h-[44px] px-2 rounded-xl text-sm font-semibold text-brand-burgundy underline underline-offset-4 hover:text-[#5E0032]"
+                            data-look-preview="<?= e($key) ?>" data-look-name="<?= e($look['name']) ?>">See it full size<span class="sr-only">: <?= e($look['name']) ?></span></button>
+                    </div>
                     <?php endforeach; ?>
                 </div>
             </fieldset>
@@ -156,7 +163,7 @@ $look_fonts_url = 'https://fonts.googleapis.com/css2?' . implode('&', array_uniq
 
         <div class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-3">
             <?php if (!$first_setup): ?>
-                <a href="<?= APP_URL ?>/landing-page" class="h-12 px-5 inline-flex items-center justify-center rounded-xl text-base font-semibold text-[#5B4650] hover:text-[#1F0A14]">Back to Landing Page</a>
+                <a href="<?= APP_URL ?>/landing-page" class="h-12 px-5 inline-flex items-center justify-center rounded-xl text-base font-semibold text-[#5B4650] hover:text-[#1F0A14]">Back to Shop Studio</a>
             <?php endif; ?>
             <button type="submit" <?= $live_name ? '' : ':disabled="!canSubmit"' ?>
                     class="h-12 px-6 rounded-xl bg-brand-burgundy text-white text-base font-bold hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed">
@@ -166,4 +173,41 @@ $look_fonts_url = 'https://fonts.googleapis.com/css2?' . implode('&', array_uniq
     </form>
 </div>
 
+<!-- One look, full size, with the owner's own shop -->
+<dialog id="look-preview" aria-labelledby="look-preview-title"
+        class="m-0 p-0 w-full h-full max-w-none max-h-none bg-[#F1E8EC] backdrop:bg-black/50 sm:m-auto sm:w-[min(980px,94vw)] sm:h-[90vh] sm:rounded-2xl">
+    <div class="flex flex-col h-full">
+        <div class="flex items-center gap-2 px-3 py-2 bg-white border-b border-brand-sand">
+            <h2 id="look-preview-title" class="flex-1 min-w-0 font-heading font-bold text-base truncate px-1">Look</h2>
+            <button type="button" data-look-use class="h-11 px-4 rounded-xl bg-brand-burgundy text-white text-sm font-bold">Use this look</button>
+            <button type="button" data-look-close class="h-11 w-11 inline-flex items-center justify-center rounded-xl text-[#1F0A14] hover:bg-[#F8EEF3]" aria-label="Close the preview">
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
+            </button>
+        </div>
+        <iframe class="flex-1 w-full bg-white" title="Your shop in this look" data-look-frame></iframe>
+    </div>
+</dialog>
+<script>
+(function () {
+    var dialog = document.getElementById('look-preview');
+    if (!dialog || !dialog.showModal) { return; }
+    var frame = dialog.querySelector('[data-look-frame]');
+    var current = null;
+    document.querySelectorAll('[data-look-preview]').forEach(function (button) {
+        button.addEventListener('click', function () {
+            current = button.dataset.lookPreview;
+            dialog.querySelector('#look-preview-title').textContent = button.dataset.lookName + ' with your shop';
+            frame.src = <?= json_encode(APP_URL . '/shop-setup/preview?look=', JSON_UNESCAPED_SLASHES) ?> + encodeURIComponent(current);
+            dialog.showModal();
+        });
+    });
+    dialog.querySelector('[data-look-close]').addEventListener('click', function () { dialog.close(); });
+    dialog.querySelector('[data-look-use]').addEventListener('click', function () {
+        var radio = document.querySelector('input[name="look"][value="' + current + '"]');
+        if (radio) { radio.checked = true; radio.focus(); }
+        dialog.close();
+    });
+    dialog.addEventListener('close', function () { frame.src = 'about:blank'; });
+})();
+</script>
 <script src="<?= APP_URL ?>/assets/js/shop-link.js?v=2"></script>

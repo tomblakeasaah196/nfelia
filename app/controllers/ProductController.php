@@ -14,6 +14,12 @@ class ProductController {
         }
         $this->db     = get_db();
         $this->biz_id = auth_business_id();
+
+        // Any change to products changes the shop page: once this request
+        // is answered, Cloudflare drops its copy of the shop (cloudflare.php)
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            storefront_purge((int)$this->biz_id);
+        }
     }
 
     /* ──────────────────────────────────────────

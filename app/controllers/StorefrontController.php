@@ -14,14 +14,28 @@
  * Whether the shop is shown comes from its subscription (shop_visibility):
  * trial shops are open but kept out of search engines, and a shop whose trial
  * or grace period is over shows "closed for now" with its WhatsApp button.
+ *
+ * A name a shop gave up when it renamed stays with that shop for 90 days
+ * (shop_name_holds): visits are sent on to its new address.
+ *
+ * Only the shop page and the redirects from old names may be cached, for
+ * five minutes (render_shop, moved); notices and everything else are marked
+ * no-store.
  */
 class StorefrontController extends PublicController
 {
     public function handle(string $label, string $path): void
     {
-        $business = preg_match('/^[a-z0-9-]{1,63}$/', $label)
-            ? shop_find_by_name($label)
-            : null;
+        header('Cache-Control: no-store');
+        $valid    = (bool)preg_match('/^[a-z0-9-]{1,63}$/', $label);
+        $business = $valid ? shop_find_by_name($label) : null;
+        $method   = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+
+        // An old name on hold sends people to the shop's new address
+        if (!$business && $valid && ($holder = shop_name_holder($label)) && (int)$holder['landing_enabled']) {
+            $this->moved($holder, $path, $method);
+            return;
+        }
 
         // Names waiting for review, retired names and shops whose owner
         // switched the page off all look the same from outside.
@@ -31,7 +45,6 @@ class StorefrontController extends PublicController
         }
 
         $visibility = shop_visibility($this->subscription((int)$business['id']));
-        $method     = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
         if ($path === '' && in_array($method, ['GET', 'HEAD'], true)) {
             if ($visibility === 'closed') {
@@ -56,6 +69,22 @@ class StorefrontController extends PublicController
             'action_url'   => shop_url($business['subdomain']),
             'action_label' => 'Go to the shop',
         ]);
+    }
+
+    /**
+     * A renamed shop's old address: pages go to the new one (302, so nothing
+     * is remembered once the hold ends); an order from a page opened before
+     * the rename is told to reload rather than lost in a redirect.
+     */
+    private function moved(array $holder, string $path, string $method): void
+    {
+        $target = shop_url($holder['subdomain'], $path);
+        if (!in_array($method, ['GET', 'HEAD'], true)) {
+            json_response(['error' => 'This shop has a new address: ' . $target . '. Reload the page and try again.'], 410);
+        }
+        header('Cache-Control: public, max-age=0, s-maxage=300');
+        header('Location: ' . $target, true, 302);
+        exit;
     }
 
     private function subscription(int $business_id): ?array

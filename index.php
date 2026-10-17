@@ -22,6 +22,8 @@ require_once __DIR__ . '/app/helpers/mail.php';
 require_once __DIR__ . '/app/helpers/webpush.php';
 require_once __DIR__ . '/app/helpers/planner.php';
 require_once __DIR__ . '/app/helpers/shop_links.php';
+require_once __DIR__ . '/app/helpers/storefront.php';
+require_once __DIR__ . '/app/helpers/cloudflare.php';
 
 // --- GLOBAL EXCEPTION & FATAL ERROR HANDLER ---
 // Start output buffering so we can erase half-loaded pages if a crash happens
@@ -51,6 +53,14 @@ register_shutdown_function(function () {
     }
 });
 
+// --- PHOTO COPIES ---
+// Shops ask for WebP copies of their photos at a few widths. The first
+// request for each copy lands here (the file isn't there yet) and makes it;
+// from then on the web server sends the file itself.
+if (str_starts_with(trim($_GET['url'] ?? '', '/'), 'uploads/cache/')) {
+    storefront_serve_variant(trim($_GET['url'], '/'));
+}
+
 // --- SHOP LINKS ---
 // name.nfelia.com is a shop. It is served before any session starts, so
 // shoppers never get a cookie and their pages stay cacheable.
@@ -71,7 +81,7 @@ $segments = $url ? explode('/', $url) : [];
 
 // Visitors get the landing page at /. Signed-in users, and anyone holding a
 // "keep me signed in" cookie, carry on to the dashboard below.
-if ($url === '' && !is_logged_in() && !isset($_COOKIE['nfelia_remember'])) {
+if ($url === '' && !is_logged_in() && !isset($_COOKIE[REMEMBER_COOKIE])) {
     if (empty($_SESSION['csrf_token'])) {
         csrf_regenerate();   // the feedback form on the page posts with it
     }

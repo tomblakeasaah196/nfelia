@@ -83,11 +83,11 @@ $sections = [
     [
         'id'    => 'landing-page',
         'icon'  => '<path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418"/>',
-        'title' => 'Landing Page',
+        'title' => 'Shop Studio',
         'steps' => [
-            ['title' => 'Enable Your Page', 'text' => 'Go to <strong>Landing Page</strong> and toggle it on. A public URL is generated automatically from your business name.'],
-            ['title' => 'Customise', 'text' => 'Add your About text, social media handles, a YouTube video link, and pick which products to feature. Everything updates instantly on your live page.'],
-            ['title' => 'Share', 'text' => 'Copy your public link and share it anywhere — WhatsApp, Instagram bio, Facebook. Customers see your branded catalogue page.'],
+            ['title' => 'Pick a look', 'text' => 'Go to <strong>Shop Studio</strong> and choose one of ten looks. Try the colour sets, colours from your logo and the fonts: the preview changes as you tap.'],
+            ['title' => 'Arrange your sections', 'text' => 'Switch sections on or off, drag them into order, and tap one to change its words, photo or questions.'],
+            ['title' => 'Publish and share', 'text' => 'Changes stay in a draft until you tap <strong>Publish</strong>. Copy your shop link from the More tab and share it on WhatsApp, Instagram or anywhere.'],
         ],
     ],
     [

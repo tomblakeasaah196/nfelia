@@ -416,98 +416,16 @@ class PublicController
         if ($visibility !== "live") {
             header("X-Robots-Tag: noindex, nofollow");
         }
-        /* Featured product filter */
-        $featured_ids =
-            json_decode($business["featured_product_ids"] ?? "[]", true) ?: [];
-        $featured_filter = "";
-        $featured_params = [$business["id"]];
-        if (!empty($featured_ids)) {
-            $placeholders = implode(
-                ",",
-                array_fill(0, count($featured_ids), "?"),
-            );
-            $featured_filter = " AND id IN ({$placeholders})";
-            $featured_params = array_merge($featured_params, $featured_ids);
-        } /* Products (active, non-deleted, not services) */
-        $stmtProd = $this->db->prepare(
-            " SELECT id, name, description, category, image_path, sell_price, unit, is_service FROM products WHERE business_id = ? AND deleted_at IS NULL AND is_active = 1 AND is_service = 0{$featured_filter} ORDER BY category ASC, name ASC ",
+        /* The page is the same for every shopper and sets no cookie, so
+           Cloudflare may keep it for five minutes (browsers check back every
+           time). Publishing or editing products purges it sooner. */
+        header("Cache-Control: public, max-age=0, s-maxage=300");
+        storefront_render(
+            $business,
+            storefront_settings($business, "published"),
+            "live",
+            $visibility,
         );
-        $stmtProd->execute($featured_params);
-        $products = $stmtProd->fetchAll(); /* Services (active, non-deleted, is_service = 1) */
-        $stmtServ = $this->db->prepare(
-            " SELECT id, name, description, category, image_path, sell_price, unit, is_service FROM products WHERE business_id = ? AND deleted_at IS NULL AND is_active = 1 AND is_service = 1{$featured_filter} ORDER BY category ASC, name ASC ",
-        );
-        $stmtServ->execute($featured_params);
-        $services = $stmtServ->fetchAll(); /* YouTube embed ID */
-        $youtube_id = null;
-        if (!empty($business["youtube_url"])) {
-            if (
-                preg_match(
-                    "/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([\w\-]{11})/",
-                    $business["youtube_url"],
-                    $ym,
-                )
-            ) {
-                $youtube_id = $ym[1];
-            }
-        } /* Unique categories */
-        $categories = [];
-        foreach (array_merge($products, $services) as $item) {
-            if (
-                !empty($item["category"]) &&
-                !in_array($item["category"], $categories)
-            ) {
-                $categories[] = $item["category"];
-            }
-        }
-        sort($categories); /* Default bank account for payment info */
-        $stmtBank = $this->db->prepare(
-            " SELECT * FROM bank_accounts WHERE business_id = ? AND is_default = 1 ORDER BY sort_order ASC LIMIT 1 ",
-        );
-        $stmtBank->execute([$business["id"]]);
-        $bank = $stmtBank->fetch(); /* If no default bank, grab any first one */
-        if (!$bank) {
-            $stmtBank2 = $this->db->prepare(
-                " SELECT * FROM bank_accounts WHERE business_id = ? ORDER BY sort_order ASC LIMIT 1 ",
-            );
-            $stmtBank2->execute([$business["id"]]);
-            $bank = $stmtBank2->fetch();
-        } /* All bank accounts for the checkout payment-details selector */
-        $stmtBanks = $this->db->prepare(
-            "SELECT * FROM bank_accounts WHERE business_id = ? ORDER BY is_default DESC, sort_order ASC",
-        );
-        $stmtBanks->execute([$business["id"]]);
-        $all_banks = $stmtBanks->fetchAll(); /* Product images (for gallery modal) */
-        $stmtImgs = $this->db->prepare(
-            " SELECT product_id, image_path, sort_order, is_cover FROM product_images WHERE business_id = ? ORDER BY sort_order ASC ",
-        );
-        $stmtImgs->execute([$business["id"]]);
-        $all_product_images = [];
-        foreach ($stmtImgs->fetchAll() as $img) {
-            $all_product_images[$img["product_id"]][] = $img;
-        } /* Product variant groups + options (for dropdowns) */
-        $stmtVars = $this->db->prepare(
-            " SELECT pvg.id as group_id, pvg.product_id, pvg.name as group_name, pvo.id as option_id, pvo.label as option_label FROM product_variant_groups pvg LEFT JOIN product_variant_options pvo ON pvo.variant_group_id = pvg.id WHERE pvg.business_id = ? ORDER BY pvg.product_id, pvg.sort_order, pvo.sort_order ",
-        );
-        $stmtVars->execute([$business["id"]]);
-        $all_variants = [];
-        foreach ($stmtVars->fetchAll() as $row) {
-            $pid = $row["product_id"];
-            $gid = $row["group_id"];
-            if (!isset($all_variants[$pid][$gid])) {
-                $all_variants[$pid][$gid] = [
-                    "name" => $row["group_name"],
-                    "options" => [],
-                ];
-            }
-            if ($row["option_label"]) {
-                $all_variants[$pid][$gid]["options"][] = $row["option_label"];
-            }
-        } /* RFQ fields config */
-        $rfq_fields =
-            json_decode($business["rfq_fields"] ?? "{}", true) ?:
-            []; /* Render standalone view */
-        require_once BASE_PATH . "/views/public/business.php";
     } /* ────────────────────────────────────────── * API: Generate Server-Side PDF * GET /doc/{token}?format=pdf * *──────────────────────────────────────────*/
     public function download_pdf(string $token): void
     {

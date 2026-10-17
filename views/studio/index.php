@@ -1,0 +1,257 @@
+<?php
+/**
+ * Nfelia — Shop Studio (a standalone page, outside the app layout, so the
+ * preview can have the whole screen)
+ *
+ * Phone first: the preview on top and a sheet of controls below it; on a
+ * computer, the controls on the left and the preview on the right. The
+ * lists in the tabs are drawn by assets/js/studio.js from #st-data; the
+ * shop-link card is drawn here because it is an ordinary form.
+ *
+ * Available from LandingPageController::settings(): $business, $draft,
+ * $published, $products, $theme, $public_url, $shop_host, $pending_name,
+ * $can_rename, $unpublished.
+ */
+$json_flags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES;
+$asset = fn(string $path) => APP_URL . '/' . $path . '?v=' . (@filemtime(BASE_PATH . '/' . $path) ?: '1');
+$icon  = fn(string $name, int $size = 22) => sf_icon($name, $size);
+
+$looks = [];
+foreach (storefront_looks() as $key => $look) {
+    $looks[] = ['key' => $key, 'name' => $look['name'], 'kind' => $look['kind'], 'pair' => $look['pair'],
+                'colours' => $look['colours'], 'band' => $look['band'], 'shape' => $look['shape'], 'labels' => $look['labels'],
+                'thumb' => STOREFRONT_LOOKS[$key]['shape']];
+}
+$fonts = [];
+foreach (storefront_fonts() as $key => $font) {
+    $fonts[$key] = array_intersect_key($font, array_flip(['name', 'head_stack', 'body_stack', 'weight', 'stretch', 'scale']))
+                 + ['url' => storefront_fonts_url($key)];
+}
+$types = [];
+foreach (storefront_section_types() as $key => $type) {
+    if ($type['available']) {
+        $types[$key] = $type;
+    }
+}
+$currency = trim((string)($business['currency_symbol'] ?? '')) ?: '₦';
+$product_list = [];
+foreach ($products as $p) {
+    $thumb = $p['image_path'] && sf_image_size((string)$p['image_path']) ? sf_media_url((string)$p['image_path']) : '';
+    $product_list[] = ['id' => (int)$p['id'], 'name' => $p['name'], 'price' => sf_money((float)$p['sell_price'], $currency),
+                       'service' => (bool)$p['is_service'], 'thumb' => $thumb];
+}
+$logo = (string)($business['logo_path'] ?? '');
+$logo_url = $logo !== '' && str_starts_with($logo, 'uploads/') && is_file(BASE_PATH . '/' . $logo) ? sf_media_url($logo) : '';
+
+$studio = [
+    'csrf'        => csrf_token(),
+    'urls'        => [
+        'save'       => APP_URL . '/landing-page/save-draft',
+        'publish'    => APP_URL . '/landing-page/publish',
+        'versions'   => APP_URL . '/landing-page/versions',
+        'restore'    => APP_URL . '/landing-page/restore-version',
+        'upload'     => APP_URL . '/landing-page/upload-image',
+        'visibility' => APP_URL . '/landing-page/visibility',
+        'preview'    => APP_URL . '/landing-page/preview',
+        'check'      => APP_URL . '/shop-setup/check',
+        'products'   => APP_URL . '/products/create',
+        'settings'   => APP_URL . '/settings?tab=business',
+    ],
+    'settings'    => $draft,
+    'unpublished' => $unpublished,
+    'published'   => $published !== null,
+    'theme'       => ['vars' => $theme['vars'], 'dark' => $theme['palette']['dark'], 'pair' => $theme['pair'], 'fonts_url' => $theme['fonts_url'], 'accent' => $theme['palette']['accent']],
+    'looks'       => $looks,
+    'fonts'       => $fonts,
+    'sets'        => storefront_colour_sets(),
+    'types'       => $types,
+    'products'    => $product_list,
+    'business'    => ['name' => (string)$business['name'], 'logo' => $logo_url, 'currency' => $currency,
+                      'tagline' => (string)($business['tagline'] ?? ''), 'base' => shop_base_host()],
+    'visible'     => (bool)(int)$business['landing_enabled'],
+];
+
+// Each look's heading font, cut down to the letters the Studio shows: the
+// shop's name on the font cards and "Aa" on the look cards
+$sample   = mb_substr((string)$business['name'], 0, 40) . 'Aa';
+$families = ['Bodoni+Moda:wght@600', 'Agbalumo', 'Gloock', 'Archivo:wdth,wght@125,800', 'Barlow+Condensed:wght@700',
+             'Unbounded:wght@600', 'Big+Shoulders+Stencil:wght@800', 'Young+Serif', 'Familjen+Grotesk:wght@700', 'Gabarito:wght@800'];
+$samples_url = 'https://fonts.googleapis.com/css2?family=' . implode('&family=', $families) . '&text=' . rawurlencode($sample) . '&display=swap';
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="theme-color" content="#FFFFFF">
+    <title>Shop Studio — <?= e($business['name']) ?> | Nfelia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
+    <link rel="stylesheet" href="<?= e($samples_url) ?>">
+    <link rel="stylesheet" href="<?= e($asset('assets/css/studio.css')) ?>">
+</head>
+<body>
+<div class="st-app" data-studio>
+
+    <header class="st-top">
+        <a class="st-iconbtn" href="<?= e(APP_URL) ?>/dashboard" aria-label="Back to your dashboard"><?= $icon('left') ?></a>
+        <div class="st-top__title">
+            <h1>Shop Studio</h1>
+            <p class="st-status" role="status" aria-live="polite" data-status><?= $unpublished && $published !== null
+                ? 'You have changes that aren\'t published yet.'
+                : 'Changes stay in a draft until you publish.' ?></p>
+        </div>
+        <div class="st-top__tools">
+            <button type="button" class="st-iconbtn" data-undo aria-label="Undo" disabled><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
+            <button type="button" class="st-iconbtn" data-redo aria-label="Redo" disabled><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>
+        </div>
+        <button type="button" class="st-btn st-btn--primary st-publish" data-publish <?= $unpublished ? '' : 'disabled' ?>><?= $unpublished ? 'Publish' : 'Published' ?></button>
+    </header>
+
+    <main class="st-main">
+        <section class="st-preview" aria-label="Preview of your draft">
+            <div class="st-preview__bar">
+                <p class="st-preview__host"><?= e($shop_host ?? 'Your shop') ?></p>
+                <div class="st-device" role="group" aria-label="Preview size">
+                    <button type="button" data-device="phone" aria-pressed="true">Phone</button>
+                    <button type="button" data-device="computer" aria-pressed="false">Computer</button>
+                </div>
+                <a class="st-link" href="<?= e(APP_URL) ?>/landing-page/preview" target="_blank" rel="noopener"><?= $icon('sparkle', 16) ?><span>Full preview</span></a>
+            </div>
+            <div class="st-preview__stage" data-stage>
+                <iframe class="st-preview__frame" src="<?= e(APP_URL) ?>/landing-page/preview" title="Preview of your shop" data-frame></iframe>
+            </div>
+        </section>
+
+        <section class="st-panel" aria-label="Change your shop" data-panel>
+            <button type="button" class="st-panel__handle" data-expand aria-expanded="false" aria-label="Make the controls taller"><span></span></button>
+            <div class="st-tabs" role="tablist" aria-label="What to change">
+                <?php foreach (['look' => 'Look', 'colours' => 'Colours', 'fonts' => 'Fonts', 'sections' => 'Sections', 'more' => 'More'] as $key => $label): ?>
+                    <button type="button" role="tab" id="st-tab-<?= $key ?>" aria-controls="st-panel-<?= $key ?>" aria-selected="<?= $key === 'look' ? 'true' : 'false' ?>" tabindex="<?= $key === 'look' ? '0' : '-1' ?>" data-tab="<?= $key ?>"><?= $label ?></button>
+                <?php endforeach; ?>
+            </div>
+
+            <div class="st-panel__body">
+                <div class="st-tabpanel" role="tabpanel" id="st-panel-look" aria-labelledby="st-tab-look" data-tab-panel="look">
+                    <h2 class="st-h2">Pick a look to start from</h2>
+                    <div class="st-looks" data-looks></div>
+                    <p class="st-help">Your products, photos and words stay as they are. Switch looks as often as you like.</p>
+                </div>
+
+                <div class="st-tabpanel" role="tabpanel" id="st-panel-colours" aria-labelledby="st-tab-colours" data-tab-panel="colours" hidden>
+                    <div class="st-block">
+                        <h2 class="st-h2">From your logo</h2>
+                        <?php if ($logo_url !== ''): ?>
+                            <div class="st-logo-row">
+                                <img class="st-logo" src="<?= e($logo_url) ?>" alt="Your logo" data-logo crossorigin="anonymous">
+                                <div class="st-chips st-chips--three" data-logo-sets><p class="st-help">Reading your logo…</p></div>
+                            </div>
+                        <?php else: ?>
+                            <p class="st-help">Add your logo in <a href="<?= e(APP_URL) ?>/settings?tab=business">Settings</a> and we'll suggest colours from it.</p>
+                        <?php endif; ?>
+                    </div>
+                    <div class="st-block">
+                        <h2 class="st-h2">Colour sets</h2>
+                        <div class="st-chips st-chips--five" data-sets></div>
+                    </div>
+                    <div class="st-block">
+                        <h2 class="st-h2">Your own colour</h2>
+                        <label class="st-colour">
+                            <input type="color" data-own-colour value="<?= e($theme['palette']['accent']) ?>">
+                            <span>Pick a colour for buttons and links</span>
+                        </label>
+                        <p class="st-help" data-own-note hidden></p>
+                    </div>
+                    <p class="st-help">Every set is checked so your words stay easy to read, even on a phone in bright sun.</p>
+                </div>
+
+                <div class="st-tabpanel" role="tabpanel" id="st-panel-fonts" aria-labelledby="st-tab-fonts" data-tab-panel="fonts" hidden>
+                    <h2 class="st-h2">Fonts</h2>
+                    <div class="st-fonts" data-fonts></div>
+                </div>
+
+                <div class="st-tabpanel" role="tabpanel" id="st-panel-sections" aria-labelledby="st-tab-sections" data-tab-panel="sections" hidden>
+                    <div data-section-list>
+                        <div class="st-row-head">
+                            <h2 class="st-h2">Sections</h2>
+                            <span class="st-help">Drag, or use the arrows, to reorder</span>
+                        </div>
+                        <ul class="st-sections" data-sections></ul>
+                    </div>
+                    <div class="st-editor" data-editor hidden></div>
+                </div>
+
+                <div class="st-tabpanel" role="tabpanel" id="st-panel-more" aria-labelledby="st-tab-more" data-tab-panel="more" hidden>
+                    <section class="st-card">
+                        <h2 class="st-h2">Your shop link</h2>
+                        <?php if ($public_url): ?>
+                            <p class="st-linkline">
+                                <a href="<?= e($public_url) ?>" target="_blank" rel="noopener"><?= e($shop_host) ?></a>
+                                <button type="button" class="st-btn st-btn--quiet st-btn--sm" data-copy="<?= e($public_url) ?>">Copy link</button>
+                            </p>
+                        <?php else: ?>
+                            <p class="st-help">Your shop doesn't have a live link yet.</p>
+                        <?php endif; ?>
+
+                        <?php if ($pending_name): ?>
+                            <p class="st-note st-note--wait">We're checking <strong><?= e($pending_name . '.' . shop_base_host()) ?></strong>.
+                                <?= $public_url ? 'Your current link keeps working until then.' : 'Your shop goes live as soon as it is approved.' ?></p>
+                        <?php elseif (!$public_url): ?>
+                            <a class="st-btn st-btn--quiet" href="<?= e(APP_URL) ?>/shop-setup">Choose your shop link</a>
+                        <?php elseif ($can_rename): ?>
+                            <details class="st-rename">
+                                <summary>Change link</summary>
+                                <form method="POST" action="<?= e(APP_URL) ?>/shop-setup/rename" data-rename>
+                                    <?= csrf_field() ?>
+                                    <label class="st-label" for="st-rename-name">New shop name</label>
+                                    <div class="st-namefield">
+                                        <input id="st-rename-name" name="shop_name" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="40" aria-describedby="st-rename-status st-rename-rules" data-name-input>
+                                        <span>.<?= e(shop_base_host()) ?></span>
+                                    </div>
+                                    <p class="st-namestatus" id="st-rename-status" role="status" data-name-status></p>
+                                    <p class="st-help" id="st-rename-rules">You can change your link once. Your old link keeps sending people to the new one for 90 days, so update it where you've shared it.</p>
+                                    <button type="submit" class="st-btn st-btn--primary" data-name-submit disabled>Change my link</button>
+                                </form>
+                            </details>
+                        <?php elseif (is_owner()): ?>
+                            <p class="st-help">You've already changed your link once. <a href="<?= e(APP_URL) ?>/contact-support">Contact support</a> to change it again.</p>
+                        <?php endif; ?>
+                    </section>
+
+                    <section class="st-card">
+                        <h2 class="st-h2">Show your shop</h2>
+                        <div class="st-switchrow">
+                            <span id="st-visible-label">Customers can see my shop</span>
+                            <button type="button" class="st-switch" role="switch" aria-checked="<?= (int)$business['landing_enabled'] ? 'true' : 'false' ?>" aria-labelledby="st-visible-label" data-visibility><span></span></button>
+                        </div>
+                        <p class="st-help">When it's off, your link says there is no shop at that address. Your products and orders stay as they are.</p>
+                    </section>
+
+                    <section class="st-card">
+                        <h2 class="st-h2">Earlier versions</h2>
+                        <p class="st-help">Your last ten publishes. Bring one back into your draft, check it, then publish it.</p>
+                        <ul class="st-versions" data-versions><li class="st-help">Loading…</li></ul>
+                    </section>
+
+                    <section class="st-card">
+                        <h2 class="st-h2">“Shop by Nfelia”</h2>
+                        <?php if ((int)($business['hide_nfelia_credit'] ?? 0)): ?>
+                            <p class="st-help">Your shop's footer doesn't show “Shop by Nfelia”.</p>
+                        <?php else: ?>
+                            <p class="st-help">Your shop's footer shows a small “Shop by Nfelia” line. To remove it, <a href="<?= e(APP_URL) ?>/contact-support">ask us about the add-on</a>.</p>
+                        <?php endif; ?>
+                    </section>
+                </div>
+            </div>
+        </section>
+    </main>
+</div>
+
+<p class="st-toast" role="status" aria-live="polite" data-toast></p>
+
+<script type="application/json" id="st-data"><?= json_encode($studio, $json_flags) ?></script>
+<script src="<?= e($asset('assets/js/studio.js')) ?>" defer></script>
+</body>
+</html>
