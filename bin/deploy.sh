@@ -82,6 +82,22 @@ tar cf - --exclude-from="$REPO/.deployignore" -C "$REPO" . \
   | ( cd "$DEPLOYPATH" && tar xpf - --no-overwrite-dir )
 echo "[deploy] tar -> $DEPLOYPATH done"
 
+# Normalise permissions. tar xp preserves the archive's modes, and the
+# archive carries whatever umask was in force when the repo was cloned.
+# A clone made under `umask 077` yields mode 600 files, which tar copies
+# faithfully into the docroot — the web server can then read nothing and
+# every URL 404s. (This happened on 2026-10-17.) Set them explicitly so
+# the deploy never depends on anyone's umask.
+#   u=rwX  owner reads/writes; x only on directories and already-exec files
+#   go=rX  group/other read; traverse directories
+chmod -R u=rwX,go=rX "$DEPLOYPATH"
+
+# ...except the secrets, which must stay owner-only.
+for secret in "$DEPLOYPATH"/.env "$DEPLOYPATH"/.env.*; do
+    [ -f "$secret" ] && chmod 600 "$secret"
+done
+echo "[deploy] permissions normalised"
+
 # --- 3. Composer dependencies ----------------------------------------------
 # -d allow_url_fopen=On because this host's CLI php.ini disables it and
 # Composer needs it to reach packagist.
