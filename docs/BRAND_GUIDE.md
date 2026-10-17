@@ -194,3 +194,9 @@ Body:
 - `android-chrome-512x512.png`
 
 **OG Image:** `/assets/img/nfelia-og-banner.png` (1200×630)
+
+---
+
+## 10. Brand Intro Video
+
+A short logo animation: a gold thread draws the mark, the name rises, and it ends on "The simple way to look big and track everything." Cuts for WhatsApp Status, Reels, TikTok, feed posts and YouTube, and the muted copy on the landing page, are in `docs/brand/video/`, with a note on where to post each.

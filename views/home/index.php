@@ -61,7 +61,7 @@ $flash = get_flash();
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700&family=Caveat:wght@600&family=Plus+Jakarta+Sans:wght@400;600&display=swap">
-    <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/home.css?v=1">
+    <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/home.css?v=2">
     <?php if ($hero_img): ?>
     <link rel="preload" as="image" imagesrcset="<?= $img ?>/hero-640.webp 640w, <?= $img ?>/hero-1024.webp 1024w" imagesizes="(min-width: 960px) 492px, 92vw" fetchpriority="high">
     <?php endif; ?>
@@ -377,8 +377,12 @@ $flash = get_flash();
                     </button>
                 </div>
             <?php else: ?>
-                <div class="video video-soon">
-                    <?= nf_icon('video') ?>
+                <!-- Brand intro: home.js plays it once, muted, when it is in view. The still
+                     of its last frame stays for no JavaScript, reduced motion or Data Saver. -->
+                <div class="video video-intro" data-intro data-src="<?= APP_URL ?>/assets/video/nfelia-intro.mp4" data-start="<?= $img ?>/intro-start.webp">
+                    <img src="<?= $img ?>/intro-end.webp" width="960" height="540" loading="lazy" decoding="async" alt="Nfelia: the simple way to look big and track everything.">
+                </div>
+                <div class="video-note">
                     <strong>Setup video coming soon</strong>
                     <p>Want help now? <a href="<?= e($wa_link($wa_messages[0][2])) ?>" target="_blank" rel="noopener">Message us on WhatsApp</a> and we will set you up.</p>
                 </div>
@@ -543,6 +547,6 @@ $flash = get_flash();
 
 <?php require BASE_PATH . '/views/home/_dialogs.php'; ?>
 
-<script src="<?= APP_URL ?>/assets/js/home.js?v=1" defer></script>
+<script src="<?= APP_URL ?>/assets/js/home.js?v=2" defer></script>
 </body>
 </html>

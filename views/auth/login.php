@@ -20,7 +20,7 @@ $flash = get_flash();
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700&family=Plus+Jakarta+Sans:wght@400;600&display=swap">
-    <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/home.css?v=1">
+    <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/home.css?v=2">
 </head>
 <body class="auth-page">
     <header class="auth-top">
@@ -64,6 +64,6 @@ $flash = get_flash();
     </main>
 
     <p class="auth-links"><a href="<?= APP_URL ?>/">Return to home</a></p>
-    <script src="<?= APP_URL ?>/assets/js/home.js?v=1" defer></script>
+    <script src="<?= APP_URL ?>/assets/js/home.js?v=2" defer></script>
 </body>
 </html>
