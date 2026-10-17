@@ -1,0 +1,6 @@
+/* Source for assets/css/app.css. Build with `npm run build:css`, then commit
+   the output: the server has no Node. */
+@import "tailwindcss/base";
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
+@import "./shell.css";

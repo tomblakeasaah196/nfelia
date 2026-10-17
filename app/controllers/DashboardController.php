@@ -83,7 +83,7 @@ class DashboardController {
         elseif ($hour < 17) $greeting = "Good afternoon";
         else                $greeting = "Good evening";
 
-        $title = "Command Center";
+        $title = "Home";
 
         // Render via layout shell
         $view_file = BASE_PATH . '/views/dashboard/index.php';

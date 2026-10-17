@@ -46,6 +46,14 @@ error_log
 ./vendor
 ./composer.phar
 
+# Build tooling and the sources it builds from. The built files under
+# assets/ are what the site serves.
+./node_modules
+./package.json
+./package-lock.json
+./tailwind.config.js
+./assets/css/src
+
 # Repo-only material. docs/ holds internal audit and brand notes that must
 # never be served. bin/ and db/ are operational, not public.
 ./docs

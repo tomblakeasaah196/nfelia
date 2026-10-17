@@ -7,22 +7,25 @@
 require_once BASE_PATH . '/views/home/_icons.php';
 
 $flash = get_flash();
+// The installed app started signed out: play its opening here.
+$splash = ($_GET['source'] ?? '') === 'pwa';
 ?>
 <!DOCTYPE html>
-<html lang="en-NG">
+<html lang="en-NG"<?= $splash ? ' class="nf-splashing"' : '' ?>>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sign in: Nfelia</title>
     <meta name="description" content="Sign in to your Nfelia business account.">
-    <meta name="theme-color" content="#8B004A">
-    <link rel="icon" type="image/png" sizes="32x32" href="<?= APP_URL ?>/favicon-32x32.png">
+    <meta name="theme-color" content="<?= $splash ? '#6E0039' : '#8B004A' ?>" data-theme-color="#8B004A">
+<?php require BASE_PATH . '/views/partials/pwa_head.php'; ?>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700&family=Plus+Jakarta+Sans:wght@400;600&display=swap">
-    <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/home.css?v=2">
+    <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/home.css?v=3">
 </head>
 <body class="auth-page">
+<?php if ($splash) require BASE_PATH . '/views/partials/nf_splash.php'; ?>
     <header class="auth-top">
         <a class="brand" href="<?= APP_URL ?>/" aria-label="Nfelia home">
             <img src="<?= APP_URL ?>/assets/img/nfelia-mark-email.png" alt="" width="55" height="40">
@@ -64,6 +67,6 @@ $flash = get_flash();
     </main>
 
     <p class="auth-links"><a href="<?= APP_URL ?>/">Return to home</a></p>
-    <script src="<?= APP_URL ?>/assets/js/home.js?v=2" defer></script>
+    <script src="<?= APP_URL ?>/assets/js/home.js?v=3" defer></script>
 </body>
 </html>

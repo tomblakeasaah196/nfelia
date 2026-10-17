@@ -16,17 +16,17 @@ function nfAjax(action, data = {}, method = 'POST') {
     });
 }
 
-// Flash a toast message on screen
+// Flash a toast message on screen. shell.js replaces this with the full
+// version (icon, dismiss, pause while touched) as soon as it loads; this one
+// only covers a call made before then.
 function nfToast(message, type = 'success') {
-    const colors = {
-        success: 'bg-green-600',
-        error:   'bg-red-600',
-        warning: 'bg-amber-500 text-black'
-    };
-    const cls = colors[type] || colors.success;
-    const toast = $('<div class="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-lg shadow-lg text-sm font-semibold text-white ' + cls + '">' + message + '</div>');
-    $('body').append(toast);
-    setTimeout(() => toast.fadeOut(400, () => toast.remove()), 3500);
+    const box = document.getElementById('nf-toasts');
+    if (!box) return;
+    const toast = document.createElement('div');
+    toast.className = 'nf-toast is-' + (['error', 'warning'].includes(type) ? type : 'success');
+    toast.textContent = message;
+    box.appendChild(toast);
+    setTimeout(() => toast.remove(), 4000);
 }
 
 // ---- LIVE PRODUCT SEARCH (Invoice / Quotation builder) ----

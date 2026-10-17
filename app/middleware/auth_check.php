@@ -69,6 +69,10 @@ if (!is_logged_in()) {
             flash('error', 'Session expired. Please log in again.');
             redirect('login');
         }
+    } elseif (($_GET['source'] ?? '') === 'pwa') {
+        // The installed app, opened while signed out: straight to sign-in,
+        // which plays the opening. No scolding message on a fresh start.
+        redirect('login?source=pwa');
     } else {
         flash('error', 'Please log in to continue.');
         redirect('login');
