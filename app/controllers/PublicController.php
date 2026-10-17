@@ -6,14 +6,17 @@
  * /doc/{token} → Public document view (quotation, invoice, or receipt)
  * /delivery/{token} → Public delivery note (business view)
  * /sign/{signoff_token} → Recipient sign-off page (GET = form, POST = submit)
- * /biz/{slug} → Business landing page
- * /public/quote-request → AJAX quote request from landing page
+ * /biz/{slug} → retired; shops now live at name.nfelia.com
+ * /public/quote-request, /public/cart-checkout → retired with /biz (410)
+ *
+ * Shop pages, orders and quote requests are drawn here and served at the
+ * shop's own address by StorefrontController, which extends this class.
  */
 use Dompdf\Dompdf;
 use Dompdf\Options;
 class PublicController
 {
-    private $db;
+    protected $db;
     public function __construct()
     {
         $this->db = get_db();
@@ -56,12 +59,10 @@ class PublicController
             $this->render_receipt($doc);
             return;
         } /* Not found */
-        http_response_code(404);
-        echo '<!DOCTYPE html><html><head><title>Document Not Found</title><script src="https://cdn.tailwindcss.com></script></head>';
-        echo '<body class="min-h-screen flex items-center justify-center bg-gray-50">';
-        echo '<div class="text-center"><h1 class="text-2xl font-bold text-gray-800 mb-2">Document Not Found</h1>';
-        echo '<p class="text-sm text-gray-500">This link may have expired or is invalid.</p></div>';
-        echo "</body></html>";
+        $this->notice([
+            "title" => "We couldn't find this document",
+            "body" => "The link may have expired. Ask the business to send it again.",
+        ]);
     } /* ────────────────────────────────────────── * API: Client Portal Actions (No Auth Required) * *──────────────────────────────────────────*/
     public function document_action($token)
     {
@@ -269,12 +270,10 @@ class PublicController
         $stmt->execute([$token]);
         $delivery = $stmt->fetch();
         if (!$delivery) {
-            http_response_code(404);
-            echo '<!DOCTYPE html><html><head><title>Not Found</title><script src="https://cdn.tailwindcss.com></script></head>';
-            echo '<body class="min-h-screen flex items-center justify-center bg-gray-50">';
-            echo '<div class="text-center"><h1 class="text-2xl font-bold text-gray-800 mb-2">Delivery Not Found</h1>';
-            echo '<p class="text-sm text-gray-500">This link may have expired or is invalid.</p></div>';
-            echo "</body></html>";
+            $this->notice([
+                "title" => "We couldn't find this delivery note",
+                "body" => "The link may have expired. Ask the business to send it again.",
+            ]);
             return;
         }
         $business = $this->get_business($delivery["business_id"]);
@@ -298,12 +297,10 @@ class PublicController
         $stmt->execute([$signoff_token]);
         $delivery = $stmt->fetch();
         if (!$delivery) {
-            http_response_code(404);
-            echo '<!DOCTYPE html><html><head><title>Not Found</title><script src="https://cdn.tailwindcss.com></script></head>';
-            echo '<body class="min-h-screen flex items-center justify-center bg-gray-50">';
-            echo '<div class="text-center"><h1 class="text-2xl font-bold text-gray-800 mb-2">Link Not Found</h1>';
-            echo '<p class="text-sm text-gray-500">This sign-off link may have expired or is invalid.</p></div>';
-            echo "</body></html>";
+            $this->notice([
+                "title" => "This sign-off link doesn't work",
+                "body" => "It may have expired or already been used. Ask the business for a new link.",
+            ]);
             return;
         }
         $business = $this->get_business($delivery["business_id"]);
@@ -401,23 +398,25 @@ class PublicController
             /* Non-critical — don't fail the sign-off if notification insert fails */
         }
         echo json_encode(["success" => true]);
-    } /* ────────────────────────────────────────── * BUSINESS LANDING PAGE /biz/{slug} * *──────────────────────────────────────────*/
-    public function business(string $slug): void
+    } /* ────────────────────────────────────────── * OLD SHOP LINKS /biz/{slug} (retired) * *──────────────────────────────────────────*/
+    public function business($slug = null): void
     {
-        /* Find business by slug */ $stmt = $this->db->prepare(
-            " SELECT * FROM businesses WHERE slug = ? AND landing_enabled = 1 LIMIT 1 ",
-        );
-        $stmt->execute([$slug]);
-        $business = $stmt->fetch();
-        if (!$business) {
-            http_response_code(404);
-            echo '<!DOCTYPE html><html><head><title>Not Found</title><script src="https://cdn.tailwindcss.com></script></head>';
-            echo '<body class="min-h-screen flex items-center justify-center bg-gray-50">';
-            echo '<div class="text-center"><h1 class="text-2xl font-bold text-gray-800 mb-2">Page Not Found</h1>';
-            echo '<p class="text-sm text-gray-500">This business page doesn\'t exist or has been disabled.</p></div>';
-            echo "</body></html>";
-            return;
-        } /* Featured product filter */
+        /* Every shop now has its own address, which its owner chooses at
+           sign-in. Old /biz/ links are not redirected. */
+        $this->notice([
+            "title" => "This shop link no longer works",
+            "body" =>
+                "Shops on Nfelia now have their own address, like yourshop." .
+                shop_base_host() .
+                ". Ask the shop for its new link.",
+        ]);
+    } /* ────────────────────────────────────────── * SHOP PAGE name.nfelia.com (via StorefrontController) * $visibility is 'live' or 'unlisted': unlisted shops stay out of * search engines until their first payment * *──────────────────────────────────────────*/
+    protected function render_shop(array $business, string $visibility): void
+    {
+        if ($visibility !== "live") {
+            header("X-Robots-Tag: noindex, nofollow");
+        }
+        /* Featured product filter */
         $featured_ids =
             json_decode($business["featured_product_ids"] ?? "[]", true) ?: [];
         $featured_filter = "";
@@ -623,34 +622,57 @@ class PublicController
     } /* ────────────────────────────────────────── * AJAX QUOTE REQUEST POST /public/quote-request * *──────────────────────────────────────────*/
     public function quote_request(): void
     {
-        if ($_SERVER["REQUEST_METHOD"] !== "POST") {
-            http_response_code(405);
-            json_response(["error" => "Method not allowed"], 405);
-            return;
-        }
-        $business_id = (int) ($_POST["business_id"] ?? 0);
+        /* Retired with /biz: shops post to their own address now */
+        json_response(
+            [
+                "error" =>
+                    "This shop has moved to its own address. Reload the shop page and try again.",
+            ],
+            410,
+        );
+    }
+    public function cart_checkout(): void
+    {
+        /* Retired with /biz: shops post to their own address now */
+        json_response(
+            [
+                "error" =>
+                    "This shop has moved to its own address. Reload the shop page and try again.",
+            ],
+            410,
+        );
+    } /* ────────────────────────────────────────── * QUOTE REQUEST POST name.nfelia.com/quote-request * The business comes from the shop link, never from the form * *──────────────────────────────────────────*/
+    protected function send_quote_request(array $business): void
+    {
+        $business_id = (int) $business["id"];
         $name = trim($_POST["name"] ?? "");
         $phone = trim($_POST["phone"] ?? "");
         $email = trim($_POST["email"] ?? "");
         $message = trim($_POST["message"] ?? "");
-        $company_name = trim($_POST["company_name"] ?? "");
-        $quantity_range = trim($_POST["quantity_range"] ?? "");
-        $budget = trim($_POST["budget"] ?? "");
-        $timeline = trim($_POST["timeline"] ?? "");
-        $delivery_location = trim(
-            $_POST["delivery_location"] ?? "",
+        $company_name = mb_substr(trim($_POST["company_name"] ?? ""), 0, 200);
+        $quantity_range = mb_substr(trim($_POST["quantity_range"] ?? ""), 0, 200);
+        $budget = mb_substr(trim($_POST["budget"] ?? ""), 0, 200);
+        $timeline = mb_substr(trim($_POST["timeline"] ?? ""), 0, 200);
+        $delivery_location = mb_substr(
+            trim($_POST["delivery_location"] ?? ""),
+            0,
+            200,
         ); /* Validate */
-        if (
-            $business_id <= 0 ||
-            $name === "" ||
-            $phone === "" ||
-            $message === ""
-        ) {
+        if ($name === "" || $phone === "" || $message === "") {
             json_response(
                 ["error" => "Please fill in all required fields."],
                 422,
             );
-            return;
+        }
+        $problem = $this->contact_problem($name, $phone, $email);
+        if ($problem !== null) {
+            json_response(["error" => $problem], 422);
+        }
+        if (mb_strlen($message) > 5000) {
+            json_response(
+                ["error" => "Please keep your message under 5,000 characters."],
+                422,
+            );
         } /* Append extra RFQ fields to message */
         $extras = [];
         if ($company_name) {
@@ -671,15 +693,6 @@ class PublicController
         if (!empty($extras)) {
             $message .=
                 "\n\n--- Additional Info ---\n" . implode("\n", $extras);
-        } /* Verify business exists */
-        $stmtBiz = $this->db->prepare(
-            "SELECT id, name FROM businesses WHERE id = ?",
-        );
-        $stmtBiz->execute([$business_id]);
-        $biz = $stmtBiz->fetch();
-        if (!$biz) {
-            json_response(["error" => "Invalid business."], 404);
-            return;
         } /* Rate limiting: max 5 requests per phone per business per day */
         $stmtRate = $this->db->prepare(
             " SELECT COUNT(*) FROM quote_requests WHERE business_id = ? AND phone = ? AND created_at >= CURDATE() ",
@@ -693,7 +706,6 @@ class PublicController
                 ],
                 429,
             );
-            return;
         } /* Store the request */
         $stmt = $this->db->prepare(
             " INSERT INTO quote_requests (business_id, name, phone, email, message, status, created_at) VALUES (?, ?, ?, ?, ?, 'new', NOW()) ",
@@ -727,15 +739,10 @@ class PublicController
             "success" => true,
             "message" => "Quote request sent successfully.",
         ]);
-    } /* ────────────────────────────────────────── * STOREFRONT — Cart Checkout * POST /public/cart-checkout * Handles both POP (proof of payment) and WhatsApp orders * *──────────────────────────────────────────*/
-    public function cart_checkout(): void
+    } /* ────────────────────────────────────────── * PLACE AN ORDER POST name.nfelia.com/checkout * Proof-of-payment and WhatsApp orders. Names and prices come from the * products table: the cart only says which products and how many, so * nobody can change a price by editing the page * *──────────────────────────────────────────*/
+    protected function place_order(array $business): void
     {
-        if ($_SERVER["REQUEST_METHOD"] !== "POST") {
-            http_response_code(405);
-            json_response(["error" => "Method not allowed"], 405);
-            return;
-        }
-        $business_id = (int) ($_POST["business_id"] ?? 0);
+        $business_id = (int) $business["id"];
         $channel = trim(
             $_POST["channel"] ?? "cart_pop",
         ); /* cart_pop | whatsapp */
@@ -743,18 +750,25 @@ class PublicController
         $customer_name = trim($_POST["customer_name"] ?? "");
         $customer_phone = trim($_POST["customer_phone"] ?? "");
         $customer_email = trim($_POST["customer_email"] ?? "");
-        $delivery_address = trim($_POST["delivery_address"] ?? "");
-        $customer_note = trim($_POST["customer_note"] ?? "");
+        $delivery_address = mb_substr(
+            trim($_POST["delivery_address"] ?? ""),
+            0,
+            500,
+        );
+        $customer_note = mb_substr(trim($_POST["customer_note"] ?? ""), 0, 1000);
         $payment_method = trim($_POST["payment_method"] ?? "none");
-        $payment_note = trim($_POST["payment_note"] ?? "");
-        $items_json = $_POST["items"] ?? "[]"; /* Validate */
-        if (
-            $business_id <= 0 ||
-            $customer_name === "" ||
-            $customer_phone === ""
-        ) {
+        $payment_note = mb_substr(trim($_POST["payment_note"] ?? ""), 0, 1000);
+        /* Validate */
+        if ($customer_name === "" || $customer_phone === "") {
             json_response(["error" => "Name and phone are required."], 422);
-            return;
+        }
+        $problem = $this->contact_problem(
+            $customer_name,
+            $customer_phone,
+            $customer_email,
+        );
+        if ($problem !== null) {
+            json_response(["error" => $problem], 422);
         }
         if (!in_array($channel, ["cart_pop", "whatsapp"])) {
             $channel = "cart_pop";
@@ -773,39 +787,77 @@ class PublicController
         } /* WhatsApp orders always have payment_method = none */
         if ($channel === "whatsapp") {
             $payment_method = "none";
-        } /* Verify business */
-        $stmtBiz = $this->db->prepare(
-            "SELECT id, name, phone, currency_symbol FROM businesses WHERE id = ?",
-        );
-        $stmtBiz->execute([$business_id]);
-        $biz = $stmtBiz->fetch();
-        if (!$biz) {
-            json_response(["error" => "Invalid business."], 404);
-            return;
-        } /* Parse cart items */
-        $items = json_decode($items_json, true);
-        if (empty($items) || !is_array($items)) {
-            json_response(["error" => "Cart is empty."], 422);
-            return;
-        } /* Rate limiting: max 10 orders per phone per business per day */
-        try {
-            $stmtRate = $this->db->prepare(
-                " SELECT COUNT(*) FROM orders WHERE business_id = ? AND customer_phone = ? AND created_at >= CURDATE() ",
-            );
-            $stmtRate->execute([$business_id, $customer_phone]);
-            if ((int) $stmtRate->fetchColumn() >= 10) {
-                json_response(
-                    [
-                        "error" =>
-                            "Too many orders today. Please try again tomorrow.",
-                    ],
-                    429,
-                );
-                return;
+        } /* Parse the cart: which products, how many, and the shopper's choices */
+        $items = json_decode($_POST["items"] ?? "[]", true);
+        $lines = [];
+        foreach (is_array($items) ? array_slice($items, 0, 50) : [] as $item) {
+            $product_id = is_array($item) ? (int) ($item["product_id"] ?? 0) : 0;
+            if ($product_id <= 0) {
+                continue;
             }
-        } catch (\Throwable $e) {
-            /* orders table may not exist yet — skip rate-limit check, proceed to main try block */
-            error_log("Rate-limit check skipped: " . $e->getMessage());
+            $lines[] = [
+                "product_id" => $product_id,
+                "quantity" => max(1, min(999, (int) ($item["quantity"] ?? 1))),
+                "variant_selection" =>
+                    mb_substr(trim((string) ($item["variant_selection"] ?? "")), 0, 255) ?: null,
+                "item_note" =>
+                    mb_substr(trim((string) ($item["item_note"] ?? "")), 0, 255) ?: null,
+            ];
+        }
+        if (empty($lines)) {
+            json_response(["error" => "Cart is empty."], 422);
+        } /* The real name and price of every product, from this shop only */
+        $product_ids = array_values(array_unique(array_column($lines, "product_id")));
+        $placeholders = implode(",", array_fill(0, count($product_ids), "?"));
+        $stmtProducts = $this->db->prepare(
+            "SELECT id, name, sell_price FROM products WHERE business_id = ? AND deleted_at IS NULL AND is_active = 1 AND id IN ({$placeholders})",
+        );
+        $stmtProducts->execute(array_merge([$business_id], $product_ids));
+        $catalogue = [];
+        foreach ($stmtProducts->fetchAll() as $product) {
+            $catalogue[(int) $product["id"]] = $product;
+        }
+        $subtotal = 0;
+        $order_items = [];
+        foreach ($lines as $line) {
+            $product = $catalogue[$line["product_id"]] ?? null;
+            if (!$product) {
+                continue; /* removed or hidden since the page was loaded */
+            }
+            $price = (float) $product["sell_price"];
+            $line_total = $price * $line["quantity"];
+            $subtotal += $line_total;
+            $order_items[] = [
+                "product_id" => $line["product_id"],
+                "product_name" => mb_substr($product["name"], 0, 150),
+                "unit_price" => $price,
+                "quantity" => $line["quantity"],
+                "variant_selection" => $line["variant_selection"],
+                "item_note" => $line["item_note"],
+                "line_total" => $line_total,
+            ];
+        }
+        if (empty($order_items)) {
+            json_response(
+                [
+                    "error" =>
+                        "These items are no longer available. Reload the page to see what's in the shop now.",
+                ],
+                422,
+            );
+        } /* Rate limiting: max 10 orders per phone per business per day */
+        $stmtRate = $this->db->prepare(
+            " SELECT COUNT(*) FROM orders WHERE business_id = ? AND customer_phone = ? AND created_at >= CURDATE() ",
+        );
+        $stmtRate->execute([$business_id, $customer_phone]);
+        if ((int) $stmtRate->fetchColumn() >= 10) {
+            json_response(
+                [
+                    "error" =>
+                        "Too many orders today. Please try again tomorrow.",
+                ],
+                429,
+            );
         } /* Handle payment proof upload */
         $proof_path = null;
         if (
@@ -837,33 +889,7 @@ class PublicController
             $stmtSeq->execute([$business_id]);
             $seq = (int) $stmtSeq->fetchColumn();
             $order_number =
-                "ORD-" .
-                str_pad(
-                    (string) $seq,
-                    4,
-                    "0",
-                    STR_PAD_LEFT,
-                ); /* Calculate totals */
-            $subtotal = 0;
-            $order_items = [];
-            foreach ($items as $item) {
-                $qty = max(1, (int) ($item["quantity"] ?? 1));
-                $price = (float) ($item["unit_price"] ?? ($item["price"] ?? 0));
-                $line_total = $qty * $price;
-                $subtotal += $line_total;
-                $order_items[] = [
-                    "product_id" => (int) ($item["product_id"] ?? 0) ?: null,
-                    "product_name" => trim(
-                        $item["product_name"] ?? ($item["name"] ?? "Item"),
-                    ),
-                    "unit_price" => $price,
-                    "quantity" => $qty,
-                    "variant_selection" =>
-                        trim($item["variant_selection"] ?? "") ?: null,
-                    "item_note" => trim($item["item_note"] ?? "") ?: null,
-                    "line_total" => $line_total,
-                ];
-            }
+                "ORD-" . str_pad((string) $seq, 4, "0", STR_PAD_LEFT);
             $status =
                 $channel === "whatsapp"
                     ? "pending"
@@ -885,7 +911,7 @@ class PublicController
                     $payment_method,
                     $proof_path,
                     $payment_note ?: null,
-                    "XAF",
+                    business_currency_code($business),
                     $subtotal,
                     $subtotal,
                     $status,
@@ -954,25 +980,58 @@ class PublicController
             $this->db->commit();
             json_response([
                 "success" => true,
-                "order_id" => $order_id,
                 "order_number" => $order_number,
                 "total" => $subtotal,
                 "channel" => $channel,
-                "business_name" => $biz["name"],
-                "business_phone" => $biz["phone"],
             ]);
         } catch (\Throwable $e) {
             $this->db->rollBack();
             error_log("Cart checkout failed: " . $e->getMessage());
             json_response(
-                ["error" => "Order submission failed: " . $e->getMessage()],
+                [
+                    "error" =>
+                        "We couldn't place your order just now. Please try again, or order on WhatsApp.",
+                ],
                 500,
             );
         }
     }
+    /**
+     * Why a shopper's contact details can't be saved, or null when they can.
+     * The limits match the customers table, where every order and quote
+     * request also lands (its phone column holds 20 characters).
+     */
+    private function contact_problem(
+        string $name,
+        string $phone,
+        string $email,
+    ): ?string {
+        if (mb_strlen($name) > 100) {
+            return "Please keep your name under 100 characters.";
+        }
+        $digits = preg_replace("/\D/", "", $phone);
+        if (strlen($phone) > 20 || strlen($digits) < 7 || strlen($digits) > 15) {
+            return "Enter a phone number we can reach you on, like 0803 123 4567.";
+        }
+        if (
+            $email !== "" &&
+            (strlen($email) > 100 || !filter_var($email, FILTER_VALIDATE_EMAIL))
+        ) {
+            return "Check the email address, or leave it empty.";
+        }
+        return null;
+    }
     private function format_money(float $amount): string
     {
         return number_format($amount, 0, ".", ",");
+    }
+    /**
+     * A small standalone page for links that don't lead anywhere: missing
+     * documents, retired shop links, closed shops. Always noindex.
+     */
+    protected function notice(array $notice): void
+    {
+        require BASE_PATH . "/views/public/notice.php";
     } /* ────────────────────────────────────────── * CRON: Auto-Expire Quotations * Accessed via /cron/expire/{secret_key} * *──────────────────────────────────────────*/
     public function cron_expire($secret): void
     {

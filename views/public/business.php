@@ -1,11 +1,15 @@
 <?php
 /**
  * Nfelia — Public Business Landing Page (Standalone, No Auth)
- * Accessed via /biz/{slug}
+ * Served at the shop's own address, name.nfelia.com (StorefrontController).
  *
  * This is a standalone page — NOT rendered inside app.php.
- * Controller (PublicController) provides:
- * $business, $products, $services, $bank, $categories
+ * Controller (PublicController::render_shop) provides:
+ * $business, $products, $services, $bank, $categories, and $visibility
+ * ('live', or 'unlisted' while the shop is on trial and kept out of search)
+ *
+ * Checkout and quote requests post to the shop's own address (/checkout and
+ * /quote-request), never to nfelia.com, which browsers would block.
  */
 $currency   = $business['currency_symbol'] ?? '₦';
 $primary    = $business['primary_color'] ?? '#8B004A';
@@ -19,14 +23,12 @@ $has_products = !empty($products);
 $has_services = !empty($services);
 $has_socials  = $business['social_instagram'] || $business['social_facebook'] || $business['social_tiktok'] || $business['social_twitter'];
 
-// WhatsApp number normalization (used by cart button, modals, etc.)
-$wa_number = '';
-if ($business['phone']) {
-    $wa_number = preg_replace('/[^0-9]/', '', $business['phone']);
-    if (str_starts_with($wa_number, '0')) {
-        $wa_number = '234' . substr($wa_number, 1);
-    }
-}
+// WhatsApp number, digits only (used by the cart button, modals, etc.)
+$wa_number = shop_whatsapp_digits($business);
+
+// JSON inside <script> blocks: escape < > & ' " so text the owner typed
+// (a product description, the business name) can never end the script.
+$json_flags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES;
 
 // Hero background detection
 $hero_path     = $business['hero_image_path'] ?? null;
@@ -44,7 +46,7 @@ if ($hero_path) {
 $hero_is_image = $hero_path && !$hero_is_video;
 
 // SEO helpers
-$page_url     = APP_URL . '/biz/' . e($business['slug']);
+$page_url     = e(shop_url($business['subdomain']));
 $product_count = count($products);
 $service_count = count($services);
 $item_summary  = [];
@@ -71,7 +73,7 @@ $og_image = $business['logo_path']
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= $seo_title ?></title>
     <meta name="description" content="<?= e($seo_desc) ?>">
-    <meta name="robots" content="index, follow">
+    <meta name="robots" content="<?= ($visibility ?? 'live') === 'live' ? 'index, follow' : 'noindex, nofollow' ?>">
     <meta name="author" content="<?= e($business['name']) ?>">
     <link rel="canonical" href="<?= $page_url ?>">
 
@@ -107,14 +109,14 @@ $og_image = $business['logo_path']
     {
         "@context": "https://schema.org",
         "@type": "LocalBusiness",
-        "name": <?= json_encode($business['name']) ?>,
-        <?php if ($business['tagline']): ?>"description": <?= json_encode($business['tagline']) ?>,<?php endif; ?>
-        "url": <?= json_encode($page_url) ?>,
-        <?php if ($business['logo_path']): ?>"logo": <?= json_encode(APP_URL . '/' . $business['logo_path']) ?>,
-        "image": <?= json_encode(APP_URL . '/' . $business['logo_path']) ?>,<?php endif; ?>
-        <?php if ($business['phone']): ?>"telephone": <?= json_encode($business['phone']) ?>,<?php endif; ?>
-        <?php if ($business['email']): ?>"email": <?= json_encode($business['email']) ?>,<?php endif; ?>
-        <?php if ($business['address']): ?>"address": { "@type": "PostalAddress", "streetAddress": <?= json_encode($business['address']) ?> },<?php endif; ?>
+        "name": <?= json_encode($business['name'], $json_flags) ?>,
+        <?php if ($business['tagline']): ?>"description": <?= json_encode($business['tagline'], $json_flags) ?>,<?php endif; ?>
+        "url": <?= json_encode($page_url, $json_flags) ?>,
+        <?php if ($business['logo_path']): ?>"logo": <?= json_encode(APP_URL . '/' . $business['logo_path'], $json_flags) ?>,
+        "image": <?= json_encode(APP_URL . '/' . $business['logo_path'], $json_flags) ?>,<?php endif; ?>
+        <?php if ($business['phone']): ?>"telephone": <?= json_encode($business['phone'], $json_flags) ?>,<?php endif; ?>
+        <?php if ($business['email']): ?>"email": <?= json_encode($business['email'], $json_flags) ?>,<?php endif; ?>
+        <?php if ($business['address']): ?>"address": { "@type": "PostalAddress", "streetAddress": <?= json_encode($business['address'], $json_flags) ?> },<?php endif; ?>
         <?php if ($has_socials): ?>
         "sameAs": [
             <?php $links = []; ?>
@@ -139,17 +141,17 @@ $og_image = $business['logo_path']
                     'offers' => [
                         '@type' => 'Offer',
                         'price' => number_format((float)$p['sell_price'], 2, '.', ''),
-                        'priceCurrency' => 'NGN',
+                        'priceCurrency' => business_currency_code($business),
                         'availability' => 'https://schema.org/InStock'
                     ]
-                ]); endforeach; ?>
+                ], $json_flags); endforeach; ?>
                 <?= implode(",\n                ", $ld_items) ?>
             ]
         },
         <?php endif; ?>
         "potentialAction": {
             "@type": "QuoteAction",
-            "target": <?= json_encode($page_url . '#request-quote') ?>,
+            "target": <?= json_encode($page_url . '#request-quote', $json_flags) ?>,
             "name": "Request a Quote"
         },
         "branding": {
@@ -535,7 +537,7 @@ $og_image = $business['logo_path']
     </section>
     <?php endif; ?>
 
-    <?php if ($business['phone']): ?>
+    <?php if ($wa_number): ?>
     <!-- Cart-aware floating WhatsApp button -->
     <div x-data class="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
         <!-- Cart icon (only when items in cart) -->
@@ -546,7 +548,7 @@ $og_image = $business['logo_path']
         </button>
 
         <!-- WhatsApp button — changes label when cart has items -->
-        <a x-bind:href="$store.shop.cartCount() > 0 ? $store.shop.waCartLink('<?= $wa_number ?>', '<?= e($business['name']) ?>') : 'https://wa.me/<?= $wa_number ?>?text=' + encodeURIComponent('Hello <?= e(addslashes($business['name'])) ?>! I found you on your page and I\'m interested in your products/services. Can I get a quote?')"
+        <a x-bind:href="$store.shop.cartCount() > 0 ? $store.shop.waCartLink('<?= $wa_number ?>', <?= e(json_encode($business['name'], $json_flags)) ?>) : 'https://wa.me/<?= $wa_number ?>?text=' + encodeURIComponent('Hello <?= e(addslashes($business['name'])) ?>! I found you on your page and I\'m interested in your products/services. Can I get a quote?')"
            target="_blank" rel="noopener"
            class="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white rounded-full shadow-lg transition-all hover:scale-105 px-4 py-3">
             <svg class="w-6 h-6 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
@@ -921,14 +923,13 @@ $og_image = $business['logo_path']
     <!-- Alpine Store: must be before Alpine CDN -->
     <script>
     document.addEventListener('alpine:init', () => {
-        const SLUG = '<?= e($business['slug']) ?>';
+        const SHOP = '<?= e($business['subdomain']) ?>';
         const CURRENCY = '<?= e($currency) ?>';
         const BIZ_ID = <?= (int)$business['id'] ?>;
-        const APP = '<?= APP_URL ?>';
-        const ITEMS = <?= json_encode($catalogue_items, JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>;
-        const BANKS = <?= json_encode($bank_accounts_json, JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+        const ITEMS = <?= json_encode($catalogue_items ?? [], $json_flags) ?>;   // unset when the shop lists nothing yet
+        const BANKS = <?= json_encode($bank_accounts_json ?? [], $json_flags) ?>;
 
-        function cartKey() { return 'nfelia_cart_' + SLUG; }
+        function cartKey() { return 'nfelia_cart_' + SHOP; }
         function loadCart() { try { return JSON.parse(localStorage.getItem(cartKey())) || []; } catch { return []; } }
         function saveCart(c) { localStorage.setItem(cartKey(), JSON.stringify(c)); }
         function fmtMoney(n) { return CURRENCY + ' ' + Number(n).toLocaleString('en', {minimumFractionDigits: 0, maximumFractionDigits: 0}); }
@@ -1047,7 +1048,7 @@ $og_image = $business['logo_path']
                         fd.append('bank_id', this.checkoutForm.bankId || '');
                         if (this.checkoutForm.proofFile) fd.append('payment_proof', this.checkoutForm.proofFile);
                     }
-                    const resp = await fetch(APP + '/public/cart-checkout', { method: 'POST', body: fd });
+                    const resp = await fetch('/checkout', { method: 'POST', body: fd });
                     const json = await resp.json();
                     if (json.success) {
                         this.checkoutSuccess = json;
@@ -1079,7 +1080,7 @@ $og_image = $business['logo_path']
         status.classList.add('hidden');
 
         try {
-            const resp = await fetch('<?= APP_URL ?>/public/quote-request', {
+            const resp = await fetch('/quote-request', {
                 method: 'POST',
                 body: data
             });

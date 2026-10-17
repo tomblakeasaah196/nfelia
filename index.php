@@ -21,9 +21,7 @@ require_once __DIR__ . '/app/helpers/token.php';
 require_once __DIR__ . '/app/helpers/mail.php';
 require_once __DIR__ . '/app/helpers/webpush.php';
 require_once __DIR__ . '/app/helpers/planner.php';
- 
-// Start session
-session_start();
+require_once __DIR__ . '/app/helpers/shop_links.php';
 
 // --- GLOBAL EXCEPTION & FATAL ERROR HANDLER ---
 // Start output buffering so we can erase half-loaded pages if a crash happens
@@ -52,7 +50,21 @@ register_shutdown_function(function () {
         exit;
     }
 });
- 
+
+// --- SHOP LINKS ---
+// name.nfelia.com is a shop. It is served before any session starts, so
+// shoppers never get a cookie and their pages stay cacheable.
+$shop_label = shop_label_from_host($_SERVER['HTTP_HOST'] ?? '');
+if ($shop_label !== null) {
+    require_once __DIR__ . '/app/controllers/PublicController.php';
+    require_once __DIR__ . '/app/controllers/StorefrontController.php';
+    (new StorefrontController())->handle($shop_label, trim($_GET['url'] ?? '', '/'));
+    exit;
+}
+
+// Start session
+session_start();
+
 // Parse the URL
 $url = trim($_GET['url'] ?? '', '/');
 $segments = $url ? explode('/', $url) : [];
@@ -190,7 +202,9 @@ function dispatch_public(string $controller, string $action, ?string $param): vo
     // Automatically translates hyphenated URLs to snake_case methods
     $method = str_replace('-', '_', $action);
 
-    if (method_exists($ctrl, $method)) {
+    // is_callable, not method_exists: a private or protected helper must
+    // never be reachable from a URL (calling one would fatal with a 500).
+    if (is_callable([$ctrl, $method])) {
         $ctrl->$method($param);
     } else {
         $ctrl->index($param);
@@ -230,6 +244,7 @@ function dispatch_app(string $controller, string $action, ?string $param): void 
         'momo'            => 'MoMoController',  // Phase 4: Mobile Money
         'deed'            => 'DeedController', // Deed of Acquisition
         'onboarding'      => 'OnboardingController',
+        'shop-setup'      => 'ShopSetupController',
         'logout'          => 'AuthController',
         
         // Support Links
@@ -266,7 +281,7 @@ function dispatch_app(string $controller, string $action, ?string $param): void 
     $method = str_replace('-', '_', $action);
     $method = $method ?: 'index';
  
-    if (method_exists($ctrl, $method)) {
+    if (is_callable([$ctrl, $method])) {
         $ctrl->$method($param);
     } else {
         not_found();
