@@ -4,7 +4,8 @@
  * Reads the shop's catalogue from <script id="sf-data"> (views/storefront/
  * shell.php) and runs the product sheet, the bag and its checkout, the
  * category filter and search, the quote form and the hero video; on a
- * product's page, its buy box and photos; on an order's page, "order again".
+ * product's page, its buy box and photos; on an order's page, "order again";
+ * on a booking page, the calendar of free days and times, and sending it.
  *
  * Product links go to each product's page (/p/12-name). On the shop a tap
  * opens the product as a sheet instead and puts its address in the bar, so
@@ -13,7 +14,7 @@
  * The bag lives in localStorage as nfelia_cart_<shop>, the same key and
  * shape the old shop page used, so bags survive the change. Checkout sends
  * only product ids, quantities and choices: the server prices the order.
- * The tracking links of the shopper's last few orders are kept beside it
+ * The links of the shopper's last few orders and bookings are kept beside it
  * (nfelia_orders_<shop>), so they find them again without an account.
  *
  * In Shop Studio's preview ($mode 'preview' or 'look') nothing is sent, and
@@ -140,11 +141,11 @@
     function recentOrders() {
         try {
             var list = JSON.parse(localStorage.getItem(ORDERS_KEY)) || [];
-            return list.filter(function (o) { return o && typeof o.n === 'string' && /^\/order\/[a-f0-9]{32}$/.test(o.p || ''); });
+            return list.filter(function (o) { return o && typeof o.n === 'string' && /^\/(order|booking)\/[a-f0-9]{32}$/.test(o.p || ''); });
         } catch (e) { return []; }
     }
     function rememberOrder(number, path) {
-        if (!/^\/order\/[a-f0-9]{32}$/.test(path)) { return; }
+        if (!/^\/(order|booking)\/[a-f0-9]{32}$/.test(path)) { return; }
         var list = recentOrders().filter(function (o) { return o.p !== path; });
         list.unshift({ n: number, p: path, t: Date.now() });
         try { localStorage.setItem(ORDERS_KEY, JSON.stringify(list.slice(0, 5))); } catch (e) { /* private browsing */ }
@@ -159,7 +160,7 @@
         list.forEach(function (o) {
             var li = el('li');
             var a = el('a', { href: o.p, class: 'sf-recent__link' });
-            a.appendChild(el('strong', {}, 'Order ' + o.n));
+            a.appendChild(el('strong', {}, (o.p.indexOf('/booking/') === 0 ? 'Booking ' : 'Order ') + o.n));
             a.appendChild(el('span', {}, new Date(o.t).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' })));
             li.appendChild(a);
             ul.appendChild(li);
@@ -311,6 +312,20 @@
         });
         $('[data-p-note]', sheet).value = '';
         $('[data-p-qty]', sheet).textContent = '1';
+        // Booked, not bought: a link to its booking page instead of the bag
+        var book = item.book;
+        $('[data-p-note]', sheet).closest('.sf-field').hidden = !!book;
+        $('.sf-product__buy', sheet).hidden = !!book;
+        variants.hidden = !!book;
+        var bookLink = $('[data-p-book]', sheet);
+        var bookText = $('[data-p-book-text]', sheet);
+        bookLink.hidden = !book;
+        bookText.hidden = !book;
+        if (book) {
+            bookLink.href = LIVE ? book.url : '#item-' + item.id;
+            bookLink.lastElementChild.textContent = book.label;
+            bookText.textContent = book.text;
+        }
         updateSheetWa();
 
         if (opts.push !== false && LIVE) {
@@ -568,6 +583,12 @@
             if (pictured) { openStatus(pictured); }
             return;
         }
+        var bookBtn = t.closest('[data-book]');
+        if (bookBtn && !LIVE) {
+            e.preventDefault();
+            if (!sheet || !sheet.open) { openProduct(bookBtn.dataset.book); } else { toast(PREVIEW_NOTE); }
+            return;
+        }
         var again = t.closest('[data-reorder]');
         if (again) {
             var lines = [];
@@ -775,6 +796,249 @@
                 thumbs.forEach(function (b, i) { if (i === at) { b.setAttribute('aria-current', 'true'); } else { b.removeAttribute('aria-current'); } });
             }, 60);
         });
+    }
+
+    /* ── Booking page: calendar, times, details, deposit ── */
+    // Free days come a month at a time from /book/{id}/free?month=, free
+    // times a day at a time (?date=). The server checks the time again when
+    // the booking is sent; if it was just taken, the calendar reloads.
+
+    var bookForm = $('[data-bookform]');
+    if (bookForm && S.booking) {
+        var B = S.booking;
+        var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        var WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        var cal = { month: B.first.slice(0, 7), cache: {} };
+        var pick = { date: '', time: '', timeLabel: '', checkin: '', checkout: '' };
+        var grid = $('[data-cal-grid]', bookForm);
+        var calWait = $('[data-cal-wait]', bookForm);
+        var timesBox = $('[data-times]', bookForm);
+        var bookError = $('[data-book-error]', bookForm);
+        var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+        var parseDay = function (s) { var p = s.split('-'); return new Date(+p[0], +p[1] - 1, +(p[2] || 1)); };
+        var ymd = function (d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
+        var addDays = function (s, n) { var d = parseDay(s); d.setDate(d.getDate() + n); return ymd(d); };
+        var nightsBetween = function (a, b) { return Math.round((parseDay(b) - parseDay(a)) / 86400000); };
+        var dayText = function (s) { var d = parseDay(s); return WEEKDAYS[d.getDay()] + ' ' + d.getDate() + ' ' + MONTHS[d.getMonth()]; };
+        var shiftMonth = function (m, n) { var d = parseDay(m + '-01'); d.setMonth(d.getMonth() + n); return ymd(d).slice(0, 7); };
+        var dayState = function (d) { var m = cal.cache[d.slice(0, 7)]; return m ? m[d] : 'open'; };
+        // Every night from check-in to the night before check-out is free
+        var nightsFree = function (a, b) {
+            for (var d = a; d < b; d = addDays(d, 1)) { if (dayState(d) !== 'open') { return false; } }
+            return true;
+        };
+        var units = function () {
+            if (B.mode === 'nights') { return pick.checkin && pick.checkout ? nightsBetween(pick.checkin, pick.checkout) : 0; }
+            return pick.date && (B.mode !== 'slot' || pick.time) ? 1 : 0;
+        };
+        var depositFor = function (total) {
+            if (B.deposit.type === 'percent') { return Math.round(total * Math.min(100, B.deposit.value)) / 100; }
+            if (B.deposit.type === 'fixed') { return Math.min(B.deposit.value, total); }
+            return 0;
+        };
+
+        var drawCal = function () {
+            var days = cal.cache[cal.month] || {};
+            calWait.hidden = true;
+            $('[data-cal-month]', bookForm).textContent = MONTHS[+cal.month.slice(5) - 1] + ' ' + cal.month.slice(0, 4);
+            $('[data-cal-prev]', bookForm).disabled = cal.month <= B.first.slice(0, 7);
+            $('[data-cal-next]', bookForm).disabled = cal.month >= B.last.slice(0, 7);
+            grid.textContent = '';
+            var lead = (parseDay(cal.month + '-01').getDay() + 6) % 7;   // weeks start on Monday
+            for (var i = 0; i < lead; i++) { grid.appendChild(el('span', { class: 'sf-cal__pad', 'aria-hidden': 'true' })); }
+            Object.keys(days).sort().forEach(function (d) {
+                var state = days[d];
+                var checkout = B.mode === 'nights' && pick.checkin && !pick.checkout && d > pick.checkin && nightsFree(pick.checkin, d);
+                var b = el('button', { type: 'button', class: 'sf-cal__day is-' + state, 'data-day': d }, String(parseDay(d).getDate()));
+                b.disabled = !(state === 'open' || checkout);
+                if (checkout) { b.classList.add('can-end'); }
+                var picked = d === pick.date || d === pick.checkin || d === pick.checkout;
+                if (picked) { b.classList.add('is-picked'); }
+                if (pick.checkin && pick.checkout && d > pick.checkin && d < pick.checkout) { b.classList.add('is-between'); }
+                b.setAttribute('aria-pressed', String(picked));
+                b.setAttribute('aria-label', dayText(d) + (state === 'full' ? (checkout ? ', free to leave' : ', fully booked') : state === 'closed' ? ', not open for booking' : ''));
+                grid.appendChild(b);
+            });
+        };
+        var loadMonth = function (m) {
+            cal.month = m;
+            if (cal.cache[m]) { drawCal(); return; }
+            calWait.hidden = false;
+            calWait.textContent = 'Finding free days…';
+            grid.textContent = '';
+            fetch(B.urls.free + '?month=' + m, { credentials: 'omit' })
+                .then(function (r) { return r.json(); })
+                .then(function (json) {
+                    cal.cache[m] = json.days || {};
+                    if (cal.month === m) { drawCal(); }
+                })
+                .catch(function () { calWait.textContent = 'We couldn\'t load the free days. Check your connection and try again.'; });
+        };
+        var loadTimes = function (d) {
+            if (!timesBox) { return; }
+            var list = $('[data-times-list]', timesBox);
+            timesBox.hidden = false;
+            list.textContent = '';
+            $('[data-times-none]', timesBox).hidden = true;
+            $('[data-times-title]', timesBox).textContent = 'Free times on ' + dayText(d);
+            list.appendChild(el('p', { class: 'sf-cal__wait' }, 'Finding free times…'));
+            fetch(B.urls.free + '?date=' + d, { credentials: 'omit' })
+                .then(function (r) { return r.json(); })
+                .then(function (json) {
+                    if (pick.date !== d) { return; }
+                    var times = json.times || [];
+                    list.textContent = '';
+                    $('[data-times-none]', timesBox).hidden = times.length > 0;
+                    times.forEach(function (t) {
+                        var label = el('label', { class: 'sf-choice' });
+                        label.appendChild(el('input', { type: 'radio', name: 'sf-time', value: t.t, 'data-label': t.label }));
+                        label.appendChild(el('span', {}, t.label));
+                        list.appendChild(label);
+                    });
+                })
+                .catch(function () { list.textContent = 'We couldn\'t load the free times. Check your connection and try again.'; });
+        };
+        var updatePicked = function () {
+            var text = '';
+            if (B.mode === 'nights') {
+                if (pick.checkin && pick.checkout) { text = dayText(pick.checkin) + ' to ' + dayText(pick.checkout) + ', ' + plural(units(), 'night'); }
+                else if (pick.checkin) { text = 'Arriving ' + dayText(pick.checkin) + '. Now tap the day you leave.'; }
+            } else if (pick.date) {
+                text = dayText(pick.date) + (B.mode === 'slot' ? (pick.time ? ' at ' + pick.timeLabel : '. Now pick a time.') : '');
+            }
+            $('[data-book-picked]', bookForm).textContent = text;
+            var total = B.price * units();
+            $('[data-book-total]', bookForm).textContent = units() ? money(total) : '—';
+            var dep = $('[data-book-deposit]', bookForm);
+            if (dep) { dep.textContent = units() ? money(depositFor(total)) : '—'; }
+        };
+
+        grid.addEventListener('click', function (e) {
+            var b = e.target.closest('[data-day]');
+            if (!b || b.disabled) { return; }
+            var d = b.dataset.day;
+            bookError.textContent = '';
+            if (B.mode === 'nights') {
+                if (pick.checkin && !pick.checkout && d > pick.checkin && nightsFree(pick.checkin, d)) {
+                    pick.checkout = d;
+                } else {
+                    pick.checkin = d;
+                    pick.checkout = '';
+                }
+            } else {
+                pick.date = d;
+                pick.time = '';
+                loadTimes(d);
+            }
+            drawCal();
+            updatePicked();
+            var again = grid.querySelector('[data-day="' + d + '"]');
+            if (again) { again.focus(); }
+        });
+        if (timesBox) {
+            timesBox.addEventListener('change', function (e) {
+                if (e.target.name !== 'sf-time') { return; }
+                pick.time = e.target.value;
+                pick.timeLabel = e.target.dataset.label;
+                bookError.textContent = '';
+                updatePicked();
+            });
+        }
+        $('[data-cal-prev]', bookForm).addEventListener('click', function () { loadMonth(shiftMonth(cal.month, -1)); });
+        $('[data-cal-next]', bookForm).addEventListener('click', function () { loadMonth(shiftMonth(cal.month, 1)); });
+
+        var bookProblem = function () {
+            if (B.mode === 'nights' && !(pick.checkin && pick.checkout)) { return 'Pick the day you arrive and the day you leave.'; }
+            if (B.mode !== 'nights' && !pick.date) { return 'Pick a day first.'; }
+            if (B.mode === 'slot' && !pick.time) { return 'Pick a time.'; }
+            var f = bookForm.elements;
+            if (!f.customer_name.value.trim()) { return 'Type your name.'; }
+            var digits = f.customer_phone.value.replace(/\D/g, '');
+            if (digits.length < 7 || digits.length > 15) { return 'Type a phone number the shop can reach you on, like 0803 123 4567.'; }
+            var email = f.customer_email.value.trim();
+            if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { return 'Check the email address, or leave it empty.'; }
+            return '';
+        };
+        var sendingBooking = false;
+        var sendBooking = function (channel) {
+            if (sendingBooking) { return; }
+            if (!LIVE) { bookError.textContent = PREVIEW_NOTE; return; }
+            var problem = bookProblem();
+            if (problem) { bookError.textContent = problem; return; }
+            var fd = new FormData();
+            fd.append('channel', channel);
+            ['customer_name', 'customer_phone', 'customer_email', 'customer_note'].forEach(function (n) { fd.append(n, bookForm.elements[n].value.trim()); });
+            if (B.mode === 'nights') {
+                fd.append('checkin', pick.checkin);
+                fd.append('checkout', pick.checkout);
+            } else {
+                fd.append('date', pick.date);
+                if (pick.time) { fd.append('time', pick.time); }
+            }
+            var bank = $('input[name="bank_id"]:checked', bookForm);
+            if (channel === 'site' && bank) {
+                fd.append('bank_id', bank.value);
+                var proof = bookForm.elements.payment_proof;
+                if (proof && proof.files && proof.files[0]) { fd.append('payment_proof', proof.files[0]); }
+            }
+            var buttons = $$('[data-book-submit], [data-book-wa]', bookForm);
+            buttons.forEach(function (b) { b.disabled = true; });
+            sendingBooking = true;
+            bookError.textContent = '';
+            fetch(B.urls.submit, { method: 'POST', body: fd, credentials: 'omit' })
+                .then(function (r) { return r.json().catch(function () { return { error: 'Something went wrong. Please try again.' }; }); })
+                .then(function (json) {
+                    if (!json.success) {
+                        bookError.textContent = json.error || 'Something went wrong. Please try again.';
+                        cal.cache = {};
+                        loadMonth(cal.month);
+                        if (B.mode === 'slot' && pick.date) { pick.time = ''; loadTimes(pick.date); updatePicked(); }
+                        return;
+                    }
+                    showBooked(json, channel);
+                })
+                .catch(function () { bookError.textContent = 'We couldn\'t reach the shop. Check your connection and try again.'; })
+                .then(function () {
+                    sendingBooking = false;
+                    buttons.forEach(function (b) { b.disabled = false; });
+                });
+        };
+        var showBooked = function (json, channel) {
+            var done = $('[data-book-done]');
+            bookForm.hidden = true;
+            done.hidden = false;
+            $('[data-book-number]', done).textContent = json.booking_number;
+            $('[data-book-done-when]', done).textContent = json.when;
+            var path = '';
+            try { path = json.booking_url ? new URL(json.booking_url, location.href).pathname : ''; } catch (e) { path = ''; }
+            var track = $('[data-book-track]', done);
+            track.hidden = !path;
+            if (path) {
+                track.href = path;
+                rememberOrder(json.booking_number, path);
+            }
+            var wa = $('[data-book-done-wa]', done);
+            if (channel === 'whatsapp' && S.wa) {
+                var msg = 'Hello ' + S.name + ', I would like to book ' + S.items[String(B.id)].name + ' for ' + json.when + '. My booking number is ' + json.booking_number + '.'
+                        + (json.booking_url ? ' Details: ' + json.booking_url : '');
+                wa.href = 'https://wa.me/' + S.wa + '?text=' + encodeURIComponent(msg);
+                wa.hidden = false;
+                $('[data-book-done-text]', done).textContent = 'Send it to ' + S.name + ' on WhatsApp so they can confirm it with you.';
+            } else {
+                wa.hidden = true;
+                $('[data-book-done-text]', done).textContent = json.deposit > 0
+                    ? S.name + ' will check your deposit and confirm your booking.'
+                    : S.name + ' will confirm your booking on the number you gave.';
+            }
+            done.scrollIntoView({ block: 'start' });
+            $('[data-book-done-title]', done).focus();
+        };
+        bookForm.addEventListener('submit', function (e) { e.preventDefault(); sendBooking('site'); });
+        var bookWa = $('[data-book-wa]', bookForm);
+        if (bookWa) { bookWa.addEventListener('click', function () { sendBooking('whatsapp'); }); }
+
+        loadMonth(cal.month);
+        updatePicked();
     }
 
     /* ── Image for WhatsApp Status ───────────────── */
@@ -992,10 +1256,10 @@
     renderCart();
     var deep = location.hash.match(/^#item-(\d+)$/);
     if (deep && S.items[deep[1]]) { openProduct(deep[1], { push: false }); }
-    // Opening an order's link keeps it in the bag's recent orders
-    var orderPage = $('[data-order]');
+    // Opening an order's or a booking's link keeps it in the bag's recent orders
+    var orderPage = $('[data-order]') || $('[data-booking]');
     if (orderPage && LIVE) {
-        rememberOrder(orderPage.dataset.order, location.pathname);
+        rememberOrder(orderPage.dataset.order || orderPage.dataset.booking, location.pathname);
         renderRecent();
     }
 })();

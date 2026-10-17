@@ -972,7 +972,7 @@ class PublicController
      * The limits match the customers table, where every order and quote
      * request also lands (its phone column holds 20 characters).
      */
-    private function contact_problem(
+    protected function contact_problem(
         string $name,
         string $phone,
         string $email,

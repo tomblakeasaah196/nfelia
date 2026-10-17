@@ -25,6 +25,7 @@ require_once __DIR__ . '/app/helpers/shop_links.php';
 require_once __DIR__ . '/app/helpers/storefront.php';
 require_once __DIR__ . '/app/helpers/cloudflare.php';
 require_once __DIR__ . '/app/helpers/shop_orders.php';
+require_once __DIR__ . '/app/helpers/bookings.php';
 
 // --- GLOBAL EXCEPTION & FATAL ERROR HANDLER ---
 // Start output buffering so we can erase half-loaded pages if a crash happens
@@ -241,6 +242,7 @@ function dispatch_app(string $controller, string $action, ?string $param): void 
         // Management & Settings
         'reports'         => 'ReportController',  // profit_loss + profit_loss_pdf
         'orders'          => 'OrderController',
+        'bookings'        => 'BookingController',
         'purge'           => 'PurgeController',
         'landing-page'    => 'LandingPageController',
         'settings'        => 'SettingsController',

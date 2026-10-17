@@ -91,8 +91,16 @@ function sf_item_media(array $item, string $sizes, bool $eager = false): string 
 /**
  * "Add" for products that need no choices; others open their sheet so the
  * shopper picks a size or colour first. storefront.js decides which.
+ * Products people book get "Book" instead, to their booking page.
  */
 function sf_add_button(array $item, string $label, string $class = 'sf-btn sf-btn--sm', bool $icon = true): string {
+    // Booked, not bought: the button goes to its booking page
+    if ($item['booking'] ?? null) {
+        $aria = $label === '' ? ' aria-label="Book ' . e($item['name']) . '"' : '';
+        $href = sf_live_links() ? booking_page_path($item) : '#item-' . (int)$item['id'];
+        return '<a class="' . e($class) . '" href="' . e($href) . '" data-book="' . (int)$item['id'] . '"' . $aria . '>'
+             . ($icon ? sf_icon('calendar', 18) : '') . ($label !== '' ? '<span>Book</span>' : '') . '</a>';
+    }
     $aria = $label === '' ? ' aria-label="Add ' . e($item['name']) . ' to your bag"' : '';
     return '<button type="button" class="' . e($class) . '" data-add="' . (int)$item['id'] . '"' . $aria . '>'
          . ($icon ? sf_icon('plus', 18) : '') . ($label !== '' ? '<span>' . e($label) . '</span>' : '') . '</button>';
@@ -234,11 +242,11 @@ function sf_item_pricelist(array $item, array $ctx): string {
          . '<span class="sf-item__price">' . sf_price_html($item, $ctx, false) . '</span>'
          . '<div class="sf-item__act">'
          . sf_add_button($item, 'Add to order', 'sf-btn sf-btn--outline sf-btn--sm')
-         . '<div class="sf-stepper" data-stepper="' . (int)$item['id'] . '" hidden>'
+         . ($item['booking'] ? '' : '<div class="sf-stepper" data-stepper="' . (int)$item['id'] . '" hidden>'
          . '<button type="button" data-step="-1" aria-label="One fewer ' . e($item['name']) . '">' . sf_icon('minus', 18) . '</button>'
          . '<output aria-live="polite">0</output>'
          . '<button type="button" data-step="1" aria-label="One more ' . e($item['name']) . '">' . sf_icon('plus', 18) . '</button>'
-         . '</div></div>'
+         . '</div>') . '</div>'
          . '</div>';
 }
 

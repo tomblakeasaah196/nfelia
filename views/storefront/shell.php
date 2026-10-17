@@ -10,9 +10,9 @@
  * Available: $business, $settings, $theme (storefront_resolve), $catalogue
  * (storefront_catalogue), $mode ('live', 'preview' or 'look'), $visibility
  * ('live' or 'unlisted') and $page: the shop itself, a product's page, an
- * order's tracking page or a review form (see storefront_render). Every page
- * has the shop's header, footer and bag; order and review pages are private
- * and never indexed.
+ * order's tracking page, a review form, a booking page or a booking's own
+ * page (see storefront_render). Every page has the shop's header, footer and
+ * bag; order, review and booking pages are private and never indexed.
  *
  * Orders and quote requests post to the shop's own address (/checkout and
  * /quote-request); previews never send them.
@@ -26,8 +26,9 @@ $currency  = trim((string)($business['currency_symbol'] ?? '')) ?: '₦';
 $wa        = shop_whatsapp_digits($business);
 $is_live   = $mode === 'live';
 $shop_url  = $business['subdomain'] ? shop_url($business['subdomain']) : APP_URL;
-$private   = in_array($kind, ['order', 'review'], true);
-$indexable = $is_live && !$private && ($visibility ?? 'live') === 'live';
+$private   = in_array($kind, ['order', 'review', 'booking'], true);
+$indexable = $is_live && !$private && $kind !== 'book' && ($visibility ?? 'live') === 'live';
+$robots    = $indexable ? 'index, follow' : ($kind === 'book' && ($visibility ?? 'live') === 'live' ? 'noindex, follow' : 'noindex, nofollow');
 $json_flags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES;
 sf_live_links($is_live);
 
@@ -168,12 +169,24 @@ if ($kind === 'product') {
     ]];
 }
 
-// Order and review pages belong to one shopper: no address to share, no data
+// A booking page belongs to its product's page
+if ($kind === 'book') {
+    $canonical = $shop_url . sf_product_path($page['item']);
+    $seo_title = 'Book ' . $page['item']['name'] . ' — ' . $business['name'];
+    $seo_desc  = 'Pick a free time for ' . $page['item']['name'] . ' and book it with ' . $business['name'] . '.';
+    $ld        = null;
+}
+
+// Order, review and booking pages belong to one shopper: no address to share, no data
 if ($private) {
     $canonical = null;
     $ld        = null;
-    $seo_title = ($kind === 'order' ? 'Order ' . $page['order']['order_number'] : 'Review your order') . ' — ' . $business['name'];
-    $seo_desc  = 'Your order from ' . $business['name'] . '.';
+    $seo_title = match ($kind) {
+        'order'   => 'Order ' . $page['order']['order_number'],
+        'booking' => 'Booking ' . $page['booking']['booking_number'],
+        default   => 'Review your order',
+    } . ' — ' . $business['name'];
+    $seo_desc  = ($kind === 'booking' ? 'Your booking with ' : 'Your order from ') . $business['name'] . '.';
 }
 
 // What storefront.js needs: the catalogue for the product sheet and the bag,
@@ -197,6 +210,11 @@ foreach ($catalogue['items'] as $item) {
         'svc'      => $item['is_service'],
         'img'      => $images,
         'variants' => $item['variants'],
+        'book'     => $item['booking'] ? [
+            'url'   => booking_page_path($item),
+            'text'  => booking_summary($item['booking'], $item['price'], $currency),
+            'label' => match ($item['booking']['mode']) { 'nights' => 'Check dates and book', 'day' => 'Pick a day and book', default => 'Pick a time and book' },
+        ] : null,
     ];
 }
 $js = [
@@ -213,6 +231,19 @@ $js = [
     'delivery' => $sections['delivery']['on'] ? $sections['delivery']['text'] : '',
     'urls'     => ['checkout' => '/checkout', 'quote' => '/quote-request'],
 ];
+if ($kind === 'book') {
+    $book_info = $page['item']['booking'];
+    $js['booking'] = [
+        'id'       => $page['item']['id'],
+        'mode'     => $book_info['mode'],
+        'minutes'  => $book_info['minutes'],
+        'price'    => $page['item']['price'],
+        'deposit'  => ['type' => $book_info['deposit_type'], 'value' => $book_info['deposit_value']],
+        'first'    => $page['window'][0],
+        'last'     => $page['window'][1],
+        'urls'     => ['free' => '/book/' . $page['item']['id'] . '/free', 'submit' => '/book/' . $page['item']['id']],
+    ];
+}
 
 $asset = fn(string $path) => APP_URL . '/' . $path . '?v=' . (@filemtime(BASE_PATH . '/' . $path) ?: '1');
 ?>
@@ -223,7 +254,7 @@ $asset = fn(string $path) => APP_URL . '/' . $path . '?v=' . (@filemtime(BASE_PA
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title><?= e($seo_title) ?></title>
     <meta name="description" content="<?= e($seo_desc) ?>">
-    <meta name="robots" content="<?= $indexable ? 'index, follow' : 'noindex, nofollow' ?>">
+    <meta name="robots" content="<?= $robots ?>">
     <meta name="theme-color" content="<?= e($theme['palette']['ground']) ?>">
     <?php if ($private): ?>
     <meta name="referrer" content="same-origin">

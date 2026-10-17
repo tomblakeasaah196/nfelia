@@ -225,8 +225,8 @@ function storefront_colour_sets(): array {
 /**
  * Section types. 'pin' keeps a section at the top or bottom of the page;
  * the rest can be moved. 'switch' => false means it is always shown.
- * 'available' => false types belong to later steps (booking and news): they
- * are known here but never stored, shown or offered yet.
+ * 'available' => false types belong to a later step (news): they are known
+ * here but never stored, shown or offered yet.
  *
  * Field kinds: line (one line), text (paragraphs), bool, youtube, image,
  * products (a list of product ids), faq (question and answer pairs).
@@ -274,7 +274,9 @@ function storefront_section_types(): array {
             ]],
         'reviews' => ['name' => 'Customer reviews', 'hint' => 'Stars and words from people whose orders were delivered or collected. They show once the first one arrives.', 'pin' => null, 'switch' => true, 'on' => true, 'available' => true,
             'fields' => ['title' => ['kind' => 'line', 'max' => 50, 'label' => 'Title']]],
-        'booking' => ['name' => 'Bookings', 'hint' => 'Uses the free times in your Nfelia calendar', 'pin' => null, 'switch' => true, 'on' => false, 'available' => false, 'fields' => []],
+        'booking' => ['name' => 'Bookings', 'hint' => 'Services people book: they pick a free time and pay the deposit. Shows once a product can be booked.', 'pin' => null, 'switch' => true, 'on' => true, 'available' => true,
+            'fields' => ['title' => ['kind' => 'line', 'max' => 50, 'label' => 'Title'],
+                         'text' => ['kind' => 'text', 'max' => 300, 'label' => 'A line under the title']]],
         'news'    => ['name' => 'News and offers', 'hint' => '', 'pin' => null, 'switch' => true, 'on' => false, 'available' => false, 'fields' => []],
         'contact' => ['name' => 'Contact and footer', 'hint' => 'Your WhatsApp, socials and address', 'pin' => 'bottom', 'switch' => false, 'on' => true, 'available' => true,
             'fields' => [
@@ -819,7 +821,8 @@ function storefront_catalogue(array $business, array $settings): array {
     $bid = (int)$business['id'];
 
     $stmt = $db->prepare("
-        SELECT id, name, description, category, image_path, sell_price, unit, is_service, created_at, updated_at
+        SELECT id, name, description, category, image_path, sell_price, unit, is_service, created_at, updated_at,
+               booking_mode, booking_minutes, booking_capacity, deposit_type, deposit_value
         FROM products
         WHERE business_id = ? AND deleted_at IS NULL AND is_active = 1
         ORDER BY name ASC
@@ -883,6 +886,7 @@ function storefront_catalogue(array $business, array $settings): array {
             'created_at'  => (string)$row['created_at'],
             'images'      => array_values(array_filter($paths, fn($p) => is_string($p) && $p !== '')),
             'variants'    => $groups,
+            'booking'     => booking_info($row),   // null unless people book it
         ];
         $item += sf_item_details($item);
         $items[] = $item;
@@ -915,6 +919,7 @@ function storefront_catalogue(array $business, array $settings): array {
         'updated_at'   => $updated,
         'has_products' => (bool)array_filter($items, fn($i) => !$i['is_service']),
         'has_services' => (bool)array_filter($items, fn($i) => $i['is_service']),
+        'bookable'     => array_values(array_filter($items, fn($i) => $i['booking'] !== null)),
     ];
 }
 
@@ -1183,6 +1188,7 @@ function sf_icon(string $name, int $size = 20, string $class = ''): string {
         'share'     => '<path d="M12 15V3M7.5 7.5L12 3l4.5 4.5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/>',
         'image'     => '<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="M21 15.5l-5-5L6 20.5"/>',
         'star'      => '<path d="M12 2.8l2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17.2l-5.6 3 1.1-6.3-4.6-4.4 6.3-.9z"/>',
+        'calendar'  => '<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
     ];
     return '<svg width="' . $size . '" height="' . $size . '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"'
          . ($class !== '' ? ' class="' . e($class) . '"' : '') . '>' . ($paths[$name] ?? '') . '</svg>';

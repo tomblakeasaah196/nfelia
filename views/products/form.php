@@ -218,6 +218,55 @@ $units = [
                 </div>
             </div>
 
+            <!-- Bookings: people pick a time on the shop and pay a deposit -->
+            <?php
+            $p_mode     = in_array($product['booking_mode'] ?? 'none', BOOKING_MODES, true) ? ($product['booking_mode'] ?? 'none') : 'none';
+            $p_minutes  = (int)($product['booking_minutes'] ?? 60) ?: 60;
+            $p_capacity = max(1, (int)($product['booking_capacity'] ?? 1));
+            $p_dep_type = in_array($product['deposit_type'] ?? 'none', ['none', 'percent', 'fixed'], true) ? ($product['deposit_type'] ?? 'none') : 'none';
+            $p_dep_val  = $product['deposit_value'] ?? '';
+            ?>
+            <div class="bg-brand-white border border-brand-sand rounded-xl p-6 shadow-sm" x-data="{ mode: '<?= e($p_mode) ?>', deposit: '<?= e($p_dep_type) ?>' }">
+                <h2 class="font-heading font-bold text-sm text-brand-plum mb-1">Bookings</h2>
+                <p class="text-xs text-brand-plum/60 mb-4">Let people pick a free time on your shop and pay a deposit to hold it.</p>
+                <label class="block text-xs font-semibold text-brand-plum mb-1" for="booking_mode">People book this</label>
+                <select id="booking_mode" name="booking_mode" x-model="mode" class="w-full h-11 px-3 rounded-lg border border-brand-sand bg-white text-sm">
+                    <option value="none" <?= $p_mode === 'none' ? 'selected' : '' ?>>No, people buy it</option>
+                    <option value="slot" <?= $p_mode === 'slot' ? 'selected' : '' ?>>A time slot, like an appointment</option>
+                    <option value="nights" <?= $p_mode === 'nights' ? 'selected' : '' ?>>By the night, like a room or apartment</option>
+                    <option value="day" <?= $p_mode === 'day' ? 'selected' : '' ?>>A whole day, like an event</option>
+                </select>
+                <div x-show="mode !== 'none'" x-cloak class="space-y-4 mt-4">
+                    <label class="block" x-show="mode === 'slot'">
+                        <span class="block text-xs font-semibold text-brand-plum mb-1">How long it takes</span>
+                        <select name="booking_minutes" class="w-full h-11 px-3 rounded-lg border border-brand-sand bg-white text-sm">
+                            <?php foreach ([15, 30, 45, 60, 90, 120, 150, 180, 240, 300, 360, 480] as $mins): ?>
+                            <option value="<?= $mins ?>" <?= $p_minutes === $mins ? 'selected' : '' ?>><?= e(booking_duration_text($mins)) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </label>
+                    <label class="block" x-show="mode === 'day'">
+                        <span class="block text-xs font-semibold text-brand-plum mb-1">Bookings you can take a day</span>
+                        <input type="number" name="booking_capacity" min="1" max="20" value="<?= $p_capacity ?>" class="w-full h-11 px-3 rounded-lg border border-brand-sand text-sm">
+                    </label>
+                    <p class="text-xs text-brand-plum/60" x-show="mode === 'nights'">The price is per night. Check-in and check-out times are in Booking hours.</p>
+                    <div>
+                        <span class="block text-xs font-semibold text-brand-plum mb-1">Deposit to book</span>
+                        <div class="flex gap-2">
+                            <select name="deposit_type" x-model="deposit" class="h-11 px-3 rounded-lg border border-brand-sand bg-white text-sm" aria-label="Kind of deposit">
+                                <option value="none" <?= $p_dep_type === 'none' ? 'selected' : '' ?>>No deposit</option>
+                                <option value="percent" <?= $p_dep_type === 'percent' ? 'selected' : '' ?>>A share (%)</option>
+                                <option value="fixed" <?= $p_dep_type === 'fixed' ? 'selected' : '' ?>>An amount (<?= e($currency) ?>)</option>
+                            </select>
+                            <input type="number" name="deposit_value" min="0" step="0.01" value="<?= e((string)$p_dep_val) ?>" x-show="deposit !== 'none'"
+                                   class="flex-1 min-w-0 h-11 px-3 rounded-lg border border-brand-sand text-sm" aria-label="Deposit">
+                        </div>
+                        <p class="text-xs text-brand-plum/50 mt-1">Paid by transfer to your bank account. You confirm each booking once you see it.</p>
+                    </div>
+                    <a href="<?= APP_URL ?>/bookings/settings" class="inline-block text-xs font-semibold underline text-brand-plum/70">Set your booking hours</a>
+                </div>
+            </div>
+
             <!-- Multi-Image Upload -->
             <div class="bg-brand-white border border-brand-sand rounded-xl p-6 shadow-sm"
                  x-data="{

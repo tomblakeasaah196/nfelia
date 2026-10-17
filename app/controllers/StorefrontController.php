@@ -12,6 +12,10 @@
  *   GET  /order/{token}     an order's private tracking page
  *   GET  /review/{token}    the review form for a finished order
  *   POST /review/{token}    post the review
+ *   GET  /book/{id}-{name}  book a product: pick a time, pay the deposit
+ *   GET  /book/{id}/free    free days of a month (?month=) or times of a day (?date=)
+ *   POST /book/{id}         send a booking
+ *   GET  /booking/{token}   a booking's private page (and /calendar.ics)
  *
  * Anything else is a 404.
  *
@@ -42,6 +46,10 @@ class StorefrontController extends PublicController
             return;
         }
 
+        if ($business && preg_match('#^booking/([a-f0-9]{32})(/calendar\.ics)?$#', $path, $m) && in_array($method, ['GET', 'HEAD'], true)) {
+            $this->booking_page($business, $m[1], !empty($m[2]));
+            return;
+        }
         if ($business && preg_match('#^(order|review)/([a-f0-9]{32})$#', $path, $m)) {
             if ($m[1] === 'order' && in_array($method, ['GET', 'HEAD'], true)) {
                 $this->order_page($business, $m[2]);
@@ -77,6 +85,18 @@ class StorefrontController extends PublicController
                 return;
             }
             $this->render_shop($business, $visibility);
+            return;
+        }
+
+        if (preg_match('#^book/(\d{1,10})(?:(/free)|-([a-z0-9-]{0,80}))?$#', $path, $m)) {
+            if ($visibility === 'closed') {
+                if ($method === 'POST' || !empty($m[2])) {
+                    json_response(['error' => 'This shop is closed for now, so it can\'t take bookings. You can still reach it on WhatsApp.'], 403);
+                }
+                $this->closed($business);
+                return;
+            }
+            $this->booking_route($business, (int)$m[1], $path, !empty($m[2]), $method, $visibility);
             return;
         }
 
@@ -242,6 +262,229 @@ class StorefrontController extends PublicController
             'orders/view/' . (int)$review['order_id']
         );
         storefront_purge((int)$business['id']);
+    }
+
+    /* ── Bookings ────────────────────────────────────── */
+
+    /**
+     * /book/{id}…: the booking page (GET), its free days and times (GET
+     * /free), or a booking sent from it (POST /book/{id}). Only products the
+     * shop shows and that are set up for booking can be booked.
+     */
+    private function booking_route(array $business, int $id, string $path, bool $free, string $method, string $visibility): void
+    {
+        $settings  = storefront_settings($business, 'published');
+        $catalogue = storefront_catalogue($business, $settings);
+        $item = null;
+        foreach ($catalogue['items'] as $candidate) {
+            if ($candidate['id'] === $id && $candidate['booking']) {
+                $item = $candidate;
+                break;
+            }
+        }
+        if (!$item) {
+            if ($method === 'POST' || $free) {
+                json_response(['error' => 'This can\'t be booked any more. Reload the shop to see what can.'], 404);
+            }
+            $this->notice([
+                'title'        => 'This can\'t be booked here',
+                'body'         => 'It may have been taken down or changed. Everything ' . $business['name'] . ' offers is on the shop\'s front page.',
+                'action_url'   => shop_url($business['subdomain']),
+                'action_label' => 'See the shop',
+            ]);
+            return;
+        }
+
+        if ($free && in_array($method, ['GET', 'HEAD'], true)) {
+            $this->booking_free($business, $item);
+            return;
+        }
+        if ($method === 'POST' && $path === 'book/' . $id) {
+            $this->place_booking($business, $item);
+            return;
+        }
+        if (!in_array($method, ['GET', 'HEAD'], true) || $free) {
+            json_response(['error' => 'Not found.'], 404);
+        }
+
+        $canonical = booking_page_path($item);
+        header('Cache-Control: public, max-age=0, s-maxage=300');
+        if ('/' . $path !== $canonical) {
+            header('Location: ' . shop_url($business['subdomain'], $canonical), true, 301);
+            exit;
+        }
+        $booking_settings = booking_settings($business);
+        storefront_render($business, $settings, 'live', $visibility, [
+            'kind' => 'book', 'item' => $item, 'settings' => $booking_settings, 'window' => booking_window($booking_settings),
+        ], $catalogue);
+    }
+
+    /**
+     * Free days of a month (?month=2026-10) or free times of a day
+     * (?date=2026-10-18), as JSON. Never cached: they change with every
+     * booking.
+     */
+    private function booking_free(array $business, array $item): void
+    {
+        $month = (string)($_GET['month'] ?? '');
+        $date  = (string)($_GET['date'] ?? '');
+        if (preg_match('/^\d{4}-\d{2}$/', $month)) {
+            json_response(['month' => $month, 'days' => booking_month($this->db, $business, $item, $item['booking'], $month)]);
+        }
+        if ($item['booking']['mode'] === 'slot' && booking_valid_date($date)) {
+            json_response(['date' => $date, 'times' => array_map(
+                fn($t) => ['t' => $t, 'label' => booking_time_text($t)],
+                booking_slots($this->db, $business, $item['booking'], $date)
+            )]);
+        }
+        json_response(['error' => 'Ask for a month (month=2026-10) or a day (date=2026-10-18).'], 422);
+    }
+
+    /**
+     * A booking request: the time is checked again while the shop's other
+     * bookings wait (a lock on the shop), then held as 'pending' until the
+     * owner confirms it. Prices come from the products table, never from the
+     * page.
+     */
+    private function place_booking(array $business, array $item): void
+    {
+        $bid     = (int)$business['id'];
+        $info    = $item['booking'];
+        $channel = ($_POST['channel'] ?? '') === 'whatsapp' ? 'whatsapp' : 'site';
+        $name    = trim((string)($_POST['customer_name'] ?? ''));
+        $phone   = trim((string)($_POST['customer_phone'] ?? ''));
+        $email   = trim((string)($_POST['customer_email'] ?? ''));
+        $note    = mb_substr(trim((string)($_POST['customer_note'] ?? '')), 0, 1000);
+
+        if ($name === '' || $phone === '') {
+            json_response(['error' => 'Type your name and a phone number the shop can reach you on.'], 422);
+        }
+        if (($problem = $this->contact_problem($name, $phone, $email)) !== null) {
+            json_response(['error' => $problem], 422);
+        }
+        $stmt = $this->db->prepare("SELECT COUNT(*) FROM bookings WHERE business_id = ? AND customer_phone = ? AND created_at >= CURDATE()");
+        $stmt->execute([$bid, $phone]);
+        if ((int)$stmt->fetchColumn() >= 5) {
+            json_response(['error' => 'Too many bookings today. Please try again tomorrow, or ask on WhatsApp.'], 429);
+        }
+
+        // The deposit's proof, if any (only for transfers to the shop's own accounts)
+        $bank_id = (int)($_POST['bank_id'] ?? 0);
+        $banks   = array_column($this->booking_banks($bid), null, 'id');
+        $method  = $channel === 'site' && isset($banks[$bank_id]) ? 'bank_transfer' : 'none';
+        $proof   = null;
+        if ($method === 'bank_transfer' && !empty($_FILES['payment_proof']['tmp_name'])) {
+            $dir = BASE_PATH . '/uploads/booking_proofs/' . $bid;
+            if (!is_dir($dir)) {
+                mkdir($dir, 0755, true);
+            }
+            $file = time() . '_' . bin2hex(random_bytes(4)) . '.png';
+            if (save_image($_FILES['payment_proof'], $dir . '/' . $file, 1200)) {
+                $proof = 'uploads/booking_proofs/' . $bid . '/' . $file;
+            }
+        }
+
+        $this->db->beginTransaction();
+        try {
+            // One booking at a time per shop, so two people can't take the same time
+            $this->db->prepare("SELECT id FROM businesses WHERE id = ? FOR UPDATE")->execute([$bid]);
+            $slot = booking_check($this->db, $business, $item, $info, $_POST);
+            if (!$slot['ok']) {
+                $this->db->rollBack();
+                json_response(['error' => $slot['error']], 409);
+            }
+            $total   = round($item['price'] * $slot['units'], 2);
+            $deposit = booking_deposit($info, $total);
+
+            $this->db->prepare("UPDATE businesses SET booking_number_seq = booking_number_seq + 1 WHERE id = ?")->execute([$bid]);
+            $stmt = $this->db->prepare("SELECT booking_number_seq FROM businesses WHERE id = ?");
+            $stmt->execute([$bid]);
+            $number = 'BKG-' . str_pad((string)$stmt->fetchColumn(), 4, '0', STR_PAD_LEFT);
+            $token  = shop_order_token();
+
+            $stmt = $this->db->prepare("SELECT id FROM customers WHERE business_id = ? AND phone = ? AND deleted_at IS NULL LIMIT 1");
+            $stmt->execute([$bid, $phone]);
+            $customer_id = (int)$stmt->fetchColumn();
+            if (!$customer_id) {
+                $this->db->prepare("INSERT INTO customers (business_id, full_name, phone, email, notes) VALUES (?, ?, ?, ?, ?)")
+                         ->execute([$bid, $name, $phone, $email ?: null, 'Auto-created from a booking']);
+                $customer_id = (int)$this->db->lastInsertId();
+            }
+
+            $this->db->prepare("
+                INSERT INTO bookings (business_id, product_id, product_name, booking_number, public_token, kind, starts_at, ends_at, units,
+                                      unit_price, total, deposit_due, currency_code, customer_id, customer_name, customer_phone,
+                                      customer_email, customer_note, channel, payment_method, payment_proof_path)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ")->execute([$bid, $item['id'], mb_substr($item['name'], 0, 150), $number, $token, $info['mode'], $slot['starts_at'], $slot['ends_at'],
+                         $slot['units'], $item['price'], $total, $deposit, business_currency_code($business), $customer_id, $name, $phone,
+                         $email ?: null, $note ?: null, $channel, $method, $proof]);
+            $booking_id = (int)$this->db->lastInsertId();
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            error_log('Booking failed: ' . $e->getMessage());
+            json_response(['error' => 'We couldn\'t send your booking just now. Please try again, or book on WhatsApp.'], 500);
+        }
+
+        $booking = ['booking_number' => $number, 'public_token' => $token, 'kind' => $info['mode'], 'starts_at' => $slot['starts_at'],
+                    'ends_at' => $slot['ends_at'], 'units' => $slot['units'], 'product_name' => $item['name']];
+        $when = booking_when($booking);
+        $url  = booking_url($business, $booking);
+        planner_notify($this->db, $bid, null, 'New booking — ' . $number,
+            $name . ' booked ' . $item['name'] . ' for ' . $when . ($deposit > 0 ? '. Deposit ' . sf_money($deposit, (string)($business['currency_symbol'] ?? '')) . ($method === 'bank_transfer' ? ' by transfer.' : ' to arrange.') : '.'),
+            'bookings/view/' . $booking_id);
+        if ($email !== '' && $url) {
+            $symbol = (string)($business['currency_symbol'] ?? '');
+            $vars = ['state' => 'received', 'first_name' => preg_split('/\s+/u', $name)[0], 'shop_name' => (string)$business['name'],
+                     'booking_number' => $number, 'service' => $item['name'], 'when' => $when, 'booking_url' => $url,
+                     'total' => sf_money($total, $symbol), 'deposit' => $deposit > 0 ? sf_money($deposit, $symbol) : '', 'message' => ''];
+            after_response(function () use ($email, $name, $number, $business, $vars) {
+                try {
+                    send_branded_mail($email, $name, 'Your booking ' . $number . ' with ' . $business['name'], 'booking_update', $vars, $business);
+                } catch (\Throwable $e) {
+                    error_log('Booking email failed: ' . $e->getMessage());
+                }
+            });
+        }
+        json_response(['success' => true, 'booking_number' => $number, 'booking_url' => $url, 'when' => $when,
+                       'total' => $total, 'deposit' => $deposit, 'channel' => $channel]);
+    }
+
+    private function booking_banks(int $business_id): array
+    {
+        $stmt = $this->db->prepare("SELECT id FROM bank_accounts WHERE business_id = ? AND is_active = 1 AND deleted_at IS NULL");
+        $stmt->execute([$business_id]);
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * A booking's private page, or its calendar file.
+     */
+    private function booking_page(array $business, string $token, bool $ics): void
+    {
+        $this->private_headers();
+        $stmt = $this->db->prepare("SELECT * FROM bookings WHERE business_id = ? AND public_token = ? LIMIT 1");
+        $stmt->execute([(int)$business['id'], $token]);
+        $booking = $stmt->fetch();
+        if (!$booking) {
+            $this->notice([
+                'title'     => 'We couldn\'t find this booking',
+                'body'      => 'Check that you opened the whole link from your message. If it still doesn\'t work, ask ' . $business['name'] . '.',
+                'shop_name' => $business['name'],
+                'whatsapp'  => shop_whatsapp_digits($business),
+            ]);
+            return;
+        }
+        if ($ics) {
+            header('Content-Type: text/calendar; charset=utf-8');
+            header('Content-Disposition: attachment; filename="booking-' . strtolower($booking['booking_number']) . '.ics"');
+            echo booking_ics($booking, $business);
+            exit;
+        }
+        storefront_render($business, storefront_settings($business, 'published'), 'live', 'unlisted', ['kind' => 'booking', 'booking' => $booking]);
     }
 
     /**

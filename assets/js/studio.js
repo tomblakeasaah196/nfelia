@@ -882,6 +882,14 @@
                     editorEl.appendChild(checkbox(s, k, f[k].label));
                 });
                 break;
+            case 'booking':
+                editorEl.appendChild(field('Title', textInput(s, 'title', f.title, 'Book a time')));
+                editorEl.appendChild(field('A line under the title', textInput(s, 'text', f.text, 'Pick a free time and pay a small deposit to hold it.')));
+                var bookingHelp = el('p', { class: 'st-help' }, 'It lists the services people can book. Turn on bookings for a service in your products; set your opening hours in ');
+                bookingHelp.appendChild(el('a', { href: D.urls.bookings }, 'Booking hours'));
+                bookingHelp.appendChild(document.createTextNode('.'));
+                editorEl.appendChild(bookingHelp);
+                break;
             case 'reviews':
                 editorEl.appendChild(field('Title', textInput(s, 'title', f.title, 'What customers say')));
                 editorEl.appendChild(el('p', { class: 'st-help' }, 'Customers rate an order once it is delivered or collected. They get the link on their order page, and right after they sign for a delivery. Nobody can write or change a review for them, which is why shoppers trust them.'));

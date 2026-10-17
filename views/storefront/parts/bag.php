@@ -40,6 +40,8 @@ $bag_word = $settings['look'] === 'market' ? 'order' : 'bag';
                 </div>
                 <button type="button" class="sf-btn sf-btn--grow" data-p-add>Add to <?= $bag_word ?></button>
             </div>
+            <p class="sf-buy__meta" data-p-book-text hidden></p>
+            <a class="sf-btn sf-btn--block" data-p-book hidden><?= sf_icon('calendar', 20) ?><span>Pick a time and book</span></a>
             <?php if ($wa !== ''): ?>
                 <a class="sf-btn sf-btn--outline sf-btn--block" data-p-wa href="https://wa.me/<?= e($wa) ?>" target="_blank" rel="noopener"><?= sf_icon('whatsapp', 20) ?><span>Ask on WhatsApp</span></a>
             <?php endif; ?>

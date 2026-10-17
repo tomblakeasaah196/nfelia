@@ -71,6 +71,15 @@ $wa_text = 'Hello ' . $business['name'] . ', I found ' . $item['name'] . ' on yo
                     <div class="sf-prose sf-pdp__desc"><?= sf_paragraphs($item['description']) ?></div>
                 <?php endif; ?>
 
+                <?php if ($item['booking']): ?>
+                <div class="sf-buy sf-buy--book">
+                    <p class="sf-buy__meta"><?= sf_icon('clock', 18) ?><span><?= e(booking_summary($item['booking'], $item['price'], $currency)) ?></span></p>
+                    <a class="sf-btn sf-btn--block" href="<?= e(booking_page_path($item)) ?>" data-book="<?= (int)$item['id'] ?>"><?= sf_icon('calendar', 20) ?><span><?= match ($item['booking']['mode']) { 'nights' => 'Check dates and book', 'day' => 'Pick a day and book', default => 'Pick a time and book' } ?></span></a>
+                    <?php if ($wa !== ''): ?>
+                        <a class="sf-btn sf-btn--outline sf-btn--block" href="https://wa.me/<?= e($wa) ?>?text=<?= e(rawurlencode($wa_text)) ?>" target="_blank" rel="noopener"><?= sf_icon('whatsapp', 20) ?><span>Ask on WhatsApp</span></a>
+                    <?php endif; ?>
+                </div>
+                <?php else: ?>
                 <form class="sf-buy" data-buy="<?= (int)$item['id'] ?>" novalidate>
                     <?php foreach ($item['variants'] as $gi => $group): ?>
                         <fieldset class="sf-buy__group" data-group="<?= e($group['name']) ?>">
@@ -101,6 +110,7 @@ $wa_text = 'Hello ' . $business['name'] . ', I found ' . $item['name'] . ' on yo
                         <a class="sf-btn sf-btn--outline sf-btn--block" data-buy-wa href="https://wa.me/<?= e($wa) ?>?text=<?= e(rawurlencode($wa_text)) ?>" target="_blank" rel="noopener"><?= sf_icon('whatsapp', 20) ?><span>Ask on WhatsApp</span></a>
                     <?php endif; ?>
                 </form>
+                <?php endif; ?>
 
                 <div class="sf-share">
                     <button type="button" class="sf-share__btn" data-share-item="<?= (int)$item['id'] ?>"><?= sf_icon('share', 18) ?><span>Share</span></button>
