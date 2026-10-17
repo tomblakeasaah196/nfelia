@@ -316,14 +316,16 @@ h1, h2, h3 {
     width: 76px; height: 76px; border-radius: 50%; background: var(--burgundy); display: grid; place-items: center;
 }
 .video-play svg { width: 28px; height: 28px; color: #fff; margin-left: 4px; }
-.video-soon {
-    display: grid; place-content: center; justify-items: center; gap: 12px; text-align: center; color: #fff; padding: 24px;
-    background: radial-gradient(circle at 30% 20%, rgba(182, 159, 94, .25), transparent 55%), var(--burgundy-deep);
-}
-.video-soon svg { width: 48px; height: 48px; color: var(--gold); }
-.video-soon strong { font: 700 1.375rem/1.2 var(--font-display); }
-.video-soon p { color: rgba(255,255,255,.88); max-width: 32ch; }
-.video-soon a { color: #fff; font-weight: 600; }
+/* The brand intro. Its clip is graded warm to sit on the cream, and the
+   box has the same tone until its picture loads. */
+.video-intro { background: #E5E1DA; border: 1px solid var(--border); }
+.video-intro img, .video-intro video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.video-intro video { opacity: 0; transition: opacity var(--motion-300) var(--ease-out); }
+.video-intro video.is-on { opacity: 1; }
+.video-note { margin-top: 16px; }
+.video-note strong { display: block; font-weight: 600; }
+.video-note p { margin-top: 4px; color: var(--ink-2); }
+.video-note a { color: var(--burgundy); font-weight: 600; }
 
 /* ---------- Pricing ---------- */
 .price-card { max-width: 760px; margin: 0 auto; border: 2px solid var(--burgundy); border-radius: var(--radius-l); display: grid; overflow: hidden; background: #fff; }

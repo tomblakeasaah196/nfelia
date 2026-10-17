@@ -157,4 +157,64 @@
             box.replaceChildren(iframe);
         });
     });
+
+    // Brand intro: a muted 5-second clip that plays once, the first time its
+    // box is in view, and ends on the logo. The page ships a still of that
+    // last frame, which stays for less motion, Data Saver or 2G, a browser
+    // that can't play MP4, or a clip that fails or is slow to start.
+    var intro = document.querySelector('[data-intro]');
+    var net = navigator.connection || {};
+    var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var clip = document.createElement('video');
+    if (intro && 'IntersectionObserver' in window && !calm && !net.saveData && !/2g/.test(net.effectiveType || '')
+            && clip.canPlayType && clip.canPlayType('video/mp4; codecs="avc1.4D401F"')) {
+        var still = intro.querySelector('img');
+        var endSrc = still.getAttribute('src');
+        var done = false, slow = 0, near, inView;
+
+        // Back to the still for good. A clip that played fades out over it
+        // once it is ready, so the swap can't be seen: the clip ends on that
+        // same frame. If the still won't load, the clip stays on its last frame.
+        var settle = function () {
+            if (done) return;
+            done = true;
+            near.disconnect(); inView.disconnect(); clearTimeout(slow);
+            var drop = function () {
+                if (!clip.parentNode) return;
+                clip.removeAttribute('src'); clip.load(); clip.remove();
+            };
+            still.src = endSrc;
+            if (!clip.classList.contains('is-on')) { drop(); return; }
+            (still.decode ? still.decode() : Promise.resolve()).then(function () {
+                clip.addEventListener('transitionend', drop);
+                setTimeout(drop, 600);
+                clip.classList.remove('is-on');
+            }, function () {});
+        };
+        var load = function () {
+            if (clip.parentNode) return;
+            clip.src = intro.getAttribute('data-src');
+            intro.appendChild(clip);
+        };
+
+        clip.muted = true; clip.playsInline = true; clip.preload = 'auto';
+        clip.setAttribute('muted', ''); clip.setAttribute('playsinline', ''); clip.setAttribute('aria-hidden', 'true');
+        clip.addEventListener('error', settle);
+        clip.addEventListener('ended', settle);
+        clip.addEventListener('playing', function () { clearTimeout(slow); clip.classList.add('is-on'); });
+        still.src = intro.getAttribute('data-start');   // the empty stage the clip starts from
+
+        // Fetch the clip a little before the box arrives; play it once most of it shows.
+        near = new IntersectionObserver(function (entries) {
+            if (entries[0].isIntersecting) { near.disconnect(); load(); }
+        }, { rootMargin: '0px 0px 75% 0px' });
+        inView = new IntersectionObserver(function (entries) {
+            if (!entries[0].isIntersecting) return;
+            inView.disconnect(); load();
+            slow = setTimeout(settle, 4000);
+            var started = clip.play();
+            if (started && started.catch) started.catch(settle);
+        }, { threshold: 0.6 });
+        near.observe(intro); inView.observe(intro);
+    }
 })();

@@ -9,10 +9,18 @@ fi
 # Collect first: with -q on the first grep nothing reaches the
 # second, so the check could never fire.
 dumps=$(git ls-files | grep -iE '\.(sql|sql\.gz|dump)$' \
-        | grep -v '^db/migrations/' || true)
+        | grep -vE '^db/migrations/|^db/schema\.sql$' || true)
 if [ -n "$dumps" ]; then
   echo "$dumps"
   echo "::error::a database dump is tracked in git"
+  fail=1
+fi
+
+# db/schema.sql is exempt above only while it stays structure-only:
+# no rows, and no DROP TABLE, so running it against the live
+# database by mistake fails instead of wiping it.
+if [ -f db/schema.sql ] && grep -nE '^[[:space:]]*(INSERT|REPLACE|LOAD[[:space:]]+DATA|DROP[[:space:]]+TABLE)' db/schema.sql; then
+  echo "::error file=db/schema.sql::db/schema.sql must be structure only: no INSERT, REPLACE, LOAD DATA or DROP TABLE. See the header of the file."
   fail=1
 fi
 
