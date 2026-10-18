@@ -47,11 +47,15 @@ class AdminController {
         $metrics['trialing'] = ($status_counts['trial'] ?? 0);
         $metrics['suspended'] = ($status_counts['suspended'] ?? 0) + ($status_counts['cancelled'] ?? 0);
 
-        // MRR (Monthly Recurring Revenue)
-        // NFELIA AUDIT FIX M01 — monthly_amount stored in NGN, not kobo — 2026-06-03
+        // MRR (Monthly Recurring Revenue), in naira: monthly_amount is what the
+        // last month cost (seats included), in the business's own currency,
+        // so businesses paying in another currency are left out
         $stmt = $this->db->query("
-            SELECT COALESCE(SUM(monthly_amount + (extra_seats * 5000)), 0) AS mrr
-            FROM subscriptions WHERE status = 'active'
+            SELECT COALESCE(SUM(s.monthly_amount), 0) AS mrr
+            FROM subscriptions s
+            JOIN businesses b ON b.id = s.business_id
+            LEFT JOIN countries c ON c.id = b.country_id
+            WHERE s.status = 'active' AND COALESCE(c.currency_code, 'NGN') = 'NGN'
         ");
         $metrics['mrr'] = (float)($stmt->fetchColumn() ?: 0);
 
@@ -111,7 +115,7 @@ class AdminController {
         ");
         foreach ($stmt->fetchAll() as $row) {
             if (isset($chart_months[$row['ym']])) {
-                $chart_months[$row['ym']]['revenue'] = (float)$row['total'];
+                $chart_months[$row['ym']]['revenue'] = (float)$row['total'] / 100;   // kobo to naira
             }
         }
         $revenue_chart = array_values($chart_months);
@@ -172,26 +176,38 @@ class AdminController {
         $biz_id = (int)$_POST['business_id'];
         $action = $_POST['action'] ?? '';
 
+        $stmt = $this->db->prepare("SELECT * FROM subscriptions WHERE business_id = ?");
+        $stmt->execute([$biz_id]);
+        $sub = $stmt->fetch() ?: null;
+        if (!$sub) { json_response(['error' => 'That business has no subscription.'], 404); return; }
+
         switch ($action) {
             case 'activate':
-                $this->db->prepare("
-                    UPDATE subscriptions SET status = 'active', current_period_start = NOW(),
-                    current_period_end = DATE_ADD(NOW(), INTERVAL 1 MONTH) WHERE business_id = ?
-                ")->execute([$biz_id]);
-                $this->admin_notify($biz_id, 'subscription_activated', 'Your subscription has been activated by the Nfelia team.');
+                // A month on the house (or paid some other way): it starts
+                // when the current paid month ends, like a payment
+                $this->db->beginTransaction();
+                [, $end] = billing_start_month($this->db, $biz_id, (float)$sub['monthly_amount'], (int)$sub['extra_seats'], null, 'manual', 'ADMIN_' . time());
+                $this->db->commit();
+                $note = 'Activated by the Nfelia team until ' . $end;
+                $this->admin_notify($biz_id, 'subscription_activated', 'Your subscription has been activated by the Nfelia team until ' . date('j M Y', strtotime($end)) . '.');
                 break;
 
             case 'suspend':
+                require_once __DIR__ . '/PaystackController.php';
+                PaystackController::stop_card_renewals($this->db, $biz_id);
                 $this->db->prepare("UPDATE subscriptions SET status = 'suspended' WHERE business_id = ?")->execute([$biz_id]);
+                $note = 'Suspended by the Nfelia team';
                 $this->admin_notify($biz_id, 'subscription_suspended', 'Your account has been suspended. Contact support for assistance.');
                 break;
 
             case 'extend_trial':
+                // From today when the trial has already ended
                 $days = max(1, min(30, (int)($_POST['days'] ?? 7)));
                 $this->db->prepare("
-                    UPDATE subscriptions SET status = 'trial', trial_ends_at = DATE_ADD(COALESCE(trial_ends_at, NOW()), INTERVAL ? DAY)
+                    UPDATE subscriptions SET status = 'trial', trial_ends_at = DATE_ADD(GREATEST(COALESCE(trial_ends_at, CURDATE()), CURDATE()), INTERVAL ? DAY)
                     WHERE business_id = ?
                 ")->execute([$days, $biz_id]);
+                $note = "Trial extended by {$days} days";
                 $this->admin_notify($biz_id, 'trial_expiring_soon', "Your trial has been extended by {$days} days. Enjoy!");
                 break;
 
@@ -199,6 +215,13 @@ class AdminController {
                 json_response(['error' => 'Invalid action'], 400);
                 return;
         }
+
+        // Every admin change is on record: who, when, from what
+        $stmt = $this->db->prepare("SELECT status FROM subscriptions WHERE business_id = ?");
+        $stmt->execute([$biz_id]);
+        $this->db->prepare("
+            INSERT INTO subscription_status_log (business_id, old_status, new_status, changed_by, notes) VALUES (?, ?, ?, ?, ?)
+        ")->execute([$biz_id, $sub['status'], (string)$stmt->fetchColumn(), (int)auth_user()['id'], $note]);
 
         // Whether the shop is open follows the subscription
         storefront_purge($biz_id);

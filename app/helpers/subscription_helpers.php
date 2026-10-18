@@ -354,6 +354,7 @@ function _subscription_notify(PDO $db, int $biz_id, string $type, string $messag
         $title_map = [
             'trial_ending'           => 'Trial Ended',
             'trial_expiring_soon'     => 'Trial Ending Soon',
+            'month_ending_soon'       => 'Paid Month Ending Soon',
             'subscription_failed'  => 'Account Suspended',
             'subscription_activated'  => 'Subscription Active',
             'payment_failed'          => 'Payment Failed',
@@ -402,6 +403,39 @@ function check_expiring_trials(): int {
         $when = $days === 0 ? 'today' : ($days === 1 ? 'tomorrow' : "in {$days} days");
         $msg  = "Your free trial ends {$when}. Subscribe to keep your business running on Nfelia.";
         if (_subscription_notify($db, (int)$row['business_id'], 'trial_expiring_soon', $msg, 'settings?tab=billing')) {
+            $sent++;
+        }
+    }
+    return $sent;
+}
+
+
+/**
+ * A bell note for each business whose paid month ends within three days (it
+ * no longer renews by itself), at most one every three days. cron/planner.php
+ * runs it on every pass. Returns how many notes it saved.
+ */
+function check_ending_months(): int {
+    $db = get_db();
+    $stmt = $db->prepare("
+        SELECT s.business_id, DATEDIFF(s.current_period_end, CURDATE()) AS days_left
+        FROM subscriptions s
+        WHERE s.status = 'active' AND s.expiry_exempt = 0
+          AND s.current_period_end BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 3 DAY)
+          AND s.business_id NOT IN (
+              SELECT business_id FROM notifications
+              WHERE type = 'month_ending_soon'
+              AND created_at > DATE_SUB(NOW(), INTERVAL 3 DAY)
+          )
+    ");
+    $stmt->execute();
+
+    $sent = 0;
+    foreach ($stmt->fetchAll() as $row) {
+        $days = (int)$row['days_left'];
+        $when = $days === 0 ? 'today' : ($days === 1 ? 'tomorrow' : "in {$days} days");
+        $msg  = "Your paid month ends {$when}. Pay for the next month in Billing to keep Nfelia and your website open.";
+        if (_subscription_notify($db, (int)$row['business_id'], 'month_ending_soon', $msg, 'settings?tab=billing')) {
             $sent++;
         }
     }

@@ -73,6 +73,9 @@ define('VAPID_SUBJECT',     trim($_ENV['VAPID_SUBJECT']     ?? '') ?: 'mailto:' 
 // Nigeria first. Every planner date (today, late, reminder times) is worked
 // out in this zone, matching the database session (+01:00).
 define('APP_TIMEZONE', 'Africa/Lagos');
+// PHP's own clock too (the server runs at +02:00), so date() and "today" in
+// forms, billing and reports are Lagos days, like the database's.
+date_default_timezone_set(APP_TIMEZONE);
 
 // Document prefix for each type
 define('DOC_TYPES', ['QUO', 'INV', 'REC', 'DEL']);

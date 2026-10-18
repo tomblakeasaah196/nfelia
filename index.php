@@ -17,6 +17,7 @@ require_once __DIR__ . '/config/mail.php';
 // Load helpers
 require_once __DIR__ . '/app/helpers/functions.php';
 require_once __DIR__ . '/app/helpers/auth.php';
+require_once __DIR__ . '/app/helpers/billing.php';
 require_once __DIR__ . '/app/helpers/token.php';
 require_once __DIR__ . '/app/helpers/mail.php';
 require_once __DIR__ . '/app/helpers/webpush.php';
@@ -329,6 +330,9 @@ function dispatch_ajax(string $action, ?string $param): void {
     // Locked (app/helpers/signin.php): nothing answers until it is unlocked,
     // except the sign-in and lock API itself and payment webhooks.
     if (!in_array($action, ['auth', 'webhooks'], true) && is_logged_in()) {
+        if (!auth_still_member()) {
+            json_response(['success' => false, 'message' => 'You no longer have access to this business.'], 401);
+        }
         if (lock_engaged()) {
             header('X-Nfelia-Locked: 1');
             json_response(['success' => false, 'locked' => true, 'message' => 'Nfelia is locked. Unlock it to carry on.'], 401);

@@ -93,16 +93,30 @@ class AuthController {
 
         $db = get_db();
 
-        // 1. Check if email already exists
-        $check = $db->prepare("SELECT id FROM users WHERE email = ?");
+        // 1. Check if email already exists. A removed team member's old
+        // login doesn't count: their address is freed for their own business.
+        // Gmail ignores dots and anything after a +, so those count as one
+        // address for a business owner (one free trial each).
+        $check = $db->prepare("SELECT id, is_active, role FROM users WHERE email = ?");
         $check->execute([$email]);
-        if ($check->fetch()) {
+        $taken = $check->fetch();
+        if (($taken && ((int)$taken['is_active'] || $taken['role'] === 'owner')) || email_owner_exists($db, $email)) {
             flash('error', 'This email already has an account. Sign in instead, or use another email.');
+            $this->back_to_register();
+        }
+
+        // A few new businesses a day from one connection is plenty; more
+        // looks like someone collecting free trials.
+        if (!throttle_allows('signup_ip', client_ip(), 5, 60 * 24)) {
+            flash('error', 'Too many new accounts from this connection today. Please try again tomorrow, or WhatsApp us.');
             $this->back_to_register();
         }
 
         try {
             $db->beginTransaction();
+            if ($taken) {
+                free_removed_email($db, (int)$taken['id']);
+            }
 
             // 2. Create the Business & Ensure Unique Slug
             $slug      = slugify($biz_name);
@@ -135,8 +149,9 @@ class AuthController {
             $stmtUser->execute([$business_id, $full_name, $email, $hash]);
             $user_id = $db->lastInsertId();
 
-            // 4. Initialize the Subscription (14-day trial)
-            $trial_expiry = date('Y-m-d', strtotime('+14 days'));
+            // 4. Initialize the Subscription (free trial; the country chosen
+            // during onboarding may set its own length)
+            $trial_expiry = date('Y-m-d', strtotime('+' . TRIAL_DAYS . ' days'));
             $stmtSub = $db->prepare("
                 INSERT INTO subscriptions (business_id, plan, status, trial_ends_at) 
                 VALUES (?, 'trial', 'trial', ?)
@@ -153,13 +168,10 @@ class AuthController {
             ");
             $stmtCounters->execute([$business_id, $business_id, $business_id, $business_id]);
 
-            // 6. Generate a unique referral code
-            $referral_code = 'NF-' . strtoupper($prefix) . '-' . strtoupper(bin2hex(random_bytes(2)));
-            $stmtRef = $db->prepare("
-                INSERT INTO referrals (referrer_business_id, referral_code, status) 
-                VALUES (?, ?, 'pending')
-            ");
-            $stmtRef->execute([$business_id, $referral_code]);
+            // 6. The business's own referral code, kept for good
+            require_once BASE_PATH . '/app/controllers/ReferralController.php';
+            $db->prepare("UPDATE businesses SET referral_code = ? WHERE id = ?")
+               ->execute([ReferralController::new_code($db), $business_id]);
 
             $db->commit();
 

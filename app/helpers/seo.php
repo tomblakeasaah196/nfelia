@@ -109,7 +109,7 @@ function seo_live_shops(PDO $db, bool $directory_only = false): array {
     $rows = $db->query("
         SELECT b.id, b.name, b.subdomain, b.tagline, b.category, b.city, b.city_slug, b.logo_path, b.directory_opt_in,
                b.storefront_published_at, b.storefront_look, b.updated_at,
-               s.status, s.trial_ends_at, s.current_period_end, s.grace_ends_at, s.last_payment_date
+               s.status, s.trial_ends_at, s.current_period_end, s.grace_ends_at, s.last_payment_date, s.expiry_exempt
         FROM businesses b
         LEFT JOIN subscriptions s ON s.business_id = b.id
         WHERE b.subdomain IS NOT NULL AND b.subdomain_status = 'active' AND b.landing_enabled = 1 AND b.is_active = 1

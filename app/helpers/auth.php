@@ -23,6 +23,25 @@ function is_owner(): bool {
     return ($_SESSION['user']['role'] ?? '') === 'owner';
 }
 
+/**
+ * Re-read the signed-in person: false (and signed out) when they were removed
+ * or switched off, so their seat is really free at once. A changed role
+ * applies at once too.
+ */
+function auth_still_member(): bool {
+    $stmt = get_db()->prepare("SELECT is_active, role FROM users WHERE id = ? AND business_id = ?");
+    $stmt->execute([(int)(auth_user()['id'] ?? 0), (int)auth_business_id()]);
+    $me = $stmt->fetch();
+    if (!$me || !(int)$me['is_active']) {
+        logout_user();
+        return false;
+    }
+    if ($me['role'] !== ($_SESSION['user']['role'] ?? null)) {
+        $_SESSION['user']['role'] = $me['role'];
+    }
+    return true;
+}
+
 /** Owner or admin: who the menu shows the money pages and the shop to. */
 function is_boss(): bool {
     return in_array($_SESSION['user']['role'] ?? '', ['owner', 'admin'], true);
@@ -152,6 +171,50 @@ function ip_is_cloudflare(string $ip): bool {
         if (($bin[$bytes] & $mask) === ($net_bin[$bytes] & $mask)) return true;
     }
     return false;
+}
+
+/**
+ * An email as Gmail delivers it: dots and anything after a + in the name
+ * don't count, and googlemail.com is gmail.com. Other addresses are just
+ * lower-cased.
+ */
+function email_key(string $email): string {
+    $email = strtolower(trim($email));
+    [$name, $domain] = array_pad(explode('@', $email, 2), 2, '');
+    if (in_array($domain, ['gmail.com', 'googlemail.com'], true)) {
+        return str_replace('.', '', explode('+', $name, 2)[0]) . '@gmail.com';
+    }
+    return $email;
+}
+
+/** Does a business owner already sign in with this address, or a Gmail variant of it? */
+function email_owner_exists(PDO $db, string $email): bool {
+    $key = email_key($email);
+    if (!str_ends_with($key, '@gmail.com')) {
+        $stmt = $db->prepare("SELECT 1 FROM users WHERE role = 'owner' AND LOWER(email) = ? LIMIT 1");
+        $stmt->execute([$key]);
+        return (bool)$stmt->fetchColumn();
+    }
+    $stmt = $db->prepare("
+        SELECT 1 FROM users
+        WHERE role = 'owner' AND (LOWER(email) LIKE '%@gmail.com' OR LOWER(email) LIKE '%@googlemail.com')
+          AND CONCAT(REPLACE(SUBSTRING_INDEX(SUBSTRING_INDEX(LOWER(email), '@', 1), '+', 1), '.', ''), '@gmail.com') = ?
+        LIMIT 1
+    ");
+    $stmt->execute([$key]);
+    return (bool)$stmt->fetchColumn();
+}
+
+/**
+ * A removed team member's login keeps its row (their name stays on what they
+ * did) but gives up the address, so the person can be added again or sign up
+ * for their own business. Owners are never freed this way.
+ */
+function free_removed_email(PDO $db, int $user_id): void {
+    $db->prepare("
+        UPDATE users SET email = LEFT(CONCAT('removed.', id, '.', email), 255)
+        WHERE id = ? AND is_active = 0 AND role <> 'owner'
+    ")->execute([$user_id]);
 }
 
 /**

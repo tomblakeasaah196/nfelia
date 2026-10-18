@@ -225,7 +225,7 @@ class CountryController {
     public static function get_active_countries(PDO $db): array {
         $stmt = $db->query("
             SELECT id, name, iso_code, flag_emoji, currency_name, currency_code, currency_symbol,
-                   payment_method, monthly_price, extra_seat_price
+                   payment_method, monthly_price, extra_seat_price, trial_days
             FROM countries WHERE is_active = 1 ORDER BY name ASC
         ");
         return $stmt->fetchAll();

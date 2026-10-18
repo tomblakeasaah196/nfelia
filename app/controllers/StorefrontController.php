@@ -594,7 +594,7 @@ class StorefrontController extends PublicController
     private function subscription(int $business_id): ?array
     {
         $stmt = $this->db->prepare("
-            SELECT status, trial_ends_at, current_period_end, grace_ends_at, last_payment_date
+            SELECT status, trial_ends_at, current_period_end, grace_ends_at, last_payment_date, expiry_exempt
             FROM subscriptions WHERE business_id = ?
         ");
         $stmt->execute([$business_id]);

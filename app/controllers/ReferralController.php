@@ -24,14 +24,7 @@ class ReferralController {
      * ══════════════════════════════════════════ */
     public function index() {
         $business = auth_business();
-
-        // Ensure business has a referral code
-        $code = $business['referral_code'] ?? null;
-        if (!$code) {
-            $code = $this->generate_code();
-            $stmt = $this->db->prepare("UPDATE businesses SET referral_code = ? WHERE id = ?");
-            $stmt->execute([$code, $this->biz_id]);
-        }
+        $code     = self::code_for($this->db, $this->biz_id);
 
         // Stats
         $stmt = $this->db->prepare("
@@ -72,8 +65,7 @@ class ReferralController {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') { json_response(['error' => 'Method not allowed'], 405); return; }
         csrf_verify();
 
-        $business = auth_business();
-        $code     = $business['referral_code'];
+        $code     = self::code_for($this->db, $this->biz_id);
         $email    = trim($_POST['referred_email'] ?? '');
 
         // Strict email validation if an email is provided
@@ -205,7 +197,55 @@ class ReferralController {
     }
 
     /**
-     * Mark discount as applied after billing.
+     * The oldest referral credit not used yet ([id, discount_amount in kobo]),
+     * or null. PaystackController puts its id in the payment it sets up.
+     */
+    public static function available_credit(PDO $db, int $business_id): ?array {
+        $stmt = $db->prepare("
+            SELECT id, discount_amount FROM referrals
+            WHERE referrer_business_id = ? AND status = 'rewarded' AND discount_applied = 0
+            ORDER BY rewarded_at ASC LIMIT 1
+        ");
+        $stmt->execute([$business_id]);
+        return $stmt->fetch() ?: null;
+    }
+
+    /**
+     * Mark the credit a paid month used, once: a second payment set up with
+     * the same credit finds it already used.
+     */
+    public static function use_credit(PDO $db, int $business_id, int $referral_id): bool {
+        $stmt = $db->prepare("
+            UPDATE referrals SET discount_applied = 1, discount_applied_at = NOW()
+            WHERE id = ? AND referrer_business_id = ? AND status = 'rewarded' AND discount_applied = 0
+        ");
+        $stmt->execute([$referral_id, $business_id]);
+        return $stmt->rowCount() === 1;
+    }
+
+    /**
+     * The business's referral code, made once and kept: the link someone
+     * shared last month must still work.
+     */
+    public static function code_for(PDO $db, int $business_id): string {
+        $stmt = $db->prepare("SELECT referral_code FROM businesses WHERE id = ?");
+        $stmt->execute([$business_id]);
+        $code = (string)$stmt->fetchColumn();
+        if ($code === '') {
+            $code = self::new_code($db);
+            $db->prepare("UPDATE businesses SET referral_code = ? WHERE id = ? AND referral_code IS NULL")->execute([$code, $business_id]);
+            $stmt->execute([$business_id]);
+            $code = (string)$stmt->fetchColumn();
+        }
+        if (is_logged_in() && auth_business_id() === $business_id) {
+            update_business_session(['referral_code' => $code]);
+        }
+        return $code;
+    }
+
+    /**
+     * Mark discount as applied after billing (payments set up before
+     * use_credit existed).
      */
     public static function apply_discount(PDO $db, int $business_id): void {
         $stmt = $db->prepare("
@@ -218,7 +258,7 @@ class ReferralController {
 
     /* ── Private helpers ─────────────────────── */
 
-    private function generate_code(): string {
+    public static function new_code(PDO $db): string {
         $chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0,O,1,I confusion
         do {
             $part1 = '';
@@ -227,7 +267,7 @@ class ReferralController {
             for ($i = 0; $i < 4; $i++) $part2 .= $chars[random_int(0, strlen($chars) - 1)];
             $code = 'NF-' . $part1 . '-' . $part2;
 
-            $stmt = $this->db->prepare("SELECT COUNT(*) FROM businesses WHERE referral_code = ?");
+            $stmt = $db->prepare("SELECT COUNT(*) FROM businesses WHERE referral_code = ?");
             $stmt->execute([$code]);
         } while ((int)$stmt->fetchColumn() > 0);
 

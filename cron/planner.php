@@ -19,8 +19,9 @@
  * 4. Quotes past their date: a sent quote turns Expired the day after its
  *    expiry date, so it stops counting as waiting on an answer.
  *
- * 5. Free trials that end within three days: a bell note for the business,
- *    once (check_expiring_trials() in app/helpers/subscription_helpers.php).
+ * 5. Free trials and paid months that end within three days: a bell note for
+ *    the business, once (check_expiring_trials() and check_ending_months() in
+ *    app/helpers/subscription_helpers.php).
  *
  * The phone buzzes only for people who want it, and never in their quiet
  * hours (app/helpers/notify.php); the bell entry is always made.
@@ -58,7 +59,7 @@ $now   = planner_now();
 $now_s = $now->format('Y-m-d H:i:s');
 $today = $now->format('Y-m-d');
 $done  = ['reminders' => 0, 'stale' => 0, 'skipped' => 0, 'mornings' => 0, 'quiet' => 0, 'low_stock' => 0, 'hushed' => 0,
-          'quotes_expired' => 0, 'trial_notes' => 0, 'errors' => 0];
+          'quotes_expired' => 0, 'trial_notes' => 0, 'month_notes' => 0, 'errors' => 0];
 
 /** Whether this person's phone may buzz now for a reminder or the morning plan. */
 function planner_cron_may_buzz(array $user, DateTimeImmutable $now, array &$done): bool {
@@ -72,7 +73,7 @@ function planner_cron_business(PDO $db, int $id, DateTimeImmutable $now): ?array
     static $cache = [];
     if (!array_key_exists($id, $cache)) {
         $stmt = $db->prepare("
-            SELECT b.*, s.status AS sub_status, s.trial_ends_at, s.current_period_end, s.grace_ends_at
+            SELECT b.*, s.status AS sub_status, s.trial_ends_at, s.current_period_end, s.grace_ends_at, s.expiry_exempt
             FROM businesses b LEFT JOIN subscriptions s ON s.business_id = b.id
             WHERE b.id = ?");
         $stmt->execute([$id]);
@@ -252,6 +253,7 @@ try {
 
 try {
     $done['trial_notes'] = check_expiring_trials();
+    $done['month_notes'] = check_ending_months();
 } catch (Throwable $e) {
     $done['errors']++;
     error_log('Nfelia planner trial check: ' . $e->getMessage());
