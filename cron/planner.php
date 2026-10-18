@@ -16,13 +16,22 @@
  *
  * 3. Low stock, once a day from 09:00, for people who turned it on.
  *
+ * 4. Quotes past their date: a sent quote turns Expired the day after its
+ *    expiry date, so it stops counting as waiting on an answer.
+ *
+ * 5. Free trials that end within three days: a bell note for the business,
+ *    once (check_expiring_trials() in app/helpers/subscription_helpers.php).
+ *
  * The phone buzzes only for people who want it, and never in their quiet
  * hours (app/helpers/notify.php); the bell entry is always made.
  *
  * Every time here is Lagos time from planner_now(), the same clock remind_at
  * was worked out with when the task was saved.
+ *
+ * ea-php83 is the PHP 8.3 bin/deploy.sh uses; /usr/local/bin/php is the
+ * server's default PHP, which may be older.
  */
-//   */5 * * * * /usr/local/bin/php /home/smartqaq/public_html/nfelia.com/cron/planner.php >/dev/null 2>&1
+//   */5 * * * * /usr/local/bin/ea-php83 /home/smartqaq/public_html/nfelia.com/cron/planner.php >/dev/null 2>&1
 
 // cron/ is copied into the public docroot: never run it from the web.
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
@@ -35,6 +44,7 @@ require_once __DIR__ . '/../app/helpers/mail.php';
 require_once __DIR__ . '/../app/helpers/webpush.php';
 require_once __DIR__ . '/../app/helpers/planner.php';
 require_once __DIR__ . '/../app/helpers/notify.php';
+require_once __DIR__ . '/../app/helpers/subscription_helpers.php';   // never in web code: it redeclares is_owner()
 
 $db = get_db();
 
@@ -47,7 +57,8 @@ if ((int)$db->query("SELECT GET_LOCK('nfelia_planner', 0)")->fetchColumn() !== 1
 $now   = planner_now();
 $now_s = $now->format('Y-m-d H:i:s');
 $today = $now->format('Y-m-d');
-$done  = ['reminders' => 0, 'stale' => 0, 'skipped' => 0, 'mornings' => 0, 'quiet' => 0, 'low_stock' => 0, 'hushed' => 0, 'errors' => 0];
+$done  = ['reminders' => 0, 'stale' => 0, 'skipped' => 0, 'mornings' => 0, 'quiet' => 0, 'low_stock' => 0, 'hushed' => 0,
+          'quotes_expired' => 0, 'trial_notes' => 0, 'errors' => 0];
 
 /** Whether this person's phone may buzz now for a reminder or the morning plan. */
 function planner_cron_may_buzz(array $user, DateTimeImmutable $now, array &$done): bool {
@@ -219,6 +230,31 @@ if ($hour >= 9 && $hour < 21) {
             error_log('Nfelia low stock for user ' . $user['id'] . ': ' . $e->getMessage());
         }
     }
+}
+
+/* ── 4. Quotes past their date ─────────────────────────────── */
+
+// Every run, so the first run after midnight catches yesterday's; most runs
+// change nothing. Only sent quotes: one the customer replied to, or is
+// signing, is still being talked over.
+try {
+    $expire = $db->prepare("
+        UPDATE quotations SET status = 'expired'
+        WHERE status = 'sent' AND expiry_date IS NOT NULL AND expiry_date < ?");
+    $expire->execute([$today]);
+    $done['quotes_expired'] = $expire->rowCount();
+} catch (Throwable $e) {
+    $done['errors']++;
+    error_log('Nfelia planner quote expiry: ' . $e->getMessage());
+}
+
+/* ── 5. Free trials about to end ───────────────────────────── */
+
+try {
+    $done['trial_notes'] = check_expiring_trials();
+} catch (Throwable $e) {
+    $done['errors']++;
+    error_log('Nfelia planner trial check: ' . $e->getMessage());
 }
 
 $db->query("SELECT RELEASE_LOCK('nfelia_planner')");

@@ -1013,27 +1013,5 @@ class PublicController
     protected function notice(array $notice): void
     {
         require BASE_PATH . "/views/public/notice.php";
-    } /* ────────────────────────────────────────── * CRON: Auto-Expire Quotations * Accessed via /cron/expire/{secret_key} * *──────────────────────────────────────────*/
-    public function cron_expire($secret): void
-    {
-        /* SECURITY: Change this to a random 32-character string */ $expected_secret =
-            "aB9xP2mQ7vL5kZ8wN3cJ6yH1tR4fD0gE";
-        if ($secret !== $expected_secret) {
-            http_response_code(403);
-            exit("Forbidden: Invalid Cron Secret");
-        }
-        try {
-            /* Expire all quotes across ALL businesses that are past due */ $stmt = $this->db->prepare(
-                " UPDATE quotations SET status = 'expired' WHERE status = 'sent' AND expiry_date IS NOT NULL AND expiry_date < CURDATE() ",
-            );
-            $stmt->execute();
-            $affected = $stmt->rowCount(); /* Optional: Log it for your own server records */
-            error_log("CRON SUCCESS: Expired {$affected} overdue quotations.");
-            echo "Success: {$affected} quotations expired.";
-        } catch (\Throwable $e) {
-            error_log("CRON ERROR: " . $e->getMessage());
-            http_response_code(500);
-            echo "Failed.";
-        }
     }
 }

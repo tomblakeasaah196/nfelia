@@ -121,13 +121,6 @@ $controller = $segments[0] ?? 'dashboard';
 $action     = $segments[1] ?? 'index';
 $param      = $segments[2] ?? null;
 
-// --- CRON ROUTE ---
-if (preg_match('#^cron/expire/([a-zA-Z0-9]+)$#', $url, $m)) {
-    require_once __DIR__ . '/app/controllers/PublicController.php';
-    (new PublicController())->cron_expire($m[1]);
-    exit;
-}
- 
 // ---- ROUTE TABLE ----
 // Public routes (no auth required)
 $public_routes = ['login', 'register', 'verify', 'forgot-password', 'reset-password', 'recovery-sent', 'login-link', 'signin', 'biz', 'doc', 'sign', 'public-feedback', 'public', 'delivery', 'verify-email', 'deed'];
