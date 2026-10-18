@@ -55,7 +55,8 @@ function shop_order_by_token(PDO $db, int $business_id, string $token): ?array {
 
     $order['delivery'] = null;
     if (!empty($order['delivery_id'])) {
-        $stmt = $db->prepare("SELECT id, status, signoff_timestamp FROM deliveries WHERE id = ? AND business_id = ?");
+        // A deleted delivery no longer says anything about the order (S16)
+        $stmt = $db->prepare("SELECT id, status, signoff_timestamp FROM deliveries WHERE id = ? AND business_id = ? AND deleted_at IS NULL");
         $stmt->execute([(int)$order['delivery_id'], $business_id]);
         $order['delivery'] = $stmt->fetch() ?: null;
     }
@@ -167,7 +168,7 @@ function review_invite(PDO $db, int $order_id): ?array {
     $stmt = $db->prepare("
         SELECT o.id, o.business_id, o.customer_name, o.status, d.status AS delivery_status
         FROM orders o
-        LEFT JOIN deliveries d ON d.id = o.delivery_id
+        LEFT JOIN deliveries d ON d.id = o.delivery_id AND d.deleted_at IS NULL
         WHERE o.id = ?
     ");
     $stmt->execute([$order_id]);

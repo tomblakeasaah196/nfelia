@@ -8,7 +8,7 @@
  *   $editing (bool), $customers, $banks
  */
 $currency    = $business['currency_symbol'] ?? '₦';
-$tax_default = (float)($business['default_tax_rate'] ?? 0);
+$tax_default = (float)($business['default_tax_rate'] ?? business_default_tax((int)$business['id']));
 
 // Pre-populate
 $q_customer  = $invoice['customer_id'] ?? '';

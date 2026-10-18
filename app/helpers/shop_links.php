@@ -353,6 +353,51 @@ function shop_whatsapp_digits(array $business): string {
 }
 
 /**
+ * The international dialling code of a business's country, digits only.
+ * Nigeria (234) when the country isn't known.
+ */
+function business_dial_code(array $business): string {
+    static $by_country = [];
+    $codes = ['NG' => '234', 'CM' => '237', 'GH' => '233', 'KE' => '254', 'ZA' => '27', 'CI' => '225', 'SN' => '221',
+              'BJ' => '229', 'TG' => '228', 'UG' => '256', 'TZ' => '255', 'RW' => '250', 'GA' => '241', 'TD' => '235',
+              'CF' => '236', 'CG' => '242', 'CD' => '243', 'GQ' => '240', 'NE' => '227', 'BF' => '226', 'ML' => '223',
+              'GM' => '220', 'SL' => '232', 'LR' => '231', 'ZM' => '260', 'ZW' => '263', 'ET' => '251', 'EG' => '20',
+              'MA' => '212', 'GB' => '44', 'US' => '1'];
+    // By the business's id: the signed-in session doesn't carry its country,
+    // and the owner can change it
+    $business_id = (int)($business['id'] ?? 0);
+    if ($business_id && !array_key_exists($business_id, $by_country)) {
+        $stmt = get_db()->prepare("SELECT c.iso_code FROM businesses b JOIN countries c ON c.id = b.country_id WHERE b.id = ?");
+        $stmt->execute([$business_id]);
+        $by_country[$business_id] = strtoupper((string)$stmt->fetchColumn());
+    }
+    return $codes[$by_country[$business_id] ?? 'NG'] ?? '234';
+}
+
+/**
+ * A client's or supplier's phone as WhatsApp wants it: digits, in
+ * international form. A local number (0… or short) takes the business's
+ * own country code, not always Nigeria's (M23).
+ */
+function wa_digits(?string $phone, array $business): string {
+    $digits = preg_replace('/\D/', '', (string)$phone);
+    if (str_starts_with($digits, '00')) {
+        return substr($digits, 2);
+    }
+    if ($digits === '') {
+        return '';
+    }
+    $code = business_dial_code($business);
+    if ($digits[0] === '0') {
+        return $code . ltrim($digits, '0');
+    }
+    if (strlen($digits) <= 10 && !str_starts_with($digits, $code)) {
+        return $code . $digits;
+    }
+    return $digits;
+}
+
+/**
  * A business's ISO currency code: its country's currency, else worked out
  * from the symbol it picked, else NGN.
  */

@@ -92,12 +92,13 @@ function booking_info(array $product): ?array {
 
 /**
  * The deposit for a booking of this total: a share of it, a fixed amount
- * (never more than the total), or nothing.
+ * (never more than a priced total; all of it when the price is 0, as the
+ * product page says), or nothing.
  */
 function booking_deposit(array $info, float $total): float {
     return match ($info['deposit_type']) {
         'percent' => round($total * min(100, $info['deposit_value']) / 100, 2),
-        'fixed'   => round(min($info['deposit_value'], $total), 2),
+        'fixed'   => round($total > 0 ? min($info['deposit_value'], $total) : $info['deposit_value'], 2),
         default   => 0.0,
     };
 }

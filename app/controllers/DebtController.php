@@ -212,8 +212,7 @@ class DebtController {
         $wa_number = '';
         if ($party) {
             $wa_number = $party['whatsapp'] ?? $party['phone'] ?? '';
-            $wa_number = preg_replace('/[^0-9]/', '', $wa_number);
-            if (str_starts_with($wa_number, '0')) $wa_number = '234' . substr($wa_number, 1);
+            $wa_number = wa_digits($wa_number, auth_business());
         }
 
         $title     = "Debt — " . $debt['description'];
@@ -227,86 +226,74 @@ class DebtController {
     public function settle($id = null) {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') { redirect('debts'); return; }
 
+        // The page sends its CSRF token with the AJAX request too
+        if (is_ajax()) {
+            if (!hash_equals((string)($_SESSION['csrf_token'] ?? ''), (string)($_POST['csrf_token'] ?? ''))) {
+                json_response(['error' => 'Security session expired. Reload the page and try again.'], 403);
+            }
+        } else {
+            csrf_verify();
+        }
+
         $debt = $this->find_debt($id);
         if (!$debt) {
             if (is_ajax()) { json_response(['error' => 'Debt not found'], 404); return; }
             not_found(); return;
         }
 
-        if (is_ajax()) {
-            // AJAX settlement: the same token check, answered as JSON
-            if (!hash_equals($_SESSION['csrf_token'] ?? '', (string)($_POST['csrf_token'] ?? ''))) {
-                json_response(['error' => 'This page is out of date. Reload it and try again.'], 403);
-            }
-            $amount = (float)($_POST['amount'] ?? 0);
-            $method = trim($_POST['method'] ?? '');
-            $reference = trim($_POST['reference'] ?? '');
-            $note   = trim($_POST['note'] ?? '');
-            $date   = trim($_POST['settlement_date'] ?? date('Y-m-d'));
-        } else {
-            csrf_verify();
-            $amount = (float)($_POST['amount'] ?? 0);
-            $method = trim($_POST['method'] ?? '');
-            $reference = trim($_POST['reference'] ?? '');
-            $note   = trim($_POST['note'] ?? '');
-            $date   = trim($_POST['settlement_date'] ?? date('Y-m-d'));
-        }
+        $amount    = money2((float)($_POST['amount'] ?? 0));
+        $method    = trim($_POST['method'] ?? '');
+        $reference = mb_substr(trim($_POST['reference'] ?? ''), 0, 100);
+        $note      = trim($_POST['note'] ?? '');
+        $date      = trim($_POST['settlement_date'] ?? '') ?: date('Y-m-d');
+        // Only the ways of paying the books know (anything else is "other")
+        $method = in_array($method, ['cash', 'bank_transfer', 'pos', 'mobile_money', 'other'], true) ? $method : ($method === '' ? 'cash' : 'other');
+        $business = auth_business();
+        $symbol   = $business['currency_symbol'] ?? '₦';
 
-        if ($amount <= 0) {
-            if (is_ajax()) { json_response(['error' => 'Amount must be greater than zero'], 422); return; }
-            flash('error', 'Amount must be greater than zero.');
+        $fail = function (string $message, int $code = 422) use ($id) {
+            if (is_ajax()) { json_response(['error' => $message], $code); }
+            flash('error', $message);
             redirect('debts/view/' . $id);
-            return;
+        };
+        if ($amount <= 0) {
+            $fail('Amount must be greater than zero.');
         }
 
         $this->db->beginTransaction();
         try {
-            // Read the debt again with the row held, so two taps at once
-            // can't both settle the same balance.
-            $stmtLock = $this->db->prepare("SELECT amount_settled, total_amount, balance FROM debts WHERE id = ? AND business_id = ? FOR UPDATE");
-            $stmtLock->execute([$id, $this->biz_id]);
-            $debt = array_merge($debt, $stmtLock->fetch() ?: []);
-            if ((float)$debt['balance'] <= 0) {
-                $this->db->rollBack();
-                if (is_ajax()) { json_response(['error' => 'This debt is already settled.'], 409); return; }
-                flash('error', 'This debt is already settled.');
-                redirect('debts/view/' . $id);
-                return;
+            // Lock the debt and settle no more than what is left on it
+            $stmt = $this->db->prepare("SELECT * FROM debts WHERE id = ? AND business_id = ? FOR UPDATE");
+            $stmt->execute([$id, $this->biz_id]);
+            $debt = $stmt->fetch();
+            if (!in_array($debt['status'], ['active', 'settling'], true)) {
+                throw new \DomainException('This debt is already ' . str_replace('_', ' ', $debt['status']) . '.');
             }
-            // Cap at balance
-            $amount = min($amount, (float)$debt['balance']);
+            $amount = min($amount, money2((float)$debt['balance']));
 
-            // NFELIA FIX — $business was undefined, reference column was missing from old schema
-            $business = auth_business();
-            // Insert settlement
+            if ($debt['type'] === 'receivable' && $debt['invoice_id']) {
+                // An invoice's debt is paid on the invoice: the payment counts in
+                // the books, the invoice's balance moves, and the debt follows
+                invoice_record_payment($this->db, $this->biz_id, (int)$debt['invoice_id'], $amount, $date, $method,
+                                       $reference, $note ?: 'Paid against debt #' . $debt['id'], (int)auth_user()['id'], $symbol);
+            }
+
             $this->db->prepare("
                 INSERT INTO debt_settlements (debt_id, business_id, amount, settlement_date, method, reference, note)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
-            ")->execute([
-                $id, $this->biz_id, $amount, $date,
-                $method ?: null, $reference ?: null, $note ?: null
-            ]);
+            ")->execute([$id, $this->biz_id, $amount, $date, $method, $reference ?: null, $note ?: null]);
             $settlement_id = (int)$this->db->lastInsertId();
 
-            // Update debt
-            $new_settled = (float)$debt['amount_settled'] + $amount;
-            $new_balance = max(0, (float)$debt['total_amount'] - $new_settled);
-            $new_status  = $new_balance <= 0 ? 'cleared' : 'settling';
+            if (!$debt['invoice_id']) {
+                $new_settled = money2((float)$debt['amount_settled'] + $amount);
+                $new_balance = max(0, money2((float)$debt['total_amount'] - $new_settled));
+                $this->db->prepare("UPDATE debts SET amount_settled = ?, balance = ?, status = ? WHERE id = ? AND business_id = ?")
+                         ->execute([$new_settled, $new_balance, $new_balance <= 0 ? 'cleared' : 'settling', $id, $this->biz_id]);
+            }
 
-            $this->db->prepare("
-                UPDATE debts SET amount_settled = ?, balance = ?, status = ? WHERE id = ?
-            ")->execute([$new_settled, $new_balance, $new_status, $id]);
-
-            // Update party financials
-            if ($debt['type'] === 'receivable' && $debt['customer_id']) {
-                // Customer paid us — increase their total_received, decrease outstanding
-                $this->db->prepare("
-                    UPDATE customers SET
-                        total_received = total_received + ?,
-                        outstanding_balance = GREATEST(0, outstanding_balance - ?)
-                    WHERE id = ? AND business_id = ?
-                ")->execute([$amount, $amount, $debt['customer_id'], $this->biz_id]);
-            } elseif ($debt['type'] === 'payable' && $debt['supplier_id']) {
+            if ($debt['type'] === 'receivable') {
+                customer_refresh_totals($this->db, $this->biz_id, $debt['customer_id'] ? (int)$debt['customer_id'] : null);
+            } elseif ($debt['supplier_id']) {
                 // We paid supplier — increase their total_paid, decrease outstanding
                 $this->db->prepare("
                     UPDATE suppliers SET
@@ -315,41 +302,48 @@ class DebtController {
                     WHERE id = ? AND business_id = ?
                 ")->execute([$amount, $amount, $debt['supplier_id'], $this->biz_id]);
             }
-
-            // If linked to invoice and receivable cleared, update invoice status
-            if ($debt['type'] === 'receivable' && $debt['invoice_id'] && $new_status === 'cleared') {
+            if ($debt['type'] === 'payable' && $debt['expense_id']) {
+                // The expense shows it paid too
                 $this->db->prepare("
-                    UPDATE invoices SET status = 'paid', amount_paid = total, balance_due = 0
-                    WHERE id = ? AND business_id = ? AND status IN ('overdue', 'partially_paid', 'sent')
-                ")->execute([$debt['invoice_id'], $this->biz_id]);
+                    UPDATE expenses SET amount_paid = LEAST(amount, amount_paid + ?), balance_due = GREATEST(0, balance_due - ?),
+                        payment_status = IF(balance_due <= 0, 'paid', 'partial')
+                    WHERE id = ? AND business_id = ?
+                ")->execute([$amount, $amount, $debt['expense_id'], $this->biz_id]);
+                expense_sync_debt($this->db, $this->biz_id, (int)$debt['expense_id']);
             }
 
+            $stmt = $this->db->prepare("SELECT amount_settled, balance, status FROM debts WHERE id = ?");
+            $stmt->execute([$id]);
+            $now = $stmt->fetch();
             $this->db->commit();
 
             // A customer paying what they owe is money in: owners and admins
             // hear, except whoever recorded it (app/helpers/notify.php).
             if ($debt['type'] === 'receivable') {
                 notify('payment.debt', $this->biz_id, [
-                    'debt_id' => (int)$id, 'customer' => (string)($debt['counterparty_name'] ?? ''), 'amount' => $amount, 'balance' => $new_balance,
+                    'debt_id' => (int)$id, 'customer' => (string)($debt['counterparty_name'] ?? ''), 'amount' => $amount, 'balance' => (float)$now['balance'],
                 ], ['actor' => (int)auth_user()['id'], 'dedupe' => (string)$settlement_id]);
             }
 
             if (is_ajax()) {
                 json_response([
                     'success'        => true,
-                    'new_settled'    => $new_settled,
-                    'new_balance'    => $new_balance,
-                    'new_status'     => $new_status,
+                    'new_settled'    => (float)$now['amount_settled'],
+                    'new_balance'    => (float)$now['balance'],
+                    'new_status'     => $now['status'],
                     'settlement_id'  => $settlement_id,
                 ]);
-                return;
             }
-
-            flash('success', money($amount, $business['currency_symbol'] ?? '₦') . ' settlement recorded.');
-        } catch (\Exception $ex) {
+            flash('success', money($amount, $symbol) . ' settlement recorded.');
+        } catch (\DomainException $ex) {
             $this->db->rollBack();
-            if (is_ajax()) { json_response(['error' => $ex->getMessage()], 500); return; }
-            flash('error', 'Settlement failed: ' . $ex->getMessage());
+            $fail($ex->getMessage());
+        } catch (\Exception $ex) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            error_log('[Nfelia] Debt settlement failed: ' . $ex->getMessage());
+            $fail('Settlement failed. Please try again.', 500);
         }
 
         redirect('debts/view/' . $id);
@@ -365,8 +359,11 @@ class DebtController {
         $debt = $this->find_debt($id);
         if (!$debt) { not_found(); return; }
 
-        $this->db->prepare("UPDATE debts SET status = 'written_off' WHERE id = ? AND business_id = ?")
+        $this->db->prepare("UPDATE debts SET status = 'written_off' WHERE id = ? AND business_id = ? AND status IN ('active', 'settling')")
                   ->execute([$id, $this->biz_id]);
+        if ($debt['type'] === 'receivable') {
+            customer_refresh_totals($this->db, $this->biz_id, $debt['customer_id'] ? (int)$debt['customer_id'] : null);
+        }
 
         flash('success', 'Debt written off.');
         redirect('debts/view/' . $id);
@@ -398,6 +395,9 @@ class DebtController {
         }
 
         $this->db->prepare("DELETE FROM debts WHERE id = ? AND business_id = ?")->execute([$id, $this->biz_id]);
+        if ($debt['type'] === 'receivable') {
+            customer_refresh_totals($this->db, $this->biz_id, $debt['customer_id'] ? (int)$debt['customer_id'] : null);
+        }
 
         flash('success', 'Debt removed.');
         redirect('debts?tab=' . $debt['type']);
@@ -490,8 +490,7 @@ class DebtController {
 
         // Update party financials
         if ($type === 'receivable' && $customer_id) {
-            $this->db->prepare("UPDATE customers SET outstanding_balance = outstanding_balance + ? WHERE id = ? AND business_id = ?")
-                      ->execute([$total_amount, $customer_id, $this->biz_id]);
+            customer_refresh_totals($this->db, $this->biz_id, $customer_id);
         } elseif ($type === 'payable' && $supplier_id) {
             $this->db->prepare("UPDATE suppliers SET outstanding_balance = outstanding_balance + ? WHERE id = ? AND business_id = ?")
                       ->execute([$total_amount, $supplier_id, $this->biz_id]);

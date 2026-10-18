@@ -11,7 +11,7 @@ $currency = $business['currency_symbol'] ?? '₦';
 
 // Build initial items JSON for Alpine
 $initial_items = [];
-if ($editing && !empty($items)) {
+if (!empty($items)) {
     foreach ($items as $it) {
         $initial_items[] = [
             'description' => $it['description'],
@@ -179,28 +179,28 @@ if (empty($initial_items)) {
                 <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Pickup Address</label>
                 <textarea name="pickup_address" rows="2"
                           class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/30 resize-none"
-                          placeholder="Defaults to your business address"><?= e($editing ? $delivery['pickup_address'] : ($business['address'] ?? '')) ?></textarea>
+                          placeholder="Defaults to your business address"><?= e($editing ? $delivery['pickup_address'] : ($delivery['pickup_address'] ?? ($business['address'] ?? ''))) ?></textarea>
             </div>
             <div>
                 <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Provider / Courier</label>
                 <select name="provider" class="w-full px-3 py-2.5 text-xs font-semibold bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">
                     <option value="">— Select Provider —</option>
                     <?php foreach ($providers as $k => $v): ?>
-                        <option value="<?= $k ?>" <?= ($editing ? $delivery['provider'] : '') === $k ? 'selected' : '' ?>><?= $v ?></option>
+                        <option value="<?= $k ?>" <?= ($delivery['provider'] ?? '') === $k ? 'selected' : '' ?>><?= $v ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
             <div>
                 <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Estimated Delivery</label>
                 <input type="datetime-local" name="estimated_delivery"
-                       value="<?= e($editing && $delivery['estimated_delivery'] ? date('Y-m-d\TH:i', strtotime($delivery['estimated_delivery'])) : '') ?>"
+                       value="<?= e(!empty($delivery['estimated_delivery']) ? date('Y-m-d\TH:i', strtotime($delivery['estimated_delivery'])) : '') ?>"
                        class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">
             </div>
         </div>
     </div>
 
     <!-- Section: Rider Details (collapsible) -->
-    <div class="bg-brand-white border border-brand-sand rounded-xl shadow-sm overflow-hidden" x-data="{ open: <?= $editing && ($delivery['rider_name'] || $delivery['rider_phone']) ? 'true' : 'false' ?> }">
+    <div class="bg-brand-white border border-brand-sand rounded-xl shadow-sm overflow-hidden" x-data="{ open: <?= !empty($delivery['rider_name']) || !empty($delivery['rider_phone']) ? 'true' : 'false' ?> }">
         <button type="button" @click="open = !open" class="w-full flex items-center justify-between p-5">
             <h2 class="font-heading font-bold text-sm text-brand-plum uppercase tracking-wider">Rider / Driver Details</h2>
             <svg :class="open ? 'rotate-180' : ''" class="w-4 h-4 text-brand-plum/40 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
@@ -209,19 +209,19 @@ if (empty($initial_items)) {
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                     <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Rider Name</label>
-                    <input type="text" name="rider_name" value="<?= e($editing ? $delivery['rider_name'] : '') ?>"
+                    <input type="text" name="rider_name" value="<?= e($delivery['rider_name'] ?? '') ?>"
                            class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/30"
                            placeholder="Name of rider / driver">
                 </div>
                 <div>
                     <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Rider Phone</label>
-                    <input type="text" name="rider_phone" value="<?= e($editing ? $delivery['rider_phone'] : '') ?>"
+                    <input type="text" name="rider_phone" value="<?= e($delivery['rider_phone'] ?? '') ?>"
                            class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/30"
                            placeholder="e.g. 08012345678">
                 </div>
                 <div>
                     <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Booking Reference</label>
-                    <input type="text" name="booking_reference" value="<?= e($editing ? $delivery['booking_reference'] : '') ?>"
+                    <input type="text" name="booking_reference" value="<?= e($delivery['booking_reference'] ?? '') ?>"
                            class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/30"
                            placeholder="3PL booking/order ID">
                 </div>
@@ -230,7 +230,7 @@ if (empty($initial_items)) {
     </div>
 
     <!-- Section: Tracking (collapsible) -->
-    <div class="bg-brand-white border border-brand-sand rounded-xl shadow-sm overflow-hidden" x-data="{ open: <?= $editing && ($delivery['tracking_number'] || $delivery['tracking_url']) ? 'true' : 'false' ?> }">
+    <div class="bg-brand-white border border-brand-sand rounded-xl shadow-sm overflow-hidden" x-data="{ open: <?= !empty($delivery['tracking_number']) || !empty($delivery['tracking_url']) ? 'true' : 'false' ?> }">
         <button type="button" @click="open = !open" class="w-full flex items-center justify-between p-5">
             <h2 class="font-heading font-bold text-sm text-brand-plum uppercase tracking-wider">Tracking Info</h2>
             <svg :class="open ? 'rotate-180' : ''" class="w-4 h-4 text-brand-plum/40 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
@@ -239,13 +239,13 @@ if (empty($initial_items)) {
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                     <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Tracking Number</label>
-                    <input type="text" name="tracking_number" value="<?= e($editing ? $delivery['tracking_number'] : '') ?>"
+                    <input type="text" name="tracking_number" value="<?= e($delivery['tracking_number'] ?? '') ?>"
                            class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/30"
                            placeholder="Courier tracking ID">
                 </div>
                 <div>
                     <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Tracking URL</label>
-                    <input type="url" name="tracking_url" value="<?= e($editing ? $delivery['tracking_url'] : '') ?>"
+                    <input type="url" name="tracking_url" value="<?= e($delivery['tracking_url'] ?? '') ?>"
                            class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/30"
                            placeholder="https://...">
                 </div>
@@ -261,13 +261,13 @@ if (empty($initial_items)) {
                 <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Special Instructions</label>
                 <textarea name="special_instructions" rows="2"
                           class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/30 resize-none"
-                          placeholder="Fragile, call before delivery, etc."><?= e($editing ? $delivery['special_instructions'] : '') ?></textarea>
+                          placeholder="Fragile, call before delivery, etc."><?= e($delivery['special_instructions'] ?? '') ?></textarea>
             </div>
             <div>
                 <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Internal Notes</label>
                 <textarea name="notes" rows="2"
                           class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/30 resize-none"
-                          placeholder="Private notes (not shown to recipient)"><?= e($editing ? $delivery['notes'] : '') ?></textarea>
+                          placeholder="Private notes (not shown to recipient)"><?= e($delivery['notes'] ?? '') ?></textarea>
             </div>
         </div>
     </div>
@@ -284,16 +284,16 @@ if (empty($initial_items)) {
 <script>
 function deliveryForm() {
     return {
-        invoiceId: <?= $editing ? (int)($delivery['invoice_id'] ?? 0) : (int)($pre_invoice['id'] ?? 0) ?>,
-        invoiceNumber: '<?= e($editing && ($delivery['invoice_id'] ?? 0) ? ($delivery['doc_number'] ?? '') : ($pre_invoice['doc_number'] ?? '')) ?>',
+        invoiceId: <?= (int)($delivery['invoice_id'] ?? ($pre_invoice['id'] ?? 0)) ?>,
+        invoiceNumber: '<?= e($delivery['invoice_doc_number'] ?? ($pre_invoice['doc_number'] ?? '')) ?>',
         invoiceCustomer: '<?= e($pre_customer['full_name'] ?? '') ?>',
-        customerId: <?= $editing ? (int)($delivery['customer_id'] ?? 0) : (int)($pre_customer['id'] ?? 0) ?>,
+        customerId: <?= (int)($delivery['customer_id'] ?? ($pre_customer['id'] ?? 0)) ?>,
         invoiceSearch: '',
         invoiceResults: [],
 
-        recipientName: '<?= e($editing ? $delivery['recipient_name'] : ($pre_customer['full_name'] ?? '')) ?>',
-        recipientPhone: '<?= e($editing ? $delivery['recipient_phone'] : ($pre_customer['phone'] ?? '')) ?>',
-        deliveryAddress: '<?= e($editing ? $delivery['delivery_address'] : ($pre_customer['address'] ?? '')) ?>',
+        recipientName: '<?= e($delivery['recipient_name'] ?? ($pre_customer['full_name'] ?? '')) ?>',
+        recipientPhone: '<?= e($delivery['recipient_phone'] ?? ($pre_customer['phone'] ?? '')) ?>',
+        deliveryAddress: '<?= e($delivery['delivery_address'] ?? ($pre_customer['address'] ?? '')) ?>',
 
         items: <?= json_encode($initial_items, JSON_UNESCAPED_UNICODE) ?>,
 

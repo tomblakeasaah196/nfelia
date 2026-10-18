@@ -474,9 +474,16 @@ public function update_status($id = null) {
 
         $this->db->beginTransaction();
         try {
+            // Claim the quote first: a second tap, or a second person, finds it
+            // already converted and stops here (M8)
+            $claim = $this->db->prepare("UPDATE quotations SET status = 'converted' WHERE id = ? AND business_id = ? AND status <> 'converted'");
+            $claim->execute([(int)$id, $this->biz_id]);
+            if ($claim->rowCount() !== 1) {
+                throw new DomainException('This quotation has already been converted.');
+            }
+
             // Generate invoice doc number
-            $this->db->prepare("CALL generate_doc_number(?, 'INV', @inv_num)")->execute([$this->biz_id]);
-            $doc_number = $this->db->query("SELECT @inv_num")->fetchColumn();
+            $doc_number = generate_doc_number($this->db, $this->biz_id, 'INV');
 
             $token = generate_token();
 
@@ -521,17 +528,19 @@ public function update_status($id = null) {
                 ]);
             }
 
-            // Mark quotation as converted
-            $this->db->prepare("UPDATE quotations SET status = 'converted' WHERE id = ?")->execute([$id]);
-
             $this->db->commit();
 
             flash('success', $quotation['doc_number'] . ' converted to Invoice ' . $doc_number);
             redirect('invoices/view/' . $invoice_id);
 
+        } catch (DomainException $e) {
+            $this->db->rollBack();
+            flash('error', $e->getMessage());
+            redirect('quotations/view/' . $id);
         } catch (\Throwable $e) {
             $this->db->rollBack();
-            flash('error', 'Conversion failed: ' . $e->getMessage());
+            error_log('Quotation convert error: ' . $e->getMessage());
+            flash('error', 'Could not convert the quotation. Please try again.');
             redirect('quotations/view/' . $id);
         }
     }
@@ -608,7 +617,7 @@ public function update_status($id = null) {
         $bank_id        = (int)($_POST['bank_account_id'] ?? 0) ?: null;
         $issue_date     = trim($_POST['issue_date'] ?? date('Y-m-d'));
         $expiry_date    = trim($_POST['expiry_date'] ?? '') ?: null;
-        $tax_rate        = (float)($_POST['tax_rate'] ?? 0);
+        $tax_rate        = max(0, min(100, (float)($_POST['tax_rate'] ?? 0)));   // M18
         $notes           = trim($_POST['notes'] ?? '');
         $discount_input  = (float)($_POST['discount_amount'] ?? 0);
 
@@ -633,9 +642,10 @@ public function update_status($id = null) {
 
         if (!empty($errors)) {
             flash('error', implode(' ', $errors));
-            $quotation = $_POST;
-            $items     = [];
+            // Keep what was typed, lines included; an edit keeps its own id (D1)
             $editing   = $id !== null;
+            $quotation = array_merge($editing ? ($this->find_quotation($id) ?: []) : [], $_POST);
+            $items     = posted_lines($_POST);
             $customers = $this->get_customers();
             $banks     = $this->get_bank_accounts();
             $title     = $editing ? "Edit Quotation" : "New Quotation";
@@ -657,9 +667,10 @@ public function update_status($id = null) {
             $prod_id   = (int)($item_products[$i] ?? 0) ?: null;
             if ($prod_id && !owned_by_business($this->db, 'products', $prod_id, $this->biz_id)) $prod_id = null;
 
-            $line_total = $qty * $price;
-            $disc_amt   = round($line_total * $disc_pct / 100, 2);
-            $line_sub   = $line_total - $disc_amt;
+            // Each line rounded to kobo before adding up (M20)
+            $line_total = money2($qty * $price);
+            $disc_amt   = money2($line_total * $disc_pct / 100);
+            $line_sub   = money2($line_total - $disc_amt);
 
             $subtotal += $line_sub;
             $line_items[] = [
@@ -675,11 +686,12 @@ public function update_status($id = null) {
         }
 
         // NOW clamp the discount so it cannot exceed the calculated subtotal
-        $discount_amount = max(0, min($discount_input, $subtotal));
-        $subtotal_after_discount = max(0, $subtotal - $discount_amount);
+        $subtotal        = money2($subtotal);
+        $discount_amount = money2(max(0, min($discount_input, $subtotal)));
+        $subtotal_after_discount = money2(max(0, $subtotal - $discount_amount));
         
-        $tax_amount = round($subtotal_after_discount * $tax_rate / 100, 2);
-        $total      = $subtotal_after_discount + $tax_amount;
+        $tax_amount = money2($subtotal_after_discount * $tax_rate / 100);
+        $total      = money2($subtotal_after_discount + $tax_amount);
 
         $this->db->beginTransaction();
         try {
@@ -715,8 +727,7 @@ public function update_status($id = null) {
                 }
             } else {
                 // Generate doc number
-                $this->db->prepare("CALL generate_doc_number(?, 'QUO', @quo_num)")->execute([$this->biz_id]);
-                $doc_number = $this->db->query("SELECT @quo_num")->fetchColumn();
+                $doc_number = generate_doc_number($this->db, $this->biz_id, 'QUO');
                 $token = generate_token();
 
                 $this->db->prepare("

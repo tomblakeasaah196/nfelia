@@ -148,13 +148,11 @@ if ($wa_link && $debt['type'] === 'receivable' && $is_open) {
         <div>
             <label class="text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest block mb-1">Method</label>
             <select x-model="method" class="w-full px-3 py-2.5 text-xs font-semibold bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum uppercase tracking-wider">
-                <option value="">Select</option>
                 <option value="cash">Cash</option>
                 <option value="bank_transfer">Bank Transfer</option>
-                <option value="card">Card</option>
+                <option value="pos">POS or card</option>
                 <option value="mobile_money">Mobile Money</option>
-                <option value="pos">POS</option>
-                <option value="cheque">Cheque</option>
+                <option value="other">Other (cheque and the rest)</option>
             </select>
         </div>
         <div>
@@ -197,7 +195,7 @@ if ($wa_link && $debt['type'] === 'receivable' && $is_open) {
 function settlementModal() {
     return {
         amount: <?= (float)$debt['balance'] ?>,
-        method: '',
+        method: 'cash',
         date: '<?= date('Y-m-d') ?>',
         reference: '',
         note: '',

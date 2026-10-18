@@ -292,17 +292,22 @@ class PurgeController
         // 3. Collect deep dependency snapshot & unlink disk files
         $snapshot = [];
         $deleted_doc_strings = [];
+        $skipped = [];
         $unlinked_files = 0;
+        $files_to_unlink = [];
 
         try {
             $this->db->beginTransaction();
 
             foreach ($ids as $target_id) {
                 $tree = $this->execute_cascade_delete($module, $target_id);
-                if ($tree) {
+                if ($tree && !empty($tree["skipped"])) {
+                    // One record that can't go doesn't stop the rest (D6)
+                    $skipped[] = $tree["identifier"] . " (" . $tree["skipped"] . ")";
+                } elseif ($tree) {
                     $snapshot[] = $tree["snapshot"];
                     $deleted_doc_strings[] = $tree["identifier"];
-                    $unlinked_files += $tree["files_unlinked"];
+                    $files_to_unlink = array_merge($files_to_unlink, $tree["files"]);
                 }
             }
 
@@ -310,10 +315,11 @@ class PurgeController
                 $this->db->rollBack();
                 json_response(
                     [
-                        "error" =>
-                            "Records could not be found or were already purged.",
+                        "error" => $skipped
+                            ? "Nothing was purged. " . implode("; ", $skipped) . "."
+                            : "Records could not be found or were already purged.",
                     ],
-                    404,
+                    $skipped ? 422 : 404,
                 );
                 return;
             }
@@ -349,12 +355,21 @@ class PurgeController
             ]);
 
             $this->db->commit();
+
+            // Files go only once the records are gone for good
+            foreach (array_unique($files_to_unlink) as $rel_path) {
+                $full_path = BASE_PATH . "/" . ltrim($rel_path, "/");
+                if (is_file($full_path) && @unlink($full_path)) {
+                    $unlinked_files++;
+                }
+            }
             json_response([
                 "success" => true,
                 "message" =>
                     "Hard purge complete. Wiped " .
                     count($deleted_doc_strings) .
-                    " records + unlinked {$unlinked_files} disk files.",
+                    " records + unlinked {$unlinked_files} disk files." .
+                    ($skipped ? " Not purged: " . implode("; ", $skipped) . "." : ""),
                 "purged_count" => count($deleted_doc_strings),
             ]);
         } catch (\Throwable $e) {
@@ -511,6 +526,27 @@ class PurgeController
             if (!empty($row["image_path"])) {
                 $tree["disk_files"][] = $row["image_path"];
             }
+            $s = $this->db->prepare("SELECT image_path FROM product_images WHERE product_id = ? AND business_id = ?");
+            $s->execute([$id, $this->biz_id]);
+            foreach ($s->fetchAll(PDO::FETCH_COLUMN) as $path) {
+                $tree["disk_files"][] = $path;
+            }
+        } elseif ($module === "customers") {
+            // Documents keep their client: those have to be purged first
+            foreach (["invoices" => "Invoice", "quotations" => "Quotation", "receipts" => "Receipt"] as $table => $type) {
+                $status = $table === "receipts" ? "'Paid'" : "status";   // receipts have no status
+                $s = $this->db->prepare("SELECT id, doc_number, {$status} AS status FROM {$table} WHERE customer_id = ? AND business_id = ?");
+                $s->execute([$id, $this->biz_id]);
+                foreach ($s->fetchAll() as $c) {
+                    $tree["children"][] = [
+                        "type" => $type,
+                        "id" => $c["id"],
+                        "name" => $c["doc_number"],
+                        "val" => 0,
+                        "status" => $c["status"] ?? "Paid",
+                    ];
+                }
+            }
         }
 
         return $tree;
@@ -531,21 +567,30 @@ class PurgeController
         }
 
         $impact = $this->map_impact_tree($module, $row);
-        $files_unlinked = 0;
+        $files = $impact["disk_files"];
+        $customer_id = (int) ($row["customer_id"] ?? 0);
 
-        // Unlink physical disk files
-        foreach ($impact["disk_files"] as $rel_path) {
-            $full_path = BASE_PATH . "/" . ltrim($rel_path, "/");
-            if (file_exists($full_path) && is_file($full_path)) {
-                @unlink($full_path);
-                $files_unlinked++;
+        // Execute deep cascades. Every record that points here is cleared,
+        // and stock and client totals are put right (D6).
+        if ($module === "customers") {
+            if (!empty($impact["children"])) {
+                return [
+                    "identifier" => $impact["identifier"],
+                    "skipped" => "has " . count($impact["children"]) . " document" . (count($impact["children"]) === 1 ? "" : "s") . "; purge those first",
+                ];
             }
-        }
-
-        // Execute deep cascades
-        if ($module === "quotations") {
+            foreach (["debts", "deeds", "tasks", "bookings", "orders", "deliveries"] as $table) {
+                $this->db
+                    ->prepare("UPDATE {$table} SET customer_id = NULL WHERE customer_id = ? AND business_id = ?")
+                    ->execute([$target_id, $this->biz_id]);
+            }
+            $customer_id = 0;
+        } elseif ($module === "quotations") {
             $this->db
                 ->prepare("DELETE FROM quotation_items WHERE quotation_id = ?")
+                ->execute([$target_id]);
+            $this->db
+                ->prepare("DELETE FROM quotation_activities WHERE quotation_id = ?")
                 ->execute([$target_id]);
             // Unlink child invoice fk
             $this->db
@@ -554,18 +599,40 @@ class PurgeController
                 )
                 ->execute([$target_id]);
         } elseif ($module === "invoices") {
+            // The stock it took off goes back
+            stock_settle($this->db, $this->biz_id, "invoice", $target_id, [], "invoice " . $impact["identifier"] . " purged");
             $this->db
                 ->prepare("DELETE FROM invoice_items WHERE invoice_id = ?")
                 ->execute([$target_id]);
-            // Delete child receipts
+            // Delete child receipts, and what pointed at them
+            $stmtR = $this->db->prepare("SELECT id FROM receipts WHERE invoice_id = ? AND business_id = ?");
+            $stmtR->execute([$target_id, $this->biz_id]);
+            foreach ($stmtR->fetchAll(PDO::FETCH_COLUMN) as $receipt_id) {
+                $this->forget_receipt((int) $receipt_id);
+            }
             $this->db
                 ->prepare(
                     "DELETE FROM receipts WHERE invoice_id = ? AND business_id = ?",
                 )
                 ->execute([$target_id, $this->biz_id]);
-            // Delete child deliveries & items
+            // Its payments, and the debt it raised with its settlements
+            $this->db
+                ->prepare("DELETE FROM payments WHERE invoice_id = ? AND business_id = ?")
+                ->execute([$target_id, $this->biz_id]);
+            $this->db
+                ->prepare("DELETE s FROM debt_settlements s JOIN debts d ON d.id = s.debt_id WHERE d.invoice_id = ? AND d.business_id = ?")
+                ->execute([$target_id, $this->biz_id]);
+            $this->db
+                ->prepare("DELETE FROM debts WHERE invoice_id = ? AND business_id = ?")
+                ->execute([$target_id, $this->biz_id]);
+            foreach (["deeds", "tasks"] as $table) {
+                $this->db
+                    ->prepare("UPDATE {$table} SET invoice_id = NULL WHERE invoice_id = ? AND business_id = ?")
+                    ->execute([$target_id, $this->biz_id]);
+            }
+            // Delete child deliveries & items (and their signatures)
             $stmtD = $this->db->prepare(
-                "SELECT id FROM deliveries WHERE invoice_id = ? AND business_id = ?",
+                "SELECT id, signoff_signature_path FROM deliveries WHERE invoice_id = ? AND business_id = ?",
             );
             $stmtD->execute([$target_id, $this->biz_id]);
             foreach ($stmtD->fetchAll() as $drow) {
@@ -574,6 +641,12 @@ class PurgeController
                         "DELETE FROM delivery_items WHERE delivery_id = ?",
                     )
                     ->execute([(int) $drow["id"]]);
+                $this->db
+                    ->prepare("UPDATE orders SET delivery_id = NULL WHERE delivery_id = ? AND business_id = ?")
+                    ->execute([(int) $drow["id"], $this->biz_id]);
+                if (!empty($drow["signoff_signature_path"])) {
+                    $files[] = $drow["signoff_signature_path"];
+                }
             }
             $this->db
                 ->prepare(
@@ -602,11 +675,16 @@ class PurgeController
                 )
                 ->execute([$target_id]);
         } elseif ($module === "receipts") {
+            // A direct sale puts its stock back; a receipt for a payment
+            // leaves the payment, which is still money received
+            if (empty($row["invoice_id"])) {
+                stock_settle($this->db, $this->biz_id, "receipt", $target_id, [], "receipt " . $impact["identifier"] . " purged");
+            }
+            $this->forget_receipt($target_id);
+        } elseif ($module === "products") {
             $this->db
-                ->prepare(
-                    "UPDATE orders SET receipt_id = NULL WHERE receipt_id = ?",
-                )
-                ->execute([$target_id]);
+                ->prepare("DELETE FROM product_images WHERE product_id = ? AND business_id = ?")
+                ->execute([$target_id, $this->biz_id]);
         }
 
         // Finally delete the mother target row
@@ -615,10 +693,27 @@ class PurgeController
         );
         $stmtDel->execute([$target_id, $this->biz_id]);
 
+        if ($customer_id && in_array($module, ["invoices", "receipts"], true)) {
+            customer_refresh_totals($this->db, $this->biz_id, $customer_id);
+        }
+
         return [
             "identifier" => $impact["identifier"],
             "snapshot" => $row,
-            "files_unlinked" => $files_unlinked,
+            "files" => $files,
         ];
+    }
+
+    /** Clear everything that points at a receipt, and its lines. */
+    private function forget_receipt(int $receipt_id): void
+    {
+        foreach (["orders", "bookings", "deeds"] as $table) {
+            $this->db
+                ->prepare("UPDATE {$table} SET receipt_id = NULL WHERE receipt_id = ? AND business_id = ?")
+                ->execute([$receipt_id, $this->biz_id]);
+        }
+        $this->db
+            ->prepare("DELETE FROM receipt_items WHERE receipt_id = ?")
+            ->execute([$receipt_id]);
     }
 }

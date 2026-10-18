@@ -37,15 +37,9 @@ class ReportController {
 
         $month_label = date('F Y', strtotime($period_start));
 
-        // ── 1. REVENUE: Payments received this period (from receipts)
-        $stmtRev = $this->db->prepare("
-    SELECT COALESCE(SUM(amount), 0) AS total
-    FROM receipts
-    WHERE business_id = ?
-      AND issue_date BETWEEN ? AND ?
-");
-        $stmtRev->execute([$this->biz_id, $period_start, $period_end]);
-        $revenue = (float)$stmtRev->fetchColumn();
+        // ── 1. REVENUE: money received this period: invoice payments and
+        // sales paid on the spot, the same basis as Home (money_in)
+        $revenue = money_in($this->db, $this->biz_id, $period_start, $period_end);
 
         // ── 2. EXPENSES: All expenses this period
         $stmtExp = $this->db->prepare("
@@ -88,7 +82,8 @@ class ReportController {
 
         // ── 6. OUTSTANDING DEBTS (receivable vs payable)
         $stmtDebts = $this->db->prepare("
-            SELECT type, COALESCE(SUM(balance), 0) AS total, COUNT(*) AS count
+            SELECT type, COALESCE(SUM(balance), 0) AS total, COUNT(*) AS count,
+                   COALESCE(SUM(CASE WHEN invoice_id IS NULL THEN balance ELSE 0 END), 0) AS not_invoiced
             FROM debts
             WHERE business_id = ? AND status IN ('active','settling')
             GROUP BY type
@@ -97,8 +92,11 @@ class ReportController {
         $debt_rows = $stmtDebts->fetchAll();
         $debts_receivable = 0; $debts_receivable_count = 0;
         $debts_payable    = 0; $debts_payable_count    = 0;
+        // What could still come in: unpaid invoices, plus debts that didn't
+        // come from an invoice (overdue invoices are already in the first)
+        $collectable_extra = 0;
         foreach ($debt_rows as $dr) {
-            if ($dr['type'] === 'receivable') { $debts_receivable = (float)$dr['total']; $debts_receivable_count = (int)$dr['count']; }
+            if ($dr['type'] === 'receivable') { $debts_receivable = (float)$dr['total']; $debts_receivable_count = (int)$dr['count']; $collectable_extra = (float)$dr['not_invoiced']; }
             if ($dr['type'] === 'payable')    { $debts_payable    = (float)$dr['total']; $debts_payable_count    = (int)$dr['count']; }
         }
 
@@ -106,14 +104,7 @@ class ReportController {
         $trend_start = date('Y-m-01', strtotime('-5 months', strtotime($period_start)));
         $trend_end   = $period_end;
 
-        $stmtTrendRev = $this->db->prepare("
-            SELECT DATE_FORMAT(issue_date, '%Y-%m') AS ym, COALESCE(SUM(amount), 0) AS total
-            FROM receipts WHERE business_id = ? AND issue_date BETWEEN ? AND ?
-            GROUP BY ym
-        ");
-        $stmtTrendRev->execute([$this->biz_id, $trend_start, $trend_end]);
-        $trend_rev_map = [];
-        foreach ($stmtTrendRev->fetchAll() as $r) { $trend_rev_map[$r['ym']] = (float)$r['total']; }
+        $trend_rev_map = money_in_by_month($this->db, $this->biz_id, $trend_start, $trend_end);
 
         $stmtTrendExp = $this->db->prepare("
             SELECT DATE_FORMAT(expense_date, '%Y-%m') AS ym, COALESCE(SUM(amount), 0) AS total
@@ -170,10 +161,8 @@ class ReportController {
         $period_end   = date('Y-m-t', strtotime($period_start));
         $month_label  = date('F Y', strtotime($period_start));
 
-        // Revenue
-        $stmt = $this->db->prepare("SELECT COALESCE(SUM(amount),0) FROM receipts WHERE business_id=? AND issue_date BETWEEN ? AND ?");
-        $stmt->execute([$this->biz_id, $period_start, $period_end]);
-        $revenue = (float)$stmt->fetchColumn();
+        // Revenue (the same basis as the screen and Home)
+        $revenue = money_in($this->db, $this->biz_id, $period_start, $period_end);
 
         // Expenses
         $stmt = $this->db->prepare("SELECT COALESCE(SUM(amount),0) FROM expenses WHERE business_id=? AND deleted_at IS NULL AND expense_date BETWEEN ? AND ?");

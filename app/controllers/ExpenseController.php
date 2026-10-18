@@ -260,26 +260,9 @@ class ExpenseController {
         $expense = $this->find_expense($id);
         if (!$expense) { not_found(); return; }
 
-        // If stock purchase was paid, reverse stock movements
-        if ($expense['category'] === 'stock_purchase') {
-            $stmtI = $this->db->prepare("SELECT * FROM expense_items WHERE expense_id = ?");
-            $stmtI->execute([$id]);
-            $items = $stmtI->fetchAll();
-
-            foreach ($items as $item) {
-                if ($item['product_id']) {
-                    // Reverse stock: subtract what was added
-                    $this->db->prepare("UPDATE products SET stock_quantity = stock_quantity - ? WHERE id = ? AND business_id = ?")
-                              ->execute([$item['quantity'], $item['product_id'], $this->biz_id]);
-
-                    // Log reversal movement
-                    $this->db->prepare("
-                        INSERT INTO stock_movements (business_id, product_id, type, quantity, reference_type, reference_id, note)
-                        VALUES (?, ?, 'adjustment', ?, 'expense_delete', ?, 'Stock reversed — expense deleted')
-                    ")->execute([$this->biz_id, $item['product_id'], -$item['quantity'], $id]);
-                }
-            }
-        }
+        $this->db->beginTransaction();
+        // Stock bought with it comes off again: exactly what it added
+        stock_settle($this->db, $this->biz_id, 'expense', (int)$id, [], $expense['doc_number'] . ' (deleted)', 'stock_out', 'stock_in');
 
         // Reverse supplier financials
         if ($expense['supplier_id']) {
@@ -301,6 +284,8 @@ class ExpenseController {
         // Soft delete
         $this->db->prepare("UPDATE expenses SET deleted_at = NOW() WHERE id = ? AND business_id = ?")
                   ->execute([$id, $this->biz_id]);
+        expense_sync_debt($this->db, $this->biz_id, (int)$id);
+        $this->db->commit();
 
         flash('success', $expense['doc_number'] . ' deleted.');
         redirect('expenses');
@@ -351,9 +336,9 @@ class ExpenseController {
         if (strlen($q) < 2) { json_response([]); return; }
 
         $stmt = $this->db->prepare("
-            SELECT id, name, sku, stock_quantity, cost_price, selling_price, type
+            SELECT id, name, sku, stock_qty AS stock_quantity, cost_price, sell_price AS selling_price, is_service
             FROM products
-            WHERE business_id = ? AND deleted_at IS NULL
+            WHERE business_id = ? AND deleted_at IS NULL AND is_service = 0
               AND (name LIKE ? OR sku LIKE ?)
             ORDER BY name ASC LIMIT 10
         ");
@@ -410,6 +395,9 @@ class ExpenseController {
             if ($amount <= 0) $errors[] = 'Amount must be greater than zero.';
         }
 
+        $amount      = money2($amount);
+        $amount_paid = money2($amount_paid);
+
         // Payment logic
         if ($payment_status === 'paid') {
             $amount_paid = $amount;
@@ -424,8 +412,9 @@ class ExpenseController {
 
         if (!empty($errors)) {
             flash('error', implode(' ', $errors));
-            $expense  = $_POST;
+            // Keep what was typed, lines included; an edit keeps its own id (D1)
             $editing  = $id !== null;
+            $expense  = array_merge($editing ? ($this->find_expense($id) ?: []) : [], $_POST);
             $user     = auth_user();
             $business = auth_business();
             $pre_supplier = null;
@@ -437,6 +426,14 @@ class ExpenseController {
             $categories      = self::CATEGORIES;
             $payment_methods = self::PAYMENT_METHODS;
             $items           = [];
+            foreach ($item_descriptions as $i => $desc) {
+                $items[] = [
+                    'product_id'  => (int)($item_product_ids[$i] ?? 0) ?: null,
+                    'description' => (string)$desc,
+                    'quantity'    => (float)($item_quantities[$i] ?? 1),
+                    'unit_cost'   => (float)($item_unit_costs[$i] ?? 0),
+                ];
+            }
             $title    = $editing ? "Edit Expense" : "New Expense";
             $view_file = BASE_PATH . '/views/expenses/form.php';
             require_once BASE_PATH . '/views/layouts/app.php';
@@ -461,18 +458,9 @@ class ExpenseController {
                     ]);
                 }
 
-                // Reverse old stock if was stock_purchase
-                if ($old && $old['category'] === 'stock_purchase') {
-                    $stmtOI = $this->db->prepare("SELECT * FROM expense_items WHERE expense_id = ?");
-                    $stmtOI->execute([$id]);
-                    foreach ($stmtOI->fetchAll() as $oi) {
-                        if ($oi['product_id']) {
-                            $this->db->prepare("UPDATE products SET stock_quantity = stock_quantity - ? WHERE id = ? AND business_id = ?")
-                                      ->execute([$oi['quantity'], $oi['product_id'], $this->biz_id]);
-                        }
-                    }
-                    $this->db->prepare("DELETE FROM expense_items WHERE expense_id = ?")->execute([$id]);
-                }
+                // Its lines are written again below; stock moves by the difference
+                $this->db->prepare("DELETE FROM expense_items WHERE expense_id = ?")->execute([$id]);
+                $doc_number = $old['doc_number'] ?? 'EXP';
 
                 $this->db->prepare("
                     UPDATE expenses SET
@@ -503,7 +491,10 @@ class ExpenseController {
                 $id = (int)$this->db->lastInsertId();
             }
 
-            // Insert stock purchase line items + restock
+            // Insert stock purchase line items; the stock they bring in is
+            // settled after (only the difference moves on an edit)
+            $restock = [];
+            $costs   = [];
             if ($category === 'stock_purchase') {
                 foreach ($item_descriptions as $i => $desc) {
                     $desc       = trim($desc);
@@ -521,23 +512,17 @@ class ExpenseController {
                         VALUES (?, ?, ?, ?, ?, ?)
                     ")->execute([$id, $product_id, $desc, $qty, $unit_cost, $line_total]);
 
-                    // Restock product
                     if ($product_id) {
-                        $this->db->prepare("UPDATE products SET stock_quantity = stock_quantity + ? WHERE id = ? AND business_id = ?")
-                                  ->execute([$qty, $product_id, $this->biz_id]);
+                        $restock[$product_id] = ($restock[$product_id] ?? 0) + $qty;
+                        $costs[$product_id]   = $unit_cost;
 
                         // Update cost price if provided
                         $this->db->prepare("UPDATE products SET cost_price = ? WHERE id = ? AND business_id = ? AND (cost_price IS NULL OR cost_price = 0)")
                                   ->execute([$unit_cost, $product_id, $this->biz_id]);
-
-                        // Log stock movement
-                        $this->db->prepare("
-                            INSERT INTO stock_movements (business_id, product_id, type, quantity, reference_type, reference_id, note)
-                            VALUES (?, ?, 'restock', ?, 'expense', ?, ?)
-                        ")->execute([$this->biz_id, $product_id, $qty, $id, 'Restocked from ' . ($doc_number ?? $expense['doc_number'] ?? 'EXP')]);
                     }
                 }
             }
+            stock_settle($this->db, $this->biz_id, 'expense', $id, $restock, $doc_number, 'stock_out', 'stock_in', $costs);
 
             // Update supplier financials
             if ($supplier_id) {
@@ -550,10 +535,15 @@ class ExpenseController {
                 ")->execute([$amount, $amount_paid, $balance_due, $supplier_id, $this->biz_id]);
             }
 
+            // Its supplier debt (if one was made for it) follows what is unpaid
+            expense_sync_debt($this->db, $this->biz_id, $id);
+
             $this->db->commit();
-            flash('success', ($doc_number ?? $expense['doc_number'] ?? 'Expense') . ' saved.');
+            flash('success', $doc_number . ' saved.');
         } catch (\Exception $ex) {
-            $this->db->rollBack();
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             flash('error', 'Failed to save expense: ' . $ex->getMessage());
             redirect('expenses');
             return;

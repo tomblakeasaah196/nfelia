@@ -77,6 +77,12 @@ class BookingController
         }
         $booking_link = booking_url($business, $booking);
         $customer_wa  = shop_whatsapp_digits(['phone' => $booking['customer_phone']]);
+        $deposit_receipt = null;
+        if (!empty($booking['receipt_id'])) {
+            $stmt = $this->db->prepare("SELECT id, doc_number FROM receipts WHERE id = ? AND business_id = ?");
+            $stmt->execute([(int)$booking['receipt_id'], $this->biz_id]);
+            $deposit_receipt = $stmt->fetch() ?: null;
+        }
 
         $title     = 'Booking ' . $booking['booking_number'];
         $view_file = BASE_PATH . '/views/bookings/view.php';
@@ -110,8 +116,25 @@ class BookingController
         $notes = 'Booking ' . $booking['booking_number'] . ': ' . booking_when($booking) . '. Phone ' . $booking['customer_phone'] . '.'
                . ($booking['customer_note'] ? "\n" . $booking['customer_note'] : '');
 
+        // A deposit the owner ticked as received goes in the books as a
+        // receipt (M21)
+        $deposit = round((float)$booking['deposit_due'], 2);
+        $take_deposit = $deposit > 0 && !empty($_POST['deposit_received']);
+        $receipt_number = null;
+
         $this->db->beginTransaction();
         try {
+            // Claim the request first: a second tap, or a decline meanwhile,
+            // finds it already dealt with (S7)
+            $claim = $this->db->prepare("
+                UPDATE bookings SET status = 'confirmed', decided_by = ?, decided_at = NOW()
+                WHERE id = ? AND business_id = ? AND status = 'pending'
+            ");
+            $claim->execute([(int)$user['id'], (int)$booking['id'], $this->biz_id]);
+            if ($claim->rowCount() !== 1) {
+                throw new DomainException($booking['booking_number'] . ' was already answered. Here it is as it stands.');
+            }
+
             $remind = $time !== null ? 60 : null;
             $this->db->prepare("
                 INSERT INTO tasks (business_id, kind, title, notes, due_date, due_time, end_time, customer_id, remind_before, remind_at, created_by)
@@ -120,18 +143,19 @@ class BookingController
                          $booking['customer_id'] ?: null, $remind, $remind ? planner_remind_at($start->format('Y-m-d'), $time, $remind) : null,
                          (int)$user['id']]);
             $task_id = (int)$this->db->lastInsertId();
-            $confirmed = $this->db->prepare("
-                UPDATE bookings SET status = 'confirmed', task_id = ?, decided_by = ?, decided_at = NOW()
-                WHERE id = ? AND business_id = ? AND status = 'pending'
-            ");
-            $confirmed->execute([$task_id, (int)$user['id'], (int)$booking['id'], $this->biz_id]);
-            if ($confirmed->rowCount() !== 1) {
-                // Someone else answered it a moment ago: no second appointment.
-                $this->db->rollBack();
-                flash('error', $booking['booking_number'] . ' was already answered. Here it is as it stands.');
-                redirect('bookings/view/' . (int)$booking['id']);
+            $this->db->prepare("UPDATE bookings SET task_id = ? WHERE id = ? AND business_id = ?")
+                     ->execute([$task_id, (int)$booking['id'], $this->biz_id]);
+
+            if ($take_deposit) {
+                [$receipt_id, $receipt_number] = $this->deposit_receipt($booking, $deposit, (int)$user['id']);
+                $this->db->prepare("UPDATE bookings SET receipt_id = ? WHERE id = ? AND business_id = ?")
+                         ->execute([$receipt_id, (int)$booking['id'], $this->biz_id]);
             }
             $this->db->commit();
+        } catch (DomainException $e) {
+            $this->db->rollBack();
+            flash('error', $e->getMessage());
+            redirect('bookings/view/' . (int)$booking['id']);
         } catch (\Throwable $e) {
             $this->db->rollBack();
             error_log('Booking confirm failed: ' . $e->getMessage());
@@ -139,7 +163,9 @@ class BookingController
             redirect('bookings/view/' . (int)$booking['id']);
         }
         $this->tell_shopper($booking, 'confirmed', '');
-        flash('success', $booking['booking_number'] . ' confirmed and added to your calendar. Let ' . planner_first_name($booking['customer_name']) . ' know on WhatsApp.');
+        flash('success', $booking['booking_number'] . ' confirmed and added to your calendar.'
+            . ($receipt_number ? ' The deposit is on receipt ' . $receipt_number . '.' : '')
+            . ' Let ' . planner_first_name($booking['customer_name']) . ' know on WhatsApp.');
         redirect('bookings/view/' . (int)$booking['id']);
     }
 
@@ -147,7 +173,7 @@ class BookingController
     {
         $booking = $this->posted($id, ['pending']);
         $message = mb_substr(trim((string)($_POST['message'] ?? '')), 0, 300);
-        $this->decide($booking, 'declined', $message);
+        $this->decide($booking, 'pending', 'declined', $message);
         flash('success', $booking['booking_number'] . ' declined. That time is free again.');
         redirect('bookings/view/' . (int)$booking['id']);
     }
@@ -156,7 +182,7 @@ class BookingController
     {
         $booking = $this->posted($id, ['confirmed']);
         $message = mb_substr(trim((string)($_POST['message'] ?? '')), 0, 300);
-        $this->decide($booking, 'cancelled', $message);
+        $this->decide($booking, 'confirmed', 'cancelled', $message);
         if ($booking['task_id']) {
             $this->db->prepare("UPDATE tasks SET deleted_at = NOW() WHERE id = ? AND business_id = ?")->execute([(int)$booking['task_id'], $this->biz_id]);
         }
@@ -167,8 +193,12 @@ class BookingController
     public function complete($id = null)
     {
         $booking = $this->posted($id, ['confirmed']);
-        $this->db->prepare("UPDATE bookings SET status = 'completed' WHERE id = ? AND business_id = ? AND status = 'confirmed'")
-                 ->execute([(int)$booking['id'], $this->biz_id]);
+        $stmt = $this->db->prepare("UPDATE bookings SET status = 'completed' WHERE id = ? AND business_id = ? AND status = 'confirmed'");
+        $stmt->execute([(int)$booking['id'], $this->biz_id]);
+        if ($stmt->rowCount() !== 1) {
+            flash('error', 'That booking has already been dealt with.');
+            redirect('bookings/view/' . (int)$booking['id']);
+        }
         if ($booking['task_id']) {
             $this->db->prepare("UPDATE tasks SET done_at = COALESCE(done_at, NOW()), done_by = COALESCE(done_by, ?) WHERE id = ? AND business_id = ?")
                      ->execute([(int)auth_user()['id'], (int)$booking['task_id'], $this->biz_id]);
@@ -247,18 +277,52 @@ class BookingController
         return $booking;
     }
 
-    private function decide(array $booking, string $status, string $message): void
+    /**
+     * Move a booking on from $from only: if someone else moved it first, say
+     * so and stop (S7).
+     */
+    private function decide(array $booking, string $from, string $status, string $message): void
     {
-        // Only from the state it was in when the page showed it: two people
-        // deciding at once, or a double tap, tell the shopper once.
         $stmt = $this->db->prepare("
             UPDATE bookings SET status = ?, owner_message = ?, decided_by = ?, decided_at = NOW()
             WHERE id = ? AND business_id = ? AND status = ?
         ");
-        $stmt->execute([$status, $message !== '' ? $message : null, (int)auth_user()['id'], (int)$booking['id'], $this->biz_id, $booking['status']]);
-        if ($stmt->rowCount() === 1) {
-            $this->tell_shopper($booking, $status, $message);
+        $stmt->execute([$status, $message !== '' ? $message : null, (int)auth_user()['id'], (int)$booking['id'], $this->biz_id, $from]);
+        if ($stmt->rowCount() !== 1) {
+            flash('error', $booking['booking_number'] . ' was already answered. Here it is as it stands.');
+            redirect('bookings/view/' . (int)$booking['id']);
         }
+        $this->tell_shopper($booking, $status, $message);
+    }
+
+    /**
+     * A receipt for the deposit, to the booking's client if they are still
+     * here. Returns [receipt id, receipt number].
+     */
+    private function deposit_receipt(array $booking, float $deposit, int $user_id): array
+    {
+        $customer_id = null;
+        if (!empty($booking['customer_id'])) {
+            $stmt = $this->db->prepare("SELECT id FROM customers WHERE id = ? AND business_id = ? AND deleted_at IS NULL");
+            $stmt->execute([(int)$booking['customer_id'], $this->biz_id]);
+            $customer_id = (int)$stmt->fetchColumn() ?: null;
+        }
+        $doc_number = generate_doc_number($this->db, $this->biz_id, 'REC');
+        $method     = $booking['payment_method'] === 'bank_transfer' ? 'bank_transfer' : 'other';
+        $this->db->prepare("
+            INSERT INTO receipts (business_id, invoice_id, payment_id, customer_id, user_id, doc_number, issue_date, amount, balance_remaining, method, note, token)
+            VALUES (?, NULL, NULL, ?, ?, ?, ?, ?, 0, ?, ?, ?)
+        ")->execute([$this->biz_id, $customer_id, $user_id, $doc_number, date('Y-m-d'), $deposit, $method,
+                     'Deposit for booking ' . $booking['booking_number'] . ' (' . $booking['customer_name'] . ')', generate_token()]);
+        $receipt_id = (int)$this->db->lastInsertId();
+        $this->db->prepare("
+            INSERT INTO receipt_items (receipt_id, product_id, description, quantity, unit_price, subtotal, sort_order)
+            VALUES (?, NULL, ?, 1, ?, ?, 0)
+        ")->execute([$receipt_id, mb_substr('Deposit: ' . $booking['product_name'] . ', ' . booking_when($booking), 0, 500), $deposit, $deposit]);
+        if ($customer_id) {
+            customer_refresh_totals($this->db, $this->biz_id, $customer_id);
+        }
+        return [$receipt_id, $doc_number];
     }
 
     /**

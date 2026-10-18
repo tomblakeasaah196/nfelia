@@ -63,14 +63,15 @@ class ProductController {
             case 'in_stock':
                 $where[] = "p.is_service = 0 AND p.stock_qty > p.low_stock_threshold";
                 break;
+            // Restocking only counts items still on sale, as Home does (S18)
             case 'low':
-                $where[] = "p.is_service = 0 AND p.stock_qty > 0 AND p.stock_qty <= p.low_stock_threshold";
+                $where[] = "p.is_service = 0 AND p.is_active = 1 AND p.stock_qty > 0 AND p.stock_qty <= p.low_stock_threshold";
                 break;
             case 'out':
-                $where[] = "p.is_service = 0 AND p.stock_qty <= 0";
+                $where[] = "p.is_service = 0 AND p.is_active = 1 AND p.stock_qty <= 0";
                 break;
             case 'restock':     // low or out: the low-stock alert opens this
-                $where[] = "p.is_service = 0 AND p.stock_qty <= p.low_stock_threshold";
+                $where[] = "p.is_service = 0 AND p.is_active = 1 AND p.stock_qty <= p.low_stock_threshold";
                 break;
             case 'service':
                 $where[] = "p.is_service = 1";
@@ -113,8 +114,8 @@ class ProductController {
             SELECT
                 COUNT(*)                                                          AS total_products,
                 SUM(CASE WHEN is_service = 0 THEN stock_qty * cost_price ELSE 0 END) AS total_stock_value,
-                SUM(CASE WHEN is_service = 0 AND stock_qty <= low_stock_threshold AND stock_qty > 0 THEN 1 ELSE 0 END) AS low_stock_count,
-                SUM(CASE WHEN is_service = 0 AND stock_qty <= 0 THEN 1 ELSE 0 END) AS out_of_stock_count,
+                SUM(CASE WHEN is_service = 0 AND is_active = 1 AND stock_qty <= low_stock_threshold AND stock_qty > 0 THEN 1 ELSE 0 END) AS low_stock_count,
+                SUM(CASE WHEN is_service = 0 AND is_active = 1 AND stock_qty <= 0 THEN 1 ELSE 0 END) AS out_of_stock_count,
                 SUM(CASE WHEN is_service = 1 THEN 1 ELSE 0 END)                  AS services_count
             FROM products
             WHERE business_id = ? AND deleted_at IS NULL
@@ -164,6 +165,7 @@ class ProductController {
             if ($sell_price < 0) $errors[] = 'Selling price cannot be negative.';
             if ($cost_price < 0) $errors[] = 'Cost price cannot be negative.';
             if (!$is_service && $stock_qty < 0) $errors[] = 'Stock quantity cannot be negative.';
+            if ($threshold < 0) $errors[] = 'The low-stock level cannot be negative.';
 
             // Check duplicate name within business
             $dup = $this->db->prepare("SELECT id FROM products WHERE business_id = ? AND name = ? AND deleted_at IS NULL LIMIT 1");
@@ -257,6 +259,8 @@ class ProductController {
             $errors = [];
             if ($name === '') $errors[] = 'Product name is required.';
             if ($sell_price < 0) $errors[] = 'Selling price cannot be negative.';
+            if ($cost_price < 0) $errors[] = 'Cost price cannot be negative.';
+            if ($threshold < 0) $errors[] = 'The low-stock level cannot be negative.';
 
             // Duplicate name check (excluding self)
             $dup = $this->db->prepare("SELECT id FROM products WHERE business_id = ? AND name = ? AND deleted_at IS NULL AND id != ? LIMIT 1");
@@ -274,25 +278,44 @@ class ProductController {
                 return;
             }
 
-            // If switching from physical to service, set stock to 0
+            // Goods that become a service leave no stock behind, and the
+            // stock taken off is recorded (S9). The count itself is never
+            // written back from the form, so a sale meanwhile isn't undone.
             $was_service = (int)$product['is_service'];
-            $new_stock   = $is_service ? 0 : (float)$product['stock_qty'];
+            $this->db->beginTransaction();
+            try {
+                if ($is_service && !$was_service) {
+                    $stmt = $this->db->prepare("SELECT stock_qty FROM products WHERE id = ? AND business_id = ? FOR UPDATE");
+                    $stmt->execute([$id, $this->biz_id]);
+                    $left = (float)$stmt->fetchColumn();
+                    if ($left != 0) {
+                        stock_move($this->db, $this->biz_id, (int)$id, -$left, $left > 0 ? 'stock_out' : 'stock_in', 'product', (int)$id,
+                                   'Stock cleared: ' . $name . ' is now a service');
+                    }
+                }
 
-            $stmt = $this->db->prepare("
-                UPDATE products SET
-                    name = ?, sku = ?, category = ?, description = ?,
-                    sell_price = ?, cost_price = ?,
-                    low_stock_threshold = ?, unit = ?, is_service = ?,
-                    stock_qty = ?
-                WHERE id = ? AND business_id = ?
-            ");
-            $stmt->execute([
-                $name, $sku, $category ?: null, $description ?: null,
-                $sell_price, $cost_price,
-                $threshold, $unit, $is_service,
-                $new_stock,
-                $id, $this->biz_id
-            ]);
+                $stmt = $this->db->prepare("
+                    UPDATE products SET
+                        name = ?, sku = ?, category = ?, description = ?,
+                        sell_price = ?, cost_price = ?,
+                        low_stock_threshold = ?, unit = ?, is_service = ?,
+                        stock_qty = CASE WHEN ? = 1 THEN 0 ELSE stock_qty END
+                    WHERE id = ? AND business_id = ?
+                ");
+                $stmt->execute([
+                    $name, $sku, $category ?: null, $description ?: null,
+                    $sell_price, $cost_price,
+                    $threshold, $unit, $is_service,
+                    $is_service,
+                    $id, $this->biz_id
+                ]);
+                $this->db->commit();
+            } catch (\Throwable $e) {
+                $this->db->rollBack();
+                error_log('Product save error: ' . $e->getMessage());
+                flash('error', 'Could not save ' . $name . '. Please try again.');
+                redirect('products/edit/' . $id);
+            }
 
             // Handle image uploads (multi-image)
             $this->handle_product_images((int)$id, (int)$id);
@@ -404,42 +427,56 @@ class ProductController {
         }
 
         $adj_type  = trim($_POST['adj_type'] ?? '');   // stock_in | stock_out | adjustment
-        $quantity  = abs((float)($_POST['quantity'] ?? 0));
-        $unit_cost = (float)($_POST['unit_cost'] ?? $product['cost_price']);
+        $quantity  = round((float)($_POST['quantity'] ?? 0), 2);
+        $unit_cost = max(0, (float)($_POST['unit_cost'] ?? $product['cost_price']));
         $note      = trim($_POST['note'] ?? '');
 
-        if ($quantity <= 0) {
-            flash('error', 'Quantity must be greater than zero.');
-            redirect('products/view/' . $id);
-            return;
-        }
         if (!in_array($adj_type, ['stock_in', 'stock_out', 'adjustment'])) {
             flash('error', 'Invalid adjustment type.');
             redirect('products/view/' . $id);
             return;
         }
-
-        $stock_before = (float)$product['stock_qty'];
-
-        if ($adj_type === 'stock_in') {
-            $stock_after = $stock_before + $quantity;
-        } elseif ($adj_type === 'stock_out') {
-            $stock_after = max(0, $stock_before - $quantity);
-        } else {
-            // Adjustment: the quantity IS the new absolute stock level
-            $stock_after = $quantity;
-            $quantity    = abs($stock_after - $stock_before);
+        // A count can be set to 0; adding or taking off needs a real amount (S12)
+        if ($quantity < 0 || ($quantity == 0 && $adj_type !== 'adjustment')) {
+            flash('error', $adj_type === 'adjustment' ? 'The count cannot be negative.' : 'Quantity must be greater than zero.');
+            redirect('products/view/' . $id);
+            return;
         }
 
-        // Update product stock
-        $this->db->prepare("UPDATE products SET stock_qty = ? WHERE id = ? AND business_id = ?")
-                  ->execute([$stock_after, $id, $this->biz_id]);
+        // Read and change the count under a lock, so a sale at the same
+        // moment isn't overwritten (S6)
+        $this->db->beginTransaction();
+        try {
+            $stmt = $this->db->prepare("SELECT stock_qty FROM products WHERE id = ? AND business_id = ? FOR UPDATE");
+            $stmt->execute([$id, $this->biz_id]);
+            $stock_before = (float)$stmt->fetchColumn();
 
-        // Log movement
-        $this->log_movement($id, $adj_type, $quantity, $stock_before, $stock_after, $unit_cost, $note ?: 'Manual adjustment');
+            if ($adj_type === 'stock_out' && $quantity > $stock_before) {
+                throw new DomainException('Only ' . (float)$stock_before . ' ' . ($product['unit'] ?: 'units') . ' in stock. To correct the count, use "Set Exact Quantity" instead.');
+            }
+            $delta = match ($adj_type) {
+                'stock_in'  => $quantity,
+                'stock_out' => -$quantity,
+                default     => $quantity - $stock_before,   // the quantity IS the new count
+            };
+            $stock_after = stock_move($this->db, $this->biz_id, (int)$id, $delta, $adj_type, null, null,
+                                      $note ?: 'Manual adjustment', $unit_cost);
+            $this->db->commit();
+        } catch (DomainException $e) {
+            $this->db->rollBack();
+            flash('error', $e->getMessage());
+            redirect('products/view/' . $id);
+            return;
+        }
 
-        $direction = $adj_type === 'stock_in' ? 'added to' : ($adj_type === 'stock_out' ? 'removed from' : 'adjusted for');
-        flash('success', "{$quantity} units {$direction} " . e($product['name']) . ". New stock: {$stock_after}");
+        if ($stock_after === null) {
+            flash('info', 'The count for ' . $product['name'] . ' is already ' . (float)$stock_before . '.');
+            redirect('products/view/' . $id);
+            return;
+        }
+        $moved     = abs($delta);
+        $direction = $adj_type === 'stock_in' ? 'added to' : ($adj_type === 'stock_out' ? 'removed from' : ($delta > 0 ? 'added to' : 'removed from'));
+        flash('success', "{$moved} units {$direction} " . $product['name'] . ". New stock: {$stock_after}");
         redirect('products/view/' . $id);
     }
 
@@ -481,7 +518,9 @@ class ProductController {
                 $unit       = trim($_POST['unit'] ?? 'pcs');
                 $is_service = !empty($_POST['is_service']) ? 1 : 0;
 
-                if ($name !== '') {
+                if ($name !== '' && ($sell_price < 0 || $cost_price < 0 || (!$is_service && $stock_qty < 0))) {
+                    flash('error', 'Prices and stock cannot be below zero.');
+                } elseif ($name !== '') {
                     $stmt = $this->db->prepare("
                         INSERT INTO products (business_id, name, sku, category, sell_price, cost_price, stock_qty, low_stock_threshold, unit, is_service)
                         VALUES (?, ?, '', ?, ?, ?, ?, 5, ?, ?)
@@ -606,6 +645,7 @@ class ProductController {
 
         $imported = 0;
         $skipped  = 0;
+        $negative = 0;
         $user_id  = auth_user()['id'];
 
         $this->db->beginTransaction();
@@ -627,6 +667,8 @@ class ProductController {
                 $desc  = $col['description'] !== false ? trim($row[$col['description']] ?? '')   : '';
                 $svc_raw = $col['is_service'] !== false ? strtolower(trim($row[$col['is_service']] ?? '')) : '';
                 $is_svc  = in_array($svc_raw, ['yes', '1', 'true', 'service']) ? 1 : 0;
+                // Prices and stock below zero are mistakes in the sheet (S13)
+                if ($sell < 0 || $cost < 0 || (!$is_svc && $stock < 0)) { $negative++; continue; }
 
                 $stmt = $this->db->prepare("
                     INSERT INTO products (business_id, name, sku, category, description, sell_price, cost_price, stock_qty, low_stock_threshold, unit, is_service)
@@ -657,7 +699,8 @@ class ProductController {
         }
 
         fclose($file);
-        flash('success', "{$imported} products imported. {$skipped} skipped (duplicates or empty rows).");
+        flash('success', "{$imported} products imported. {$skipped} skipped (duplicates or empty rows)."
+            . ($negative ? " {$negative} skipped because a price or stock was below zero." : ''));
         redirect('products/setup');
     }
 
