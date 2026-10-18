@@ -24,7 +24,7 @@ const SHOP_RESERVED_NAMES = [
     'www', 'mail', 'webmail', 'email', 'smtp', 'imap', 'pop', 'pop3', 'mx', 'ftp', 'sftp',
     'cpanel', 'whm', 'webdisk', 'cpcalendars', 'cpcontacts', 'autodiscover', 'autoconfig',
     'ns1', 'ns2', 'ns3', 'ns4', 'dns',
-    'nfelia', 'app', 'api', 'admin', 'administrator', 'root', 'system', 'support', 'help', 'helpdesk',
+    'nfelia', 'app', 'api', 'admin', 'administrator', 'ops', 'root', 'system', 'support', 'help', 'helpdesk',
     'contact', 'billing', 'pay', 'payment', 'payments', 'checkout', 'invoice', 'invoices', 'receipt', 'receipts',
     'status', 'blog', 'news', 'docs', 'dashboard', 'login', 'logout', 'signin', 'signup', 'register',
     'secure', 'security', 'account', 'accounts', 'verify', 'verification', 'auth', 'oauth', 'sso',

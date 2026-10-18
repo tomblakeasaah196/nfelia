@@ -13,6 +13,10 @@
  *               Kola (owner, 30)
  *
  * Everyone's password is T_PASSWORD. Ids are fixed so tests can name things.
+ *
+ * Nfelia Ops (ops.<host>), whose people belong to no business:
+ *   Grace (admin, 1), Sam (support, 2), Lola (sales, 3), Femi (left, 4)
+ * Their password is T_OPS_PASSWORD (Ops asks for at least 10 characters).
  */
 
 const FX_TABLES = [
@@ -22,8 +26,10 @@ const FX_TABLES = [
     'receipts', 'invoice_items', 'invoices', 'delivery_items', 'deliveries', 'deeds', 'stock_movements', 'product_images', 'products',
     'customers', 'support_tickets', 'subscription_payments', 'subscription_history', 'subscription_status_log', 'subscriptions',
     'referrals', 'general_feedback', 'document_counters', 'shop_name_holds', 'storefront_versions', 'shop_posts', 'bank_accounts',
-    'users', 'businesses', 'countries',
+    'users', 'businesses', 'countries', 'ops_audit', 'ops_tokens', 'ops_passkeys', 'ops_staff',
 ];
+
+const T_OPS_PASSWORD = 'OpsPass1234';
 
 function fixture_reset(): void
 {
@@ -58,6 +64,13 @@ function fixture_reset(): void
         [30, 3, 'owner', 'Kola Ade', 'kola@kolaprints.test', 1],
     ] as [$id, $b, $role, $name, $email, $active]) {
         $user->execute([$id, $b, $role, $name, $email, $pw, $active]);
+    }
+
+    $ops = $db->prepare("INSERT INTO ops_staff (id, full_name, email, password_hash, role, is_active) VALUES (?, ?, ?, ?, ?, ?)");
+    $ops_pw = password_hash(T_OPS_PASSWORD, PASSWORD_BCRYPT, ['cost' => 4]);
+    foreach ([[1, 'Grace Admin', 'grace@nfelia.test', 'admin', 1], [2, 'Sam Support', 'sam@nfelia.test', 'support', 1],
+              [3, 'Lola Sales', 'lola@nfelia.test', 'sales', 1], [4, 'Femi Left', 'femi@nfelia.test', 'support', 0]] as [$id, $name, $email, $role, $active]) {
+        $ops->execute([$id, $name, $email, $ops_pw, $role, $active]);
     }
 
     $db->prepare("INSERT INTO subscriptions (business_id, country_id, payment_method, plan, status, user_seats, extra_seats, monthly_amount,

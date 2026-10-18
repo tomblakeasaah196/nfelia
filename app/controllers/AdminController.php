@@ -25,6 +25,33 @@ class AdminController {
         }
     }
 
+    /**
+     * The first Nfelia Ops admin: the owner of this business, once, while
+     * Ops has no admin. Everyone after that is invited from Ops itself.
+     */
+    public function ops_setup() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { redirect('admin'); }
+        csrf_verify();
+        if (!is_owner() || ops_active_admins() > 0) {
+            flash('error', 'Nfelia Ops already has an admin. Ask them to invite you.');
+            redirect('admin');
+        }
+        $user  = auth_user();
+        $email = strtolower(trim((string)$user['email']));
+        $staff = ops_staff_by_email($email);
+        if ($staff) {
+            $this->db->prepare("UPDATE ops_staff SET role = 'admin', is_active = 1 WHERE id = ?")->execute([$staff['id']]);
+        } else {
+            $this->db->prepare("INSERT INTO ops_staff (full_name, email, role) VALUES (?, ?, 'admin')")->execute([$user['full_name'], $email]);
+            $staff = ['id' => (int)$this->db->lastInsertId()];
+        }
+        $staff = ops_staff_by_id((int)$staff['id']);
+        ops_send_invite($staff, null);
+        ops_audit('team.invited', $user['full_name'] . ' set up Nfelia Ops from the old admin page, as its first admin', ['staff' => null, 'type' => 'staff', 'id' => (int)$staff['id']]);
+        flash('success', 'Check ' . $email . ': the link to finish setting up your Ops account is on its way.');
+        redirect('admin');
+    }
+
     /* ══════════════════════════════════════════
      *  DASHBOARD — Overview of everything
      * ══════════════════════════════════════════ */

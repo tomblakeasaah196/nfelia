@@ -26,6 +26,20 @@ $tabs = [
         <span class="px-3 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-full uppercase">Admin Only</span>
     </div>
 
+    <?php if (is_owner() && ops_active_admins() === 0): ?>
+    <!-- Nfelia Ops: the first admin is set up from here, once (app/ops/). -->
+    <div class="rounded-xl border border-brand-burgundy/20 bg-white p-5 flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
+        <div>
+            <h2 class="text-lg font-semibold text-brand-plum">Nfelia Ops is ready</h2>
+            <p class="text-sm text-brand-plum/70 mt-1">The team's own place at <?= e(ops_host()) ?>. Set up your Ops account as its first admin; you'll get an email to choose a password, then invite the rest of the team from there.</p>
+        </div>
+        <form method="post" action="<?= APP_URL ?>/admin/ops-setup">
+            <?= csrf_field() ?>
+            <button type="submit" class="px-4 py-2 rounded-lg bg-brand-burgundy text-white font-semibold text-sm whitespace-nowrap">Set up my Ops account</button>
+        </form>
+    </div>
+    <?php endif; ?>
+
     <!-- Tabs -->
     <nav class="flex gap-1 bg-gray-100 rounded-xl p-1 overflow-x-auto">
         <?php foreach ($tabs as $key => $t): ?>

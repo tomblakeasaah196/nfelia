@@ -62,6 +62,16 @@ register_shutdown_function(function () {
     }
 });
 
+// --- NFELIA OPS ---
+// ops.nfelia.com is the Nfelia team's own place (app/ops/). It is looked for
+// before shops, and "ops" is a reserved shop name, so no shop can take it.
+require_once __DIR__ . '/app/ops/ops.php';
+if (ops_is_host($_SERVER['HTTP_HOST'] ?? '')) {
+    require_once __DIR__ . '/app/ops/router.php';
+    ops_dispatch();
+    exit;
+}
+
 // --- PHOTO COPIES ---
 // Shops ask for WebP copies of their photos at a few widths. The first
 // request for each copy lands here (the file isn't there yet) and makes it;

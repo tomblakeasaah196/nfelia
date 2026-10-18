@@ -24,4 +24,5 @@ foreach (['functions', 'auth', 'token', 'mail', 'webpush', 'planner', 'shop_link
           'shop_orders', 'bookings', 'seo', 'theme', 'nav', 'signin', 'passkeys', 'notify', 'screens'] as $helper) {
     require_once $root . '/app/helpers/' . $helper . '.php';
 }
+require_once $root . '/app/ops/ops.php';
 $_SERVER += ['REQUEST_METHOD' => 'GET', 'REMOTE_ADDR' => '127.0.0.1', 'HTTP_HOST' => parse_url(APP_URL, PHP_URL_HOST)];

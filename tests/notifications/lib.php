@@ -244,8 +244,16 @@ final class Http
     public array $headers = [];
     public string $csrf = '';
     private string $jar;
+    /** Cookies kept here rather than by curl ($own_cookies): name => value. */
+    private array $cookies = [];
 
-    public function __construct(private string $host = '')
+    /**
+     * $own_cookies: keep cookies here instead of in curl's jar. curl files a
+     * cookie under the Host header's name and won't send a Secure one over
+     * plain http to anything but "localhost", where a browser also sends it
+     * to name.localhost (Ops at ops.localhost: tests/ops/lib.php).
+     */
+    public function __construct(private string $host = '', private bool $own_cookies = false)
     {
         $this->jar = tempnam(sys_get_temp_dir(), 'nfjar');
     }
@@ -300,17 +308,18 @@ final class Http
     {
         $url = str_starts_with($path, 'http') ? $path : APP_URL . '/' . ltrim($path, '/');
         if ($this->host !== '') $headers[] = 'Host: ' . $this->host;
+        if ($this->own_cookies && $this->cookies) {
+            $headers[] = 'Cookie: ' . implode('; ', array_map(fn($k, $v) => $k . '=' . $v, array_keys($this->cookies), $this->cookies));
+        }
         $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_CUSTOMREQUEST  => $method,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_HEADER         => true,
             CURLOPT_FOLLOWLOCATION => false,
-            CURLOPT_COOKIEJAR      => $this->jar,
-            CURLOPT_COOKIEFILE     => $this->jar,
             CURLOPT_HTTPHEADER     => $headers,
             CURLOPT_TIMEOUT        => 60,
-        ]);
+        ] + ($this->own_cookies ? [] : [CURLOPT_COOKIEJAR => $this->jar, CURLOPT_COOKIEFILE => $this->jar]));
         if ($body !== null) curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
         $raw = (string)curl_exec($ch);
         $this->status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
@@ -323,6 +332,10 @@ final class Http
             if (str_contains($line, ':')) {
                 [$k, $v] = explode(':', $line, 2);
                 $this->headers[strtolower(trim($k))] = trim($v);
+                if ($this->own_cookies && strtolower(trim($k)) === 'set-cookie' && preg_match('/^\s*([^=;\s]+)=([^;]*)/', $v, $c)) {
+                    $gone = preg_match('/max-age=0|expires=[^;]*19[0-9]{2}/i', $v) || $c[2] === '' || $c[2] === 'deleted';
+                    if ($gone) unset($this->cookies[$c[1]]); else $this->cookies[$c[1]] = $c[2];
+                }
             }
         }
         $this->location = $this->headers['location'] ?? '';

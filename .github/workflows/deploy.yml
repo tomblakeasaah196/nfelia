@@ -149,7 +149,7 @@ jobs:
           exit $fail
 
   notifications:
-    name: Notifications, every one end to end
+    name: Notifications and Nfelia Ops, end to end
     runs-on: ubuntu-latest
     services:
       mariadb:
@@ -213,8 +213,8 @@ jobs:
           for i in $(seq 50); do curl -sf -o /dev/null http://localhost:8099/login && exit 0; sleep 0.2; done
           echo "::error::the app did not start"; cat "$RUNNER_TEMP/app.log"; exit 1
 
-      - name: Engine, every trigger over HTTP, the cron, the service worker
-        run: bash tests/notifications/run.sh engine flows cron sw
+      - name: Engine, every trigger over HTTP, the cron, the service worker, Nfelia Ops
+        run: bash tests/notifications/run.sh engine flows cron sw ops/foundation
 
       - name: Browser for the UI checks
         id: browser
@@ -225,12 +225,12 @@ jobs:
 
       # The browser checks report but never hold up a deploy on their own:
       # the suites above cover every notification without a browser.
-      - name: Bell, notifications page, settings, passkey (browser)
+      - name: Bell, notifications page, settings, passkeys, Nfelia Ops (browser)
         if: steps.browser.outcome == 'success'
         continue-on-error: true
         env:
           NF_UI_OUT: ${{ runner.temp }}/notification-screens
-        run: bash tests/notifications/run.sh ui
+        run: bash tests/notifications/run.sh ui ops/ui
 
       - name: Keep the screenshots and the app's log
         if: always()
