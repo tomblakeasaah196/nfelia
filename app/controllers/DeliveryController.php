@@ -347,6 +347,14 @@ class DeliveryController {
     }
 
     /* ──────────────────────────────────────────
+     *  SIGNATURE — the customer's signature image (private file)
+     * ────────────────────────────────────────── */
+    public function signature($id = null) {
+        $delivery = $this->find_delivery($id);
+        send_private_file($delivery['signoff_signature_path'] ?? null);
+    }
+
+    /* ──────────────────────────────────────────
      *  AJAX — Search invoices
      * ────────────────────────────────────────── */
     public function search_invoices() {

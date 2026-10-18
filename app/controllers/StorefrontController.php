@@ -462,15 +462,18 @@ class StorefrontController extends PublicController
         $method  = $channel === 'site' && isset($banks[$bank_id]) ? 'bank_transfer' : 'none';
         $proof   = null;
         if ($method === 'bank_transfer' && !empty($_FILES['payment_proof']['tmp_name'])) {
-            $dir = BASE_PATH . '/uploads/booking_proofs/' . $bid;
-            if (!is_dir($dir)) {
-                mkdir($dir, 0755, true);
-            }
-            $file = time() . '_' . bin2hex(random_bytes(4)) . '.png';
-            if (save_image($_FILES['payment_proof'], $dir . '/' . $file, 1200)) {
-                $proof = 'uploads/booking_proofs/' . $bid . '/' . $file;
+            // Private: only the shop sees it (BookingController::proof)
+            $file = bin2hex(random_bytes(16)) . '.jpg';
+            if (save_image($_FILES['payment_proof'], private_file_dir('booking_proofs', $bid) . '/' . $file, 1200, 'jpg')) {
+                $proof = 'storage/private/booking_proofs/' . $bid . '/' . $file;
             }
         }
+        // A booking that doesn't go through leaves no file behind
+        $drop_proof = function () use (&$proof) {
+            if ($proof) {
+                @unlink(BASE_PATH . '/' . $proof);
+            }
+        };
 
         $this->db->beginTransaction();
         try {
@@ -479,6 +482,7 @@ class StorefrontController extends PublicController
             $slot = booking_check($this->db, $business, $item, $info, $_POST);
             if (!$slot['ok']) {
                 $this->db->rollBack();
+                $drop_proof();
                 json_response(['error' => $slot['error']], 409);
             }
             $total   = round($item['price'] * $slot['units'], 2);
@@ -513,6 +517,7 @@ class StorefrontController extends PublicController
             if ($this->db->inTransaction()) {
                 $this->db->rollBack();
             }
+            $drop_proof();
             error_log('Booking failed: ' . $e->getMessage());
             json_response(['error' => 'We couldn\'t send your booking just now. Please try again, or book on WhatsApp.'], 500);
         }

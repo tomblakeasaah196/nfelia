@@ -162,15 +162,21 @@ function generate_otp(): string {
 /**
  * Resize and save an uploaded image using GD.
  *
+ * Files over 20 MB or 52 megapixels are refused before GD opens them, and the
+ * saved copy is at most $max_width wide and three times that tall, so a huge
+ * or very tall picture can't fill the disk or the server's memory.
+ *
  * @param array  $file      $_FILES entry
  * @param string $dest      Full destination path
  * @param int    $max_width Maximum width in pixels
+ * @param string $format    'png' (keeps transparency) or 'jpg' (photos and screenshots)
  * @return bool
  */
-function save_image(array $file, string $dest, int $max_width = 800): bool {
-    $tmp  = $file['tmp_name'];
+function save_image(array $file, string $dest, int $max_width = 800, string $format = 'png'): bool {
+    $tmp  = $file['tmp_name'] ?? '';
+    if ($tmp === '' || !is_file($tmp) || filesize($tmp) > 20 * 1024 * 1024) return false;
     $info = @getimagesize($tmp);
-    if (!$info) return false;
+    if (!$info || $info[0] < 1 || $info[1] < 1 || $info[0] * $info[1] > 52000000) return false;
 
     $mime = $info['mime'];
     switch ($mime) {
@@ -184,10 +190,11 @@ function save_image(array $file, string $dest, int $max_width = 800): bool {
     $orig_w = imagesx($src);
     $orig_h = imagesy($src);
 
-    // Only resize if wider than max
-    if ($orig_w > $max_width) {
-        $new_w = $max_width;
-        $new_h = (int)round($orig_h * ($max_width / $orig_w));
+    // Only resize if wider than max, or taller than three times that
+    $scale = min(1, $max_width / $orig_w, ($max_width * 3) / $orig_h);
+    if ($scale < 1) {
+        $new_w = max(1, (int)round($orig_w * $scale));
+        $new_h = max(1, (int)round($orig_h * $scale));
         $dst = imagecreatetruecolor($new_w, $new_h);
 
         // Preserve transparency for PNG
@@ -201,10 +208,64 @@ function save_image(array $file, string $dest, int $max_width = 800): bool {
         $src = $dst;
     }
 
+    if ($format === 'jpg') {
+        // Flatten onto white: JPEG has no transparency
+        $flat = imagecreatetruecolor(imagesx($src), imagesy($src));
+        imagefill($flat, 0, 0, imagecolorallocate($flat, 255, 255, 255));
+        imagecopy($flat, $src, 0, 0, 0, 0, imagesx($src), imagesy($src));
+        imagedestroy($src);
+        $result = imagejpeg($flat, $dest, 82);
+        imagedestroy($flat);
+        return $result;
+    }
+
     // Save as PNG (logos need transparency support)
     $result = imagepng($src, $dest, 8);
     imagedestroy($src);
     return $result;
+}
+
+/**
+ * Where private files live: delivery signatures and payment proofs. storage/
+ * is closed to the web (.htaccess), so these are only ever sent by
+ * send_private_file() from a page that has checked who is asking.
+ */
+function private_file_dir(string $kind, int $business_id): string {
+    $dir = BASE_PATH . '/storage/private/' . $kind . '/' . $business_id;
+    if (!is_dir($dir)) {
+        mkdir($dir, 0750, true);
+    }
+    return $dir;
+}
+
+/**
+ * Send a private image (its path relative to the app, as stored) and stop.
+ * Files saved before they moved to storage/ are still read from their old
+ * folders under uploads/, which .htaccess now closes to the web.
+ */
+function send_private_file(?string $rel_path): never {
+    $rel     = ltrim((string)$rel_path, '/');
+    $allowed = ['storage/private/', 'uploads/delivery_signoffs/', 'uploads/order_proofs/', 'uploads/booking_proofs/'];
+    $full    = false;
+    foreach ($allowed as $prefix) {
+        if (str_starts_with($rel, $prefix)) {
+            $full = realpath(BASE_PATH . '/' . $rel);
+            break;
+        }
+    }
+    $info = ($full && str_starts_with($full, realpath(BASE_PATH) . '/') && is_file($full)) ? @getimagesize($full) : false;
+    if (!$info || !in_array($info['mime'], ['image/png', 'image/jpeg', 'image/webp'], true)) {
+        while (ob_get_level()) { ob_end_clean(); }
+        http_response_code(404);
+        exit;
+    }
+    while (ob_get_level()) { ob_end_clean(); }
+    header('Content-Type: ' . $info['mime']);
+    header('Content-Length: ' . filesize($full));
+    header('Cache-Control: private, no-store');
+    header('X-Content-Type-Options: nosniff');
+    readfile($full);
+    exit;
 }
 
 /**

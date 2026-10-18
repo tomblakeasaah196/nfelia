@@ -276,6 +276,9 @@ class PublicController
             ]);
             return;
         }
+        if (isset($_GET["signature"])) {
+            send_private_file($delivery["signoff_signature_path"]);
+        }
         $business = $this->get_business($delivery["business_id"]);
         $customer = $delivery["customer_id"]
             ? $this->get_customer($delivery["customer_id"], (int) $delivery["business_id"])
@@ -305,6 +308,9 @@ class PublicController
                 "body" => "It may have expired or already been used. Ask the business for a new link.",
             ]);
             return;
+        }
+        if (isset($_GET["signature"]) && $_SERVER["REQUEST_METHOD"] === "GET") {
+            send_private_file($delivery["signoff_signature_path"]);
         }
         $business = $this->get_business($delivery["business_id"]);
         $stmtItems = $this->db->prepare(
@@ -352,29 +358,50 @@ class PublicController
                 "error" => "Please draw your signature.",
             ]);
             return;
-        } /* Save signature image */
-        $upload_dir = BASE_PATH . "/uploads/delivery_signoffs";
-        if (!is_dir($upload_dir)) {
-            mkdir($upload_dir, 0755, true);
         }
-        $filename = $delivery["id"] . "_signoff.png";
-        $filepath = $upload_dir . "/" . $filename;
-        $relative_path =
-            "uploads/delivery_signoffs/" .
-            $filename; /* Decode base64 and save */
-        $image_data = base64_decode(
-            str_replace("data:image/png;base64,", "", $signature_data),
-        );
-        if ($image_data === false) {
+        /* The signature must be a real PNG of a sensible size. It is redrawn
+           by GD and kept in storage/ under a random name: it is only ever
+           shown through this delivery's own links (send_private_file). */
+        $image_data =
+            strlen($signature_data) <= 3 * 1024 * 1024
+                ? base64_decode(substr($signature_data, 22), true)
+                : false;
+        $info = $image_data ? @getimagesizefromstring($image_data) : false;
+        $image =
+            $info &&
+            $info["mime"] === "image/png" &&
+            $info[0] <= 4000 &&
+            $info[1] <= 2000
+                ? @imagecreatefromstring($image_data)
+                : false;
+        if (!$image) {
             echo json_encode([
                 "success" => false,
-                "error" => "Invalid signature data.",
+                "error" => "That signature didn't come through. Please clear it and sign again.",
             ]);
             return;
         }
-        file_put_contents($filepath, $image_data); /* Update delivery record */
-        $signoff_ip =
-            $_SERVER["HTTP_X_FORWARDED_FOR"] ?? ($_SERVER["REMOTE_ADDR"] ?? "");
+        imagesavealpha($image, true);
+        $filename = bin2hex(random_bytes(16)) . ".png";
+        $filepath =
+            private_file_dir("signatures", (int) $delivery["business_id"]) .
+            "/" .
+            $filename;
+        $relative_path =
+            "storage/private/signatures/" .
+            $delivery["business_id"] .
+            "/" .
+            $filename;
+        $saved = imagepng($image, $filepath, 8);
+        imagedestroy($image);
+        if (!$saved) {
+            echo json_encode([
+                "success" => false,
+                "error" => "That signature didn't come through. Please try again.",
+            ]);
+            return;
+        } /* Update delivery record */
+        $signoff_ip = client_ip();
         $this->db
             ->prepare(
                 " UPDATE deliveries SET status = 'signed_off', signoff_name = ?, signoff_signature_path = ?, signoff_timestamp = NOW(), signoff_ip = ?, actual_delivery = COALESCE(actual_delivery, NOW()) WHERE id = ? ",
@@ -801,15 +828,18 @@ class PublicController
             $payment_method !== "none" &&
             !empty($_FILES["payment_proof"]["tmp_name"])
         ) {
-            $dest_dir = BASE_PATH . "/uploads/order_proofs/" . $business_id;
-            if (!is_dir($dest_dir)) {
-                mkdir($dest_dir, 0755, true);
-            }
-            $filename = time() . "_" . bin2hex(random_bytes(4)) . ".png";
-            $dest = $dest_dir . "/" . $filename;
-            if (save_image($_FILES["payment_proof"], $dest, 1200)) {
+            /* Private: only the shop sees it (OrderController::proof) */
+            $filename = bin2hex(random_bytes(16)) . ".jpg";
+            $dest =
+                private_file_dir("order_proofs", (int) $business_id) .
+                "/" .
+                $filename;
+            if (save_image($_FILES["payment_proof"], $dest, 1200, "jpg")) {
                 $proof_path =
-                    "uploads/order_proofs/" . $business_id . "/" . $filename;
+                    "storage/private/order_proofs/" .
+                    $business_id .
+                    "/" .
+                    $filename;
             }
         }
         $this->db->beginTransaction();
@@ -966,7 +996,13 @@ class PublicController
                 "channel" => $channel,
             ]);
         } catch (\Throwable $e) {
-            $this->db->rollBack();
+            if ($this->db->inTransaction()) {
+                /* The order wasn't saved, so its proof goes too */
+                $this->db->rollBack();
+                if ($proof_path) {
+                    @unlink(BASE_PATH . "/" . $proof_path);
+                }
+            }
             error_log("Cart checkout failed: " . $e->getMessage());
             json_response(
                 [

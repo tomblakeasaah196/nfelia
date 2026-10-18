@@ -86,6 +86,46 @@ function csrf_regenerate(): void {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 /**
+ * The visitor's IP address. Behind Cloudflare, REMOTE_ADDR is Cloudflare's
+ * edge, so its CF-Connecting-IP header is used, but only when the request
+ * really came from Cloudflare (anyone can send the header straight to the
+ * server).
+ */
+function client_ip(): string {
+    $remote = $_SERVER['REMOTE_ADDR'] ?? '';
+    $cf     = trim($_SERVER['HTTP_CF_CONNECTING_IP'] ?? '');
+    if ($cf !== '' && filter_var($cf, FILTER_VALIDATE_IP) && ip_is_cloudflare($remote)) {
+        return $cf;
+    }
+    return $remote;
+}
+
+/** Is this address one of Cloudflare's (https://www.cloudflare.com/ips/)? */
+function ip_is_cloudflare(string $ip): bool {
+    static $ranges = [
+        '173.245.48.0/20', '103.21.244.0/22', '103.22.200.0/22', '103.31.4.0/22', '141.101.64.0/18',
+        '108.162.192.0/18', '190.93.240.0/20', '188.114.96.0/20', '197.234.240.0/22', '198.41.128.0/17',
+        '162.158.0.0/15', '104.16.0.0/13', '104.24.0.0/14', '172.64.0.0/13', '131.0.72.0/22',
+        '2400:cb00::/32', '2606:4700::/32', '2803:f800::/32', '2405:b500::/32', '2405:8100::/32',
+        '2a06:98c0::/29', '2c0f:f248::/32',
+    ];
+    $bin = @inet_pton($ip);
+    if ($bin === false) return false;
+    foreach ($ranges as $range) {
+        [$net, $bits] = explode('/', $range);
+        $net_bin = inet_pton($net);
+        if (strlen($net_bin) !== strlen($bin)) continue;
+        $bytes = intdiv((int)$bits, 8);
+        $rest  = (int)$bits % 8;
+        if (substr($bin, 0, $bytes) !== substr($net_bin, 0, $bytes)) continue;
+        if ($rest === 0) return true;
+        $mask = chr((0xFF << (8 - $rest)) & 0xFF);
+        if (($bin[$bytes] & $mask) === ($net_bin[$bytes] & $mask)) return true;
+    }
+    return false;
+}
+
+/**
  * Record one request against a rate-limit bucket and report whether it is
  * within $max per rolling $window_minutes. Refused requests are not recorded,
  * so the window reopens on its own once the oldest request ages out.

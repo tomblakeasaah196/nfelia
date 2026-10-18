@@ -311,7 +311,7 @@ $public_url  = APP_URL . '/delivery/' . $delivery['token'];
                 <div class="sm:col-span-2">
                     <div class="text-[9px] font-bold text-purple-500 uppercase tracking-widest mb-2">Signature</div>
                     <div class="bg-white rounded-lg border border-purple-200 p-3 inline-block">
-                        <img src="<?= APP_URL . '/' . e($delivery['signoff_signature_path']) ?>" alt="Signature" class="max-h-20">
+                        <img src="<?= APP_URL . '/deliveries/signature/' . (int)$delivery['id'] ?>" alt="Signature" class="max-h-20">
                     </div>
                 </div>
                 <?php endif; ?>

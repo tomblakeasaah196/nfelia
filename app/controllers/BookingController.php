@@ -59,6 +59,13 @@ class BookingController
         require_once BASE_PATH . '/views/layouts/app.php';
     }
 
+    /** The shopper's deposit screenshot (private file). */
+    public function proof($id = null)
+    {
+        $booking = $this->find($id);
+        send_private_file($booking['payment_proof_path'] ?? null);
+    }
+
     public function view($id = null)
     {
         $user     = auth_user();

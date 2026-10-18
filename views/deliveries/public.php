@@ -249,7 +249,7 @@ $status_color = $statuses[$delivery['status']]['color'] ?? 'bg-gray-100 text-gra
                                 <div>
                                     <div class="text-[9px] text-green-500 uppercase font-bold tracking-widest mb-2">Signature</div>
                                     <div class="bg-white rounded-lg border border-green-200 p-4 inline-block">
-                                        <img src="<?= APP_URL . '/' . e($delivery['signoff_signature_path']) ?>" alt="Signature" class="max-h-24">
+                                        <img src="<?= APP_URL . '/delivery/' . e($delivery['token']) . '?signature=1' ?>" alt="Signature" class="max-h-24">
                                     </div>
                                 </div>
                             <?php endif; ?>
