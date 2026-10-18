@@ -58,9 +58,10 @@ about 18 screens to about 14; on a computer from about 11.5 to about 9.
 
 ## Worth knowing (not changed)
 
-- **Approving a website order does not take stock down.** `OrderController::approve` writes the invoice
-  as `paid` or `sent` directly; only invoices sent from Sales run the stock deduction in
-  `InvoiceController`. The page therefore never says website orders reduce stock.
+- **Approving a website order did not take stock down** when this page shipped, and cancelling its invoice
+  then added stock that was never taken off. Fixed in the next change: approval now deducts stock like
+  sending an invoice does (`OrderController::deduct_stock_for_invoice`; checked by
+  `testkit/order_stock_test.js`).
 - The landing page needs no database, except for `?from=`: if the database is down, `get_db()` stops
   that one request with its JSON error.
 
