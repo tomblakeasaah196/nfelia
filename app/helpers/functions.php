@@ -6,58 +6,73 @@
 // NFELIA AUDIT FIX — C02 — Pure PHP document number generator (no stored procedure) — 2026-06-03
 
 /**
- * Generate the next sequential document number for a business.
- * Uses a transaction + row-level lock on document_counters for atomicity.
- * Replaces the missing stored procedure entirely.
+ * Generate the next sequential document number for a business: the one
+ * generator for every document (the stored procedure some screens called is
+ * not in the repo, and shared the same counters).
+ *
+ * Inside the caller's transaction it takes part in it: the counter row stays
+ * locked until the caller commits, and a rollback gives the number back.
+ * Outside one, it runs its own.
  *
  * @param PDO    $db          Active database connection
  * @param int    $business_id The business to generate for
- * @param string $doc_type    One of: QUO, INV, REC, DEL, DEA
+ * @param string $doc_type    One of: QUO, INV, REC, DEL, DEA, EXP
  * @return string             e.g. "NFA-INV-004"
  */
 function generate_doc_number(PDO $db, int $business_id, string $doc_type): string {
-    $valid_types = ['QUO', 'INV', 'REC', 'DEL', 'DEA'];
+    $valid_types = ['QUO', 'INV', 'REC', 'DEL', 'DEA', 'EXP'];
     if (!in_array($doc_type, $valid_types)) {
         throw new \InvalidArgumentException("Invalid doc_type: {$doc_type}");
     }
 
-    $db->beginTransaction();
+    $own = !$db->inTransaction();
+    if ($own) {
+        $db->beginTransaction();
+    }
     try {
-        // Lock the counter row to prevent race conditions under concurrent requests
+        // Lock the counter row so two requests can never take the same number
         $stmtLock = $db->prepare(
             "SELECT last_number FROM document_counters
              WHERE business_id = ? AND doc_type = ? FOR UPDATE"
         );
         $stmtLock->execute([$business_id, $doc_type]);
-        $row = $stmtLock->fetch();
-
-        if (!$row) {
-            // Counter row doesn't exist — initialise it
+        $last = $stmtLock->fetchColumn();
+        if ($last === false) {
+            // A new counter starts after the highest number this business
+            // already used for the type, so no number is ever repeated
+            $table = ['QUO' => 'quotations', 'INV' => 'invoices', 'REC' => 'receipts',
+                      'DEL' => 'deliveries', 'DEA' => 'deeds', 'EXP' => 'expenses'][$doc_type];
+            $stmtMax = $db->prepare(
+                "SELECT COALESCE(MAX(CAST(SUBSTRING_INDEX(doc_number, '-', -1) AS UNSIGNED)), 0)
+                 FROM {$table} WHERE business_id = ? AND doc_number LIKE ?"
+            );
+            $stmtMax->execute([$business_id, '%-' . $doc_type . '-%']);
             $db->prepare(
-                "INSERT INTO document_counters (business_id, doc_type, last_number) VALUES (?, ?, 0)"
-            )->execute([$business_id, $doc_type]);
-            $next_num = 1;
-        } else {
-            $next_num = (int)$row['last_number'] + 1;
+                "INSERT INTO document_counters (business_id, doc_type, last_number) VALUES (?, ?, ?)
+                 ON DUPLICATE KEY UPDATE last_number = last_number"
+            )->execute([$business_id, $doc_type, (int)$stmtMax->fetchColumn()]);
+            $stmtLock->execute([$business_id, $doc_type]);
+            $last = $stmtLock->fetchColumn();
         }
+        $next_num = (int)$last + 1;
 
-        // Persist the incremented counter
         $db->prepare(
             "UPDATE document_counters SET last_number = ? WHERE business_id = ? AND doc_type = ?"
         )->execute([$next_num, $business_id, $doc_type]);
 
-        $db->commit();
-
-        // Fetch the business prefix (outside the transaction — read-only, no locking needed)
         $stmtBiz = $db->prepare("SELECT doc_prefix FROM businesses WHERE id = ?");
         $stmtBiz->execute([$business_id]);
-        $biz = $stmtBiz->fetch();
-        $prefix = $biz['doc_prefix'] ?? 'NFE';
+        $prefix = $stmtBiz->fetchColumn() ?: 'NFE';
 
+        if ($own) {
+            $db->commit();
+        }
         return strtoupper($prefix) . '-' . $doc_type . '-' . str_pad((string)$next_num, 3, '0', STR_PAD_LEFT);
 
     } catch (\Exception $e) {
-        $db->rollBack();
+        if ($own && $db->inTransaction()) {
+            $db->rollBack();
+        }
         error_log('[Nfelia] generate_doc_number failed: ' . $e->getMessage());
         throw $e;
     }
@@ -373,6 +388,34 @@ function owned_by_business(PDO $db, string $table, ?int $id, int $business_id): 
     $stmt = $db->prepare("SELECT 1 FROM `{$table}` WHERE id = ? AND business_id = ? LIMIT 1");
     $stmt->execute([$id, $business_id]);
     return (bool)$stmt->fetchColumn();
+}
+
+/**
+ * The VAT rate a business set during onboarding, for new invoices and quotes
+ * (the signed-in session doesn't carry it).
+ */
+function business_default_tax(int $business_id): float {
+    $stmt = get_db()->prepare("SELECT default_tax_rate FROM businesses WHERE id = ?");
+    $stmt->execute([$business_id]);
+    return (float)$stmt->fetchColumn();
+}
+
+/**
+ * Lines posted from an invoice or quote form, in the shape the form reads back
+ * (so a form shown again after an error keeps what was typed).
+ */
+function posted_lines(array $post): array {
+    $lines = [];
+    foreach (($post['item_description'] ?? []) as $i => $desc) {
+        $lines[] = [
+            'product_id'       => (int)($post['item_product_id'][$i] ?? 0),
+            'description'      => (string)$desc,
+            'quantity'         => (float)($post['item_quantity'][$i] ?? 1),
+            'unit_price'       => (float)($post['item_unit_price'][$i] ?? 0),
+            'discount_percent' => (float)($post['item_discount'][$i] ?? 0),
+        ];
+    }
+    return $lines;
 }
 
 /**
