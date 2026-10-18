@@ -37,7 +37,7 @@ $footer_address = trim((string)($business['address'] ?? ''));
         <div class="sf-footer__end">
             <p>© <?= date('Y') ?> <?= e($business['name']) ?></p>
             <?php if (empty($business['hide_nfelia_credit'])): ?>
-                <p><a href="<?= e(APP_URL) ?>" target="_blank" rel="noopener">Shop by Nfelia</a></p>
+                <p><a href="<?= e(APP_URL . '/?from=' . rawurlencode((string)($business['subdomain'] ?? ''))) ?>" target="_blank" rel="noopener">Shop by Nfelia</a></p>
             <?php endif; ?>
         </div>
     </div>
