@@ -754,7 +754,7 @@ function notify_flush(?array $ids = null, int $limit = 200): array
             $stmt = $db->prepare("
                 SELECT id FROM notify_outbox
                 WHERE status IN ('pending', 'sending') AND next_attempt_at <= NOW()
-                ORDER BY id LIMIT " . max(1, $limit));
+                ORDER BY channel = 'email', id LIMIT " . max(1, $limit));   // phones first: a slow mail server can't hold them up (P3)
             $stmt->execute();
             $ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
         }

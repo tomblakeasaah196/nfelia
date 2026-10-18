@@ -432,6 +432,10 @@ class OrderController
         // on the shopper's tracking page
         if ($new_status === "fulfilled") {
             review_invite($this->db, (int) $id);
+            // Its invoice's delivery promise is kept (P2)
+            if (!empty($order["invoice_id"])) {
+                planner_invoice_delivered($this->db, $this->biz_id, (int) $order["invoice_id"], false, $this->get_current_user_id());
+            }
         }
         if ($moved->rowCount() === 1) {
             shop_order_tell($this->db, (int) $id, match ($new_status) {

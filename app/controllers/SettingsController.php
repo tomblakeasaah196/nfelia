@@ -570,10 +570,13 @@ class SettingsController {
         // signed in" stops working for them.
         $this->db->prepare("DELETE FROM push_subscriptions WHERE user_id = ?")->execute([$staff_id]);
         $this->db->prepare("DELETE FROM sessions WHERE user_id = ?")->execute([$staff_id]);
+        // Their open tasks come to the owner, so nothing is stranded (P1)
+        $handed = planner_hand_back_tasks($this->db, $this->biz_id);
         notify('team.removed', $this->biz_id, ['name' => $staff_member['full_name'], 'by' => planner_first_name($user['full_name'])],
                ['actor' => (int)$user['id'], 'dedupe' => $staff_id . ':' . time()]);
 
-        flash('success', $staff_member['full_name'] . ' removed from your team.');
+        flash('success', $staff_member['full_name'] . ' removed from your team.'
+            . ($handed ? ' ' . $handed . ' open task' . ($handed === 1 ? ' is' : 's are') . ' now on your list.' : ''));
         redirect('settings?tab=staff');
     }
 

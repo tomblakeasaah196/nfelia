@@ -10,6 +10,8 @@
  * - This phone's subscription is re-saved now and then (assets/js/push.js),
  *   so a renewed or reassigned one keeps working.
  * - Signing out stops this phone getting that person's alerts.
+ * - A page with unsaved typing says so when sw.js asks, so tapping a phone
+ *   notification opens a new window instead of leaving the form (P18).
  */
 (function () {
     'use strict';
@@ -34,6 +36,22 @@
             if (count > 0 && navigator.setAppBadge) navigator.setAppBadge(count).catch(function () {});
             else if (navigator.clearAppBadge) navigator.clearAppBadge().catch(function () {});
         } catch (e) {}
+    }
+
+    // Unsaved typing on this page: anything typed in a form, a sheet or a
+    // text box since the page opened or last submitted. Search boxes don't
+    // count.
+    var dirty = false;
+    document.addEventListener('input', function (e) {
+        var t = e.target;
+        if (!t || t.type === 'search' || (t.closest && t.closest('[role=search]'))) return;
+        if (t.tagName === 'TEXTAREA' || (t.closest && t.closest('form, [x-ref=sheet], [role=dialog]'))) dirty = true;
+    }, true);
+    document.addEventListener('submit', function () { dirty = false; }, true);
+    if (navigator.serviceWorker) {
+        navigator.serviceWorker.addEventListener('message', function (e) {
+            if (e.data && e.data.type === 'nf-dirty?' && e.ports && e.ports[0]) e.ports[0].postMessage({ dirty: dirty });
+        });
     }
 
     // Alpine component: x-data="nfBell()".

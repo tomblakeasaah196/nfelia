@@ -78,6 +78,10 @@ function send_mail(string $to_email, string $to_name, string $subject, string $b
         $mail->Password   = MAIL_PASSWORD;
         $mail->SMTPSecure = (MAIL_ENCRYPTION === 'ssl') ? PHPMailer::ENCRYPTION_SMTPS : PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port       = MAIL_PORT;
+        // A slow or dead mail server gives up after 15 seconds, not PHPMailer's
+        // 300, so it can't hold up everything else that is sending (P3)
+        $mail->Timeout    = 15;
+        $mail->getSMTPInstance()->Timelimit = 15;
 
         // M13 audit: SSL peer verification — auto-disabled for localhost,
         // controllable via MAIL_VERIFY_PEER env var for non-standard setups

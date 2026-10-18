@@ -14,7 +14,7 @@
  * sends X-Nfelia-Page). Never kept: anything but GET, /api, sign-in pages,
  * documents shared with customers (/doc) and downloads.
  */
-var VERSION = '2026-10-19.1';
+var VERSION = '2026-10-22.1';
 var FILES = 'nf-files-' + VERSION; // the app's own files, replaced with each version
 var PAGES = 'nf-pages';            // pages someone opened, kept for offline reading
 var SLOW_MS = 8000;                // after this long, show the kept copy instead of waiting
@@ -265,19 +265,35 @@ self.addEventListener('push', function (event) {
     ]));
 });
 
+// Whether an open page has unsaved typing (assets/js/bell.js answers). A
+// page that doesn't answer quickly counts as having none.
+function hasUnsaved(client) {
+    return new Promise(function (resolve) {
+        if (typeof MessageChannel === 'undefined' || typeof client.postMessage !== 'function') return resolve(false);
+        var channel = new MessageChannel();
+        var timer = setTimeout(function () { resolve(false); }, 300);
+        channel.port1.onmessage = function (e) { clearTimeout(timer); resolve(!!(e.data && e.data.dirty)); };
+        try { client.postMessage({ type: 'nf-dirty?' }, [channel.port2]); } catch (err) { clearTimeout(timer); resolve(false); }
+    });
+}
+
 self.addEventListener('notificationclick', function (event) {
     event.notification.close();
     var url = (event.notification.data && event.notification.data.url) || scope;
     event.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (list) {
         // Nfelia is already open: bring it forward on this notification's page
-        // instead of opening another window.
+        // instead of opening another window, unless something half typed
+        // there would be lost (P18).
         for (var j = 0; j < list.length; j++) {
             if (new URL(list[j].url).origin === self.location.origin && 'navigate' in list[j]) {
                 var client = list[j];
-                return client.focus()
-                    .then(function (c) { return (c || client).navigate(url); })
-                    .then(function (c) { return c || self.clients.openWindow(url); })
-                    .catch(function () { return self.clients.openWindow(url); });
+                return hasUnsaved(client).then(function (unsaved) {
+                    if (unsaved) return self.clients.openWindow(url);
+                    return client.focus()
+                        .then(function (c) { return (c || client).navigate(url); })
+                        .then(function (c) { return c || self.clients.openWindow(url); })
+                        .catch(function () { return self.clients.openWindow(url); });
+                });
             }
         }
         return self.clients.openWindow(url);

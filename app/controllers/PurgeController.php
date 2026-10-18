@@ -625,11 +625,13 @@ class PurgeController
             $this->db
                 ->prepare("DELETE FROM debts WHERE invoice_id = ? AND business_id = ?")
                 ->execute([$target_id, $this->biz_id]);
-            foreach (["deeds", "tasks"] as $table) {
-                $this->db
-                    ->prepare("UPDATE {$table} SET invoice_id = NULL WHERE invoice_id = ? AND business_id = ?")
-                    ->execute([$target_id, $this->biz_id]);
-            }
+            $this->db
+                ->prepare("UPDATE deeds SET invoice_id = NULL WHERE invoice_id = ? AND business_id = ?")
+                ->execute([$target_id, $this->biz_id]);
+            // Its tasks stay, without the link or the delivery step's promise (P8)
+            $this->db
+                ->prepare("UPDATE tasks SET invoice_id = NULL, step_key = NULL WHERE invoice_id = ? AND business_id = ?")
+                ->execute([$target_id, $this->biz_id]);
             // Delete child deliveries & items (and their signatures)
             $stmtD = $this->db->prepare(
                 "SELECT id, signoff_signature_path FROM deliveries WHERE invoice_id = ? AND business_id = ?",

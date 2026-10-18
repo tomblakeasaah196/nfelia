@@ -475,6 +475,10 @@ class PublicController
             ]);
             return;
         }
+        /* Signed for: the invoice's delivery promise is kept (P2) */
+        if (!empty($delivery["invoice_id"])) {
+            planner_invoice_delivered($this->db, (int) $delivery["business_id"], (int) $delivery["invoice_id"]);
+        }
         notify("delivery.signed", (int) $delivery["business_id"], [
             "delivery_id" => (int) $delivery["id"], "delivery_number" => $delivery["doc_number"], "signer" => $signoff_name,
         ], ["dedupe" => (string) $delivery["id"]]);

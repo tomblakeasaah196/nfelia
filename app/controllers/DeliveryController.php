@@ -332,6 +332,11 @@ class DeliveryController {
             return;
         }
 
+        // Delivered or signed for: the invoice's promise is kept (P2)
+        if (in_array($new_status, ['delivered', 'signed_off'], true) && $delivery['invoice_id']) {
+            planner_invoice_delivered($this->db, $this->biz_id, (int)$delivery['invoice_id'], false, (int)auth_user()['id']);
+        }
+
         // A shop order on its way, or delivered: the shopper hears.
         if (in_array($new_status, ['dispatched', 'in_transit', 'delivered'], true)) {
             $stmt = $this->db->prepare("SELECT id FROM orders WHERE delivery_id = ? AND business_id = ? LIMIT 1");
