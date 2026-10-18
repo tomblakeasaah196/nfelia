@@ -12,6 +12,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <?= errors_script_tag() ?>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <!-- The URL carries the sign-in token: never send it to the font/CSS hosts. -->
     <meta name="referrer" content="no-referrer">

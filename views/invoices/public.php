@@ -55,6 +55,7 @@ $og_image  = $business['logo_path']
 <html lang="en" prefix="og: https://ogp.me/ns#">
 <head>
     <meta charset="UTF-8">
+    <?= errors_script_tag() ?>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= e($invoice['doc_number']) ?> — <?= e($business['name']) ?></title>
     <meta name="robots" content="noindex, nofollow">

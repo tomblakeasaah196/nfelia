@@ -27,6 +27,7 @@ const FX_TABLES = [
     'customers', 'support_tickets', 'subscription_payments', 'subscription_history', 'subscription_status_log', 'subscriptions',
     'referrals', 'general_feedback', 'document_counters', 'shop_name_holds', 'storefront_versions', 'shop_posts', 'bank_accounts',
     'users', 'businesses', 'countries', 'ops_audit', 'ops_tokens', 'ops_passkeys', 'ops_staff',
+    'error_notes', 'error_events', 'error_groups', 'ops_heartbeats', 'ops_settings', 'ops_alerts', 'ops_push_subscriptions',
 ];
 
 const T_OPS_PASSWORD = 'OpsPass1234';

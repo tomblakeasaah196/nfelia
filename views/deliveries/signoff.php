@@ -18,6 +18,7 @@ $already_signed = ($delivery['status'] === 'signed_off' && $delivery['signoff_na
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <?= errors_script_tag() ?>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Confirm Receipt — <?= e($delivery['doc_number']) ?></title>
     <link rel="preconnect" href="https://fonts.googleapis.com">

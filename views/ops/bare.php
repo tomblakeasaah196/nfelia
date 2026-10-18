@@ -8,6 +8,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
+    <?= errors_script_tag() ?>
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="robots" content="noindex, nofollow">
     <meta name="csrf-token" content="<?= e(ops_csrf()) ?>">

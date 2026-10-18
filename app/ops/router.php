@@ -39,6 +39,24 @@ function ops_routes(): array
         ['POST', 'account/passkeys',             'OpsAccountController', 'passkey_add',      'signed_in'],
         ['POST', 'account/passkeys/(\d+)/remove', 'OpsAccountController', 'passkey_remove',  'signed_in'],
 
+        // The monitor: errors, health, alerts
+        ['GET',  'errors',                       'OpsErrorsController',  'index',            'errors'],
+        ['POST', 'errors/bulk',                  'OpsErrorsController',  'bulk',             'errors'],
+        ['GET',  'errors/(\d+)',                 'OpsErrorsController',  'show',             'errors'],
+        ['GET',  'errors/code/([A-Za-z0-9]{8})', 'OpsErrorsController',  'code',             'errors'],
+        ['POST', 'errors/(\d+)/status',          'OpsErrorsController',  'status',           'errors'],
+        ['POST', 'errors/(\d+)/assign',          'OpsErrorsController',  'assign',           'errors'],
+        ['POST', 'errors/(\d+)/notes',           'OpsErrorsController',  'note',             'errors'],
+        ['GET',  'health',                       'OpsHealthController',  'index',            'errors'],
+        ['GET',  'health/sends',                 'OpsHealthController',  'sends',            'errors'],
+        ['POST', 'health/sends/(\d+)/retry',     'OpsHealthController',  'retry',            'errors'],
+        ['GET',  'alerts',                       'OpsAlertsController',  'index',            'signed_in'],
+        ['GET',  'alerts/open/(\d+)',            'OpsAlertsController',  'open',             'signed_in'],
+        ['POST', 'alerts/read-all',              'OpsAlertsController',  'read_all',         'signed_in'],
+        ['POST', 'alerts/subscribe',             'OpsAlertsController',  'subscribe',        'signed_in'],
+        ['POST', 'alerts/unsubscribe',           'OpsAlertsController',  'unsubscribe',      'signed_in'],
+        ['POST', 'alerts/prefs',                 'OpsAlertsController',  'prefs',            'signed_in'],
+
         // The team, and everything done in Ops
         ['GET',  'team',                         'OpsTeamController',    'index',            'team'],
         ['POST', 'team/invite',                  'OpsTeamController',    'invite',           'team'],
@@ -52,6 +70,7 @@ function ops_routes(): array
 
 function ops_dispatch(): void
 {
+    errors_context_set(['source' => 'ops']);
     ops_headers();
     $path = trim((string)($_GET['url'] ?? ''), '/');
 

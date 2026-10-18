@@ -113,6 +113,121 @@
         });
     });
 
+    /* ── "/" goes to the page's search ── */
+    var slash = document.querySelector('[data-ops-slash]');
+    if (slash) {
+        document.addEventListener('keydown', function (e) {
+            if (e.key === '/' && !e.target.closest('input, textarea, select, [contenteditable]')) {
+                e.preventDefault();
+                slash.focus();
+            }
+        });
+    }
+
+    /* ── A Filters panel closes when you click elsewhere or press Escape ── */
+    document.addEventListener('click', function (e) {
+        document.querySelectorAll('details.ops-filters[open]').forEach(function (d) { if (!d.contains(e.target)) d.open = false; });
+    });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') document.querySelectorAll('details.ops-filters[open]').forEach(function (d) { d.open = false; d.querySelector('summary').focus(); });
+    });
+
+    /* ── Ticking several rows: the bar of actions appears ── */
+    var bulk = document.querySelector('[data-ops-bulk]');
+    if (bulk) {
+        var bar = bulk.querySelector('[data-ops-bulk-bar]');
+        var count = bulk.querySelector('[data-ops-bulk-count]');
+        var all = bulk.querySelector('[data-ops-tick-all]');
+        var ticks = function () { return bulk.querySelectorAll('[data-ops-tick]'); };
+        var update = function () {
+            var n = bulk.querySelectorAll('[data-ops-tick]:checked').length;
+            bar.hidden = n === 0;
+            count.textContent = n;
+            if (all) { all.checked = n > 0 && n === ticks().length; all.indeterminate = n > 0 && n < ticks().length; }
+        };
+        bulk.addEventListener('change', function (e) {
+            if (e.target === all) ticks().forEach(function (t) { t.checked = all.checked; });
+            update();
+        });
+        update();
+    }
+
+    /* ── Copy for AI (or anywhere): [data-ops-copy="#element"] ── */
+    document.addEventListener('click', function (e) {
+        var btn = e.target.closest('[data-ops-copy]');
+        if (!btn) return;
+        var source = document.querySelector(btn.getAttribute('data-ops-copy'));
+        if (!source) return;
+        var text = source.value !== undefined ? source.value : source.textContent;
+        var label = btn.querySelector('span') || btn;
+        var was = label.textContent;
+        var done = function (ok) {
+            label.textContent = ok ? 'Copied' : 'Could not copy';
+            setTimeout(function () { label.textContent = was; }, 1600);
+        };
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(text).then(function () { done(true); }, function () { done(false); });
+        } else {
+            source.classList.remove('sr-only');
+            source.select();
+            var ok = false;
+            try { ok = document.execCommand('copy'); } catch (err) { ok = false; }
+            source.classList.add('sr-only');
+            done(ok);
+        }
+    });
+
+    /* ── Phone alerts on this device (ops-sw.js) ── */
+    var push = document.querySelector('[data-ops-push]');
+    if (push) {
+        var state = push.querySelector('[data-ops-push-state]');
+        var toggle = push.querySelector('[data-ops-push-toggle]');
+        var key = push.getAttribute('data-key');
+        var supported = 'serviceWorker' in navigator && 'PushManager' in window && window.isSecureContext && key;
+        var keyBytes = function () {
+            var s = key.replace(/-/g, '+').replace(/_/g, '/');
+            while (s.length % 4) s += '=';
+            var bin = atob(s), out = new Uint8Array(bin.length);
+            for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+            return out;
+        };
+        var show = function (on) {
+            state.textContent = on ? 'Alerts come to this device.' : 'Alerts do not come to this device yet.';
+            toggle.textContent = on ? 'Turn off' : 'Turn on';
+            toggle.hidden = false;
+            toggle.disabled = false;
+            toggle.setAttribute('data-on', on ? '1' : '');
+        };
+        if (!supported) {
+            state.textContent = key ? 'This browser cannot show alerts. On iPhone, add Nfelia Ops to the Home Screen first.' : 'Phone alerts are not set up on this server (no VAPID keys).';
+        } else {
+            navigator.serviceWorker.register('/ops-sw.js', { scope: '/' }).then(function (reg) {
+                return reg.pushManager.getSubscription();
+            }).then(function (sub) { show(!!sub); }, function () { state.textContent = 'Alerts could not be set up in this browser.'; });
+
+            toggle.addEventListener('click', function () {
+                toggle.disabled = true;
+                navigator.serviceWorker.ready.then(function (reg) {
+                    return reg.pushManager.getSubscription().then(function (sub) {
+                        if (toggle.getAttribute('data-on')) {
+                            if (!sub) return false;
+                            return post(push.getAttribute('data-unsubscribe'), { endpoint: sub.endpoint }).then(function () { return sub.unsubscribe(); }).then(function () { return false; });
+                        }
+                        return Notification.requestPermission().then(function (p) {
+                            if (p !== 'granted') throw { message: 'Alerts are blocked for this site. Allow notifications in the browser settings, then try again.' };
+                            return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes() });
+                        }).then(function (s) {
+                            return post(push.getAttribute('data-subscribe'), s.toJSON()).then(need).then(function () { return true; });
+                        });
+                    });
+                }).then(show).catch(function (err) {
+                    toggle.disabled = false;
+                    state.textContent = (err && err.message) || 'That did not work. Try again.';
+                });
+            });
+        }
+    }
+
     /* ── Passkeys ── */
     function toBuf(text) {
         var s = String(text).replace(/-/g, '+').replace(/_/g, '/');

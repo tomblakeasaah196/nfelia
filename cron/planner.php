@@ -29,7 +29,11 @@
  * 6. Subscriptions: trials and paid months about to end, ended, or due
  *    (billing_lifecycle() in app/helpers/subscription_helpers.php).
  *
- * 7. Phone notifications and emails still waiting, retried.
+ * 7. The Nfelia Ops monitor (app/ops/monitor.php): the server log read into
+ *    Ops → Errors, health checks, the 8am summary to the Ops team.
+ *
+ * 8. Phone notifications and emails still waiting, retried (what the
+ *    monitor queued goes out in this same run).
  *
  * Every time here is Lagos time from planner_now(), the same clock remind_at
  * was worked out with when the task was saved.
@@ -51,6 +55,11 @@ require_once __DIR__ . '/../app/helpers/webpush.php';
 require_once __DIR__ . '/../app/helpers/planner.php';
 require_once __DIR__ . '/../app/helpers/notify.php';
 require_once __DIR__ . '/../app/helpers/subscription_helpers.php';   // never in web code: it redeclares is_owner()
+require_once __DIR__ . '/../app/helpers/errors.php';
+
+// What goes wrong here is written down for the Nfelia team (Ops → Errors),
+// and each run's heartbeat tells Ops → Health the cron is alive.
+errors_install('cron');
 
 $db = get_db();
 
@@ -59,6 +68,8 @@ if ((int)$db->query("SELECT GET_LOCK('nfelia_planner', 0)")->fetchColumn() !== 1
     echo "[planner] another run is busy, skipping\n";
     exit(0);
 }
+heartbeat_start('planner');
+$run_started = microtime(true);
 
 $now   = planner_now();
 $now_s = $now->format('Y-m-d H:i:s');
@@ -124,7 +135,7 @@ foreach ($due->fetchAll() as $row) {
         $done['reminders']++;
     } catch (Throwable $e) {
         $done['errors']++;
-        error_log('Nfelia planner reminder ' . $row['id'] . ': ' . $e->getMessage());
+        errors_report_throwable($e, ['job' => 'Cron: reminder for task #' . $row['id'], 'business_id' => (int)($row['business_id'] ?? 0) ?: null]);
     }
 }
 
@@ -163,7 +174,7 @@ if ($hour >= 7 && $hour < 11) {
             $done['mornings']++;
         } catch (Throwable $e) {
             $done['errors']++;
-            error_log('Nfelia planner morning plan for user ' . $user['id'] . ': ' . $e->getMessage());
+            errors_report_throwable($e, ['job' => 'Cron: morning plan', 'user_id' => (int)$user['id']]);
         }
     }
 }
@@ -203,7 +214,7 @@ if ($hour >= 9 && $hour < 21) {
             $done['low_stock']++;
         } catch (Throwable $e) {
             $done['errors']++;
-            error_log('Nfelia low stock for business ' . $biz_id . ': ' . $e->getMessage());
+            errors_report_throwable($e, ['job' => 'Cron: low stock', 'business_id' => (int)$biz_id]);
         }
     }
 }
@@ -234,7 +245,7 @@ try {
     }
 } catch (Throwable $e) {
     $done['errors']++;
-    error_log('Nfelia planner quote expiry: ' . $e->getMessage());
+    errors_report_throwable($e, ['job' => 'Cron: quote expiry']);
 }
 
 /* ── 5. Invoices past their due date ───────────────────────── */
@@ -282,7 +293,7 @@ if ($hour >= 8 && $hour < 20) {
         }
     } catch (Throwable $e) {
         $done['errors']++;
-        error_log('Nfelia planner overdue invoices: ' . $e->getMessage());
+        errors_report_throwable($e, ['job' => 'Cron: overdue invoices']);
     }
 }
 
@@ -294,10 +305,20 @@ try {
     }
 } catch (Throwable $e) {
     $done['errors']++;
-    error_log('Nfelia planner billing: ' . $e->getMessage());
+    errors_report_throwable($e, ['job' => 'Cron: billing']);
 }
 
-/* ── 7. Phone notifications and emails still waiting ───────── */
+/* ── 7. The Ops monitor: the server log, health, the morning summary ── */
+
+try {
+    require_once __DIR__ . '/../app/ops/monitor.php';
+    $done += ops_monitor_run($db, $now);
+} catch (Throwable $e) {
+    $done['errors']++;
+    errors_report_throwable($e, ['job' => 'Cron: Ops monitor']);
+}
+
+/* ── 8. Phone notifications and emails still waiting ───────── */
 
 // Most go straight after the page that caused them has answered. This
 // sends what this run queued, and tries again what failed (a mail server
@@ -316,10 +337,12 @@ if ($hour === 3) {
         $db->exec("DELETE FROM notify_outbox WHERE status IN ('sent', 'skipped', 'failed') AND created_at < NOW() - INTERVAL 1 MONTH");
     } catch (Throwable $e) {
         $done['errors']++;
-        error_log('Nfelia planner notification cleanup: ' . $e->getMessage());
+        errors_report_throwable($e, ['job' => 'Cron: notification clean-up']);
     }
 }
 
 $db->query("SELECT RELEASE_LOCK('nfelia_planner')");
+heartbeat_finish('planner', $done['errors'] === 0, implode(' ', array_map(fn($k, $v) => "{$k}={$v}", array_keys($done), $done)),
+                 (int)round((microtime(true) - $run_started) * 1000));
 
 echo '[planner] ' . $now->format('Y-m-d H:i') . ' ' . implode(' ', array_map(fn($k, $v) => "{$k}={$v}", array_keys($done), $done)) . "\n";

@@ -719,11 +719,11 @@ function notify_queue(PDO $db, array $row): ?int
     $ttl    = (int)($row['ttl'] ?? 0);
     $db->prepare("
         INSERT IGNORE INTO notify_outbox
-            (business_id, notification_id, user_id, event, channel, recipient, recipient_name, dedupe_key,
+            (business_id, notification_id, user_id, staff_id, event, channel, recipient, recipient_name, dedupe_key,
              payload, urgency, status, last_error, expires_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, " . ($ttl > 0 ? "NOW() + INTERVAL {$ttl} SECOND" : 'NULL') . ")
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, " . ($ttl > 0 ? "NOW() + INTERVAL {$ttl} SECOND" : 'NULL') . ")
     ")->execute([
-        $row['business_id'] ?? null, $row['notification_id'] ?? null, $row['user_id'] ?? null, $row['event'],
+        $row['business_id'] ?? null, $row['notification_id'] ?? null, $row['user_id'] ?? null, $row['staff_id'] ?? null, $row['event'],
         $row['channel'], $row['recipient'] ?? null, $row['recipient_name'] ?? null,
         isset($row['dedupe_key']) ? mb_substr($row['dedupe_key'], 0, 150) : null,
         json_encode($row['payload'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
@@ -834,15 +834,19 @@ function notify_send_push(PDO $db, array $row): array
     if (!push_enabled()) {
         return ['skipped', 'phone notifications are switched off on this server'];
     }
-    $stmt = $db->prepare("SELECT * FROM push_subscriptions WHERE user_id = ?");
-    $stmt->execute([$row['user_id']]);
+    // Someone on the Nfelia Ops team (app/ops/alerts.php), or a person in a business.
+    $ops   = !empty($row['staff_id']);
+    if ($ops) require_once BASE_PATH . '/app/ops/alerts.php';
+    $table = $ops ? 'ops_push_subscriptions' : 'push_subscriptions';
+    $stmt  = $db->prepare("SELECT * FROM {$table} WHERE " . ($ops ? 'staff_id' : 'user_id') . " = ?");
+    $stmt->execute([$ops ? $row['staff_id'] : $row['user_id']]);
     $subs = $stmt->fetchAll();
     if (!$subs) {
         return ['skipped', 'no phone has notifications on'];
     }
 
     $message = json_decode($row['payload'], true) ?: [];
-    $message['badge'] = notify_unread_count($db, (int)$row['user_id']);
+    $message['badge'] = $ops ? ops_alerts_unread($db, (int)$row['staff_id']) : notify_unread_count($db, (int)$row['user_id']);
     $ttl = $row['expires_at'] ? max(60, strtotime($row['expires_at']) - time()) : 86400;
 
     $sent = 0;
@@ -851,16 +855,16 @@ function notify_send_push(PDO $db, array $row): array
         $status = webpush_send($sub, $message, $row['urgency'], $ttl);
         if ($status >= 200 && $status < 300) {
             $sent++;
-            $db->prepare("UPDATE push_subscriptions SET failures = 0, last_sent_at = NOW() WHERE id = ?")->execute([$sub['id']]);
+            $db->prepare("UPDATE {$table} SET failures = 0, last_sent_at = NOW() WHERE id = ?")->execute([$sub['id']]);
         } elseif ($status === 404 || $status === 410) {
-            $db->prepare("DELETE FROM push_subscriptions WHERE id = ?")->execute([$sub['id']]);
+            $db->prepare("DELETE FROM {$table} WHERE id = ?")->execute([$sub['id']]);
             $errors[] = 'a phone turned notifications off';
         } elseif ($status === 0 || $status === 429 || $status >= 500) {
             // Our network, or the push service is busy: not the phone's fault, try again.
             $errors[] = $status === 0 ? 'push service unreachable' : "push service answered {$status}";
         } else {
-            $db->prepare("UPDATE push_subscriptions SET failures = failures + 1 WHERE id = ?")->execute([$sub['id']]);
-            $db->prepare("DELETE FROM push_subscriptions WHERE id = ? AND failures >= 5")->execute([$sub['id']]);
+            $db->prepare("UPDATE {$table} SET failures = failures + 1 WHERE id = ?")->execute([$sub['id']]);
+            $db->prepare("DELETE FROM {$table} WHERE id = ? AND failures >= 5")->execute([$sub['id']]);
             $errors[] = "push service refused it ({$status})";
         }
     }

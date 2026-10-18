@@ -18,6 +18,7 @@ $flash = get_flash();
 <html lang="en-NG">
 <head>
     <meta charset="UTF-8">
+    <?= errors_script_tag() ?>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Start free: Nfelia</title>
     <meta name="description" content="Create your Nfelia account. Free for <?= (int)TRIAL_DAYS ?> days, no card needed.">

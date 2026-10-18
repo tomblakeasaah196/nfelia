@@ -205,7 +205,9 @@ class PaystackController {
         $expected  = hash_hmac('sha512', $raw_body, $this->secret_key);
 
         if (!hash_equals($expected, $signature)) {
-            error_log('[Nfelia] Paystack webhook signature mismatch. Rejecting.');
+            // Someone posting to the webhook, or PAYSTACK_SECRET_KEY no longer matches the dashboard.
+            errors_report('job', 'warning', 'Paystack webhook refused: the signature did not match');
+            heartbeat_finish('paystack_webhook', false, 'refused: signature mismatch');
             http_response_code(401);
             exit;
         }
@@ -222,7 +224,8 @@ class PaystackController {
         // 2. Resolve business
         $biz_id = $this->resolve_business_id($event_data);
         if (!$biz_id) {
-            error_log('[Nfelia] Webhook: could not resolve business_id for event ' . $event_type);
+            errors_report('job', 'warning', 'Paystack webhook ' . $event_type . ': no business matches it');
+            heartbeat_finish('paystack_webhook', true, $event_type . ': no business matches it');
             http_response_code(200);
             echo json_encode(['status' => 'ok', 'message' => 'Business not found']);
             exit;
@@ -270,11 +273,13 @@ class PaystackController {
         } catch (\Throwable $e) {
             // Let go of the claim and answer 500: Paystack sends it again.
             $this->unclaim($reference);
-            error_log('[Nfelia] Paystack webhook ' . $event_type . ' failed: ' . $e->getMessage());
+            errors_report_throwable($e, ['job' => 'Paystack webhook ' . $event_type, 'business_id' => $biz_id]);
+            heartbeat_finish('paystack_webhook', false, $event_type . ' failed; Paystack will send it again');
             http_response_code(500);
             exit;
         }
 
+        heartbeat_finish('paystack_webhook', true, $event_type);
         http_response_code(200);
         echo json_encode(['status' => 'ok']);
         exit;

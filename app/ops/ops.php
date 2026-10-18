@@ -466,9 +466,24 @@ function ops_ago(?string $when): string
  */
 function ops_nav(array $staff): array
 {
+    $db = get_db();
+    $count = function (string $sql, array $args = []) use ($db): int {
+        try {
+            $stmt = $db->prepare($sql);
+            $stmt->execute($args);
+            return (int)$stmt->fetchColumn();
+        } catch (Throwable $e) {
+            return 0;   // the menu never breaks a page
+        }
+    };
     $items = [
         'Overview' => [
-            ['',      'Home',      'home',  null, 'signed_in'],
+            ['',       'Home',      'home',  null, 'signed_in'],
+            ['alerts', 'Alerts',    'mail',  $count("SELECT COUNT(*) FROM ops_alerts WHERE staff_id = ? AND read_at IS NULL", [(int)$staff['id']]), 'signed_in'],
+        ],
+        'Monitor' => [
+            ['errors', 'Errors',    'alert', ops_can('errors', $staff) ? $count("SELECT COUNT(*) FROM error_groups WHERE status = 'open' AND level IN ('fatal', 'error') AND kind <> 'slow'") : null, 'errors'],
+            ['health', 'Health',    'pulse', null, 'errors'],
         ],
         'Nfelia team' => [
             ['team',  'Team',      'users', null, 'team'],

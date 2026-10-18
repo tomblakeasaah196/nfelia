@@ -20,6 +20,24 @@ class OpsHomeController
             ")->fetchAll();
         }
 
-        ops_render('home', ['tiles' => [], 'passkeys' => $passkeys, 'recent' => $recent], 'Home');
+        $tiles = [];
+        if (ops_can('errors')) {
+            require_once BASE_PATH . '/app/ops/monitor.php';
+            $e = $db->query("
+                SELECT SUM(status = 'open' AND level IN ('fatal', 'error') AND kind <> 'slow') AS open_errors,
+                       SUM(first_seen_at > NOW() - INTERVAL 1 DAY AND kind <> 'slow' AND level NOT IN ('notice', 'deprecated')) AS new_day,
+                       SUM(regressed_at > NOW() - INTERVAL 7 DAY) AS back_week,
+                       SUM(kind = 'slow' AND last_seen_at > NOW() - INTERVAL 1 DAY) AS slow_day
+                FROM error_groups
+            ")->fetch();
+            $state = ops_health_state(ops_health($db));
+            $tiles[] = ['Open errors', (string)(int)$e['open_errors'], 'Crashes and errors nobody has handled', 'errors', (int)$e['open_errors'] ? 'bad' : 'ok'];
+            $tiles[] = ['New today', (string)(int)$e['new_day'], 'Problems first seen in the last 24 hours', 'errors?sort=new&status=all', ''];
+            $tiles[] = ['Came back', (string)(int)$e['back_week'], 'Marked fixed, then happened again (7 days)', 'errors?status=all&sort=recent', (int)$e['back_week'] ? 'bad' : ''];
+            $tiles[] = ['Health', ['ok' => 'All good', 'warn' => 'Worth a look', 'bad' => 'Needs attention'][$state], 'The cron, emails, phones, the server', 'health', $state === 'ok' ? 'ok' : ($state === 'bad' ? 'bad' : '')];
+            $tiles[] = ['Slow pages', (string)(int)$e['slow_day'], 'Over ' . (ERRORS_SLOW_MS / 1000) . ' seconds, last 24 hours', 'errors?kind=slow', ''];
+        }
+
+        ops_render('home', ['tiles' => $tiles, 'passkeys' => $passkeys, 'recent' => $recent], 'Home');
     }
 }

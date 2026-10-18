@@ -11,6 +11,7 @@
 <div class="ops-settings">
     <nav class="ops-settings-nav" aria-label="Account sections">
         <a href="#passkeys">Passkeys</a>
+        <a href="#alerts">Alerts</a>
         <a href="#password">Password</a>
         <a href="#devices">Signed-in devices</a>
     </nav>
@@ -38,6 +39,27 @@
                 <?= ops_icon('plus') ?> Add a passkey on this device
             </button>
             <p class="small muted" data-ops-passkey-note role="status" style="margin-top:8px"></p>
+        </div></section>
+
+        <section id="alerts" class="ops-card"><div class="ops-card-body">
+            <h2>Alerts</h2>
+            <p>New and returning errors, health problems, and errors given to you<?= ops_can('errors') ? '' : ' (your role gets few of these for now)' ?>.</p>
+            <div class="ops-device" data-ops-push data-key="<?= e(VAPID_PUBLIC_KEY) ?>"
+                 data-subscribe="<?= e(ops_url('alerts/subscribe')) ?>" data-unsubscribe="<?= e(ops_url('alerts/unsubscribe')) ?>">
+                <div class="grow">
+                    <b>On this device</b>
+                    <p class="small muted" data-ops-push-state>Checking…</p>
+                </div>
+                <button type="button" class="ops-btn ops-btn-secondary" data-ops-push-toggle hidden>Turn on</button>
+            </div>
+            <form method="post" action="<?= e(ops_url('alerts/prefs')) ?>" class="ops-prefs">
+                <?= ops_csrf_field() ?>
+                <label class="ops-check"><input type="checkbox" name="alert_push" value="1"<?= (int)$staff['alert_push'] ? ' checked' : '' ?>>
+                    <span><b>Phone alerts</b><small>Crashes, errors that come back, and things that stop working. Turned on per device above.</small></span></label>
+                <label class="ops-check"><input type="checkbox" name="digest_email" value="1"<?= (int)$staff['digest_email'] ? ' checked' : '' ?>>
+                    <span><b>Morning summary by email</b><small>At 8am: yesterday's new problems, what came back, and anything not working.</small></span></label>
+                <button class="ops-btn ops-btn-primary" type="submit">Save</button>
+            </form>
         </div></section>
 
         <section id="password" class="ops-card"><div class="ops-card-body">

@@ -64,3 +64,51 @@ function link_in_mail(string $address, string $pattern): string
     $last = end($mail) ?: ['html' => ''];
     return preg_match($pattern, html_entity_decode($last['html']), $m) ? $m[0] : '';
 }
+
+/** A phone with Ops alerts on for this person (the stand-in push service decrypts what arrives). */
+function ops_phone(int $staff_id, string $kind = 'ok'): array
+{
+    $pair = webpush_new_keypair();
+    $auth = random_bytes(16);
+    $endpoint = T_PUSH_URL . '/' . $kind . '-s' . $staff_id . '-' . bin2hex(random_bytes(4));
+    exec_sql("INSERT INTO ops_push_subscriptions (staff_id, endpoint, endpoint_hash, p256dh, auth) VALUES (?, ?, ?, ?, ?)",
+             [$staff_id, $endpoint, hash('sha256', $endpoint), b64url_encode($pair['public']), b64url_encode($auth)]);
+    return ['user' => $staff_id, 'endpoint' => $endpoint, 'path' => parse_url($endpoint, PHP_URL_PATH),
+            'private' => webpush_private_pem($pair['d'], $pair['public']), 'public' => $pair['public'], 'auth' => $auth];
+}
+
+/** Ops alerts in someone's bell. */
+function ops_bell(int $staff_id): array
+{
+    return rows("SELECT * FROM ops_alerts WHERE staff_id = ? ORDER BY id", [$staff_id]);
+}
+
+/** Start a monitor check from nothing. */
+function monitor_slate(): void
+{
+    clean_slate();
+    foreach (['error_notes', 'error_events', 'error_groups', 'ops_alerts', 'ops_settings', 'ops_heartbeats'] as $t) {
+        exec_sql("DELETE FROM {$t}");
+    }
+    exec_sql("DELETE FROM auth_throttle");
+}
+
+/** Break the app on purpose (tests/ops/boom.php). */
+function boom(string $what, ?Http $as = null, array $headers = []): Http
+{
+    $h = $as ?? new Http();
+    $h->get('__boom/' . $what, $headers);
+    return $h;
+}
+
+function group_of(string $ref): ?array
+{
+    return rows("SELECT g.* FROM error_groups g JOIN error_events e ON e.group_id = g.id WHERE e.ref = ?", [$ref])[0] ?? null;
+}
+
+/** The newest alert in someone's bell. */
+function last_bell(int $staff_id): array
+{
+    $all = ops_bell($staff_id);
+    return $all ? $all[count($all) - 1] : [];
+}

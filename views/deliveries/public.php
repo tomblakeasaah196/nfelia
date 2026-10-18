@@ -21,6 +21,7 @@ $status_color = $statuses[$delivery['status']]['color'] ?? 'bg-gray-100 text-gra
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <?= errors_script_tag() ?>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= e($delivery['doc_number']) ?> — <?= e($business['name']) ?></title>
     <link rel="preconnect" href="https://fonts.googleapis.com">

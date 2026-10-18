@@ -42,6 +42,7 @@ class StorefrontController extends PublicController
         $valid    = (bool)preg_match('/^[a-z0-9-]{1,63}$/', $label);
         $business = $valid ? shop_find_by_name($label) : null;
         $method   = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+        errors_context_set(['source' => 'shop', 'business_id' => $business ? (int)$business['id'] : null]);
 
         // An old name on hold sends people to the shop's new address
         if (!$business && $valid && ($holder = shop_name_holder($label)) && (int)$holder['landing_enabled']) {

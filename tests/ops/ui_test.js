@@ -124,6 +124,54 @@ const watch = (page, who) => page.on('pageerror', (e) => errors.push(`${who}: ${
   ok(await wide.locator('.ops-feed li').count() > 3, 'the audit log lists what was done');
   await wide.screenshot({ path: path.join(OUT, 'audit-computer.png'), fullPage: true });
 
+  console.log('\nThe monitor');
+  // Break the app a few ways, as tests/ops/boom.php allows on a test copy.
+  for (const what of ['exception', 'warning', 'fatal']) await wide.request.get(`${APP.origin}/__boom/${what}`).catch(() => {});
+  const crash = await (await browser.newContext(PHONE)).newPage();
+  await crash.goto(`${APP.origin}/__boom/exception`);
+  const code = (await crash.locator('#ref').textContent().catch(() => '')).trim();
+  ok(/^E[A-Z2-9]{7}$/.test(code), 'the error page shows its code: ' + code);
+  await crash.addStyleTag({ content: still });
+  await crash.screenshot({ path: path.join(OUT, 'error-page-phone.png') });
+  await crash.goto(`${APP.origin}/login`);
+  await crash.evaluate(() => setTimeout(() => { throw new Error('UI test: thrown in the browser'); }, 0));
+  await crash.waitForTimeout(1200);
+  ok(sql("SELECT COUNT(*) AS n FROM error_groups WHERE kind = 'js' AND title LIKE '%UI test: thrown in the browser%'")[0]?.n === 1,
+     'a script error in a real browser reaches Ops (assets/js/errors.js)');
+
+  await wide.goto(`${OPS}/errors`);
+  await wide.addStyleTag({ content: still });
+  ok(await wide.locator('table tbody tr').count() >= 3, 'the errors list shows them');
+  await wide.screenshot({ path: path.join(OUT, 'errors-computer.png'), fullPage: true });
+  await wide.click('details.ops-filters > summary');
+  ok(await wide.locator('.ops-filters-panel').isVisible(), 'Filters opens its panel');
+  await wide.screenshot({ path: path.join(OUT, 'errors-filters-computer.png') });
+  await wide.keyboard.press('Escape');
+  await wide.locator('[data-ops-tick]').first().check();
+  ok(await wide.locator('[data-ops-bulk-bar]').isVisible(), 'ticking one shows what can be done to it');
+  await wide.fill('#err-q', code);
+  await Promise.all([wide.waitForNavigation(), wide.press('#err-q', 'Enter')]);
+  ok(wide.url().includes('#' + code) && await wide.locator(`li#${code}.is-focus details[open]`).count() === 1, 'typing the code opens its problem, on that occurrence');
+  await wide.addStyleTag({ content: still });
+  await wide.screenshot({ path: path.join(OUT, 'error-computer.png'), fullPage: true });
+  await wide.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: OPS });
+  await wide.click('[data-ops-copy]');
+  await wide.waitForTimeout(200);
+  const copied = await wide.evaluate(() => navigator.clipboard.readText()).catch(() => '');
+  ok(copied.includes('Stack trace:') && copied.includes('tests/ops/boom.php'), '"Copy for AI" copies the problem with its stack trace');
+  await wide.goto(`${OPS}/health`);
+  await wide.addStyleTag({ content: still });
+  await wide.screenshot({ path: path.join(OUT, 'health-computer.png'), fullPage: true });
+  await page.goto(`${OPS}/errors`);
+  await page.addStyleTag({ content: still });
+  const over = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  ok(over <= 0, 'the errors list fits a phone (overflow ' + over + 'px)');
+  await page.screenshot({ path: path.join(OUT, 'errors-phone.png'), fullPage: true });
+  await page.goto(`${OPS}/alerts`);
+  await page.addStyleTag({ content: still });
+  ok(await page.locator('.ops-inbox li.is-new').count() > 0, 'the alerts inbox has them, unread');
+  await page.screenshot({ path: path.join(OUT, 'alerts-phone.png'), fullPage: true });
+
   ok(errors.length === 0, 'no script errors on any page' + (errors.length ? ': ' + errors.join(' | ') : ''));
   await browser.close();
   console.log(`\nScreenshots: ${OUT}`);

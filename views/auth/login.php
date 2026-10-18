@@ -14,6 +14,7 @@ $splash = ($_GET['source'] ?? '') === 'pwa';
 <html lang="en-NG"<?= $splash ? ' class="nf-splashing"' : '' ?>>
 <head>
     <meta charset="UTF-8">
+    <?= errors_script_tag() ?>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sign in: Nfelia</title>
     <meta name="description" content="Sign in to your Nfelia business account.">

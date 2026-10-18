@@ -13,6 +13,11 @@ require_once __DIR__ . '/vendor/autoload.php';
 require_once __DIR__ . '/config/database.php';
 require_once __DIR__ . '/config/app.php';
 require_once __DIR__ . '/config/mail.php';
+
+// Errors, slow pages and crashes are written down for the Nfelia team
+// (Ops → Errors) from here on (app/helpers/errors.php).
+require_once __DIR__ . '/app/helpers/errors.php';
+errors_install('web');
  
 // Load helpers
 require_once __DIR__ . '/app/helpers/functions.php';
@@ -39,28 +44,43 @@ require_once __DIR__ . '/app/helpers/screens.php';
 ob_start();
 
 set_exception_handler(function ($e) {
-    // Silently log the exact error for your eyes only
-    error_log("Nfelia Exception: " . $e->getMessage() . " in " . $e->getFile() . " on line " . $e->getLine());
-    
+    // Written down for the team, with a code the person can quote to support.
+    $GLOBALS['nf_error_ref'] = errors_report_throwable($e, ['level' => 'error']);
+
     // Erase anything that was already printed to the screen
     while (ob_get_level()) { ob_end_clean(); }
-    
-    // Serve the beautiful 500 page
+
     http_response_code(500);
+    if ($GLOBALS['nf_error_ref']) header('X-Nfelia-Error: ' . $GLOBALS['nf_error_ref']);
+    if (is_ajax() || str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json')) {
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'ok' => false, 'error_code' => $GLOBALS['nf_error_ref'],
+                          'message' => 'Something went wrong on our side. Try again' . ($GLOBALS['nf_error_ref'] ? '; if it keeps happening, tell support the code ' . $GLOBALS['nf_error_ref'] : '') . '.']);
+        exit;
+    }
     require __DIR__ . '/views/500.php';
     exit;
 });
 
 register_shutdown_function(function () {
-    $error = error_get_last();
-    // Catch fatal memory errors, parse errors, and strict type errors
-    if ($error && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR])) {
+    // Catch fatal memory errors, parse errors, and strict type errors.
+    // errors_on_shutdown() has already written it down (its shutdown runs
+    // first) and kept it, since writing it down can replace error_get_last().
+    $error = $GLOBALS['nf_fatal'] ?? error_get_last();
+    if ($error && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR, E_RECOVERABLE_ERROR])) {
         while (ob_get_level()) { ob_end_clean(); }
         http_response_code(500);
         require __DIR__ . '/views/500.php';
-        exit;
+        // No exit: what runs after the response (the team's alert about
+        // this crash) is a later shutdown function, and exit would skip it.
     }
 });
+
+// The Ops tests break things on purpose to see them recorded
+// (tests/ops/boom.php). Only on a test copy: tests/ is never deployed.
+if (in_array(APP_ENV, ['local', 'testing'], true) && str_starts_with(trim($_GET['url'] ?? '', '/'), '__boom/') && is_file(__DIR__ . '/tests/ops/boom.php')) {
+    require __DIR__ . '/tests/ops/boom.php';
+}
 
 // --- NFELIA OPS ---
 // ops.nfelia.com is the Nfelia team's own place (app/ops/). It is looked for
@@ -113,6 +133,15 @@ if (preg_match('#^shops(?:/([a-z0-9-]{1,60}))?(?:/([a-z0-9-]{1,60}))?$#', $seo_p
 
 // Start session
 session_start();
+
+// A stopped cron cannot say so itself: now and then, a page asks for it
+// once it has answered (app/ops/monitor.php).
+if (random_int(1, 50) === 1) {
+    after_response(function () {
+        require_once __DIR__ . '/app/ops/monitor.php';
+        ops_watchdog();
+    });
+}
 
 // Parse the URL
 $url = trim($_GET['url'] ?? '', '/');
@@ -342,7 +371,7 @@ function dispatch_ajax(string $action, ?string $param): void {
     // The service worker renewing a push subscription is not someone using
     // the app: it neither waits on the lock nor keeps it away.
     $sw_renewal = $action === 'notifications' && ($_GET['action'] ?? '') === 'resubscribe';
-    if (!in_array($action, ['auth', 'webhooks'], true) && !$sw_renewal && is_logged_in()) {
+    if (!in_array($action, ['auth', 'webhooks', 'errors'], true) && !$sw_renewal && is_logged_in()) {
         if (lock_engaged()) {
             header('X-Nfelia-Locked: 1');
             json_response(['success' => false, 'locked' => true, 'message' => 'Nfelia is locked. Unlock it to carry on.'], 401);
@@ -363,6 +392,7 @@ function dispatch_ajax(string $action, ?string $param): void {
         'notifications' => __DIR__ . '/api/ajax/notifications.php',
         'auth'          => __DIR__ . '/api/ajax/auth.php',
         'webhooks'      => __DIR__ . '/api/webhooks/paystack.php',
+        'errors'        => __DIR__ . '/api/ajax/errors.php',   // a script error in someone's browser
     ];
     
     $file = $ajax_map[$action] ?? null;

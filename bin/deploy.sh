@@ -82,6 +82,13 @@ tar cf - --exclude-from="$REPO/.deployignore" -C "$REPO" . \
   | ( cd "$DEPLOYPATH" && tar xpf - --no-overwrite-dir )
 echo "[deploy] tar -> $DEPLOYPATH done"
 
+# The release now live, for Nfelia Ops (errors are tagged with it, and a
+# problem fixed in one release that comes back in a later one says so).
+# storage/ is never copied over and is closed to the web (.htaccess).
+mkdir -p "$DEPLOYPATH/storage"
+git -C "$REPO" log -1 --pretty='%h %cI %s' > "$DEPLOYPATH/storage/release"
+echo "[deploy] release $(cut -d' ' -f1 "$DEPLOYPATH/storage/release")"
+
 # Normalise permissions. tar xp preserves the archive's modes, and the
 # archive carries whatever umask was in force when the repo was cloned.
 # A clone made under `umask 077` yields mode 600 files, which tar copies

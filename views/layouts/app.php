@@ -100,6 +100,7 @@ $flash = get_flash();
 <html lang="en" data-text="<?= e($ui['text']) ?>" data-bg="<?= e($ui['bg']) ?>"<?= $splash || $locked_page ? ' class="' . trim(($splash ? 'nf-splashing ' : '') . ($locked_page ? 'nf-locked' : '')) . '"' : '' ?>>
 <head>
     <meta charset="UTF-8">
+    <?= errors_script_tag() ?>
     <!-- NFELIA AUDIT FIX H01 — CSRF meta tag for JS consumption — 2026-06-03 -->
     <meta name="csrf-token" content="<?= csrf_token() ?>">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">

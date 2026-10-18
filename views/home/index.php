@@ -37,6 +37,7 @@ $flash = get_flash();
 <html lang="en-NG">
 <head>
     <meta charset="UTF-8">
+    <?= errors_script_tag() ?>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nfelia: invoices, debts and stock for Nigerian businesses</title>
     <meta name="description" content="Know who owes you, what you sold and what you made. Send proper invoices and receipts on WhatsApp. Free for 14 days, then <?= $naira($plan_price) ?> a month.">
