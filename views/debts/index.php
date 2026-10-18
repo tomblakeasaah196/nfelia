@@ -147,7 +147,9 @@ $status_badge = function($s) {
                     ?>
                         <tr class="hover:bg-brand-cream/30 transition-colors <?= $is_overdue ? 'bg-red-50/30' : '' ?>">
                             <td class="px-5 py-4">
-                                <?php if ($d['party_name']): ?>
+                                <?php if ($d['party_name'] && !empty($d['party_deleted'])): ?>
+                                    <span class="text-xs font-bold text-brand-plum"><?= e($d['party_name']) ?> <span class="font-normal text-brand-plum/50">(deleted)</span></span>
+                                <?php elseif ($d['party_name']): ?>
                                     <a href="<?= APP_URL ?>/<?= $tab === 'receivable' ? 'customers' : 'suppliers' ?>/view/<?= $tab === 'receivable' ? $d['customer_id'] : $d['supplier_id'] ?>"
                                        class="text-xs font-bold text-brand-plum hover:text-brand-burgundy"><?= e($d['party_name']) ?></a>
                                 <?php else: ?>

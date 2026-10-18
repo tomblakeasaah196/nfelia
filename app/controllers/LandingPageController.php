@@ -136,8 +136,9 @@ class LandingPageController {
                     directory_opt_in = ?, city = ?, city_slug = ?
                 WHERE id = ?
             ")->execute([$json, $json, $settings['look'], (int)$settings['seo']['directory'],
-                         $settings['seo']['city'] !== '' ? $settings['seo']['city'] : null,
-                         $settings['seo']['city'] !== '' ? sf_city_slug($settings['seo']['city']) : null, $this->biz_id]);
+                         // Only a city from the list goes into the directory (W17)
+                         sf_known_city($settings['seo']['city']) !== '' ? sf_known_city($settings['seo']['city']) : null,
+                         sf_known_city($settings['seo']['city']) !== '' ? sf_city_slug(sf_known_city($settings['seo']['city'])) : null, $this->biz_id]);
             $this->db->prepare("INSERT INTO storefront_versions (business_id, settings, published_by) VALUES (?, ?, ?)")
                      ->execute([$this->biz_id, $json, (int)auth_user()['id']]);
             // Keep the ten newest
@@ -205,18 +206,24 @@ class LandingPageController {
     /* ──────────────────────────────────────────
      *  HERO PHOTO OR VIDEO — POST /landing-page/upload-image
      *  Saved for the draft only: the live shop keeps its photo until the
-     *  owner publishes. Photos are resized to 1920px; videos up to 50MB are
-     *  kept as they are (the old screen compressed them in the browser).
+     *  owner publishes. Photos (up to 20MB) are resized to 1920px; MP4 videos
+     *  (up to 30MB, or less if the server takes less) are kept as they are.
      * ────────────────────────────────────────── */
     public function upload_image() {
         $this->require_post();
+        // One honest limit, the smaller of 30MB and what the server takes (W18)
+        $ini = trim((string)ini_get('upload_max_filesize'));
+        $ini_bytes = (int)$ini * match (strtoupper(substr($ini, -1))) { 'G' => 1073741824, 'M' => 1048576, 'K' => 1024, default => 1 };
+        $video_mb = (int)floor(min(30 * 1048576, $ini_bytes > 0 ? $ini_bytes : 30 * 1048576) / 1048576);
+        $limits = 'Photos can be up to 20MB and videos up to ' . $video_mb . 'MB.';
         $file = $_FILES['media'] ?? null;
         if (!$file || ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
             $too_big = in_array($file['error'] ?? 0, [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true);
-            json_response(['error' => $too_big ? 'That file is too big. Try a photo under 10MB.' : 'The upload didn\'t arrive. Try again.'], 422);
+            json_response(['error' => $too_big ? 'That file is too big. ' . $limits : 'The upload didn\'t arrive. Try again.'], 422);
         }
-        if ($file['size'] > 50 * 1024 * 1024) {
-            json_response(['error' => 'That file is too big. Videos can be up to 50MB.'], 422);
+        $is_photo = str_starts_with((string)(mime_content_type($file['tmp_name']) ?: ''), 'image/') && !str_ends_with((string)mime_content_type($file['tmp_name']), 'gif');
+        if ($file['size'] > ($is_photo ? 20 : $video_mb) * 1048576) {
+            json_response(['error' => 'That file is too big. ' . $limits], 422);
         }
 
         $dir    = BASE_PATH . '/uploads/storefront/' . $this->biz_id;

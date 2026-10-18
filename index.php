@@ -56,6 +56,7 @@ set_exception_handler(function ($e) {
     while (ob_get_level()) { ob_end_clean(); }
 
     http_response_code(500);
+    header('Cache-Control: no-store', true);   // an error is never cached (W11)
     if ($GLOBALS['nf_error_ref']) header('X-Nfelia-Error: ' . $GLOBALS['nf_error_ref']);
     if (is_ajax() || str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json')) {
         header('Content-Type: application/json');
@@ -226,6 +227,33 @@ if (in_array($controller, $public_routes)) {
  
 // ---- DISPATCHER FUNCTIONS ----
  
+/**
+ * Whether a URL may call this controller method: public, not static, not a
+ * constructor or other magic method, and given every value it needs. Anything
+ * else is a 404, never a crash (D10). A controller with __call answers any
+ * other name itself (AdminController sends old pages on to Ops).
+ */
+function route_callable(object $ctrl, string $method, ?string $param): bool {
+    if ($method === '' || str_starts_with($method, '__')) {
+        return false;
+    }
+    if (!method_exists($ctrl, $method)) {
+        return method_exists($ctrl, '__call');
+    }
+    $rm = new ReflectionMethod($ctrl, $method);
+    return $rm->isPublic() && !$rm->isStatic() && ($param !== null || $rm->getNumberOfRequiredParameters() === 0);
+}
+
+/** A controller file that isn't there is a 404 too. */
+function route_controller(string $class): ?object {
+    $file = __DIR__ . "/app/controllers/{$class}.php";
+    if (!is_file($file)) {
+        return null;
+    }
+    require_once $file;
+    return new $class();
+}
+
 function dispatch_public(string $controller, string $action, ?string $param): void {
     $map = [
         'login'           => 'AuthController',
@@ -311,18 +339,20 @@ function dispatch_public(string $controller, string $action, ?string $param): vo
     }
     // ------------------------------------------
 
-    require_once __DIR__ . "/app/controllers/{$class}.php";
-    $ctrl = new $class();
+    $ctrl = route_controller($class);
+    if (!$ctrl) { not_found(); return; }
     
     // Automatically translates hyphenated URLs to snake_case methods
     $method = str_replace('-', '_', $action);
 
-    // is_callable, not method_exists: a private or protected helper must
-    // never be reachable from a URL (calling one would fatal with a 500).
-    if (is_callable([$ctrl, $method])) {
+    // Only public, non-static methods with what they need: a helper, a
+    // static function or a missing token must never be reachable from a URL
+    if (route_callable($ctrl, $method, $param)) {
         $ctrl->$method($param);
-    } else {
+    } elseif (route_callable($ctrl, 'index', $param)) {
         $ctrl->index($param);
+    } else {
+        not_found();
     }
 }
  
@@ -352,7 +382,6 @@ function dispatch_app(string $controller, string $action, ?string $param): void 
         'purge'           => 'PurgeController',
         'landing-page'    => 'LandingPageController',
         'settings'        => 'SettingsController',
-        'account'         => 'AccountController',
         'referrals'        => 'ReferralController',
         'resend-verification' => 'AuthController',
         
@@ -393,14 +422,14 @@ function dispatch_app(string $controller, string $action, ?string $param): void 
         $action = $controller;
     }
 
-    require_once __DIR__ . "/app/controllers/{$class}.php";
-    $ctrl = new $class();
+    $ctrl = route_controller($class);
+    if (!$ctrl) { not_found(); return; }
     
     // Automatically translates hyphenated URLs to snake_case methods
     $method = str_replace('-', '_', $action);
     $method = $method ?: 'index';
  
-    if (is_callable([$ctrl, $method])) {
+    if (route_callable($ctrl, $method, $param)) {
         $ctrl->$method($param);
     } else {
         not_found();

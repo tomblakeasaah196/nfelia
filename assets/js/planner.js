@@ -331,6 +331,8 @@ function planner() {
             if (this.busy) return;
             var title = this.quick.title.trim();
             if (!title) { document.getElementById('pl-quick').focus(); return this.say('Write the task first.', null, true); }
+            // "Pick a date" with the date cleared is not "No date" (P15)
+            if (this.quick.when === 'pick' && !this.quick.date) return this.say('Pick the date first, or choose No date.', null, true);
             this.api('save', { kind: 'task', title: title, date: this.quickDate() }).then(function (d) {
                 self.quick.title = '';
                 self.say(d.message);
@@ -351,11 +353,11 @@ function planner() {
             });
         },
 
-        closePanel: function () {
+        closePanel: function (keepDraft) {
             var self = this;
             if (!this.panel) return;
             this.panel = null;
-            this.clearDraft();
+            if (!keepDraft) this.clearDraft();
             this.custQuery = '';
             this.confirmDelete = false;
             this.job = {};
@@ -365,7 +367,24 @@ function planner() {
 
         onEscape: function () {
             if (this.confirmDelete) this.closeConfirm();
-            else this.closePanel();
+            else this.dismissPanel();
+        },
+
+        // A tap outside the sheet, or Escape, never throws away what was
+        // typed (P14): the sheet closes, the draft stays, and the toast brings
+        // it back. Only the sheet's own close button (or saving) discards it.
+        dismissPanel: function () {
+            var self = this, kept = false;
+            if (!this.panel) return;
+            var dirty = (this.panel === 'editor' && JSON.stringify(this.form) !== this.formBase
+                         && (String(this.form.title || '').trim() || String(this.form.notes || '').trim()))
+                     || (this.panel === 'plan' && this.plan.template);
+            if (!dirty) return this.closePanel();
+            this.saveDraft();
+            try { kept = !!localStorage.getItem(this.draftKey()); } catch (e) {}
+            if (!kept) return this.say('Save it, or close it with the cross to throw it away.', null, true);
+            this.closePanel(true);
+            this.say('Closed. What you typed is kept.', function () { self.restoreDraft(); }, false, 'Open');
         },
 
         askDelete: function () {

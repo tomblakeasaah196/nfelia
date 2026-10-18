@@ -325,10 +325,11 @@ if (!empty($activities)) {
                     // If they click discuss and have unread messages, clear badge and update DB
                     if (t === 'discuss' && this.unreadCount > 0) {
                         this.unreadCount = 0;
-                        fetch('<?= APP_URL ?>/quotations/mark_comments_read/<?= e($quotation['token']) ?>', {
-                            method: 'POST',
-                            headers: { 'X-Requested-With': 'XMLHttpRequest' }
-                        });
+                        // The client has read the business's replies (D7): posted to
+                        // this page, which needs no sign-in
+                        const fd = new FormData();
+                        fd.append('action', 'mark_read');
+                        fetch(window.location.href, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } }).catch(() => {});
                     }
                 },
 

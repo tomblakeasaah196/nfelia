@@ -110,7 +110,7 @@ if (empty($initial_items)) {
             </div>
             <div>
                 <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Phone Number</label>
-                <input type="text" name="recipient_phone" x-model="recipientPhone"
+                <input type="tel" maxlength="50" name="recipient_phone" x-model="recipientPhone"
                        class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/30"
                        placeholder="e.g. 08012345678">
             </div>
@@ -215,7 +215,7 @@ if (empty($initial_items)) {
                 </div>
                 <div>
                     <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Rider Phone</label>
-                    <input type="text" name="rider_phone" value="<?= e($delivery['rider_phone'] ?? '') ?>"
+                    <input type="tel" maxlength="50" name="rider_phone" value="<?= e($delivery['rider_phone'] ?? '') ?>"
                            class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/30"
                            placeholder="e.g. 08012345678">
                 </div>

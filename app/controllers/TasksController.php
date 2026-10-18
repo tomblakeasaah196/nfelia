@@ -157,14 +157,17 @@ class TasksController {
 
         $notes   = trim((string)($in['notes'] ?? '')) ?: null;
         $starred = !empty($in['starred']) ? 1 : 0;
+        // A monthly repeat keeps the day it was set for: the 31st stays the
+        // 31st (or the month's last day), even after a short month (P11)
+        $repeat_day = $repeat === 'month' && $date !== null ? (int)substr($date, 8, 2) : null;
         [$remind_at, $reminded_at] = $this->arm($date, $time, $remind);
 
         if ($existing) {
             $this->db->prepare("
                 UPDATE tasks SET kind = ?, title = ?, notes = ?, is_starred = ?, due_date = ?, due_time = ?, end_time = ?,
-                       customer_id = ?, assigned_to = ?, repeat_every = ?, remind_before = ?, remind_at = ?, reminded_at = ?
+                       customer_id = ?, assigned_to = ?, repeat_every = ?, repeat_day = ?, remind_before = ?, remind_at = ?, reminded_at = ?
                 WHERE id = ? AND business_id = ?
-            ")->execute([$kind, $title, $notes, $starred, $date, $time, $end, $customer_id, $assigned_to, $repeat,
+            ")->execute([$kind, $title, $notes, $starred, $date, $time, $end, $customer_id, $assigned_to, $repeat, $repeat_day,
                          $remind, $remind_at, $reminded_at, $id, $this->biz_id]);
 
             // A delivery step and its invoice keep the same promised date.
@@ -172,13 +175,17 @@ class TasksController {
                 $this->db->prepare("UPDATE invoices SET deliver_mode = 'date', deliver_by = ? WHERE id = ? AND business_id = ?")
                          ->execute([$date, $existing['invoice_id'], $this->biz_id]);
             }
+            // A step's new date can move its job's finish date (P6)
+            if ($existing['parent_id'] !== null && $date) {
+                planner_job_finish_follows_steps($this->db, $this->biz_id, (int)$existing['parent_id']);
+            }
         } else {
             $this->db->prepare("
                 INSERT INTO tasks (business_id, kind, title, notes, is_starred, due_date, due_time, end_time, customer_id,
-                                   assigned_to, repeat_every, remind_before, remind_at, reminded_at, created_by)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                   assigned_to, repeat_every, repeat_day, remind_before, remind_at, reminded_at, created_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ")->execute([$this->biz_id, $kind, $title, $notes, $starred, $date, $time, $end, $customer_id,
-                         $assigned_to, $repeat, $remind, $remind_at, $reminded_at, $user['id']]);
+                         $assigned_to, $repeat, $repeat_day, $remind, $remind_at, $reminded_at, $user['id']]);
             $id = (int)$this->db->lastInsertId();
         }
 
@@ -226,15 +233,16 @@ class TasksController {
 
             // Repeats: the next one appears when this one is ticked.
             if ($task['repeat_every'] && $task['due_date']) {
-                $next = planner_next_date($task['due_date'], $task['repeat_every'], planner_today());
+                $next = planner_next_date($task['due_date'], $task['repeat_every'], planner_today(),
+                                          isset($task['repeat_day']) ? (int)$task['repeat_day'] : null);
                 [$remind_at, $reminded_at] = $this->arm($next, $task['due_time'], $task['remind_before'] !== null ? (int)$task['remind_before'] : null);
                 $this->db->prepare("
                     INSERT INTO tasks (business_id, kind, title, notes, is_starred, due_date, due_time, end_time, customer_id,
-                                       assigned_to, repeat_every, remind_before, remind_at, reminded_at, spawned_from, created_by)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                       assigned_to, repeat_every, repeat_day, remind_before, remind_at, reminded_at, spawned_from, created_by)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ")->execute([$this->biz_id, $task['kind'], $task['title'], $task['notes'], $task['is_starred'], $next,
                              $task['due_time'], $task['end_time'], $task['customer_id'], $task['assigned_to'], $task['repeat_every'],
-                             $task['remind_before'], $remind_at, $reminded_at, $task['id'], $task['created_by']]);
+                             $task['repeat_day'] ?? null, $task['remind_before'], $remind_at, $reminded_at, $task['id'], $task['created_by']]);
                 $message = 'Done. Next one: ' . planner_fmt_day($next, planner_today()) . '.';
             }
 
@@ -296,6 +304,10 @@ class TasksController {
         }
         $this->db->prepare("UPDATE tasks SET deleted_at = NOW() WHERE business_id = ? AND (id = ? OR parent_id = ?)")
                  ->execute([$this->biz_id, $task['id'], $task['id']]);
+        // A job whose last open step went is finished (P7)
+        if ($task['parent_id'] !== null) {
+            planner_settle_job($this->db, $this->biz_id, (int)$task['parent_id'], (int)$user['id']);
+        }
         $this->respond($task['plan'] !== null ? 'Job plan deleted.' : 'Deleted.');
     }
 

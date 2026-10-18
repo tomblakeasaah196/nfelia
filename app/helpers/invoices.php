@@ -155,6 +155,9 @@ function invoice_cancel(PDO $db, int $biz_id, int $invoice_id, string $symbol = 
         WHERE invoice_id = ? AND business_id = ? AND deleted_at IS NULL AND status IN ('pending_dispatch', 'dispatched', 'in_transit')
     ")->execute([$invoice_id, $biz_id]);
 
+    // Its delivery step goes off Tasks & Calendar (P2)
+    planner_invoice_cancelled($db, $biz_id, $invoice_id);
+
     customer_refresh_totals($db, $biz_id, (int)$invoice['customer_id']);
     return '';
 }

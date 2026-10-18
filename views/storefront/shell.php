@@ -101,9 +101,10 @@ $ld = [
 ];
 if ($summary !== '')              { $ld['description'] = $seo_desc; }
 if ($business['logo_path'])       { $ld['logo'] = $ld['image'] = sf_media_url((string)$business['logo_path']); }
-if ($business['phone'])           { $ld['telephone'] = (string)$business['phone']; }
-if ($business['email'])           { $ld['email'] = (string)$business['email']; }
-if ($business['address'])         { $ld['address'] = ['@type' => 'PostalAddress', 'streetAddress' => (string)$business['address'], 'addressCountry' => 'NG']; }
+// Only what the owner shows on the page goes into Google's data (W3)
+if ($business['phone'] && !empty($contact['show_phone']))     { $ld['telephone'] = (string)$business['phone']; }
+if ($business['email'] && !empty($contact['show_email']))     { $ld['email'] = (string)$business['email']; }
+if ($business['address'] && !empty($contact['show_address'])) { $ld['address'] = ['@type' => 'PostalAddress', 'streetAddress' => (string)$business['address'], 'addressCountry' => 'NG']; }
 if ($seo['city'] !== '')          { $ld['address'] = ($ld['address'] ?? ['@type' => 'PostalAddress', 'addressCountry' => 'NG']) + ['addressLocality' => $seo['city']]; }
 if ($catalogue['min_price'] !== null) {
     $prices = array_filter(array_column($catalogue['items'], 'price'), fn($p) => $p > 0);

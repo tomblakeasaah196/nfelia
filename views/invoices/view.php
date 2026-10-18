@@ -68,7 +68,9 @@ if ($quotation) {
 <!-- Who owes what -->
 <section class="nf-doc" aria-label="Invoice <?= e($invoice['doc_number']) ?>">
     <p class="nf-doc-who">
-        <?php if ($customer): ?>
+        <?php if ($customer && !empty($customer['deleted_at'])): ?>
+            <span><?= e($customer['full_name']) ?> (deleted)</span>
+        <?php elseif ($customer): ?>
             <a href="<?= APP_URL ?>/customers/view/<?= (int)$customer['id'] ?>" data-prefetch><?= e($customer['full_name']) ?></a>
         <?php else: ?>
             <span>No client</span>

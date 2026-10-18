@@ -188,11 +188,12 @@ class OrderController
             $delivery_doc = $s->fetch();
         }
 
-        // The shopper's tracking link and, once the order is done, its review
+        // The shopper's tracking link and, once the order is done, its review.
+        // The review's own link is the shopper's alone: the owner never sees
+        // it, and asks for a review through the tracking page (W14).
         $business = business_with_shop_link($business);
         $track_url = shop_order_url($this->db, $order, $business);
         $review = null;
-        $review_link = null;
         if ($track_url !== null) {
             $s = $this->db->prepare("SELECT * FROM reviews WHERE order_id = ?");
             $s->execute([(int) $order["id"]]);
@@ -200,7 +201,6 @@ class OrderController
             if (!$review) {
                 $review = review_invite($this->db, (int) $order["id"]);
             }
-            $review_link = $review ? review_url($business, $review) : null;
         }
         $customer_wa = shop_whatsapp_digits(["phone" => $order["customer_phone"]]);
 
@@ -432,6 +432,10 @@ class OrderController
         // on the shopper's tracking page
         if ($new_status === "fulfilled") {
             review_invite($this->db, (int) $id);
+            // Its invoice's delivery promise is kept (P2)
+            if (!empty($order["invoice_id"])) {
+                planner_invoice_delivered($this->db, $this->biz_id, (int) $order["invoice_id"], false, $this->get_current_user_id());
+            }
         }
         if ($moved->rowCount() === 1) {
             shop_order_tell($this->db, (int) $id, match ($new_status) {

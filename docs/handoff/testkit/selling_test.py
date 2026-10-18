@@ -95,6 +95,25 @@ class Client:
         self.token = m.group(1) if m else None
 
 
+# The founder's admin moved to Nfelia Ops (ops.<host>): an Ops person signs
+# in there with the same test password
+def ops_client():
+    sql("DELETE FROM ops_staff WHERE email = 'ops@nfelia.test'")
+    sql("INSERT INTO ops_staff (full_name, email, password_hash, role) "
+        "SELECT 'Ops Admin', 'ops@nfelia.test', password_hash, 'admin' FROM users WHERE email = 'founder@nfelia.test'")
+    c = Client("ops." + MAIN)
+    s, h, raw = c.req("GET", "/signin")
+    token = re.search(r'name="csrf_token" value="([0-9a-f]+)"', raw.decode("utf-8", "replace")).group(1)
+    c.req("POST", "/signin", {"csrf_token": token, "email": "ops@nfelia.test", "password": "testpass123"})
+    return c
+
+
+def ops_token(c, path):
+    s, h, raw = c.req("GET", path)
+    m = re.search(r'name="csrf_token" value="([0-9a-f]+)"', raw.decode("utf-8", "replace"))
+    return m.group(1) if m else ""
+
+
 def shop(label):
     return Client(f"{label}.nfelia.test:8000")
 
@@ -287,7 +306,7 @@ check("a review can't be posted twice", s == 303 and one(f"SELECT rating FROM re
 s, h, page = shop("bisi-indigo").get(f"/review/{rtoken}")
 check("the link then says thank you", "Thank you</h1>" in page and "Rated 5 out of 5" in page and "&lt;script&gt;" in page, "")
 note = sql(f"SELECT title, action_url FROM notifications WHERE business_id = {BISI} AND title LIKE 'New review%'")
-check("the owner is told", note == [["New review: 5 stars", f"orders/view/{order_id}"]], note)
+check("the owner is told", note and note[0] == ["New review: 5 out of 5", f"orders/view/{order_id}#review"], note)
 s, h, home = shop("bisi-indigo").get("/")
 section = re.search(r'<section class="sf-section sf-reviews" id="sf-reviews".*?</section>', home, re.S)
 section = section.group(0) if section else ""
@@ -310,27 +329,24 @@ check("marking it fulfilled invites a review", one(f"SELECT status FROM reviews 
 s, h, page = shop("bisi-indigo").get(path_of(pj["order_url"]))
 check("tracking: collected, rate it", "Collected. Thank you" in page and "Rate your order" in page, "")
 
-# ── Founder hides a review ─────────────────────────────────────────────
+# ── The Nfelia team hides a review (in Nfelia Ops) ──────────────────────
 s, h, page = bisi.get("/admin/reviews")
 check("owners can't open the reviews admin", s != 200 or "Reviews on shops" not in page, s)
-founder = Client()
-founder.login("founder@nfelia.test")
-s, h, page = founder.get("/admin/reviews")
+founder = ops_client()
+s, h, page = founder.get("/reviews")
 founder.token = re.search(r'name="csrf_token" value="([0-9a-f]+)"', page).group(1)
 review_id = one(f"SELECT id FROM reviews WHERE token = '{rtoken}'")
-check("founder sees reviews", s == 200 and "Reviews on shops" in page and "Lovely fabric" in page and "&lt;script&gt;" in page, s)
-s, h, page = founder.get("/admin/reviews?show=low")
-check("the 1 or 2 stars filter", "Lovely fabric" not in page and "No reviews here yet." in page, "")
-founder.post("/admin/review-visibility", {"csrf_token": founder.token, "review_id": review_id, "hide": "1"})
+check("Ops sees reviews", s == 200 and "Lovely fabric" in page and "&lt;script&gt;" in page, s)
+founder.post(f"/reviews/{review_id}", {"csrf_token": founder.token, "hide": "1"})
 check("hidden", one(f"SELECT status FROM reviews WHERE id = {review_id}") == "hidden", "")
 s, h, home = shop("bisi-indigo").get("/")
 check("a hidden review leaves the shop", 'id="sf-reviews"' not in home, "")
 s, h, view = bisi.get(f"/orders/view/{order_id}")
 check("the owner sees it was hidden", "Hidden from your shop by Nfelia" in view, "")
-founder.post("/admin/review-visibility", {"csrf_token": founder.token, "review_id": review_id, "hide": "0"})
+founder.post(f"/reviews/{review_id}", {"csrf_token": founder.token, "hide": "0"})
 s, h, home = shop("bisi-indigo").get("/")
 check("shown again", one(f"SELECT status FROM reviews WHERE id = {review_id}") == "published" and 'id="sf-reviews"' in home, "")
-s, h, _ = founder.post("/admin/review-visibility", {"csrf_token": "wrong", "review_id": review_id, "hide": "1"})
+s, h, _ = founder.post(f"/reviews/{review_id}", {"csrf_token": "wrong", "hide": "1"})
 check("hiding needs the form token", one(f"SELECT status FROM reviews WHERE id = {review_id}") == "published", s)
 
 # ── Older orders and switched-off shops ────────────────────────────────

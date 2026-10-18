@@ -153,7 +153,12 @@ function billing_keep_only(PDO $db, int $biz_id, array $keep): int {
     }
     $stmt = $db->prepare("UPDATE users SET is_active = 0 WHERE business_id = ? AND role <> 'owner' AND is_active = 1" . $not_in);
     $stmt->execute($params);
-    return $stmt->rowCount();
+    $off = $stmt->rowCount();
+    // Their open tasks come to the owner meanwhile (P1)
+    if ($off && function_exists('planner_hand_back_tasks')) {
+        planner_hand_back_tasks($db, $biz_id);
+    }
+    return $off;
 }
 
 /** The business's active team members other than the owner. */

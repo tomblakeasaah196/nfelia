@@ -359,7 +359,13 @@ class PurgeController
             // Files go only once the records are gone for good
             foreach (array_unique($files_to_unlink) as $rel_path) {
                 $full_path = BASE_PATH . "/" . ltrim($rel_path, "/");
-                if (is_file($full_path) && @unlink($full_path)) {
+                if (!is_file($full_path)) {
+                    continue;
+                }
+                if (str_starts_with(ltrim($rel_path, "/"), "uploads/")) {
+                    storefront_forget_image($rel_path);   // photos take their resized copies with them (W5)
+                    $unlinked_files++;
+                } elseif (@unlink($full_path)) {
                     $unlinked_files++;
                 }
             }
@@ -625,11 +631,13 @@ class PurgeController
             $this->db
                 ->prepare("DELETE FROM debts WHERE invoice_id = ? AND business_id = ?")
                 ->execute([$target_id, $this->biz_id]);
-            foreach (["deeds", "tasks"] as $table) {
-                $this->db
-                    ->prepare("UPDATE {$table} SET invoice_id = NULL WHERE invoice_id = ? AND business_id = ?")
-                    ->execute([$target_id, $this->biz_id]);
-            }
+            $this->db
+                ->prepare("UPDATE deeds SET invoice_id = NULL WHERE invoice_id = ? AND business_id = ?")
+                ->execute([$target_id, $this->biz_id]);
+            // Its tasks stay, without the link or the delivery step's promise (P8)
+            $this->db
+                ->prepare("UPDATE tasks SET invoice_id = NULL, step_key = NULL WHERE invoice_id = ? AND business_id = ?")
+                ->execute([$target_id, $this->biz_id]);
             // Delete child deliveries & items (and their signatures)
             $stmtD = $this->db->prepare(
                 "SELECT id, signoff_signature_path FROM deliveries WHERE invoice_id = ? AND business_id = ?",

@@ -179,7 +179,8 @@ check("with its own private link", re.fullmatch(r"http://glow-by-temi\.nfelia\.t
 braids_link = j["booking_url"]
 row = sql(f"SELECT kind, starts_at, ends_at, status, payment_method, deposit_due, customer_id IS NOT NULL FROM bookings WHERE booking_number = 'BKG-0001' AND business_id = 4")[0]
 check("held as a request, 3 hours long, by transfer", row == ["slot", f"{day(2)} 10:00:00", f"{day(2)} 13:00:00", "pending", "bank_transfer", "13500.00", "1"], row)
-check("the owner is told", sql("SELECT title, action_url FROM notifications WHERE business_id = 4 AND title LIKE 'New booking%'")[0][0] == "New booking — BKG-0001", "")
+told = sql("SELECT title, message, action_url FROM notifications WHERE business_id = 4 AND title LIKE 'New booking%'")
+check("the owner is told", told and "BKG-0001" in told[0][1] and told[0][2].startswith("bookings/view/"), told)
 s, j = shop("glow-by-temi").json("GET", f"/book/{LASH}/free?date={day(2)}")
 times = [t["t"] for t in j.get("times", [])]
 check("a request takes its time away from everyone", "09:00" in times and "09:30" not in times and "12:30" not in times and "13:00" in times, times)

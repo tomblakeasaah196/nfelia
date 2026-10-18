@@ -72,10 +72,14 @@ function planner_remind_at(?string $date, ?string $time, ?int $before): ?string 
     return $at->modify('-' . $before . ' minutes')->format('Y-m-d H:i:s');
 }
 
-/** Next date of a repeating task, never in the past. */
-function planner_next_date(string $date, string $every, string $today): string {
+/**
+ * Next date of a repeating task, never in the past. $anchor_day is the day
+ * of the month the repeat was set up on, so the 31st comes back as the 31st
+ * (or the month's last day), not the 28th forever after February (P11).
+ */
+function planner_next_date(string $date, string $every, string $today, ?int $anchor_day = null): string {
     $d = new DateTimeImmutable($date, planner_tz());
-    $day = (int)$d->format('j');
+    $day = $anchor_day ?: (int)$d->format('j');
     do {
         if ($every === 'month') {
             // Keep the day of the month; clamp 31 to the month's last day.
@@ -598,7 +602,8 @@ function planner_auto_items(PDO $db, int $biz_id, ?string $from, string $to, arr
 
 /** How long a hand tick hides an automatic item. NULL: for good. */
 function planner_dismiss_until(string $key, string $today): ?string {
-    return str_starts_with($key, 'restock:') ? planner_add_days($today, 7) : null;
+    // Hidden while until_date >= today, so today plus six is seven days (P16)
+    return str_starts_with($key, 'restock:') ? planner_add_days($today, 6) : null;
 }
 
 /** Keys the page may send back for a dismissal. */
@@ -742,6 +747,104 @@ function planner_delivery_line(array $invoice): string {
     return 'Delivery: ' . ($invoice['deliver_mode'] === 'immediate' ? 'Immediate' : date('D j M Y', strtotime($invoice['deliver_by'])));
 }
 
+/* ── Keeping tasks in step with what happened ─────────────── */
+
+/**
+ * Open tasks of people who no longer work here (removed, or not covered by
+ * this month's payment) go to the owner, so their reminders still go out and
+ * someone can open and change them (P1). Returns how many moved.
+ */
+function planner_hand_back_tasks(PDO $db, int $biz_id): int {
+    $stmt = $db->prepare("SELECT id FROM users WHERE business_id = ? AND role = 'owner' AND is_active = 1 ORDER BY id LIMIT 1");
+    $stmt->execute([$biz_id]);
+    $owner = (int)$stmt->fetchColumn();
+    if (!$owner) return 0;
+    $stmt = $db->prepare("
+        UPDATE tasks SET assigned_to = ?
+        WHERE business_id = ? AND done_at IS NULL AND deleted_at IS NULL
+          AND (assigned_to IN (SELECT id FROM users WHERE business_id = ? AND is_active = 0)
+               OR (assigned_to IS NULL AND created_by IN (SELECT id FROM users WHERE business_id = ? AND is_active = 0)))
+    ");
+    $stmt->execute([$owner, $biz_id, $biz_id, $biz_id]);
+    return $stmt->rowCount();
+}
+
+/** A job whose steps are all done (or deleted, with at least one done) is done too (P7). */
+function planner_settle_job(PDO $db, int $biz_id, int $parent_id, ?int $user_id = null): void {
+    $stmt = $db->prepare("SELECT SUM(done_at IS NULL), SUM(done_at IS NOT NULL) FROM tasks WHERE parent_id = ? AND business_id = ? AND deleted_at IS NULL");
+    $stmt->execute([$parent_id, $biz_id]);
+    [$open, $done] = array_map('intval', $stmt->fetch(PDO::FETCH_NUM) ?: [0, 0]);
+    if ($open === 0 && $done > 0) {
+        $db->prepare("UPDATE tasks SET done_at = COALESCE(done_at, NOW()), done_by = COALESCE(done_by, ?) WHERE id = ? AND business_id = ? AND deleted_at IS NULL")
+           ->execute([$user_id, $parent_id, $biz_id]);
+    } elseif ($open > 0) {
+        $db->prepare("UPDATE tasks SET done_at = NULL, done_by = NULL WHERE id = ? AND business_id = ?")->execute([$parent_id, $biz_id]);
+    }
+}
+
+/**
+ * An invoice's goods reached the customer (or, with $undo, didn't): the
+ * promise stops counting down, its delivery step is ticked and its job
+ * finishes when nothing is left (P2). Called when the invoice is marked
+ * delivered, its delivery note is delivered or signed for, or its shop order
+ * is fulfilled.
+ */
+function planner_invoice_delivered(PDO $db, int $biz_id, int $invoice_id, bool $undo = false, ?int $user_id = null): void {
+    $db->prepare("UPDATE invoices SET delivered_at = " . ($undo ? 'NULL' : 'COALESCE(delivered_at, NOW())') . " WHERE id = ? AND business_id = ?")
+       ->execute([$invoice_id, $biz_id]);
+    $db->prepare("UPDATE tasks SET done_at = " . ($undo ? 'NULL' : 'COALESCE(done_at, NOW())') . ", done_by = " . ($undo ? 'NULL' : 'COALESCE(done_by, ?)') . "
+                  WHERE invoice_id = ? AND business_id = ? AND step_key = 'deliver' AND deleted_at IS NULL")
+       ->execute($undo ? [$invoice_id, $biz_id] : [$user_id, $invoice_id, $biz_id]);
+    $stmt = $db->prepare("SELECT DISTINCT parent_id FROM tasks WHERE invoice_id = ? AND business_id = ? AND step_key = 'deliver' AND deleted_at IS NULL AND parent_id IS NOT NULL");
+    $stmt->execute([$invoice_id, $biz_id]);
+    foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $parent_id) {
+        planner_settle_job($db, $biz_id, (int)$parent_id, $user_id);
+    }
+}
+
+/**
+ * A cancelled invoice promises nothing: its open delivery step goes, and
+ * its job finishes if nothing else is left on it (P2).
+ */
+function planner_invoice_cancelled(PDO $db, int $biz_id, int $invoice_id): void {
+    $stmt = $db->prepare("SELECT DISTINCT parent_id FROM tasks WHERE invoice_id = ? AND business_id = ? AND step_key = 'deliver' AND done_at IS NULL AND deleted_at IS NULL");
+    $stmt->execute([$invoice_id, $biz_id]);
+    $parents = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    $db->prepare("UPDATE tasks SET deleted_at = NOW() WHERE invoice_id = ? AND business_id = ? AND step_key = 'deliver' AND done_at IS NULL AND deleted_at IS NULL")
+       ->execute([$invoice_id, $biz_id]);
+    foreach ($parents as $parent_id) {
+        if ($parent_id) planner_settle_job($db, $biz_id, (int)$parent_id);
+    }
+}
+
+/**
+ * The delivery date of an invoice moved: its delivery step moves with its
+ * reminder, and the job's finish date follows its latest step (P6).
+ */
+function planner_move_delivery(PDO $db, int $biz_id, int $invoice_id, string $date): void {
+    $stmt = $db->prepare("SELECT id, parent_id, due_time, remind_before FROM tasks
+                          WHERE invoice_id = ? AND business_id = ? AND step_key = 'deliver' AND done_at IS NULL AND deleted_at IS NULL");
+    $stmt->execute([$invoice_id, $biz_id]);
+    $now = planner_now()->format('Y-m-d H:i:s');
+    foreach ($stmt->fetchAll() as $step) {
+        $remind_at = planner_remind_at($date, $step['due_time'], $step['remind_before'] !== null ? (int)$step['remind_before'] : null);
+        $db->prepare("UPDATE tasks SET due_date = ?, remind_at = ?, reminded_at = ? WHERE id = ? AND business_id = ?")
+           ->execute([$date, $remind_at, $remind_at !== null && $remind_at <= $now ? $now : null, $step['id'], $biz_id]);
+        if ($step['parent_id']) {
+            planner_job_finish_follows_steps($db, $biz_id, (int)$step['parent_id']);
+        }
+    }
+}
+
+/** A job's finish date is its latest step's date. */
+function planner_job_finish_follows_steps(PDO $db, int $biz_id, int $parent_id): void {
+    $stmt = $db->prepare("SELECT MAX(due_date) FROM tasks WHERE parent_id = ? AND business_id = ? AND deleted_at IS NULL");
+    $stmt->execute([$parent_id, $biz_id]);
+    if ($last = $stmt->fetchColumn()) {
+        $db->prepare("UPDATE tasks SET due_date = ? WHERE id = ? AND business_id = ?")->execute([$last, $parent_id, $biz_id]);
+    }
+}
+
 /* ── One person's day (morning plan, dashboard) ────────────── */
 
 /**
@@ -780,18 +883,23 @@ function planner_day_for_user(PDO $db, array $user, array $business, string $tod
  * customers owe today or already owe, never what the business owes.
  */
 function planner_day_summary(array $day, string $symbol): array {
-    $tasks = $late = $deliveries = 0;
+    $tasks = $late = $deliveries = $restock = $orders = 0;
     $money = 0.0;
     foreach (['late', 'today', 'soon'] as $section) {
         foreach ($day[$section] as $it) {
             if ($it['pressure']) { $deliveries++; continue; }
             if (in_array($it['source'], ['invoice_due', 'debt_in'], true)) { $money += (float)$it['amount']; continue; }
+            // Restocking and shop orders are their own things, not tasks (P17)
+            if ($it['source'] === 'restock') { $restock++; continue; }
+            if ($it['source'] === 'order') { $orders++; continue; }
             $tasks++;
             if ($section === 'late') $late++;
         }
     }
     $parts = [];
     if ($tasks) $parts[] = $tasks . ' task' . ($tasks > 1 ? 's' : '') . ($late ? " ({$late} late)" : '');
+    if ($orders) $parts[] = $orders . ' order' . ($orders > 1 ? 's' : '') . ' to confirm';
+    if ($restock) $parts[] = $restock . ' to restock';
     if ($deliveries) $parts[] = $deliveries . ' ' . ($deliveries > 1 ? 'deliveries' : 'delivery');
     if ($money > 0) $parts[] = planner_money($money, $symbol) . ' due';
     $count = count($day['late']) + count($day['today']) + count($day['soon']);

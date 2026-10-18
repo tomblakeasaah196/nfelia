@@ -50,6 +50,13 @@ class OnboardingController {
             $business_type = in_array($_POST['business_type'] ?? '', $valid_types)
                              ? $_POST['business_type'] : 'product';
 
+            // A phone too long for its column is refused here, not lost in a
+            // failed save (D4)
+            if ($p = phone_problem($phone) ?? phone_problem($whatsapp)) {
+                flash('error', $p);
+                redirect('onboarding/step1');
+            }
+
             // Resolve the selected country for currency sync
             $selected_country = null;
             if ($country_id) {
@@ -91,6 +98,10 @@ class OnboardingController {
                 $session_updates = [
                     'onboarding_step' => 2,
                     'business_type'   => $business_type,
+                    // What the documents print, without a fresh sign-in (D11)
+                    'tagline'         => $tagline ?: null,
+                    'address'         => $address ?: null,
+                    'phone'           => $phone ?: null,
                 ];
                 if ($selected_country) {
                     $session_updates['country_id']      = $country_id;

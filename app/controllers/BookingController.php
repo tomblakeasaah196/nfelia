@@ -136,11 +136,15 @@ class BookingController
             }
 
             $remind = $time !== null ? 60 : null;
+            $remind_at = $remind ? planner_remind_at($start->format('Y-m-d'), $time, $remind) : null;
+            // A reminder whose time has passed is marked sent: confirming late
+            // never sends one after the appointment (P9)
+            $now = planner_now()->format('Y-m-d H:i:s');
             $this->db->prepare("
-                INSERT INTO tasks (business_id, kind, title, notes, due_date, due_time, end_time, customer_id, remind_before, remind_at, created_by)
-                VALUES (?, 'appointment', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO tasks (business_id, kind, title, notes, due_date, due_time, end_time, customer_id, remind_before, remind_at, reminded_at, created_by)
+                VALUES (?, 'appointment', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ")->execute([$this->biz_id, mb_substr($title, 0, 200), $notes, $start->format('Y-m-d'), $time, $end_time,
-                         $booking['customer_id'] ?: null, $remind, $remind ? planner_remind_at($start->format('Y-m-d'), $time, $remind) : null,
+                         $booking['customer_id'] ?: null, $remind, $remind_at, $remind_at !== null && $remind_at <= $now ? $now : null,
                          (int)$user['id']]);
             $task_id = (int)$this->db->lastInsertId();
             $this->db->prepare("UPDATE bookings SET task_id = ? WHERE id = ? AND business_id = ?")

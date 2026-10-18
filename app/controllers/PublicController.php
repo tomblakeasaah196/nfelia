@@ -85,6 +85,14 @@ class PublicController
         }
         $action = $_POST["action"] ?? "";
         $client_ip = client_ip(); /* Vital for non-repudiation of signatures */
+        /* The client opened the business's replies: they are read (D7). Allowed
+           whatever the quote's state, like reading the page. */
+        if ($action === "mark_read") {
+            $db->prepare(
+                "UPDATE quotation_activities SET is_client_read = 1 WHERE quotation_id = ? AND actor_type = 'business' AND is_client_read = 0",
+            )->execute([(int) $quotation["id"]]);
+            json_response(["success" => true]);
+        }
         /* The client can answer a quote only while it is open: not once it is
            accepted, declined, expired or turned into an invoice. */
         $open = ["draft", "sent", "in_negotiation", "pending_signature"];
@@ -475,6 +483,10 @@ class PublicController
             ]);
             return;
         }
+        /* Signed for: the invoice's delivery promise is kept (P2) */
+        if (!empty($delivery["invoice_id"])) {
+            planner_invoice_delivered($this->db, (int) $delivery["business_id"], (int) $delivery["invoice_id"]);
+        }
         notify("delivery.signed", (int) $delivery["business_id"], [
             "delivery_id" => (int) $delivery["id"], "delivery_number" => $delivery["doc_number"], "signer" => $signoff_name,
         ], ["dedupe" => (string) $delivery["id"]]);
@@ -662,6 +674,14 @@ class PublicController
     protected function send_quote_request(array $business): void
     {
         $business_id = (int) $business["id"];
+        /* The owner switched the quote form off: none come in (W13) */
+        $quote = sf_section(storefront_settings($business, "published"), "quote");
+        if (empty($quote["on"])) {
+            json_response(
+                ["error" => "This shop isn't taking quote requests here right now. You can reach it on WhatsApp."],
+                403,
+            );
+        }
         $name = trim($_POST["name"] ?? "");
         $phone = trim($_POST["phone"] ?? "");
         $email = trim($_POST["email"] ?? "");
@@ -877,6 +897,18 @@ class PublicController
                         "These items are no longer available. Reload the page to see what's in the shop now.",
                 ],
                 422,
+            );
+        }
+        /* Some items went since the page loaded: say so, and let the bag drop
+           them, rather than placing a smaller order than the shopper saw (W8) */
+        if (count($order_items) !== count($lines)) {
+            json_response(
+                [
+                    "error" =>
+                        "Some items in your bag are no longer available. We've taken them out: check your bag and place the order again.",
+                    "unavailable" => array_values(array_unique(array_diff(array_column($lines, "product_id"), array_keys($catalogue)))),
+                ],
+                409,
             );
         }
         $this->public_form_guard("order", $business_id, $customer_email);

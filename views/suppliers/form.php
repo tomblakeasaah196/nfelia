@@ -46,7 +46,7 @@
             <!-- Phone -->
             <div>
                 <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1">Phone Number</label>
-                <input type="tel" name="phone" value="<?= e($supplier['phone'] ?? '') ?>"
+                <input type="tel" name="phone" maxlength="50" value="<?= e($supplier['phone'] ?? '') ?>"
                        class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum"
                        placeholder="08012345678">
             </div>
@@ -54,7 +54,7 @@
             <!-- WhatsApp -->
             <div>
                 <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1">WhatsApp Number</label>
-                <input type="tel" name="whatsapp" value="<?= e($supplier['whatsapp'] ?? '') ?>"
+                <input type="tel" name="whatsapp" maxlength="50" value="<?= e($supplier['whatsapp'] ?? '') ?>"
                        class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum"
                        placeholder="Same as phone if blank">
             </div>

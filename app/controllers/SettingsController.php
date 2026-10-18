@@ -181,6 +181,11 @@ class SettingsController {
             redirect('settings?tab=business');
             return;
         }
+        if ($p = phone_problem($phone)) {   // D4
+            flash('error', $p);
+            redirect('settings?tab=business');
+            return;
+        }
 
         if (!preg_match('/^#[0-9a-fA-F]{6}$/', $primary_color)) $primary_color = '#1a1a2e';
         if (!preg_match('/^#[0-9a-fA-F]{6}$/', $secondary_color)) $secondary_color = '#c5a55a';
@@ -239,7 +244,16 @@ class SettingsController {
         $sql .= " WHERE id = ?";
         $params[] = $this->biz_id;
 
+        $stmtOld = $this->db->prepare("SELECT logo_path FROM businesses WHERE id = ?");
+        $stmtOld->execute([$this->biz_id]);
+        $old_logo = (string)$stmtOld->fetchColumn();
+
         $this->db->prepare($sql)->execute($params);
+
+        // A replaced or removed logo, and its copies, stop being public (W5)
+        if (($logo_path || $remove_logo) && $old_logo !== '' && $old_logo !== $logo_path) {
+            storefront_forget_image($old_logo);
+        }
 
         update_business_session($session_updates);
         storefront_purge((int)$this->biz_id);   // the shop shows the name, logo and contact details
@@ -570,10 +584,13 @@ class SettingsController {
         // signed in" stops working for them.
         $this->db->prepare("DELETE FROM push_subscriptions WHERE user_id = ?")->execute([$staff_id]);
         $this->db->prepare("DELETE FROM sessions WHERE user_id = ?")->execute([$staff_id]);
+        // Their open tasks come to the owner, so nothing is stranded (P1)
+        $handed = planner_hand_back_tasks($this->db, $this->biz_id);
         notify('team.removed', $this->biz_id, ['name' => $staff_member['full_name'], 'by' => planner_first_name($user['full_name'])],
                ['actor' => (int)$user['id'], 'dedupe' => $staff_id . ':' . time()]);
 
-        flash('success', $staff_member['full_name'] . ' removed from your team.');
+        flash('success', $staff_member['full_name'] . ' removed from your team.'
+            . ($handed ? ' ' . $handed . ' open task' . ($handed === 1 ? ' is' : 's are') . ' now on your list.' : ''));
         redirect('settings?tab=staff');
     }
 

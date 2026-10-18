@@ -336,6 +336,7 @@ class ReceiptController {
         $email = trim($_POST['email'] ?? '');
 
         if ($name === '') { json_response(['error' => 'Name is required'], 422); }
+        if ($p = phone_problem($phone)) { json_response(['error' => $p], 422); }   // D4
 
         $stmt = $this->db->prepare("INSERT INTO customers (business_id, full_name, phone, email) VALUES (?, ?, ?, ?)");
         $stmt->execute([$this->biz_id, $name, $phone ?: null, $email ?: null]);

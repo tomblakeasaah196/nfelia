@@ -269,7 +269,7 @@
 
     <!-- ═════════ SHEETS ═════════ -->
     <div x-show="panel" class="fixed inset-0 z-50" role="presentation">
-        <div class="absolute inset-0 bg-[#1F0A14]/40" x-show="panel" @click="closePanel()"
+        <div class="absolute inset-0 bg-[#1F0A14]/40" x-show="panel" @click="dismissPanel()"
              x-transition:enter="pl-fade" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
              x-transition:leave="pl-fade-out" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"></div>
 

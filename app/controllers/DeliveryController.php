@@ -332,6 +332,11 @@ class DeliveryController {
             return;
         }
 
+        // Delivered or signed for: the invoice's promise is kept (P2)
+        if (in_array($new_status, ['delivered', 'signed_off'], true) && $delivery['invoice_id']) {
+            planner_invoice_delivered($this->db, $this->biz_id, (int)$delivery['invoice_id'], false, (int)auth_user()['id']);
+        }
+
         // A shop order on its way, or delivered: the shopper hears.
         if (in_array($new_status, ['dispatched', 'in_transit', 'delivered'], true)) {
             $stmt = $this->db->prepare("SELECT id FROM orders WHERE delivery_id = ? AND business_id = ? LIMIT 1");
@@ -465,6 +470,7 @@ class DeliveryController {
         $errors = [];
         if ($recipient_name === '') $errors[] = 'Recipient name is required.';
         if ($delivery_address === '') $errors[] = 'Delivery address is required.';
+        if ($p = phone_problem($recipient_phone, 50) ?? phone_problem($rider_phone, 50)) $errors[] = $p;   // D4
         if ($invoice_id && !owned_by_business($this->db, 'invoices', $invoice_id, $this->biz_id)) {
             $errors[] = 'Please pick one of your invoices.';
             $invoice_id = null;

@@ -265,6 +265,8 @@ class InvoiceController {
             return;
         }
 
+        // Tasks and job plans made for it stop pointing at it (P8)
+        $this->db->prepare("UPDATE tasks SET invoice_id = NULL, step_key = NULL WHERE invoice_id = ? AND business_id = ?")->execute([$id, $this->biz_id]);
         $this->db->prepare("DELETE FROM invoice_items WHERE invoice_id = ?")->execute([$id]);
         $this->db->prepare("DELETE FROM invoices WHERE id = ? AND business_id = ?")->execute([$id, $this->biz_id]);
 
@@ -527,9 +529,12 @@ class InvoiceController {
         }
         $this->db->prepare("UPDATE invoices SET deliver_mode = ?, deliver_by = ?, deliver_show = ?, delivered_at = ? WHERE id = ? AND business_id = ?")
                  ->execute([$delivery['deliver_mode'], $delivery['deliver_by'], $delivery['deliver_show'], $delivery['delivered_at'], $invoice['id'], $this->biz_id]);
-        // A job plan's delivery step follows the invoice's new date.
-        $this->db->prepare("UPDATE tasks SET due_date = ? WHERE invoice_id = ? AND business_id = ? AND step_key = 'deliver' AND done_at IS NULL AND deleted_at IS NULL")
-                 ->execute([$delivery['deliver_by'], $invoice['id'], $this->biz_id]);
+        // A job plan's delivery step follows the invoice's new date, with its
+        // reminder and the job's finish date (P6)
+        planner_move_delivery($this->db, $this->biz_id, (int)$invoice['id'], $delivery['deliver_by']);
+        if ($delivery['delivered_at']) {
+            planner_invoice_delivered($this->db, $this->biz_id, (int)$invoice['id'], false, (int)auth_user()['id']);
+        }
 
         flash('success', $delivery['delivered_at'] ? 'Saved as delivered.' : 'Delivery date saved. It is on your Tasks & Calendar.');
         redirect('invoices/view/' . $invoice['id']);
@@ -544,21 +549,10 @@ class InvoiceController {
         $invoice = $this->find_invoice($id);
         if (!$invoice) { not_found(); return; }
 
+        // The promise, its delivery step and its job move together
+        // (app/helpers/planner.php)
         $undo = !empty($_POST['undo']);
-        $this->db->prepare("UPDATE invoices SET delivered_at = " . ($undo ? 'NULL' : 'NOW()') . " WHERE id = ? AND business_id = ?")
-                 ->execute([$invoice['id'], $this->biz_id]);
-        $this->db->prepare("UPDATE tasks SET done_at = " . ($undo ? 'NULL' : 'COALESCE(done_at, NOW())') . " WHERE invoice_id = ? AND business_id = ? AND step_key = 'deliver' AND deleted_at IS NULL")
-                 ->execute([$invoice['id'], $this->biz_id]);
-
-        // Keep the job plan's own done state in step with its steps.
-        $stmtP = $this->db->prepare("SELECT DISTINCT parent_id FROM tasks WHERE invoice_id = ? AND business_id = ? AND step_key = 'deliver' AND deleted_at IS NULL");
-        $stmtP->execute([$invoice['id'], $this->biz_id]);
-        foreach ($stmtP->fetchAll(PDO::FETCH_COLUMN) as $parent_id) {
-            $left = $this->db->prepare("SELECT COUNT(*) FROM tasks WHERE parent_id = ? AND done_at IS NULL AND deleted_at IS NULL");
-            $left->execute([$parent_id]);
-            $this->db->prepare("UPDATE tasks SET done_at = " . ((int)$left->fetchColumn() === 0 ? 'COALESCE(done_at, NOW())' : 'NULL') . " WHERE id = ?")
-                     ->execute([$parent_id]);
-        }
+        planner_invoice_delivered($this->db, $this->biz_id, (int)$invoice['id'], $undo, (int)auth_user()['id']);
 
         flash('success', $undo ? 'Marked as not delivered yet.' : 'Marked delivered.');
         redirect('invoices/view/' . $invoice['id']);
@@ -609,6 +603,7 @@ class InvoiceController {
         $email = trim($_POST['email'] ?? '');
 
         if ($name === '') { json_response(['error' => 'Name is required'], 422); }
+        if ($p = phone_problem($phone)) { json_response(['error' => $p], 422); }   // D4
 
         $stmt = $this->db->prepare("INSERT INTO customers (business_id, full_name, phone, email) VALUES (?, ?, ?, ?)");
         $stmt->execute([$this->biz_id, $name, $phone ?: null, $email ?: null]);
@@ -736,9 +731,8 @@ class InvoiceController {
                     $delivery['deliver_mode'], $delivery['deliver_by'], $delivery['deliver_show'], $delivery['delivered_at'],
                     $id, $this->biz_id
                 ]);
-                // A job plan's delivery step follows the invoice's date.
-                $this->db->prepare("UPDATE tasks SET due_date = ? WHERE invoice_id = ? AND business_id = ? AND step_key = 'deliver' AND done_at IS NULL AND deleted_at IS NULL")
-                         ->execute([$delivery['deliver_by'], $id, $this->biz_id]);
+                // A job plan's delivery step follows the invoice's date (P6)
+                planner_move_delivery($this->db, $this->biz_id, (int)$id, $delivery['deliver_by']);
 
                 $this->db->prepare("DELETE FROM invoice_items WHERE invoice_id = ?")->execute([$id]);
             } else {

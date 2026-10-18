@@ -455,6 +455,20 @@ function sf_city_slug(string $city): string {
 }
 
 /**
+ * The directory's spelling of a city from NG_CITIES, or '' for anything
+ * else. Only these get /shops/{city} pages, so a typed city can't make an
+ * indexable page of its own (W17); the shop still shows what was typed.
+ */
+function sf_known_city(?string $city): string {
+    foreach (NG_CITIES as $known) {
+        if (strcasecmp($known, trim((string)$city)) === 0) {
+            return in_array($known, ['Ikeja', 'Lekki'], true) ? 'Lagos' : $known;
+        }
+    }
+    return '';
+}
+
+/**
  * Field values a new section starts with.
  */
 function sf_section_defaults(string $type): array {
@@ -1070,6 +1084,34 @@ function sf_money(float $amount, string $symbol): string {
  */
 function sf_media_url(string $rel): string {
     return APP_URL . '/' . implode('/', array_map('rawurlencode', explode('/', $rel)));
+}
+
+/**
+ * Delete an uploaded photo for good: the file, its resized and link-preview
+ * copies (served for a year), and Cloudflare's cached copies of all of them
+ * (W5). Paths outside uploads/ are left alone.
+ */
+function storefront_forget_image(?string $rel): void {
+    $rel = ltrim((string)$rel, '/');
+    if ($rel === '' || !str_starts_with($rel, 'uploads/') || str_contains($rel, '..')) {
+        return;
+    }
+    $gone = [$rel];
+    if (preg_match('#^uploads/(' . STOREFRONT_VARIANT_PATH . ')$#i', $rel, $m)) {
+        foreach ([...STOREFRONT_IMAGE_WIDTHS, 'full'] as $w) {
+            $gone[] = 'uploads/cache/' . $w . '/' . $m[1] . '.webp';
+        }
+        $gone[] = 'uploads/cache/og/' . $m[1] . '.jpg';
+    }
+    foreach ($gone as $path) {
+        if (is_file(BASE_PATH . '/' . $path)) {
+            @unlink(BASE_PATH . '/' . $path);
+        }
+    }
+    if (function_exists('cloudflare_purge_files') && function_exists('after_response')) {
+        $urls = array_map('sf_media_url', $gone);
+        after_response(fn() => cloudflare_purge_files($urls));
+    }
 }
 
 /**

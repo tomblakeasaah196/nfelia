@@ -112,7 +112,7 @@ function seo_live_shops(PDO $db, bool $directory_only = false): array {
                s.status, s.trial_ends_at, s.current_period_end, s.grace_ends_at, s.last_payment_date, {$exempt} AS expiry_exempt
         FROM businesses b
         LEFT JOIN subscriptions s ON s.business_id = b.id
-        WHERE b.subdomain IS NOT NULL AND b.subdomain_status = 'active' AND b.landing_enabled = 1 AND b.is_active = 1
+        WHERE b.subdomain IS NOT NULL AND b.landing_enabled = 1 AND b.is_active = 1   -- a live link stays listed while a rename waits (W7)
         " . ($directory_only ? "AND b.directory_opt_in = 1" : "") . "
         ORDER BY b.name ASC
     ";
@@ -165,8 +165,9 @@ function main_pages_sitemap(PDO $db): string {
         $seen = [];
         foreach ($shops as $shop) {
             $cat = directory_category_slug((string)$shop['category']);
-            foreach (array_filter([$shop['city_slug'] ? '/shops/' . $shop['city_slug'] : null,
-                                   $shop['city_slug'] && $cat ? '/shops/' . $shop['city_slug'] . '/' . $cat : null]) as $path) {
+            $city_ok = $shop['city_slug'] && sf_known_city($shop['city']) !== '';   // listed cities only (W17)
+            foreach (array_filter([$city_ok ? '/shops/' . $shop['city_slug'] : null,
+                                   $city_ok && $cat ? '/shops/' . $shop['city_slug'] . '/' . $cat : null]) as $path) {
                 $seen[$path] = true;
             }
         }

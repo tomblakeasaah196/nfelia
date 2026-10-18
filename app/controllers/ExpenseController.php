@@ -315,11 +315,13 @@ class ExpenseController {
      * ────────────────────────────────────────── */
     public function create_supplier() {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') { json_response(['error' => 'POST only'], 405); return; }
+        csrf_verify();
 
         $name  = trim($_POST['full_name'] ?? '');
         $phone = trim($_POST['phone'] ?? '');
 
         if ($name === '') { json_response(['error' => 'Name required'], 422); return; }
+        if ($p = phone_problem($phone, 50)) { json_response(['error' => $p], 422); return; }   // D4
 
         $this->db->prepare("INSERT INTO suppliers (business_id, full_name, phone, is_active) VALUES (?, ?, ?, 1)")
                   ->execute([$this->biz_id, $name, $phone ?: null]);

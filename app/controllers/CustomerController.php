@@ -303,6 +303,7 @@ class CustomerController {
         $errors = [];
         if ($full_name === '') $errors[] = 'Full name is required.';
         if ($phone === '' && $email === '') $errors[] = 'Please provide at least a phone number or email.';
+        if ($p = phone_problem($phone) ?? phone_problem($whatsapp)) $errors[] = $p;   // D4
 
         // Duplicate check (same name + phone within this business, excluding current record)
         if ($phone !== '') {

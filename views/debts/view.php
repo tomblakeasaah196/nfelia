@@ -75,8 +75,12 @@ if ($wa_link && $debt['type'] === 'receivable' && $is_open) {
                 <?= $debt['type'] === 'receivable' ? 'Customer' : 'Supplier' ?>
             </div>
             <?php if ($party): ?>
+                <?php if (!empty($party['deleted_at'])): ?>
+                <span class="text-sm font-bold text-brand-plum"><?= e($party['full_name']) ?> <span class="font-normal text-brand-plum/50">(deleted)</span></span>
+                <?php else: ?>
                 <a href="<?= APP_URL ?>/<?= $debt['type'] === 'receivable' ? 'customers' : 'suppliers' ?>/view/<?= $party['id'] ?>"
                    class="text-sm font-bold text-blue-600 hover:text-blue-800"><?= e($party['full_name']) ?></a>
+                <?php endif; ?>
                 <?php if ($party['phone']): ?><div class="text-[10px] text-brand-plum/40"><?= e($party['phone']) ?></div><?php endif; ?>
             <?php else: ?>
                 <span class="text-sm text-brand-plum/40">No party linked</span>
