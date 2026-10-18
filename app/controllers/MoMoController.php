@@ -1,17 +1,16 @@
 <?php
 /**
  * Nfelia — Mobile Money Controller (Phase 4)
- * Handles: MoMo checkout, receipt upload, admin review (approve/reject).
+ * Handles: MoMo checkout and receipt upload. The Nfelia team checks
+ * receipts in Nfelia Ops → Payments to check (OpsPaymentsController).
  *
  * Routes:
  *   GET  /momo/checkout          — Show MoMo payment screen (authenticated)
  *   POST /momo/submit            — Submit payment receipt (authenticated)
- *   GET  /admin/momo             — Admin: pending MoMo payments list
- *   POST /admin/momo/approve     — Approve a pending payment
- *   POST /admin/momo/reject      — Reject a pending payment (with reason)
+ *   /momo/review, approve, reject, receipt — moved to Ops (redirect there)
  *
- * Files uploaded are stored OUTSIDE the webroot in /home/smartqaq/momo_receipts/
- * Only admins can view them via the /momo/receipt/{id} endpoint.
+ * Files uploaded are stored OUTSIDE the webroot (MOMO_RECEIPT_DIR), and only
+ * Ops shows them.
  */
 class MoMoController {
 
@@ -204,6 +203,7 @@ class MoMoController {
                 $kind, $extra_seats, $kind === 'month' ? implode(',', $covered) : null,
                 $reference_num ?: null, $stored_path,
             ]);
+            $payment_id = (int)$this->db->lastInsertId();
 
             $this->db->commit();
         } catch (\Exception $e) {
@@ -215,332 +215,28 @@ class MoMoController {
             return;
         }
 
-        // The founder hears at once: bell, phone and email, marked urgent
-        $money = $country['currency_symbol'] . number_format($amount_due, 0) . ' ' . $country['currency_code'];
-        billing_alert_founder($this->db,
-            'Mobile Money payment from ' . $business['name'],
-            $business['name'] . ' says they sent ' . $money . ' by Mobile Money'
-                . ($reference_num !== '' ? ' (reference ' . $reference_num . ')' : '') . '. Check it and approve or turn it down.',
-            'momo/review');
-
-        // Confirmation email to the user
-        $confirm_msg = "Hello " . $user['full_name'] . ",\n\n" .
-            "We've received your payment receipt for " . $money . ".\n\n" .
-            "We are checking it now. Nfelia opens the month as soon as it is approved, and we will tell you here and by email.\n\n" .
-            "Reference: " . ($reference_num ?: 'Not provided') . "\n" .
-            "Submitted: " . date('d M Y, H:i') . "\n\n" .
-            "Thank you for choosing Nfelia.\n\nThe Nfelia Team";
-        send_mail($user['email'], $user['full_name'], 'Payment Submission Received — Nfelia', $confirm_msg);
+        // The Nfelia team hears at once, in Ops: the bell, phones and email,
+        // marked urgent (Tom: treat every transfer as urgent). The owner gets
+        // a confirmation (in the app and by email: billing always emails).
+        $amount_text = $country['currency_symbol'] . number_format($amount_due, 0) . ' ' . $country['currency_code'];
+        ops_alert(get_db(), 'payment', 'Mobile Money payment from ' . $business['name'],
+                  $business['name'] . ' says they sent ' . $amount_text . ' by Mobile Money'
+                      . ($reference_num !== '' ? ' (reference ' . $reference_num . ')' : '') . '. Check it and approve or turn it down.',
+                  'payments#payment-' . $payment_id, 'payment:' . $payment_id, ['permission' => 'clients.act', 'email' => true]);
+        notify('billing.momo_submitted', $this->biz_id, ['amount_text' => $amount_text], ['dedupe' => (string)$payment_id]);
 
         flash('success', 'Receipt sent. We are checking it now, and Nfelia opens the month as soon as it is approved.');
         redirect('settings?tab=billing');
     }
 
     /* ══════════════════════════════════════════
-     *  ADMIN: PENDING REVIEW LIST — GET /admin/momo
+     *  CHECKING PAYMENTS: in Nfelia Ops now
+     *  (ops.nfelia.com/payments, app/ops/controllers/OpsPaymentsController.php)
      * ══════════════════════════════════════════ */
-    public function review() {
-        $this->guard_admin();
-
-        $user     = auth_user();
-        $business = auth_business();
-
-        $stmt = $this->db->query("
-            SELECT sp.*,
-                   b.name AS business_name, b.slug,
-                   u.full_name AS owner_name, u.email AS owner_email,
-                   c.name AS country_name, c.currency_symbol, c.currency_code, c.flag_emoji
-            FROM subscription_payments sp
-            JOIN businesses b ON b.id = sp.business_id
-            JOIN users u ON u.business_id = b.id AND u.role = 'owner'
-            JOIN countries c ON c.id = sp.country_id
-            WHERE sp.status = 'pending_verification'
-            ORDER BY sp.submitted_at ASC
-        ");
-        $pending_payments = $stmt->fetchAll();
-
-        // Also fetch recently reviewed (last 20)
-        $stmtR = $this->db->query("
-            SELECT sp.*,
-                   b.name AS business_name,
-                   u.full_name AS owner_name,
-                   c.name AS country_name, c.currency_symbol, c.currency_code, c.flag_emoji,
-                   ru.full_name AS reviewer_name
-            FROM subscription_payments sp
-            JOIN businesses b ON b.id = sp.business_id
-            JOIN users u ON u.business_id = b.id AND u.role = 'owner'
-            JOIN countries c ON c.id = sp.country_id
-            LEFT JOIN users ru ON ru.id = sp.reviewed_by
-            WHERE sp.status IN ('approved', 'rejected')
-            ORDER BY sp.reviewed_at DESC
-            LIMIT 20
-        ");
-        $reviewed_payments = $stmtR->fetchAll();
-
-        $tab       = 'momo';
-        $title     = 'Admin — MoMo Payments';
-        $view_file = BASE_PATH . '/views/admin/momo_review.php';
-        require_once BASE_PATH . '/views/layouts/app.php';
-    }
-
-    /* ══════════════════════════════════════════
-     *  ADMIN: APPROVE — POST /admin/momo/approve
-     * ══════════════════════════════════════════ */
-    public function approve() {
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            json_response(['error' => 'Method not allowed'], 405); return;
-        }
-        csrf_verify();
-        $this->guard_admin();
-
-        $payment_id = (int)($_POST['payment_id'] ?? 0);
-        if (!$payment_id) { json_response(['error' => 'Invalid payment ID'], 400); return; }
-
-        $stmt = $this->db->prepare("
-            SELECT sp.*, b.name AS biz_name,
-                   u.full_name AS owner_name, u.email AS owner_email,
-                   c.currency_symbol, c.currency_code
-            FROM subscription_payments sp
-            JOIN businesses b ON b.id = sp.business_id
-            JOIN users u ON u.business_id = b.id AND u.role = 'owner'
-            JOIN countries c ON c.id = sp.country_id
-            WHERE sp.id = ? AND sp.status = 'pending_verification'
-        ");
-        $stmt->execute([$payment_id]);
-        $payment = $stmt->fetch();
-
-        if (!$payment) { json_response(['error' => 'Payment not found or already reviewed'], 404); return; }
-
-        $reviewer_id = auth_user()['id'];
-
-        $this->db->beginTransaction();
-        try {
-            // Mark payment as approved, once: a second click (or a second
-            // admin) finds it already reviewed
-            $stmtOk = $this->db->prepare("
-                UPDATE subscription_payments
-                SET status = 'approved', reviewed_at = NOW(), reviewed_by = ?
-                WHERE id = ? AND status = 'pending_verification'
-            ");
-            $stmtOk->execute([$reviewer_id, $payment_id]);
-            if ($stmtOk->rowCount() !== 1) {
-                $this->db->rollBack();
-                json_response(['error' => 'Payment not found or already reviewed'], 409);
-                return;
-            }
-
-            $stmt = $this->db->prepare("SELECT status FROM subscriptions WHERE business_id = ?");
-            $stmt->execute([$payment['business_id']]);
-            $old_status = $stmt->fetchColumn() ?: null;
-
-            if (($payment['kind'] ?? 'month') === 'seats') {
-                // More seats in the month already paid for
-                $this->db->prepare("
-                    UPDATE subscriptions SET extra_seats = LEAST(?, extra_seats + ?), last_payment_ref = ?, updated_at = NOW()
-                    WHERE business_id = ?
-                ")->execute([MAX_SEATS - 1, (int)$payment['extra_seats'], 'MOMO_' . $payment_id, $payment['business_id']]);
-                $period_end = null;
-            } else {
-                // A month: it starts when the current paid month ends, and
-                // staff the owner didn't tick are switched off. A receipt
-                // sent before staff were ticked keeps everyone and the
-                // seats it asked for then.
-                if ($payment['covered_user_ids'] === null) {
-                    $stmt = $this->db->prepare("SELECT extra_seats FROM subscriptions WHERE business_id = ?");
-                    $stmt->execute([$payment['business_id']]);
-                    $seats   = (int)$stmt->fetchColumn();
-                    $covered = null;
-                } else {
-                    $seats   = (int)$payment['extra_seats'];
-                    $covered = $payment['covered_user_ids'] === '' ? [] : array_map('intval', explode(',', $payment['covered_user_ids']));
-                }
-                [, $period_end] = billing_start_month($this->db, (int)$payment['business_id'], (float)$payment['amount'],
-                    $seats, $covered, 'mobile_money', 'MOMO_' . $payment_id);
-            }
-
-            // Log status change
-            $this->log_status_change($payment['business_id'], $old_status, 'active', $reviewer_id, 'MoMo payment approved');
-
-            // In-app notification to the business
-            $this->db->prepare("
-                INSERT INTO notifications (business_id, type, title, message, action_url, created_at)
-                VALUES (?, 'momo_approved', 'Payment Approved!', ?, ?, NOW())
-            ")->execute([
-                $payment['business_id'],
-                'Your payment of ' . $payment['currency_symbol'] . number_format($payment['amount'], 0) .
-                ' has been verified. ' . ($period_end ? 'Your month runs to ' . date('j M Y', strtotime($period_end)) . '.' : 'Your new seats are ready.'),
-                APP_URL . '/settings?tab=billing'
-            ]);
-
-            $this->db->commit();
-
-            // Whether the shop is open follows the subscription
-            storefront_purge((int)$payment['business_id']);
-
-            // Email the customer
-            $msg = "Hello " . $payment['owner_name'] . ",\n\n" .
-                "Your payment of " . $payment['currency_symbol'] . number_format($payment['amount'], 0) .
-                " " . $payment['currency_code'] . " has been verified and approved.\n\n" .
-                ($period_end
-                    ? "Your Nfelia month is paid. It runs until " . date('d M Y', strtotime($period_end)) . ".\n\n"
-                    : "Your new seats are ready to use.\n\n") .
-                "Thank you for your payment!\n\nThe Nfelia Team";
-            send_mail($payment['owner_email'], $payment['owner_name'], 'Payment Approved — Nfelia', $msg);
-
-            json_response(['success' => true, 'message' => 'Payment approved.']);
-
-        } catch (\Exception $e) {
-            if ($this->db->inTransaction()) {
-                $this->db->rollBack();
-            }
-            error_log('[Nfelia] MoMo approve failed: ' . $e->getMessage());
-            json_response(['error' => 'Failed to approve. Please try again.'], 500);
-        }
-    }
-
-    /* ══════════════════════════════════════════
-     *  ADMIN: REJECT — POST /admin/momo/reject
-     * ══════════════════════════════════════════ */
-    public function reject() {
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            json_response(['error' => 'Method not allowed'], 405); return;
-        }
-        csrf_verify();
-        $this->guard_admin();
-
-        $payment_id = (int)($_POST['payment_id'] ?? 0);
-        $reason     = trim($_POST['reason'] ?? '');
-
-        if (!$payment_id) { json_response(['error' => 'Invalid payment ID'], 400); return; }
-        if (!$reason)     { json_response(['error' => 'A rejection reason is required.'], 400); return; }
-
-        $stmt = $this->db->prepare("
-            SELECT sp.*, b.name AS biz_name,
-                   u.full_name AS owner_name, u.email AS owner_email,
-                   c.currency_symbol, c.currency_code
-            FROM subscription_payments sp
-            JOIN businesses b ON b.id = sp.business_id
-            JOIN users u ON u.business_id = b.id AND u.role = 'owner'
-            JOIN countries c ON c.id = sp.country_id
-            WHERE sp.id = ? AND sp.status = 'pending_verification'
-        ");
-        $stmt->execute([$payment_id]);
-        $payment = $stmt->fetch();
-
-        if (!$payment) { json_response(['error' => 'Payment not found or already reviewed'], 404); return; }
-
-        $reviewer_id = auth_user()['id'];
-
-        $this->db->beginTransaction();
-        try {
-            $stmtNo = $this->db->prepare("
-                UPDATE subscription_payments
-                SET status = 'rejected', rejection_reason = ?, reviewed_at = NOW(), reviewed_by = ?
-                WHERE id = ? AND status = 'pending_verification'
-            ");
-            $stmtNo->execute([$reason, $reviewer_id, $payment_id]);
-            if ($stmtNo->rowCount() !== 1) {
-                $this->db->rollBack();
-                json_response(['error' => 'Payment not found or already reviewed'], 409);
-                return;
-            }
-
-            // A receipt no longer changes the subscription, so there is
-            // nothing to undo. One sent before that change left the
-            // subscription "pending": it goes back to what it was before.
-            $stmt = $this->db->prepare("SELECT status, trial_ends_at, current_period_end FROM subscriptions WHERE business_id = ?");
-            $stmt->execute([$payment['business_id']]);
-            $sub = $stmt->fetch();
-            if (($sub['status'] ?? '') === 'pending_verification') {
-                $stmt = $this->db->prepare("
-                    SELECT old_status FROM subscription_status_log
-                    WHERE business_id = ? AND new_status = 'pending_verification' AND old_status IS NOT NULL AND old_status <> 'pending_verification'
-                    ORDER BY id DESC LIMIT 1
-                ");
-                $stmt->execute([$payment['business_id']]);
-                $revert_to = $stmt->fetchColumn()
-                    ?: (!empty($sub['current_period_end']) ? 'active' : (!empty($sub['trial_ends_at']) ? 'trial' : 'suspended'));
-
-                $this->db->prepare("
-                    UPDATE subscriptions SET status = ?, updated_at = NOW() WHERE business_id = ? AND status = 'pending_verification'
-                ")->execute([$revert_to, $payment['business_id']]);
-
-                $this->log_status_change($payment['business_id'], 'pending_verification', $revert_to, $reviewer_id, 'MoMo payment rejected: ' . $reason);
-            }
-
-            // In-app notification
-            $this->db->prepare("
-                INSERT INTO notifications (business_id, type, title, message, action_url, created_at)
-                VALUES (?, 'momo_rejected', 'Payment Rejected', ?, ?, NOW())
-            ")->execute([
-                $payment['business_id'],
-                'Your payment receipt could not be verified. Reason: ' . $reason . ' — Please pay again from Billing.',
-                APP_URL . '/settings?tab=billing'
-            ]);
-
-            $this->db->commit();
-
-            // Email the customer
-            $momo_link = APP_URL . '/settings?tab=billing';
-            $msg = "Hello " . $payment['owner_name'] . ",\n\n" .
-                "Unfortunately, we could not verify your recent payment of " .
-                $payment['currency_symbol'] . number_format($payment['amount'], 0) .
-                " " . $payment['currency_code'] . ".\n\n" .
-                "Reason: " . $reason . "\n\n" .
-                "Please resubmit your payment using the link below. Make sure your receipt clearly shows:\n" .
-                "- Your name or phone number\n" .
-                "- The exact amount sent\n" .
-                "- The transaction reference number\n\n" .
-                "Resubmit here: " . $momo_link . "\n\n" .
-                "If you need help, contact us at support@nfelia.com\n\n" .
-                "The Nfelia Team";
-            send_mail($payment['owner_email'], $payment['owner_name'], 'Action Required: Payment Resubmission — Nfelia', $msg);
-
-            json_response(['success' => true, 'message' => 'Payment rejected. Customer notified.']);
-
-        } catch (\Exception $e) {
-            if ($this->db->inTransaction()) {
-                $this->db->rollBack();
-            }
-            error_log('[Nfelia] MoMo reject failed: ' . $e->getMessage());
-            json_response(['error' => 'Failed to reject. Please try again.'], 500);
-        }
-    }
-
-    /* ══════════════════════════════════════════
-     *  RECEIPT VIEW — GET /momo/receipt/{id}
-     *  Streams the receipt file to admin only.
-     * ══════════════════════════════════════════ */
-    public function receipt($id = null) {
-        $this->guard_admin();
-
-        $stmt = $this->db->prepare("SELECT receipt_path FROM subscription_payments WHERE id = ?");
-        $stmt->execute([(int)$id]);
-        $row = $stmt->fetch();
-
-        if (!$row || !$row['receipt_path'] || !file_exists($row['receipt_path'])) {
-            http_response_code(404);
-            echo 'Receipt file not found.';
-            return;
-        }
-
-        $path  = $row['receipt_path'];
-        $finfo = new \finfo(FILEINFO_MIME_TYPE);
-        $mime  = $finfo->file($path);
-        $allowed_mimes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
-
-        if (!in_array($mime, $allowed_mimes)) {
-            http_response_code(403);
-            echo 'Invalid file type.';
-            return;
-        }
-
-        header('Content-Type: ' . $mime);
-        header('Content-Length: ' . filesize($path));
-        header('Content-Disposition: inline; filename="receipt_' . (int)$id . '"');
-        readfile($path);
-        exit;
-    }
+    public function review()  { $this->moved(); }
+    public function approve() { $this->moved(); }
+    public function reject()  { $this->moved(); }
+    public function receipt($id = null) { $this->moved(); }
 
     /* ══════════════════════════════════════════
      *  PRIVATE HELPERS
@@ -579,22 +275,12 @@ class MoMoController {
         return ['month', $seats, $covered, $prices['monthly'] + $seats * $prices['seat']];
     }
 
-    private function guard_admin(): void {
-        if (!is_platform_admin()) {
-            flash('error', 'Access denied.');
+    /** The old review pages: the Nfelia business goes to Ops → Payments to check, everyone else home. */
+    private function moved(): never {
+        if ((int)$this->biz_id !== FOUNDER_BUSINESS_ID) {
             redirect('dashboard');
-            exit;
         }
-    }
-
-    private function log_status_change(int $biz_id, ?string $old, string $new, ?int $changed_by, string $notes = ''): void {
-        try {
-            $this->db->prepare("
-                INSERT INTO subscription_status_log (business_id, old_status, new_status, changed_by, notes)
-                VALUES (?, ?, ?, ?, ?)
-            ")->execute([$biz_id, $old, $new, $changed_by, $notes]);
-        } catch (\Exception $e) {
-            error_log('[Nfelia] Status log failed: ' . $e->getMessage());
-        }
+        header('Location: ' . ops_url('payments'), true, 301);
+        exit;
     }
 }

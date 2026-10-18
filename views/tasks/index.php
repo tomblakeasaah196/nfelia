@@ -625,5 +625,4 @@
     </div>
 </div>
 
-<script src="<?= APP_URL ?>/assets/js/push.js?v=1"></script>
 <script src="<?= APP_URL ?>/assets/js/planner.js?v=1"></script>

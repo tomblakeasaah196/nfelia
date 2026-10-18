@@ -64,9 +64,10 @@ function render_email(string $template, array $vars = [], array $business = []):
  * @param string $subject
  * @param string $body       Plain text or HTML body
  * @param bool   $is_html    Set true to send HTML
+ * @param array  $headers    Extra headers, name => value
  * @return bool
  */
-function send_mail(string $to_email, string $to_name, string $subject, string $body, bool $is_html = false): bool {
+function send_mail(string $to_email, string $to_name, string $subject, string $body, bool $is_html = false, array $headers = []): bool {
     $mail = new PHPMailer(true);
 
     try {
@@ -96,6 +97,11 @@ function send_mail(string $to_email, string $to_name, string $subject, string $b
 
         $mail->setFrom(MAIL_FROM_ADDRESS, MAIL_FROM_NAME);
         $mail->addAddress($to_email, $to_name);
+
+        // e.g. List-Unsubscribe on campaign emails (app/ops/sales.php)
+        foreach ($headers as $name => $value) {
+            $mail->addCustomHeader($name, $value);
+        }
 
         $mail->isHTML($is_html);
         $mail->Subject = $subject;

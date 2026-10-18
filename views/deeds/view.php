@@ -23,6 +23,7 @@ if (!empty($business['logo_path']) && file_exists(BASE_PATH . '/' . $business['l
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <?= errors_script_tag() ?>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= e($deed['doc_number']) ?> — <?= e($deed_title) ?></title>
     <meta name="robots" content="noindex, nofollow">

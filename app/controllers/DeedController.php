@@ -86,7 +86,9 @@ class DeedController {
 
         // Fetch business + customer context
         $business = $this->get_business($biz_id);
-        $customer = $this->get_customer($customer_id, $biz_id);
+        // A walk-in sale has nobody to give a deed to.
+        if (!$customer_id) { flash('error', 'A deed needs a customer. Add the customer to the receipt first.'); redirect('dashboard'); return; }
+        $customer = $this->get_customer((int)$customer_id, $biz_id);
         if (!$customer) { flash('error', 'Client not found.'); redirect('dashboard'); return; }
 
         // If provenance_text is blank, pull from the first product's provenance_text (if set)
@@ -121,31 +123,22 @@ class DeedController {
                 $total, $currency_symbol, $currency_code,
             ]);
 
-            // Send deed email to customer
-            try {
-                $deed_url  = APP_URL . '/deed/' . $token;
-                $item_names = array_map(fn($i) => $i['description'], $items);
-                send_branded_mail(
-                    $customer['email'] ?? '',
-                    $customer['full_name'],
-                    'Your Deed of Acquisition — ' . $doc_number,
-                    'deed_issued',
-                    [
-                        'client_name'     => $customer['full_name'],
-                        'biz_name'        => $business['name'],
-                        'doc_number'      => $doc_number,
-                        'deed_url'        => $deed_url,
-                        'total'           => $total,
-                        'currency_symbol' => $currency_symbol,
-                        'item_names'      => $item_names,
-                    ],
-                    $business
-                );
-            } catch (\Exception $mail_e) {
-                error_log('[Nfelia] Deed email failed: ' . $mail_e->getMessage());
-            }
+            // The customer's copy, through the outbox: sent after this page
+            // answers, retried if the mail server is down. Only when there
+            // is an address to send it to, and the message says so.
+            $emailed = notify_email((int)$biz_id, (string)($customer['email'] ?? ''), (string)$customer['full_name'],
+                'Your Deed of Acquisition — ' . $doc_number, 'deed_issued', [
+                    'client_name'     => $customer['full_name'],
+                    'biz_name'        => $business['name'],
+                    'doc_number'      => $doc_number,
+                    'deed_url'        => APP_URL . '/deed/' . $token,
+                    'total'           => $total,
+                    'currency_symbol' => $currency_symbol,
+                    'item_names'      => array_map(fn($i) => $i['description'], $items),
+                ], 'deed:' . $token, 'customer.deed');
 
-            flash('success', 'Deed of Acquisition ' . $doc_number . ' issued. Client notified by email.');
+            flash('success', 'Deed of Acquisition ' . $doc_number . ' issued.'
+                . ($emailed ? ' A copy is on its way to ' . $customer['email'] . '.' : ' The customer has no email address: share the link with them.'));
             redirect('deed/' . $token);
 
         } catch (\PDOException $e) {

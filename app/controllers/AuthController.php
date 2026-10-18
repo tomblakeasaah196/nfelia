@@ -21,8 +21,12 @@ class AuthController {
      */
     public function index() {
         if (is_logged_in()) {
-            redirect('dashboard');
+            redirect(signin_destination($_GET['next'] ?? null));
         }
+        // A link that asks for sign-in first (?next=) is kept in the session
+        // too, so the passkey and emailed-link ways in also come back to it.
+        signin_next_keep($_GET['next'] ?? null);
+        $signin_next = signin_next_valid($_SESSION['signin_next'] ?? '');
         require_once BASE_PATH . '/views/auth/login.php';
     }
 
@@ -48,10 +52,10 @@ class AuthController {
                 signin_remember($user);
             }
 
-            redirect('dashboard');
+            redirect(signin_destination($_POST['next'] ?? null));
         } else {
             flash('error', 'Invalid email or password combination.');
-            redirect('login');
+            redirect(signin_url($_POST['next'] ?? ''));
         }
     }
 
@@ -273,8 +277,9 @@ class AuthController {
      */
     public function login_link() {
         if (is_logged_in()) {
-            redirect('dashboard');
+            redirect(signin_destination($_GET['next'] ?? null));
         }
+        signin_next_keep($_GET['next'] ?? null);
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             csrf_verify();
@@ -290,7 +295,7 @@ class AuthController {
      * so neither the page nor its timing reveals whether the address exists.
      */
     private function send_account_link(string $purpose): never {
-        $back  = $purpose === 'reset' ? 'forgot-password' : 'login-link';
+        $back  = $purpose === 'reset' ? 'forgot-password' : signin_url($_POST['next'] ?? '', 'login-link');
         $email = strtolower(trim($_POST['email'] ?? ''));
 
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -318,7 +323,11 @@ class AuthController {
                 $template = 'password_reset';
                 $vars     = ['reset_url' => $url, 'expires_label' => '1 hour'];
             } else {
-                $url = APP_URL . '/signin/' . account_token_issue((int)$user['id'], 'signin', 15);
+                // The link comes back to where they were going, even when it
+                // is opened in another browser (the one the email app uses).
+                $next = signin_next_valid($_POST['next'] ?? ($_SESSION['signin_next'] ?? ''));
+                $url = APP_URL . '/signin/' . account_token_issue((int)$user['id'], 'signin', 15)
+                     . ($next !== '' ? '?next=' . rawurlencode($next) : '');
                 $subject  = 'Your sign-in link — Nfelia Workspace';
                 $template = 'signin_link';
                 $vars     = ['signin_url' => $url];
@@ -427,17 +436,17 @@ class AuthController {
 
             if (!$user || !account_token_consume((int)$account['token_id'])) {
                 flash('error', 'That sign-in link is invalid, expired or already used. Request a new one below.');
-                redirect('login-link');
+                redirect(signin_url($_POST['next'] ?? '', 'login-link'));
             }
 
             signin_start($user);
-            redirect('dashboard');
+            redirect(signin_destination($_POST['next'] ?? null));
         }
 
         $account = account_token_find($token, 'signin');
         if (!$account) {
             flash('error', 'That sign-in link is invalid, expired or already used. Request a new one below.');
-            redirect('login-link');
+            redirect(signin_url($_GET['next'] ?? '', 'login-link'));
         }
 
         require_once BASE_PATH . '/views/auth/signin.php';
@@ -467,43 +476,30 @@ class AuthController {
             redirect('');
         }
 
+        // Anyone can post this form: a handful an hour from one network.
+        if (!throttle_allows('prospect', (string)$ip_address, 5, 60)) {
+            flash('error', 'Several messages came from your network just now. Please try again in an hour, or message us on WhatsApp.');
+            redirect('');
+        }
+
         $db = get_db();
 
         try {
-            // Start transaction to ensure both records are saved or none
-            $db->beginTransaction();
-
-            // Insert into General Feedback vault
             $stmt = $db->prepare("
                 INSERT INTO general_feedback (enterprise_name, contact_info, message, ip_address) 
                 VALUES (?, ?, ?, ?)
             ");
             $stmt->execute([$enterprise, $contact, $message, $ip_address]);
+            $feedback_id = (int)$db->lastInsertId();
 
-            // Generate Director Notification (Business ID 1)
-            $admin_biz_id = 1; 
-            $notif_title  = "New Structural Request";
-            $notif_body   = "Prospect ($enterprise) sent a message: " . substr($message, 0, 150) . "...";
-            
-            $stmtNotif = $db->prepare("
-                INSERT INTO notifications (business_id, type, title, message, is_read) 
-                VALUES (?, 'general', ?, ?, 0)
-            ");
-            $stmtNotif->execute([$admin_biz_id, $notif_title, $notif_body]);
+            // The Nfelia team hears about it, with the contact to reply on.
+            // A lead for the Nfelia team's Sales, who are told (app/ops/sales.php).
+            ops_lead_from_website((int)$feedback_id, $enterprise, $contact, $message);
 
-            // Finalize both inserts
-            $db->commit();
-            
-            // Feedback to the User
             flash('success', 'Thank you. We got your message and will reply soon.');
             redirect('');
             
         } catch (Exception $e) {
-            // Roll back if anything fails
-            if ($db->inTransaction()) {
-                $db->rollBack();
-            }
-            
             error_log("General Feedback Error: " . $e->getMessage());
             flash('error', 'Your message did not send. Please try again, or message us on WhatsApp.');
             redirect('');
@@ -526,6 +522,13 @@ class AuthController {
         if (isset($_COOKIE[PUSH_COOKIE]) && is_logged_in()) {
             get_db()->prepare("DELETE FROM push_subscriptions WHERE endpoint_hash = ? AND user_id = ?")
                     ->execute([(string)$_COOKIE[PUSH_COOKIE], (int)auth_user()['id']]);
+        }
+
+        // This phone stops getting this person's alerts (assets/js/bell.js
+        // sends its subscription with the sign-out).
+        if (!empty($_POST['push_endpoint']) && is_logged_in()) {
+            get_db()->prepare("DELETE FROM push_subscriptions WHERE endpoint_hash = ? AND user_id = ?")
+                    ->execute([hash('sha256', (string)$_POST['push_endpoint']), (int)auth_user()['id']]);
         }
 
         // Delete the sessions table row if remember-me was active

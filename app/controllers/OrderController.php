@@ -189,6 +189,7 @@ class OrderController
         }
 
         // The shopper's tracking link and, once the order is done, its review
+        $business = business_with_shop_link($business);
         $track_url = shop_order_url($this->db, $order, $business);
         $review = null;
         $review_link = null;
@@ -313,18 +314,16 @@ class OrderController
 
             $this->db->commit();
 
-            // Paid with proof: that is money in, for the bell and the owner's
-            // and admins' phones (app/helpers/notify.php).
+            // Paid with proof: that is money in, for owners and admins other
+            // than whoever approved it (app/helpers/notify.php).
             if ($receipt_id) {
-                $money_title = notify_money_text((float) $order["total"]) . " received";
-                $money_line = "Shop order {$order["order_number"]} from {$order["customer_name"]}, paid and approved.";
-                $this->db->prepare("
-                    INSERT INTO notifications (business_id, user_id, type, title, message, action_url)
-                    VALUES (?, ?, 'payment_received', ?, ?, ?)
-                ")->execute([$this->biz_id, $this->get_current_user_id(), $money_title, $money_line, APP_URL . "/orders/view/" . (int) $order["id"]]);
-                notify_money_in($this->biz_id, (int) $this->get_current_user_id(), $money_title, $money_line, "orders/view/" . (int) $order["id"]);
+                notify("payment.order", $this->biz_id, [
+                    "order_id" => (int) $order["id"], "order_number" => $order["order_number"],
+                    "customer" => $order["customer_name"], "amount" => (float) $order["total"],
+                ], ["actor" => (int) $this->get_current_user_id(), "dedupe" => (string) $order["id"]]);
             }
 
+            shop_order_tell($this->db, (int) $order["id"], "confirmed");
             flash("success", "Order {$order["order_number"]} approved. Invoice created.");
         } catch (\Exception $e) {
             if ($this->db->inTransaction()) {
@@ -362,6 +361,7 @@ class OrderController
         ]);
 
         if ($stmt->rowCount()) {
+            shop_order_tell($this->db, (int) $id, "turned_down", mb_substr(trim($_POST["reason"] ?? ""), 0, 300));
             flash("info", "Order rejected.");
         } else {
             flash("error", "Order not found or cannot be rejected.");
@@ -404,11 +404,11 @@ class OrderController
                 throw new DomainException("Invalid status transition.");
             }
 
-            $this->db
-                ->prepare(
-                    "UPDATE orders SET status = ? WHERE id = ? AND business_id = ? AND status = ?",
-                )
-                ->execute([$new_status, (int) $id, $this->biz_id, $order["status"]]);
+            // From the status the page showed, so a double tap tells the shopper once
+            $moved = $this->db->prepare(
+                "UPDATE orders SET status = ? WHERE id = ? AND business_id = ? AND status = ?",
+            );
+            $moved->execute([$new_status, (int) $id, $this->biz_id, $order["status"]]);
 
             if ($new_status === "cancelled" && !empty($order["invoice_id"])) {
                 $problem = invoice_cancel($this->db, $this->biz_id, (int) $order["invoice_id"],
@@ -432,6 +432,13 @@ class OrderController
         // on the shopper's tracking page
         if ($new_status === "fulfilled") {
             review_invite($this->db, (int) $id);
+        }
+        if ($moved->rowCount() === 1) {
+            shop_order_tell($this->db, (int) $id, match ($new_status) {
+                "processing" => "preparing",
+                "fulfilled"  => "delivered",
+                default      => "cancelled",
+            });
         }
         flash("success", "Order status updated to {$new_status}.");
         redirect("orders/view/{$id}");

@@ -63,8 +63,10 @@ function require_boss(string $what = 'open that page'): void {
 }
 
 /**
- * Nfelia's own staff room (Admin, Countries, Mobile Money review): the owner
- * of the founder's business only, not everyone working in it.
+ * The owner of Nfelia's own business. The team's pages live in Nfelia Ops
+ * (ops.nfelia.com) now, with its own accounts; this only lets that owner set
+ * up Ops' first admin, and sends their old /admin links there
+ * (AdminController).
  */
 const FOUNDER_BUSINESS_ID = 1;
 function is_platform_admin(): bool {

@@ -839,15 +839,3 @@ function planner_text_on(string $hex): string {
     // Contrast against white versus against ink (#1F0A14, luminance 0.0068).
     return 1.05 / ($lum + 0.05) >= ($lum + 0.05) / 0.0568 ? '#FFFFFF' : '#1F0A14';
 }
-
-/* ── Notifications ─────────────────────────────────────────── */
-
-/** A bell entry for one person. Never throws. */
-function planner_notify(PDO $db, int $biz_id, ?int $user_id, string $title, string $message, string $url): void {
-    try {
-        $db->prepare("INSERT INTO notifications (business_id, user_id, type, title, message, action_url) VALUES (?, ?, 'general', ?, ?, ?)")
-           ->execute([$biz_id, $user_id, mb_substr($title, 0, 255), $message, ltrim($url, '/')]);
-    } catch (Throwable $e) {
-        error_log('Nfelia planner notify: ' . $e->getMessage());
-    }
-}

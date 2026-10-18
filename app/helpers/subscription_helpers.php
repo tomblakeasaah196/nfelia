@@ -74,11 +74,7 @@ function check_subscription(): ?array {
             $stmt->execute([$sub['id']]);
             $sub['status'] = 'suspended';
             $transitioned = true;
-
-            // Notify owner
-            _subscription_notify($db, $biz_id, 'trial_ending',
-                'Your free trial has ended. Subscribe to continue using Nfelia.',
-                'billing');
+            // The owner is told by billing_lifecycle() (cron/planner.php).
         }
     }
 
@@ -93,10 +89,6 @@ function check_subscription(): ?array {
             $stmt->execute([$sub['id']]);
             $sub['status'] = 'suspended';
             $transitioned = true;
-
-            _subscription_notify($db, $biz_id, 'subscription_failed',
-                'Your subscription has been suspended due to unpaid charges. Please update your payment method.',
-                'billing');
         }
     }
 
@@ -343,101 +335,101 @@ function get_nav_items(): array {
 
 
 /**
- * Internal: create subscription notification. False when it could not be saved.
+ * The notes about every subscription, on each cron pass (cron/planner.php),
+ * on the database's clock (Lagos time). Each note goes once (notify()'s
+ * dedupe), and only for things that happened in the last week, so the first
+ * run after a deploy doesn't dig up old history. Nothing here changes what a
+ * business may use: billing_access() (app/helpers/billing.php) works that out
+ * from the dates.
+ *
+ *   trial ending     3 days before trial_ends_at (the trial runs through
+ *                    that whole day)
+ *   trial ended      the day after
+ *   month ending     3 days before a paid month ends (months no longer
+ *                    renew by themselves)
+ *   due              the month is over: BILLING_GRACE_DAYS left to pay (an
+ *                    old card plan that renews itself is left to Paystack)
+ *   ended            those days are over, a card's grace is over, or a
+ *                    cancelled plan's paid time is
+ *
+ * Businesses already past their date when paid months started to expire
+ * (expiry_exempt) hear nothing until their next payment.
  */
-function _subscription_notify(PDO $db, int $biz_id, string $type, string $message, string $link_page = ''): bool {
-    try {
-        $stmt = $db->prepare("
-            INSERT INTO notifications (business_id, type, title, message, action_url, created_at) -- NFELIA AUDIT FIX C07 2026-06-03
-            VALUES (?, ?, ?, ?, ?, NOW())
-        ");
-        $title_map = [
-            'trial_ending'           => 'Trial Ended',
-            'trial_expiring_soon'     => 'Trial Ending Soon',
-            'month_ending_soon'       => 'Paid Month Ending Soon',
-            'subscription_failed'  => 'Account Suspended',
-            'subscription_activated'  => 'Subscription Active',
-            'payment_failed'          => 'Payment Failed',
-            'payment_success'         => 'Payment Received',
-            'staff_added'             => 'New Team Member',
-            'staff_removed'           => 'Team Member Removed',
-        ];
-        $title = $title_map[$type] ?? 'Subscription Update';
-        $link  = $link_page ? APP_URL . '/' . $link_page : null;
-        $stmt->execute([$biz_id, $type, $title, $message, $link]);
-        return true;
-    } catch (Exception $e) {
-        error_log("Nfelia subscription notification failed: " . $e->getMessage());
-        return false;
-    }
+function billing_lifecycle(PDO $db): array {
+    require_once __DIR__ . '/billing.php';
+    $done = ['trial_ending' => 0, 'trial_ended' => 0, 'renewal_soon' => 0, 'due' => 0, 'ended' => 0];
+    $owner_open = "EXISTS (SELECT 1 FROM businesses b WHERE b.id = s.business_id AND b.is_active = 1)";
+    $month = "s.status = 'active' AND s.expiry_exempt = 0";
+    $grace = (int)BILLING_GRACE_DAYS;
+
+    $each = function (string $sql, callable $fn) use ($db) {
+        foreach ($db->query($sql)->fetchAll() as $row) {
+            try { $fn($row); } catch (Throwable $e) { error_log('Nfelia billing_lifecycle: ' . $e->getMessage()); }
+        }
+    };
+
+    $done['trial_ending'] = check_expiring_trials();
+
+    $each("SELECT s.business_id, s.trial_ends_at FROM subscriptions s
+           WHERE s.status = 'trial' AND s.trial_ends_at < CURDATE() AND s.trial_ends_at >= CURDATE() - INTERVAL 7 DAY AND {$owner_open}",
+        function ($r) use (&$done) {
+            $done['trial_ended'] += (int)(bool)notify('billing.trial_ended', (int)$r['business_id'], [], ['dedupe' => 'trial-ended:' . $r['trial_ends_at']]);
+        });
+
+    $each("SELECT s.business_id, s.current_period_end, DATEDIFF(s.current_period_end, CURDATE()) AS days FROM subscriptions s
+           WHERE {$month} AND s.current_period_end BETWEEN CURDATE() AND CURDATE() + INTERVAL 3 DAY AND {$owner_open}",
+        function ($r) use (&$done) {
+            $done['renewal_soon'] += (int)(bool)notify('billing.renewal_soon', (int)$r['business_id'],
+                ['days' => (int)$r['days'], 'period_end' => $r['current_period_end']], ['dedupe' => 'renewal-soon:' . substr((string)$r['current_period_end'], 0, 10)]);
+        });
+
+    // An old card plan that still renews itself is left to Paystack: a
+    // failed charge arrives as invoice.payment_failed (billing.failed).
+    $each("SELECT s.business_id, s.current_period_end FROM subscriptions s
+           WHERE {$month} AND s.paystack_subscription_code IS NULL
+             AND s.current_period_end < CURDATE() AND s.current_period_end >= CURDATE() - INTERVAL {$grace} DAY AND {$owner_open}",
+        function ($r) use (&$done) {
+            $end = substr((string)$r['current_period_end'], 0, 10);
+            $done['due'] += (int)(bool)notify('billing.due', (int)$r['business_id'],
+                ['period_end' => $end, 'grace_ends' => billing_add_days($end, BILLING_GRACE_DAYS)], ['dedupe' => 'due:' . $end]);
+        });
+
+    $each("SELECT s.business_id, DATE(s.current_period_end) AS ended FROM subscriptions s
+           WHERE {$month} AND s.current_period_end < CURDATE() - INTERVAL {$grace} DAY AND s.current_period_end >= CURDATE() - INTERVAL " . ($grace + 7) . " DAY AND {$owner_open}
+           UNION ALL
+           SELECT s.business_id, s.grace_ends_at FROM subscriptions s
+           WHERE s.status = 'past_due' AND s.grace_ends_at < NOW() AND s.grace_ends_at >= NOW() - INTERVAL 7 DAY AND {$owner_open}
+           UNION ALL
+           SELECT s.business_id, s.current_period_end FROM subscriptions s
+           WHERE s.status = 'cancelled' AND s.current_period_end < CURDATE() AND s.current_period_end >= CURDATE() - INTERVAL 7 DAY AND {$owner_open}",
+        function ($r) use (&$done) {
+            $done['ended'] += (int)(bool)notify('billing.ended', (int)$r['business_id'], [], ['dedupe' => 'ended:' . $r['ended']]);
+        });
+
+    return $done;
 }
 
 
 /**
- * A bell note for each business whose free trial ends within three days, at
- * most one every three days. cron/planner.php runs it on every pass;
- * cron/check_trials.php runs it by hand. Returns how many notes it saved.
+ * The note for each business whose free trial ends within three days, once
+ * per trial. Part of billing_lifecycle(); cron/check_trials.php runs it by
+ * hand. Returns how many businesses were told.
  */
 function check_expiring_trials(): int {
     $db = get_db();
-
-    // trial_ends_at is a date, so this finds trials ending tomorrow up to three
-    // days from today. Days left by calendar date, on the database's clock
-    // (Lagos time).
-    $stmt = $db->prepare("
-        SELECT s.business_id, DATEDIFF(s.trial_ends_at, NOW()) AS days_left
+    // trial_ends_at is a date, and the trial runs through the whole of it:
+    // ending "in 3 days" means 3 calendar days from today.
+    $stmt = $db->query("
+        SELECT s.business_id, s.trial_ends_at, DATEDIFF(s.trial_ends_at, CURDATE()) AS days_left
         FROM subscriptions s
+        JOIN businesses b ON b.id = s.business_id AND b.is_active = 1
         WHERE s.status = 'trial'
-          AND s.trial_ends_at BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 3 DAY)
-          AND s.business_id NOT IN (
-              SELECT business_id FROM notifications
-              WHERE type = 'trial_expiring_soon'
-              AND created_at > DATE_SUB(NOW(), INTERVAL 3 DAY)
-          )
+          AND s.trial_ends_at BETWEEN CURDATE() AND CURDATE() + INTERVAL 3 DAY
     ");
-    $stmt->execute();
-
     $sent = 0;
     foreach ($stmt->fetchAll() as $row) {
-        $days = (int)$row['days_left'];
-        $when = $days === 0 ? 'today' : ($days === 1 ? 'tomorrow' : "in {$days} days");
-        $msg  = "Your free trial ends {$when}. Subscribe to keep your business running on Nfelia.";
-        if (_subscription_notify($db, (int)$row['business_id'], 'trial_expiring_soon', $msg, 'settings?tab=billing')) {
-            $sent++;
-        }
-    }
-    return $sent;
-}
-
-
-/**
- * A bell note for each business whose paid month ends within three days (it
- * no longer renews by itself), at most one every three days. cron/planner.php
- * runs it on every pass. Returns how many notes it saved.
- */
-function check_ending_months(): int {
-    $db = get_db();
-    $stmt = $db->prepare("
-        SELECT s.business_id, DATEDIFF(s.current_period_end, CURDATE()) AS days_left
-        FROM subscriptions s
-        WHERE s.status = 'active' AND s.expiry_exempt = 0
-          AND s.current_period_end BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 3 DAY)
-          AND s.business_id NOT IN (
-              SELECT business_id FROM notifications
-              WHERE type = 'month_ending_soon'
-              AND created_at > DATE_SUB(NOW(), INTERVAL 3 DAY)
-          )
-    ");
-    $stmt->execute();
-
-    $sent = 0;
-    foreach ($stmt->fetchAll() as $row) {
-        $days = (int)$row['days_left'];
-        $when = $days === 0 ? 'today' : ($days === 1 ? 'tomorrow' : "in {$days} days");
-        $msg  = "Your paid month ends {$when}. Pay for the next month in Billing to keep Nfelia and your website open.";
-        if (_subscription_notify($db, (int)$row['business_id'], 'month_ending_soon', $msg, 'settings?tab=billing')) {
-            $sent++;
-        }
+        $sent += (int)(bool)notify('billing.trial_ending', (int)$row['business_id'],
+            ['days' => (int)$row['days_left'], 'trial_ends' => $row['trial_ends_at']], ['dedupe' => 'trial-ending:' . $row['trial_ends_at']]);
     }
     return $sent;
 }

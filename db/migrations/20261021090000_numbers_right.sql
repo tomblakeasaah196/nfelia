@@ -3,16 +3,14 @@
 -- document_counters.doc_type  takes EXP, so expenses get numbers like every
 --                             other document (M4). All documents now use the
 --                             one PHP generator (generate_doc_number).
--- receipts.customer_id        may be empty: a walk-in sale has no client (M5).
+--                             (Receipts without a client, for walk-in sales
+--                             (M5), came with 20261019110000_walk_in_receipts.)
 --
 -- Each statement is safe to run twice: migrate.php runs the file in one
 -- exec(), which reports an error only from the first statement.
 
 ALTER TABLE `document_counters`
     MODIFY `doc_type` ENUM('QUO','INV','REC','DEL','DEA','EXP') NOT NULL;
-
-ALTER TABLE `receipts`
-    MODIFY `customer_id` INT(11) NULL DEFAULT NULL;
 
 -- bookings.receipt_id         the receipt made for a deposit the owner ticked
 --                             as received when confirming (M21).

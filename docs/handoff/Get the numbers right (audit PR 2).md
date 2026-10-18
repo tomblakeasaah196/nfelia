@@ -91,9 +91,10 @@ Files are deleted only after the records are gone.
 
 ## What deploys automatically
 
-Merging to `main` deploys everything, including the migration `20261019090000_numbers_right.sql`: `EXP`
-document numbers, receipts without a client (walk-in sales), `bookings.receipt_id`, and one recalculation
-of every client's totals. Nothing to do by hand.
+Merging to `main` deploys everything, including the migration `20261021090000_numbers_right.sql`: `EXP`
+document numbers, `bookings.receipt_id`, and one recalculation of every client's totals. (Receipts without a
+client, for walk-in sales, arrived with `20261019110000_walk_in_receipts.sql` from the Ops work.) Nothing to
+do by hand.
 
 ## Not in this PR
 
@@ -111,3 +112,7 @@ of every client's totals. Nothing to do by hand.
   `landing_test.js` 51, `shop_links_test.py` 119, `storefront_test.py` 148, `bookings_test.py` 77,
   `seo_test.py` 46, `selling_test.py` 135, and `ci_step_{2,3,4,5}.sh`.
 - The migration was applied to the local database twice (it is safe to run again).
+- After bringing in `main` (Nfelia Ops and the notifications engine), its own suites pass on the merged
+  code, run as CI runs them (fresh database from the schema and every migration): `tests/notifications`
+  engine 91, flows 285, cron 62, sw 17, ui 20, and `tests/ops` foundation 101, monitor 117, clients 103,
+  sales 134, ui 47.

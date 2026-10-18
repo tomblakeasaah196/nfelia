@@ -95,6 +95,11 @@ class QuotationController {
         $summary = $stmtS->fetch();
 
         $title     = "Quotations";
+        // Quote requests from the shop still waiting on an answer.
+        $stmt = $this->db->prepare("SELECT COUNT(*) FROM quote_requests WHERE business_id = ? AND status IN ('new','reviewed')");
+        $stmt->execute([$this->biz_id]);
+        $open_requests = (int)$stmt->fetchColumn();
+
         $view_file = BASE_PATH . '/views/quotations/index.php';
         require_once BASE_PATH . '/views/layouts/app.php';
     }
@@ -111,8 +116,15 @@ class QuotationController {
             return $this->save_quotation(null);
         }
 
-        // GET — load form dependencies
+        // GET — load form dependencies. ?customer=12 starts it for that
+        // customer (a quote request's "Write a quote").
         $quotation = [];
+        $customer_q = (int)($_GET['customer'] ?? 0);
+        if ($customer_q) {
+            $stmt = $this->db->prepare("SELECT id FROM customers WHERE id = ? AND business_id = ? AND deleted_at IS NULL");
+            $stmt->execute([$customer_q, $this->biz_id]);
+            if ($stmt->fetchColumn()) $quotation['customer_id'] = $customer_q;
+        }
         $items     = [];
         $editing   = false;
         $customers = $this->get_customers();
@@ -121,6 +133,53 @@ class QuotationController {
         $title     = "New Quotation";
         $view_file = BASE_PATH . '/views/quotations/form.php';
         require_once BASE_PATH . '/views/layouts/app.php';
+    }
+
+    /* ──────────────────────────────────────────
+     *  QUOTE REQUESTS — from the shop's "Ask for a quote"
+     *  /quotations/requests (the list) and /quotations/requests/{id}
+     *  (one, with what to do next). Their notification links here.
+     * ────────────────────────────────────────── */
+    public function requests($id = null) {
+        $business = auth_business();
+        $request = null;
+        $customer_id = null;
+        if ($id !== null) {
+            $stmt = $this->db->prepare("SELECT * FROM quote_requests WHERE id = ? AND business_id = ?");
+            $stmt->execute([(int)$id, $this->biz_id]);
+            $request = $stmt->fetch();
+            if (!$request) { not_found(); return; }
+            // Opened: no longer new.
+            if ($request['status'] === 'new') {
+                $this->db->prepare("UPDATE quote_requests SET status = 'reviewed' WHERE id = ? AND status = 'new'")->execute([(int)$id]);
+            }
+            // The customer the request made or matched, for a quote ready addressed to them.
+            $stmt = $this->db->prepare("SELECT id FROM customers WHERE business_id = ? AND phone = ? AND deleted_at IS NULL LIMIT 1");
+            $stmt->execute([$this->biz_id, $request['phone']]);
+            $customer_id = (int)$stmt->fetchColumn() ?: null;
+        }
+
+        $show = ($_GET['show'] ?? '') === 'done' ? 'done' : 'open';
+        $stmt = $this->db->prepare("
+            SELECT id, name, phone, message, status, created_at FROM quote_requests
+            WHERE business_id = ? AND status " . ($show === 'done' ? "IN ('converted','archived')" : "IN ('new','reviewed')") . "
+            ORDER BY status = 'new' DESC, id DESC LIMIT 100");
+        $stmt->execute([$this->biz_id]);
+        $requests = $stmt->fetchAll();
+
+        $title     = $request ? 'Quote request from ' . $request['name'] : 'Quote requests';
+        $view_file = BASE_PATH . '/views/quotations/requests.php';
+        require_once BASE_PATH . '/views/layouts/app.php';
+    }
+
+    /** Mark a quote request dealt with (a quote went out) or put it away. */
+    public function request_status($id = null) {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { redirect('quotations/requests'); }
+        csrf_verify();
+        $status = in_array($_POST['status'] ?? '', ['reviewed', 'converted', 'archived'], true) ? $_POST['status'] : 'reviewed';
+        $this->db->prepare("UPDATE quote_requests SET status = ? WHERE id = ? AND business_id = ?")->execute([$status, (int)$id, $this->biz_id]);
+        flash('success', $status === 'reviewed' ? 'Moved back to open requests.' : ($status === 'converted' ? 'Marked as quoted.' : 'Put away.'));
+        redirect('quotations/requests' . ($status === 'reviewed' ? '/' . (int)$id : ''));
     }
 
     /* ──────────────────────────────────────────

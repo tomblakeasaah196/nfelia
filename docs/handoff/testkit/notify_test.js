@@ -1,3 +1,6 @@
+// SUPERSEDED for notifications by tests/notifications/ (see docs/handoff/Notifications.md):
+// its shop-order checks post to the retired /public/cart-checkout. The Share PDF
+// and phone-contact checks below still describe how those work.
 // Notifications, Share PDF and phone contacts, end to end, against the local
 // copy on :8099 (see up.sh). Phones are stood in for by push_endpoint.php on
 // :8097: every subscription points there, one path per person, and each

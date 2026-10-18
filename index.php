@@ -13,6 +13,11 @@ require_once __DIR__ . '/vendor/autoload.php';
 require_once __DIR__ . '/config/database.php';
 require_once __DIR__ . '/config/app.php';
 require_once __DIR__ . '/config/mail.php';
+
+// Errors, slow pages and crashes are written down for the Nfelia team
+// (Ops → Errors) from here on (app/helpers/errors.php).
+require_once __DIR__ . '/app/helpers/errors.php';
+errors_install('web');
  
 // Load helpers
 require_once __DIR__ . '/app/helpers/functions.php';
@@ -37,34 +42,62 @@ require_once __DIR__ . '/app/helpers/signin.php';
 require_once __DIR__ . '/app/helpers/passkeys.php';
 require_once __DIR__ . '/app/helpers/notify.php';
 require_once __DIR__ . '/app/helpers/screens.php';
+require_once __DIR__ . '/app/helpers/view_as.php';
 
 // --- GLOBAL EXCEPTION & FATAL ERROR HANDLER ---
 // Start output buffering so we can erase half-loaded pages if a crash happens
 ob_start();
 
 set_exception_handler(function ($e) {
-    // Silently log the exact error for your eyes only
-    error_log("Nfelia Exception: " . $e->getMessage() . " in " . $e->getFile() . " on line " . $e->getLine());
-    
+    // Written down for the team, with a code the person can quote to support.
+    $GLOBALS['nf_error_ref'] = errors_report_throwable($e, ['level' => 'error']);
+
     // Erase anything that was already printed to the screen
     while (ob_get_level()) { ob_end_clean(); }
-    
-    // Serve the beautiful 500 page
+
     http_response_code(500);
+    if ($GLOBALS['nf_error_ref']) header('X-Nfelia-Error: ' . $GLOBALS['nf_error_ref']);
+    if (is_ajax() || str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json')) {
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'ok' => false, 'error_code' => $GLOBALS['nf_error_ref'],
+                          'message' => 'Something went wrong on our side. Try again' . ($GLOBALS['nf_error_ref'] ? '; if it keeps happening, tell support the code ' . $GLOBALS['nf_error_ref'] : '') . '.']);
+        exit;
+    }
     require __DIR__ . '/views/500.php';
     exit;
 });
 
 register_shutdown_function(function () {
-    $error = error_get_last();
-    // Catch fatal memory errors, parse errors, and strict type errors
-    if ($error && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR])) {
+    // Catch fatal memory errors, parse errors, and strict type errors.
+    // errors_on_shutdown() has already written it down (its shutdown runs
+    // first) and kept it, since writing it down can replace error_get_last().
+    $error = $GLOBALS['nf_fatal'] ?? error_get_last();
+    if ($error && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR, E_RECOVERABLE_ERROR])) {
         while (ob_get_level()) { ob_end_clean(); }
         http_response_code(500);
         require __DIR__ . '/views/500.php';
-        exit;
+        // No exit: what runs after the response (the team's alert about
+        // this crash) is a later shutdown function, and exit would skip it.
     }
 });
+
+// The Ops tests break things on purpose to see them recorded
+// (tests/ops/boom.php). Only on a test copy: tests/ is never deployed.
+if (in_array(APP_ENV, ['local', 'testing'], true) && str_starts_with(trim($_GET['url'] ?? '', '/'), '__boom/') && is_file(__DIR__ . '/tests/ops/boom.php')) {
+    require __DIR__ . '/tests/ops/boom.php';
+}
+
+// --- NFELIA OPS ---
+// ops.nfelia.com is the Nfelia team's own place (app/ops/). It is looked for
+// before shops, and "ops" is a reserved shop name, so no shop can take it.
+require_once __DIR__ . '/app/ops/ops.php';
+require_once __DIR__ . '/app/ops/alerts.php';   // the Ops team hears from the app (payments, tickets, shop names, leads)
+require_once __DIR__ . '/app/ops/sales.php';
+if (ops_is_host($_SERVER['HTTP_HOST'] ?? '')) {
+    require_once __DIR__ . '/app/ops/router.php';
+    ops_dispatch();
+    exit;
+}
 
 // --- PHOTO COPIES ---
 // Shops ask for WebP copies of their photos at a few widths. The first
@@ -108,6 +141,15 @@ if (preg_match('#^shops(?:/([a-z0-9-]{1,60}))?(?:/([a-z0-9-]{1,60}))?$#', $seo_p
 // Start session
 session_start();
 
+// A stopped cron cannot say so itself: now and then, a page asks for it
+// once it has answered (app/ops/monitor.php).
+if (random_int(1, 50) === 1) {
+    after_response(function () {
+        require_once __DIR__ . '/app/ops/monitor.php';
+        ops_watchdog();
+    });
+}
+
 // Parse the URL
 $url = trim($_GET['url'] ?? '', '/');
 $segments = $url ? explode('/', $url) : [];
@@ -124,6 +166,43 @@ if ($url === '' && !is_logged_in() && !isset($_COOKIE[REMEMBER_COOKIE])) {
 $controller = $segments[0] ?? 'dashboard';
 $action     = $segments[1] ?? 'index';
 $param      = $segments[2] ?? null;
+
+// Nfelia support looking at this business from Ops: read-only, short
+// (app/helpers/view_as.php).
+if ($controller === 'support-view') {
+    if ($action === 'end' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        csrf_verify();
+        header('Location: ' . view_as_end());
+        exit;
+    }
+    if ($problem = view_as_start((string)$action)) {
+        $notice = ['title' => 'This link has expired', 'body' => $problem, 'status' => 410, 'action_url' => ops_url('clients'), 'action_label' => 'Back to Nfelia Ops'];
+        require __DIR__ . '/views/public/notice.php';
+        exit;
+    }
+    redirect('dashboard');
+}
+view_as_guard($url);
+
+// The link at the foot of every campaign email (app/ops/sales.php). Opening
+// it asks; the button unsubscribes, so mail scanners that open links don't.
+if ($controller === 'unsubscribe') {
+    [$send_id, $token] = array_pad(explode('-', (string)$action, 2), 2, '');
+    $stmt = get_db()->prepare("SELECT * FROM campaign_sends WHERE id = ?");
+    $stmt->execute([(int)$send_id]);
+    $send = $stmt->fetch();
+    if (!$send || !hash_equals((string)$send['token'], $token)) {
+        $notice = ['title' => 'This link does not work', 'body' => 'It may have been copied wrongly. Reply to the email and we\'ll take you off the list ourselves.', 'status' => 404];
+    } elseif ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        get_db()->prepare("INSERT IGNORE INTO email_opt_outs (email, campaign_id) VALUES (?, ?)")->execute([strtolower($send['email']), $send['campaign_id']]);
+        $notice = ['title' => 'You\'re unsubscribed', 'body' => 'We won\'t send ' . $send['email'] . ' any more emails like that one. Emails about your own Nfelia account still come.', 'status' => 200];
+    } else {
+        $notice = ['title' => 'Unsubscribe?', 'body' => 'Stop emails like this from the Nfelia team to ' . $send['email'] . '. Emails about your own Nfelia account still come.', 'status' => 200,
+                   'form_action' => APP_URL . '/unsubscribe/' . (int)$send['id'] . '-' . $token, 'form_label' => 'Unsubscribe'];
+    }
+    require __DIR__ . '/views/public/notice.php';
+    exit;
+}
 
 // ---- ROUTE TABLE ----
 // Public routes (no auth required)
@@ -263,6 +342,7 @@ function dispatch_app(string $controller, string $action, ?string $param): void 
         'feedback'        => 'FeedbackController',
         'tasks'           => 'TasksController',
         'more'            => 'MoreController',
+        'notifications'   => 'NotificationsController',
         
         // Management & Settings
         'reports'         => 'ReportController',  // profit_loss + profit_loss_pdf
@@ -332,7 +412,10 @@ function dispatch_ajax(string $action, ?string $param): void {
 
     // Locked (app/helpers/signin.php): nothing answers until it is unlocked,
     // except the sign-in and lock API itself and payment webhooks.
-    if (!in_array($action, ['auth', 'webhooks'], true) && is_logged_in()) {
+    // The service worker renewing a push subscription is not someone using
+    // the app: it neither waits on the lock nor keeps it away.
+    $sw_renewal = $action === 'notifications' && ($_GET['action'] ?? '') === 'resubscribe';
+    if (!in_array($action, ['auth', 'webhooks', 'errors'], true) && !$sw_renewal && is_logged_in()) {
         if (!auth_still_member()) {
             json_response(['success' => false, 'message' => 'You no longer have access to this business.'], 401);
         }
@@ -356,6 +439,7 @@ function dispatch_ajax(string $action, ?string $param): void {
         'notifications' => __DIR__ . '/api/ajax/notifications.php',
         'auth'          => __DIR__ . '/api/ajax/auth.php',
         'webhooks'      => __DIR__ . '/api/webhooks/paystack.php',
+        'errors'        => __DIR__ . '/api/ajax/errors.php',   // a script error in someone's browser
     ];
     
     $file = $ajax_map[$action] ?? null;

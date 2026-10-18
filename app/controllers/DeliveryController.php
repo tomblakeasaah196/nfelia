@@ -317,20 +317,28 @@ class DeliveryController {
             }
         }
 
-        $updates[] = "1=1"; // placeholder for trailing comma safety
         $params[]  = $id;
         $params[]  = $this->biz_id;
         $params[]  = $delivery['status'];
 
         // Only from the state it was read in: a double tap, or a sign-off
-        // meanwhile, changes nothing
+        // meanwhile, changes nothing (and tells the shopper once)
         $set_sql = implode(', ', $updates);
-        $stmt = $this->db->prepare("UPDATE deliveries SET {$set_sql} WHERE id = ? AND business_id = ? AND status = ? AND deleted_at IS NULL");
-        $stmt->execute($params);
-        if ($stmt->rowCount() !== 1) {
+        $moved = $this->db->prepare("UPDATE deliveries SET {$set_sql} WHERE id = ? AND business_id = ? AND status = ? AND deleted_at IS NULL");
+        $moved->execute($params);
+        if ($moved->rowCount() !== 1) {
             flash('error', 'This delivery changed meanwhile. Please check it and try again.');
             redirect('deliveries/view/' . $id);
             return;
+        }
+
+        // A shop order on its way, or delivered: the shopper hears.
+        if (in_array($new_status, ['dispatched', 'in_transit', 'delivered'], true)) {
+            $stmt = $this->db->prepare("SELECT id FROM orders WHERE delivery_id = ? AND business_id = ? LIMIT 1");
+            $stmt->execute([$id, $this->biz_id]);
+            if ($order_id = (int)$stmt->fetchColumn()) {
+                shop_order_tell($this->db, $order_id, $new_status === 'delivered' ? 'delivered' : 'on_the_way');
+            }
         }
 
         flash('success', 'Status updated to ' . self::STATUSES[$new_status]['label'] . '.');

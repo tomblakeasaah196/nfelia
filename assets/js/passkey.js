@@ -121,7 +121,11 @@
             });
         },
         unlock: function () { return get('unlock'); },
-        login: function (remember, mediation, signal) { return get('login', { remember: !!remember }, mediation, signal); }
+        login: function (remember, mediation, signal) {
+            // Where to go once signed in: the sign-in page carries it (app/helpers/signin.php).
+            var next = document.querySelector('[data-signin-next]');
+            return get('login', { remember: !!remember, next: next ? next.value : '' }, mediation, signal);
+        }
     };
     window.nfPasskey = nfPasskey;
 

@@ -1,8 +1,8 @@
 /**
  * More > Notifications (views/partials/notify_sheet.php): saves each choice
- * as it changes, and turns this phone's notifications on and off with
- * assets/js/push.js. Opens by itself at /more#notifications (the bell links
- * there).
+ * as it changes, turns this phone's notifications on and off with
+ * assets/js/push.js, and sends a test push or email. Opens by itself at
+ * /more#notifications (the bell and the emails link there).
  */
 (function () {
     'use strict';
@@ -17,7 +17,18 @@
         saved.textContent = text;
         saved.classList.toggle('is-bad', !!bad);
         clearTimeout(shown);
-        if (!bad) shown = setTimeout(function () { saved.textContent = ''; }, 1800);
+        if (!bad) shown = setTimeout(function () { saved.textContent = ''; }, 2400);
+    }
+
+    function post(action, body) {
+        return fetch(base + '/api/notifications?action=' + action, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.Nfelia.csrf, 'X-Requested-With': 'XMLHttpRequest' },
+            body: JSON.stringify(body)
+        }).then(function (r) {
+            return r.json().catch(function () { return { error: 'Could not reach Nfelia. Try again.' }; });
+        });
     }
 
     // ---------- Choices ----------
@@ -26,21 +37,22 @@
     function save() {
         clearTimeout(pending);
         pending = setTimeout(function () {
-            var body = {};
+            var body = { topics: {} };
+            sheet.querySelectorAll('[data-topic]').forEach(function (row) {
+                var t = body.topics[row.getAttribute('data-topic')] = {};
+                var p = row.querySelector('[data-topic-push]'), m = row.querySelector('[data-topic-email]');
+                if (p) t.push = p.checked;
+                if (m) t.email = m.checked;
+            });
             sheet.querySelectorAll('[data-pref]').forEach(function (el) { body[el.name] = el.type === 'checkbox' ? el.checked : el.value; });
-            fetch(base + '/api/notifications?action=prefs', {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.Nfelia.csrf, 'X-Requested-With': 'XMLHttpRequest' },
-                body: JSON.stringify(body)
-            }).then(function (r) { return r.json(); }).then(function (d) {
+            post('prefs', body).then(function (d) {
                 if (d.success) say('Saved');
                 else say(d.error || 'Not saved. Try again.', true);
             }).catch(function () { say('Not saved. Check your connection.', true); });
         }, 250);
     }
     sheet.addEventListener('change', function (e) {
-        if (!e.target.matches('[data-pref]')) return;
+        if (!e.target.matches('[data-pref], [data-topic-push], [data-topic-email]')) return;
         if (e.target.name === 'quiet_hours') quiet.hidden = !e.target.checked;
         save();
     });
@@ -87,22 +99,19 @@
         push.disable().then(function () { show('off'); say('Phone alerts off'); }, function () { say('Not turned off. Try again.', true); })
             .then(function () { busy(e.target, false); });
     });
-    sheet.querySelector('[data-push-test]').addEventListener('click', function (e) {
-        var btn = e.target;
-        busy(btn, true);
-        fetch(base + '/tasks/push-test', {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.Nfelia.csrf, 'X-Requested-With': 'XMLHttpRequest' },
-            body: '{}'
-        }).then(function (r) { return r.json(); }).then(function (d) {
-            say(d.message || d.error || '', !d.success);
-        }).catch(function () { say('Not sent. Check your connection.', true); })
-            .then(function () { busy(btn, false); });
+    sheet.querySelectorAll('[data-test]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            busy(btn, true);
+            say(btn.getAttribute('data-test') === 'email' ? 'Sending…' : 'Sending to your phones…');
+            post('test', { channel: btn.getAttribute('data-test') }).then(function (d) {
+                say(d.message || d.error || '', !d.success);
+            }).catch(function () { say('Not sent. Check your connection.', true); })
+                .then(function () { busy(btn, false); });
+        });
     });
 
     check();
-    // The bell's "Notification settings" link lands here. shell.js, which
+    // The bell's settings link and the emails land here. shell.js, which
     // opens sheets, runs after this file, so wait for the page to be ready.
     // The hash is then dropped, so the link works again from this page.
     function openFromLink() {

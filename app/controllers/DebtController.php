@@ -317,6 +317,14 @@ class DebtController {
             $now = $stmt->fetch();
             $this->db->commit();
 
+            // A customer paying what they owe is money in: owners and admins
+            // hear, except whoever recorded it (app/helpers/notify.php).
+            if ($debt['type'] === 'receivable') {
+                notify('payment.debt', $this->biz_id, [
+                    'debt_id' => (int)$id, 'customer' => (string)($debt['counterparty_name'] ?? ''), 'amount' => $amount, 'balance' => (float)$now['balance'],
+                ], ['actor' => (int)auth_user()['id'], 'dedupe' => (string)$settlement_id]);
+            }
+
             if (is_ajax()) {
                 json_response([
                     'success'        => true,

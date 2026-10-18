@@ -81,7 +81,7 @@ $user = auth_user();
         </div>
         <div class="divide-y divide-gray-50">
             <?php foreach ($tickets as $ticket): ?>
-            <div class="px-5 py-4">
+            <div class="px-5 py-4 scroll-mt-24" id="ticket-<?= (int)$ticket['id'] ?>">
                 <div class="flex items-start justify-between gap-3">
                     <div>
                         <p class="font-medium text-sm text-gray-900"><?= htmlspecialchars($ticket['subject']) ?></p>
@@ -119,4 +119,4 @@ $user = auth_user();
             Check our User Guide & FAQs before reaching out — your answer might be there!
         </a>
     </div>
-</div>
+</div>

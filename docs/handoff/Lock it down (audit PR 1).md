@@ -12,7 +12,7 @@ billing needed.
 |---|---|---|
 | Paid month ends, no renewal | 3 days' grace, then the app and the shop lock | `billing_access()` in `app/helpers/billing.php` |
 | Already past their date when this ships | Left as they are; the rule applies from their next payment | `subscriptions.expiry_exempt`, set by the migration |
-| Mobile Money receipt waiting | No access until approved; the founder gets an urgent bell, phone push and email | `MoMoController::submit`, `billing_alert_founder()` |
+| Mobile Money receipt waiting | No access until approved; the founder gets an urgent bell, phone push and email (now the Ops team: `Ops.md`, section 7) | `MoMoController::submit`, `ops_alert()` |
 | Renewing with fewer seats than staff | The owner ticks who the month covers, with an "All" button; the rest are switched off when it goes through | Billing tab, `billing_start_month()` |
 | Cancelling | Nfelia stays open to the end of the paid month | `billing_access()` (`cancelled`) |
 | Unconfirmed booking requests | Hold their time for 24 hours | `BOOKING_HOLD_HOURS`, `booking_holding_sql()` |
@@ -27,8 +27,8 @@ billing needed.
   owner is told to pay from Billing each month. A bell note three days before a month ends reminds them.
   To keep automatic renewals instead, that is a separate piece of work (charging the saved card each
   month with the ticked staff).
-- **Nfelia's own business never locks** (business 1, where the founder panel lives), so the founder can
-  always approve payments.
+- ~~**Nfelia's own business never locks**~~ Changed when Nfelia Ops was merged: the team approves
+  payments in Ops (ops.nfelia.com), so business 1 is ordinary and locks like any other (`Ops.md`, section 7).
 - **Limits on shop forms:** one visitor (IP) 10 orders, quote requests or bookings an hour at one shop,
   120 an hour across all shops (many phones share one mobile network address), 60 an hour per shop, 10
   emails a day to one address. Saved requests per phone (5 or 10 a day, as before) now count the number as
@@ -90,8 +90,8 @@ Merging to `main` deploys everything, including `.htaccess` and the migration
 2. **`.env` on the server:** make sure `PAYSTACK_SECRET_KEY` is set (without it the webhook now refuses
    everything, where before it accepted anything). Never set `PAYSTACK_API_BASE` or
    `PUSH_TEST_ENDPOINTS` there; they are for local tests only.
-3. **Founder alerts** go to the owner login of business 1. Make sure that address is one that is read,
-   and that phone notifications are on for it.
+3. **Payment alerts** go to Admin and Support in Nfelia Ops (bell, phone and email, urgent), not to
+   business 1 (`Ops.md`, section 7). Make sure the team turns on phone alerts under Ops → Account.
 
 ## Not in this PR
 

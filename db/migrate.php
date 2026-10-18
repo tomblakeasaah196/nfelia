@@ -152,7 +152,11 @@ foreach ($pending as [$version, $file]) {
         // cannot roll a half-applied migration back. Keep each migration
         // small and idempotent instead; on failure we stop immediately so
         // the version is never recorded and the next run retries it.
-        $pdo->exec($sql);
+        // exec() reports an error only from the first statement of a file;
+        // stepping through every result reports one from any statement.
+        $stmt = $pdo->query($sql);
+        while ($stmt->nextRowset()) {}
+        $stmt->closeCursor();
         $insert->execute([$version]);
         echo "ok\n";
     } catch (PDOException $e) {

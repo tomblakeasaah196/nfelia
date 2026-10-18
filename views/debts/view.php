@@ -209,12 +209,12 @@ function settlementModal() {
             this.successMsg = '';
 
             const fd = new FormData();
+            fd.append('csrf_token', window.Nfelia.csrf);
             fd.append('amount', this.amount);
             fd.append('method', this.method);
             fd.append('settlement_date', this.date);
             fd.append('reference', this.reference);
             fd.append('note', this.note);
-            fd.append('csrf_token', <?= json_encode(csrf_token()) ?>);
 
             try {
                 const res = await fetch('<?= APP_URL ?>/debts/settle/<?= $debt['id'] ?>', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } });

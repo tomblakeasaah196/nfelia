@@ -1,4 +1,6 @@
 <?php
+// SUPERSEDED by tests/notifications/cron_test.php (see docs/handoff/Notifications.md).
+// Kept for reference: it checks the cron as it was before the notification rebuild.
 /**
  * Tests cron/planner.php (reminders, morning plan, phone push) against the
  * local copy of the app, with a fake clock (libfaketime) and local stand-ins
