@@ -42,6 +42,7 @@ class StorefrontController extends PublicController
         $valid    = (bool)preg_match('/^[a-z0-9-]{1,63}$/', $label);
         $business = $valid ? shop_find_by_name($label) : null;
         $method   = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+        errors_context_set(['source' => 'shop', 'business_id' => $business ? (int)$business['id'] : null]);
 
         // An old name on hold sends people to the shop's new address
         if (!$business && $valid && ($holder = shop_name_holder($label)) && (int)$holder['landing_enabled']) {
@@ -280,15 +281,10 @@ class StorefrontController extends PublicController
         if ($stmt->rowCount() !== 1) {
             return;   // posted twice at once: the first one counts
         }
-        $who = review_display_name((string)$review['customer_name']);
-        planner_notify(
-            $this->db,
-            (int)$business['id'],
-            null,
-            'New review: ' . $rating . ' star' . ($rating === 1 ? '' : 's'),
-            $who . ' rated order ' . $review['order_number'] . ' ' . $rating . ' out of 5' . ($comment !== '' ? ': "' . mb_strimwidth($comment, 0, 140, '…') . '"' : '.'),
-            'orders/view/' . (int)$review['order_id']
-        );
+        notify('review.new', (int)$business['id'], [
+            'order_id' => (int)$review['order_id'], 'order_number' => $review['order_number'],
+            'who' => review_display_name((string)$review['customer_name']), 'rating' => $rating, 'comment' => $comment,
+        ], ['business' => $business, 'dedupe' => (string)$review['id']]);
         storefront_purge((int)$business['id']);
     }
 
@@ -527,21 +523,17 @@ class StorefrontController extends PublicController
                     'ends_at' => $slot['ends_at'], 'units' => $slot['units'], 'product_name' => $item['name']];
         $when = booking_when($booking);
         $url  = booking_url($business, $booking);
-        planner_notify($this->db, $bid, null, 'New booking — ' . $number,
-            $name . ' booked ' . $item['name'] . ' for ' . $when . ($deposit > 0 ? '. Deposit ' . sf_money($deposit, (string)($business['currency_symbol'] ?? '')) . ($method === 'bank_transfer' ? ' by transfer.' : ' to arrange.') : '.'),
-            'bookings/view/' . $booking_id);
+        notify('booking.new', $bid, [
+            'booking_id' => $booking_id, 'booking_number' => $number, 'item' => $item['name'], 'when' => $when,
+            'customer' => $name, 'phone' => $phone, 'deposit' => (float)$deposit,
+        ], ['business' => $business, 'dedupe' => (string)$booking_id]);
         if ($email !== '' && $url) {
             $symbol = (string)($business['currency_symbol'] ?? '');
             $vars = ['state' => 'received', 'first_name' => mail_first_name($name), 'shop_name' => (string)$business['name'],
                      'booking_number' => $number, 'service' => $item['name'], 'when' => $when, 'booking_url' => $url,
                      'total' => sf_money($total, $symbol), 'deposit' => $deposit > 0 ? sf_money($deposit, $symbol) : '', 'message' => ''];
-            after_response(function () use ($email, $name, $number, $business, $vars) {
-                try {
-                    send_branded_mail($email, $name, 'Your booking ' . $number . ' with ' . $business['name'], 'booking_update', $vars, $business);
-                } catch (\Throwable $e) {
-                    error_log('Booking email failed: ' . $e->getMessage());
-                }
-            });
+            notify_email($bid, $email, $name, 'Your booking ' . $number . ' with ' . $business['name'], 'booking_update', $vars,
+                         'booking:' . $booking_id . ':received', 'shopper.booking');
         }
         json_response(['success' => true, 'booking_number' => $number, 'booking_url' => $url, 'when' => $when,
                        'total' => $total, 'deposit' => $deposit, 'channel' => $channel]);

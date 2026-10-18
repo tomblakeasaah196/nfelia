@@ -184,6 +184,7 @@ class OrderController
         }
 
         // The shopper's tracking link and, once the order is done, its review
+        $business = business_with_shop_link($business);
         $track_url = shop_order_url($this->db, $order, $business);
         $review = null;
         $review_link = null;
@@ -247,6 +248,16 @@ class OrderController
             $this->db->rollBack();
         }
 
+        // Claim the order: two people approving at once (or a double tap)
+        // must not make two invoices. Released again if approving fails.
+        $claim = $this->db->prepare("UPDATE orders SET reviewed_by = ?, reviewed_at = NOW()
+            WHERE id = ? AND business_id = ? AND status IN ('pending','pending_verification') AND reviewed_at IS NULL");
+        $claim->execute([$this->get_current_user_id(), (int) $order["id"], $this->biz_id]);
+        if ($claim->rowCount() !== 1) {
+            flash("error", "Someone is already approving this order. Reload to see it.");
+            redirect("orders/view/{$id}");
+        }
+
         try {
             // NOTE: No outer beginTransaction() here because generate_doc_number() inside helpers.php manages its own internal PDO transaction!
 
@@ -303,23 +314,23 @@ class OrderController
                 (int) $order["id"],
             ]);
 
-            // Paid with proof: that is money in, for the bell and the owner's
-            // and admins' phones (app/helpers/notify.php).
+            // Paid with proof: that is money in, for owners and admins other
+            // than whoever approved it (app/helpers/notify.php).
             if ($receipt_id) {
-                $money_title = notify_money_text((float) $order["total"]) . " received";
-                $money_line = "Shop order {$order["order_number"]} from {$order["customer_name"]}, paid and approved.";
-                $this->db->prepare("
-                    INSERT INTO notifications (business_id, user_id, type, title, message, action_url)
-                    VALUES (?, ?, 'payment_received', ?, ?, ?)
-                ")->execute([$this->biz_id, $this->get_current_user_id(), $money_title, $money_line, APP_URL . "/orders/view/" . (int) $order["id"]]);
-                notify_money_in($this->biz_id, (int) $this->get_current_user_id(), $money_title, $money_line, "orders/view/" . (int) $order["id"]);
+                notify("payment.order", $this->biz_id, [
+                    "order_id" => (int) $order["id"], "order_number" => $order["order_number"],
+                    "customer" => $order["customer_name"], "amount" => (float) $order["total"],
+                ], ["actor" => (int) $this->get_current_user_id(), "dedupe" => (string) $order["id"]]);
             }
 
+            shop_order_tell($this->db, (int) $order["id"], "confirmed");
             flash("success", "Order {$order["order_number"]} approved. Invoice created.");
         } catch (\Exception $e) {
             if ($this->db->inTransaction()) {
                 $this->db->rollBack();
             }
+            $this->db->prepare("UPDATE orders SET reviewed_by = NULL, reviewed_at = NULL WHERE id = ? AND status IN ('pending','pending_verification')")
+                     ->execute([(int) $order["id"]]);
             error_log("Order approve error: " . $e->getMessage());
             flash("error", "Error approving order: " . $e->getMessage());
         }
@@ -352,6 +363,7 @@ class OrderController
         ]);
 
         if ($stmt->rowCount()) {
+            shop_order_tell($this->db, (int) $id, "turned_down", mb_substr(trim($_POST["reason"] ?? ""), 0, 300));
             flash("info", "Order rejected.");
         } else {
             flash("error", "Order not found or cannot be rejected.");
@@ -390,15 +402,22 @@ class OrderController
             redirect("orders/view/{$id}");
         }
 
-        $this->db
-            ->prepare(
-                "UPDATE orders SET status = ? WHERE id = ? AND business_id = ?",
-            )
-            ->execute([$new_status, (int) $id, $this->biz_id]);
+        // From the status the page showed, so a double tap tells the shopper once.
+        $moved = $this->db->prepare(
+            "UPDATE orders SET status = ? WHERE id = ? AND business_id = ? AND status = ?",
+        );
+        $moved->execute([$new_status, (int) $id, $this->biz_id, $order["status"]]);
         // A fulfilled order can be reviewed: the link shows on the order and
         // on the shopper's tracking page
         if ($new_status === "fulfilled") {
             review_invite($this->db, (int) $id);
+        }
+        if ($moved->rowCount() === 1) {
+            shop_order_tell($this->db, (int) $id, match ($new_status) {
+                "processing" => "preparing",
+                "fulfilled"  => "delivered",
+                default      => "cancelled",
+            });
         }
         flash("success", "Order status updated to {$new_status}.");
         redirect("orders/view/{$id}");

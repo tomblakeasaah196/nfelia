@@ -24,6 +24,7 @@ if (!empty($activities)) {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <?= errors_script_tag() ?>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Proposal <?= e($quotation['doc_number']) ?> — <?= e($business['name']) ?></title>
     

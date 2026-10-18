@@ -183,6 +183,68 @@ function review_invite(PDO $db, int $order_id): ?array {
     return $stmt->fetch() ?: null;
 }
 
+/**
+ * Tell the shopper their order moved on, by email when they gave one: once
+ * per step (the outbox's dedupe key), after the page has answered, retried
+ * if the mail server is down. The order page also offers the same news as a
+ * ready-written WhatsApp message (shop_order_whatsapp_text()).
+ *   $state: confirmed, preparing, on_the_way, delivered (or collected, for
+ *   pickup: chosen here), cancelled, turned_down
+ */
+function shop_order_tell(PDO $db, int $order_id, string $state, string $message = ''): void {
+    try {
+        $stmt = $db->prepare("SELECT o.*, b.name AS shop_name FROM orders o JOIN businesses b ON b.id = o.business_id WHERE o.id = ?");
+        $stmt->execute([$order_id]);
+        $order = $stmt->fetch();
+        if (!$order || empty($order['customer_email'])) {
+            return;
+        }
+        if ($state === 'delivered' && ($order['fulfillment_type'] ?? '') !== 'delivery') {
+            $state = 'collected';
+        }
+        $business = business_with_shop_link(['id' => (int)$order['business_id'], 'name' => $order['shop_name']]);
+        $review = in_array($state, ['delivered', 'collected'], true) ? review_invite($db, $order_id) : null;
+        $subject = match ($state) {
+            'confirmed'  => 'Your order ' . $order['order_number'] . ' is confirmed',
+            'preparing'  => 'Your order ' . $order['order_number'] . ' is being prepared',
+            'on_the_way' => 'Your order ' . $order['order_number'] . ' is on its way',
+            'delivered'  => 'Your order ' . $order['order_number'] . ' has been delivered',
+            'collected'  => 'Thank you for collecting order ' . $order['order_number'],
+            'cancelled'  => 'Your order ' . $order['order_number'] . ' was cancelled',
+            default      => 'About your order ' . $order['order_number'],
+        } . ' — ' . $order['shop_name'];
+        notify_email((int)$order['business_id'], (string)$order['customer_email'], (string)$order['customer_name'], $subject, 'order_update', [
+            'state'        => $state,
+            'first_name'   => mail_first_name((string)$order['customer_name']),   // plain letters only: anyone can type anything there
+            'shop_name'    => (string)$order['shop_name'],
+            'order_number' => (string)$order['order_number'],
+            'order_url'    => shop_order_url($db, $order, $business),
+            'review_url'   => $review && $review['status'] === 'invited' ? review_url($business, $review) : null,
+            'message'      => $message,
+        ], 'order:' . $order_id . ':' . $state, 'shopper.order_' . $state);
+    } catch (Throwable $e) {
+        error_log('Nfelia shop_order_tell ' . $order_id . ' ' . $state . ': ' . $e->getMessage());
+    }
+}
+
+/** The same news as shop_order_tell(), ready to send on WhatsApp from the order page. */
+function shop_order_whatsapp_text(array $order, string $shop_name, ?string $track_url, ?string $delivery_status = null): string {
+    $first = preg_split('/\s+/u', trim((string)$order['customer_name']))[0] ?: 'there';
+    $num   = $order['order_number'];
+    $moving = in_array($delivery_status, ['dispatched', 'in_transit'], true);
+    $news = match (true) {
+        $order['status'] === 'rejected'   => "we're sorry, we couldn't take your order {$num}.",
+        $order['status'] === 'cancelled'  => "your order {$num} has been cancelled.",
+        $order['status'] === 'fulfilled'  => ($order['fulfillment_type'] === 'delivery' ? "your order {$num} has been delivered" : "thank you for collecting your order {$num}") . '. We hope you love it!',
+        $moving                           => "your order {$num} is on its way to you.",
+        $order['status'] === 'processing' => "we're getting your order {$num} ready.",
+        $order['status'] === 'approved'   => "your order {$num} is confirmed.",
+        default                           => "we've received your order {$num}.",
+    };
+    return 'Hello ' . $first . ', this is ' . $shop_name . ': ' . $news
+        . ($track_url && !in_array($order['status'], ['rejected', 'cancelled'], true) ? ' Follow it here: ' . $track_url : '');
+}
+
 function review_url(array $business, array $review): ?string {
     if (empty($business['subdomain'])) {
         return null;

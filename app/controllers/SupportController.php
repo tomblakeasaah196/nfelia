@@ -67,20 +67,12 @@ class SupportController {
             VALUES (?, ?, ?, ?, NOW())
         ");
         $stmt->execute([$biz_id, $user_id, $subject, $message]);
+        $ticket_id = (int)$this->db->lastInsertId();
 
-        // Notify admin (business_id = 1)
-        try {
-            $biz = auth_business();
-            $this->db->prepare("
-                INSERT INTO notifications (business_id, type, title, message, action_url, created_at)
-                VALUES (1, 'general', 'New Support Ticket', ?, ?, NOW())
-            ")->execute([
-                e($biz['name']) . ': ' . e($subject),
-                APP_URL . '/admin/support'
-            ]);
-        } catch (\Exception $e) {
-            error_log('[Nfelia] Support ticket notification failed: ' . $e->getMessage());
-        }
+        // The Nfelia team hears about it (app/helpers/notify.php).
+        // The Nfelia team answers in Ops → Support.
+        ops_alert(get_db(), 'ticket', 'New support ticket', auth_business()['name'] . ': ' . notify_excerpt($subject, 120),
+                  'support/' . (int)$ticket_id, 'ticket:' . (int)$ticket_id, ['permission' => 'support']);
 
         flash('success', "Your message has been sent. We'll respond shortly.");
         redirect('contact-support');

@@ -11,6 +11,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <?= errors_script_tag() ?>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sign-in Link — Nfelia</title>
     
@@ -76,6 +77,7 @@
             </div>
 
             <form action="<?= APP_URL ?>/login-link" method="POST" class="space-y-5">
+                <input type="hidden" name="next" value="<?= e(signin_next_valid($_GET['next'] ?? ($_SESSION['signin_next'] ?? ''))) ?>">
                 <?= csrf_field() ?>
 
                 <div>

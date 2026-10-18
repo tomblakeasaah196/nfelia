@@ -14,6 +14,7 @@ $splash = ($_GET['source'] ?? '') === 'pwa';
 <html lang="en-NG"<?= $splash ? ' class="nf-splashing"' : '' ?>>
 <head>
     <meta charset="UTF-8">
+    <?= errors_script_tag() ?>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sign in: Nfelia</title>
     <meta name="description" content="Sign in to your Nfelia business account.">
@@ -45,6 +46,8 @@ $splash = ($_GET['source'] ?? '') === 'pwa';
 
             <form action="<?= APP_URL ?>/login" method="POST" data-validate>
                 <?= csrf_field() ?>
+                <?php // Where to go once signed in (app/helpers/signin.php); passkey.js reads it too. ?>
+                <input type="hidden" name="next" value="<?= e($signin_next) ?>" data-signin-next>
                 <div class="field">
                     <label for="email">Email address</label>
                     <input id="email" type="email" name="email" required autocomplete="username webauthn" inputmode="email" autofocus data-error="Enter the email address you signed up with.">
@@ -66,7 +69,7 @@ $splash = ($_GET['source'] ?? '') === 'pwa';
                 <button type="button" class="btn btn-outline"><?= nav_icon('fingerprint') ?>Sign in with a passkey</button>
                 <p class="field-error" role="alert" hidden></p>
             </div>
-            <a class="btn btn-outline" href="<?= APP_URL ?>/login-link">Email me a sign-in link</a>
+            <a class="btn btn-outline" href="<?= APP_URL ?>/<?= e(signin_url($signin_next, 'login-link')) ?>">Email me a sign-in link</a>
 
             <p class="auth-alt">New to Nfelia? <a href="<?= APP_URL ?>/register">Start free for <?= (int)TRIAL_DAYS ?> days</a></p>
         </div>

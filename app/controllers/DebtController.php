@@ -234,7 +234,10 @@ class DebtController {
         }
 
         if (is_ajax()) {
-            // AJAX settlement
+            // AJAX settlement: the same token check, answered as JSON
+            if (!hash_equals($_SESSION['csrf_token'] ?? '', (string)($_POST['csrf_token'] ?? ''))) {
+                json_response(['error' => 'This page is out of date. Reload it and try again.'], 403);
+            }
             $amount = (float)($_POST['amount'] ?? 0);
             $method = trim($_POST['method'] ?? '');
             $reference = trim($_POST['reference'] ?? '');
@@ -256,11 +259,23 @@ class DebtController {
             return;
         }
 
-        // Cap at balance
-        $amount = min($amount, (float)$debt['balance']);
-
         $this->db->beginTransaction();
         try {
+            // Read the debt again with the row held, so two taps at once
+            // can't both settle the same balance.
+            $stmtLock = $this->db->prepare("SELECT amount_settled, total_amount, balance FROM debts WHERE id = ? AND business_id = ? FOR UPDATE");
+            $stmtLock->execute([$id, $this->biz_id]);
+            $debt = array_merge($debt, $stmtLock->fetch() ?: []);
+            if ((float)$debt['balance'] <= 0) {
+                $this->db->rollBack();
+                if (is_ajax()) { json_response(['error' => 'This debt is already settled.'], 409); return; }
+                flash('error', 'This debt is already settled.');
+                redirect('debts/view/' . $id);
+                return;
+            }
+            // Cap at balance
+            $amount = min($amount, (float)$debt['balance']);
+
             // NFELIA FIX — $business was undefined, reference column was missing from old schema
             $business = auth_business();
             // Insert settlement
@@ -271,6 +286,7 @@ class DebtController {
                 $id, $this->biz_id, $amount, $date,
                 $method ?: null, $reference ?: null, $note ?: null
             ]);
+            $settlement_id = (int)$this->db->lastInsertId();
 
             // Update debt
             $new_settled = (float)$debt['amount_settled'] + $amount;
@@ -310,13 +326,21 @@ class DebtController {
 
             $this->db->commit();
 
+            // A customer paying what they owe is money in: owners and admins
+            // hear, except whoever recorded it (app/helpers/notify.php).
+            if ($debt['type'] === 'receivable') {
+                notify('payment.debt', $this->biz_id, [
+                    'debt_id' => (int)$id, 'customer' => (string)($debt['counterparty_name'] ?? ''), 'amount' => $amount, 'balance' => $new_balance,
+                ], ['actor' => (int)auth_user()['id'], 'dedupe' => (string)$settlement_id]);
+            }
+
             if (is_ajax()) {
                 json_response([
                     'success'        => true,
                     'new_settled'    => $new_settled,
                     'new_balance'    => $new_balance,
                     'new_status'     => $new_status,
-                    'settlement_id'  => (int)$this->db->lastInsertId(),
+                    'settlement_id'  => $settlement_id,
                 ]);
                 return;
             }

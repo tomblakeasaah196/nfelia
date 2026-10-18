@@ -8,7 +8,8 @@
  * and lock on the same day.
  *
  * Paying buys one month at a time, by card (PaystackController) or Mobile
- * Money (MoMoController, once the founder approves the receipt). When a month
+ * Money (MoMoController, once the Nfelia team approves the receipt in Nfelia
+ * Ops → Payments to check). When a month
  * ends with no new payment, the business has BILLING_GRACE_DAYS more days,
  * then the app and the shop lock until it pays (Tom, October 2026).
  */
@@ -184,37 +185,4 @@ function billing_prices(PDO $db, int $biz_id): array {
         'monthly'  => (float)($country['monthly_price'] ?? 0) > 0 ? (float)$country['monthly_price'] : PLAN_BASE_PRICE / 100,
         'seat'     => (float)($country['extra_seat_price'] ?? 0) > 0 ? (float)$country['extra_seat_price'] : PLAN_EXTRA_SEAT_PRICE / 100,
     ];
-}
-
-/**
- * Tell Nfelia's founder at once that a Mobile Money payment is waiting:
- * a bell note marked urgent, a phone push and an email to the founder
- * business's owner (Tom's decision: treat every transfer as urgent).
- */
-function billing_alert_founder(PDO $db, string $title, string $body, string $url): void {
-    try {
-        $db->prepare("
-            INSERT INTO notifications (business_id, type, title, message, action_url, created_at)
-            VALUES (?, 'momo_submitted', ?, ?, ?, NOW())
-        ")->execute([FOUNDER_BUSINESS_ID, 'Urgent: ' . $title, $body, $url]);
-    } catch (Throwable $e) {
-        error_log('[Nfelia] founder bell failed: ' . $e->getMessage());
-    }
-    $stmt = $db->prepare("SELECT id, full_name, email FROM users WHERE business_id = ? AND role = 'owner' AND is_active = 1");
-    $stmt->execute([FOUNDER_BUSINESS_ID]);
-    $founders = $stmt->fetchAll();
-    after_response(function () use ($db, $founders, $title, $body, $url) {
-        foreach ($founders as $f) {
-            try {
-                push_to_user($db, (int)$f['id'], ['title' => 'Urgent: ' . $title, 'body' => $body, 'url' => ltrim($url, '/'), 'tag' => 'momo'], 'high');
-            } catch (Throwable $e) {
-                error_log('[Nfelia] founder push failed: ' . $e->getMessage());
-            }
-            try {
-                send_mail($f['email'], $f['full_name'], 'URGENT: ' . $title, $body . "\n\nReview it now: " . APP_URL . '/' . ltrim($url, '/'));
-            } catch (Throwable $e) {
-                error_log('[Nfelia] founder email failed: ' . $e->getMessage());
-            }
-        }
-    });
 }

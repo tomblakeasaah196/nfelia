@@ -110,6 +110,10 @@ class PublicController
             );
         }
         $guard = " AND status IN ('draft','sent','in_negotiation','pending_signature')";
+        $tell = null;   // the alert for the business, sent once this is saved
+        $stmtC = $db->prepare("SELECT full_name FROM customers WHERE id = ? AND business_id = ?");
+        $stmtC->execute([(int)$quotation["customer_id"], (int)$quotation["business_id"]]);
+        $customer_name = trim((string)$stmtC->fetchColumn()) ?: "Your customer";
         try {
             $db->beginTransaction();
             if ($action === "comment") {
@@ -127,22 +131,15 @@ class PublicController
                     $quotation["status"],
                     $client_ip,
                 ]); /* Shift state */
+                $comment_id = $db->lastInsertId();
                 $stmtState = $db->prepare(
                     "UPDATE quotations SET status = 'in_negotiation' WHERE id = ?" . $guard,
                 );
                 $stmtState->execute([$quotation["id"]]);
                 if ($stmtState->rowCount() === 0 && $quotation["status"] !== "in_negotiation") {
                     throw new Exception("This quotation has already been answered.");
-                } /* NEW: Fire Notification to Business Owner */
-                $db->prepare(
-                    " INSERT INTO notifications (business_id, type, title, message, action_url, created_at) VALUES (?, 'general', ?, ?, ?, NOW()) ",
-                )->execute([
-                    $quotation["business_id"],
-                    "New Client Comment",
-                    "A client left a comment on Quotation " .
-                    $quotation["doc_number"],
-                    "/quotations/view/" . $quotation["id"],
-                ]);
+                }
+                $tell = ["quote.comment", ["comment" => $message], ["dedupe" => "comment-" . $comment_id]];
             } elseif ($action === "sign") {
                 $signature = $_POST["signature"] ?? ""; /* Base64 Canvas Data */
                 $name = trim($_POST["name"] ?? "");
@@ -179,17 +176,9 @@ class PublicController
                     $quotation["business_id"],
                     $quotation["id"],
                     $quotation["status"],
-                ]); /* NEW: Fire Notification to Business Owner */
-                $db->prepare(
-                    " INSERT INTO notifications (business_id, type, title, message, action_url, created_at) VALUES (?, 'general', ?, ?, ?, NOW()) ",
-                )->execute([
-                    $quotation["business_id"],
-                    "Proposal Accepted! 🎉",
-                    $name .
-                    " signed and accepted Quotation " .
-                    $quotation["doc_number"],
-                    "/quotations/view/" . $quotation["id"],
                 ]);
+                $customer_name = $name;
+                $tell = ["quote.accepted", ["total" => (float)($quotation["total"] ?? 0)], ["dedupe" => "accepted"]];
             } elseif ($action === "decline") {
                 $reason = mb_substr(trim($_POST["reason"] ?? ""), 0, 2000);
                 $stmtState = $db->prepare(
@@ -209,10 +198,17 @@ class PublicController
                     $quotation["status"],
                     $client_ip,
                 ]);
+                $tell = ["quote.declined", ["reason" => $reason], ["dedupe" => "declined"]];
             } else {
                 throw new Exception("Invalid action requested.");
             }
             $db->commit();
+            if ($tell) {
+                [$event, $extra, $opts] = $tell;
+                notify($event, (int)$quotation["business_id"], $extra + [
+                    "quotation_id" => (int)$quotation["id"], "quotation_number" => $quotation["doc_number"], "customer" => $customer_name,
+                ], ["dedupe" => $quotation["id"] . ":" . $opts["dedupe"]]);
+            }
             json_response(["success" => true]);
         } catch (Exception $e) {
             if ($db->inTransaction()) {
@@ -444,32 +440,27 @@ class PublicController
             return;
         } /* Update delivery record */
         $signoff_ip = client_ip();
-        $this->db
-            ->prepare(
-                " UPDATE deliveries SET status = 'signed_off', signoff_name = ?, signoff_signature_path = ?, signoff_timestamp = NOW(), signoff_ip = ?, actual_delivery = COALESCE(actual_delivery, NOW()) WHERE id = ? ",
-            )
-            ->execute([
-                $signoff_name,
-                $relative_path,
-                $signoff_ip,
-                $delivery["id"],
-            ]); /* Create notification for business owner */
-        try {
-            $this->db
-                ->prepare(
-                    " INSERT INTO notifications (business_id, type, title, message, action_url, created_at) VALUES (?, 'delivery_signed', ?, ?, ?, NOW()) /* NFELIA AUDIT FIX C07 2026-06-03 */ ",
-                )
-                ->execute([
-                    $delivery["business_id"],
-                    "Delivery Signed Off",
-                    $delivery["doc_number"] .
-                    " was confirmed by " .
-                    $signoff_name,
-                    "/deliveries/view/" . $delivery["id"],
-                ]);
-        } catch (\Exception $e) {
-            /* Non-critical — don't fail the sign-off if notification insert fails */
+        // Only one sign-off counts: a second tap finds it already signed.
+        $signed = $this->db->prepare(
+            " UPDATE deliveries SET status = 'signed_off', signoff_name = ?, signoff_signature_path = ?, signoff_timestamp = NOW(), signoff_ip = ?, actual_delivery = COALESCE(actual_delivery, NOW()) WHERE id = ? AND status <> 'signed_off' ",
+        );
+        $signed->execute([
+            $signoff_name,
+            $relative_path,
+            $signoff_ip,
+            $delivery["id"],
+        ]);
+        if ($signed->rowCount() !== 1) {
+            @unlink($filepath);
+            echo json_encode([
+                "success" => false,
+                "error" => "This delivery has already been signed off.",
+            ]);
+            return;
         }
+        notify("delivery.signed", (int) $delivery["business_id"], [
+            "delivery_id" => (int) $delivery["id"], "delivery_number" => $delivery["doc_number"], "signer" => $signoff_name,
+        ], ["dedupe" => (string) $delivery["id"]]);
         /* The order behind this delivery is done: the shopper can now review it */
         $review_link = null;
         try {
@@ -478,6 +469,9 @@ class PublicController
             );
             $stmtOrder->execute([$delivery["id"], $delivery["business_id"]]);
             $order_id = (int) $stmtOrder->fetchColumn();
+            if ($order_id) {
+                shop_order_tell($this->db, $order_id, "delivered");
+            }
             $review = $order_id ? review_invite($this->db, $order_id) : null;
             if ($review && $review["status"] === "invited" && $business) {
                 $review_link = review_url($business, $review);
@@ -724,7 +718,9 @@ class PublicController
             $phone,
             $email ?: null,
             $message,
-        ]); /* Also create/update customer record so business owner sees them in CRM */
+        ]);
+        $request_id = (int) $this->db->lastInsertId();
+        /* Also create/update customer record so business owner sees them in CRM */
         $stmtExist = $this->db->prepare(
             " SELECT id FROM customers WHERE business_id = ? AND phone = ? AND deleted_at IS NULL LIMIT 1 ",
         );
@@ -743,6 +739,11 @@ class PublicController
                     "Auto-created from landing page quote request",
                 ]);
         }
+        // A sale waiting to happen: the team hears straight away, by phone
+        // and email (quotations/requests/{id} shows it).
+        notify("quote_request.new", $business_id, [
+            "request_id" => $request_id, "name" => $name, "phone" => $phone, "email" => $email ?: "", "message" => $message,
+        ], ["dedupe" => (string) $request_id]);
         json_response([
             "success" => true,
             "message" => "Quote request sent successfully.",
@@ -889,6 +890,7 @@ class PublicController
             }
         }
         $this->db->beginTransaction();
+        $committed = false;
         try {
             /* Generate order number (ORD-0001) */
             $this->db
@@ -975,25 +977,21 @@ class PublicController
                 ->execute([
                     $customer_id,
                     $order_id,
-                ]); /* Notification to business owner */
-            $this->db
-                ->prepare(
-                    " INSERT INTO notifications (business_id, type, title, message, action_url, created_at) VALUES (?, 'general', ?, ?, ?, NOW()) ",
-                )
-                ->execute([
-                    $business_id,
-                    "New Order — " . $order_number,
-                    $customer_name .
-                    " placed an order for " .
-                    $this->format_money($subtotal) .
-                    " via " .
-                    ($channel === "whatsapp"
-                        ? "WhatsApp"
-                        : "storefront checkout") .
-                    ".",
-                    "/orders/view/" . $order_id,
                 ]);
             $this->db->commit();
+            $committed = true;
+            // The whole team hears about it (staff without the amount), by
+            // phone and email. Anyone can place an order, so past 30 in an
+            // hour the rest wait quietly in the bell.
+            notify("order.new", $business_id, [
+                "order_id" => $order_id, "order_number" => $order_number, "customer" => $customer_name,
+                "phone" => $customer_phone, "items" => array_sum(array_column($order_items, "quantity")),
+                "total" => (float) $subtotal, "channel" => $channel, "fulfillment" => $fulfillment,
+                "address" => $delivery_address, "note" => $customer_note,
+            ], [
+                "business" => $business, "dedupe" => (string) $order_id,
+                "channels" => throttle_allows("order_alert", (string) $business_id, 30, 60) ? ["push", "email"] : [],
+            ]);
             $order_url = $business["subdomain"]
                 ? shop_url($business["subdomain"], "/order/" . $public_token)
                 : null;
@@ -1016,23 +1014,9 @@ class PublicController
                     "total" => sf_money((float) $subtotal, (string) ($business["currency_symbol"] ?? "")),
                     "is_whatsapp" => $channel === "whatsapp",
                 ];
-                after_response(function () use ($customer_email, $customer_name, $order_number, $business, $mail_vars) {
-                    try {
-                        send_branded_mail($customer_email, $customer_name, "Your order " . $order_number . " from " . $business["name"], "order_received", $mail_vars, $business);
-                    } catch (\Throwable $e) {
-                        error_log("Order email failed: " . $e->getMessage());
-                    }
-                });
-            }
-            // A new shop order: the owner's and admins' phones buzz. Anyone
-            // can place one, so at most 20 buzzes an hour; the bell gets all.
-            if (throttle_allows("order_push", (string) $business_id, 20, 60)) {
-                notify_money_in(
-                    (int) $business_id, null,
-                    "New order: " . notify_money_text((float) $subtotal, $business),
-                    $customer_name . " ordered on your shop" . ($channel === "whatsapp" ? " through WhatsApp." : "."),
-                    "orders/view/" . $order_id,
-                );
+                // Through the outbox, so a mail server that is down is tried again.
+                notify_email($business_id, $customer_email, $customer_name, "Your order " . $order_number . " from " . $business["name"],
+                    "order_received", $mail_vars, "order-received:" . $order_id, "shopper.order_received");
             }
             json_response([
                 "success" => true,
@@ -1050,6 +1034,14 @@ class PublicController
                 }
             }
             error_log("Cart checkout failed: " . $e->getMessage());
+            if ($committed) {
+                // The order is placed; only something after it went wrong.
+                // Saying it failed would make the shopper order twice.
+                json_response(["success" => true, "order_number" => $order_number, "order_url" => null, "total" => $subtotal, "channel" => $channel]);
+            }
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             json_response(
                 [
                     "error" =>
@@ -1115,10 +1107,6 @@ class PublicController
             return "Check the email address, or leave it empty.";
         }
         return null;
-    }
-    private function format_money(float $amount): string
-    {
-        return number_format($amount, 0, ".", ",");
     }
     /**
      * A small standalone page for links that don't lead anywhere: missing

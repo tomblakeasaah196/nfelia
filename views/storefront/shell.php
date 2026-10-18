@@ -317,6 +317,7 @@ $asset = fn(string $path) => APP_URL . '/' . $path . '?v=' . (@filemtime(BASE_PA
 <html lang="en" class="<?= e($theme['classes']) ?>" prefix="og: https://ogp.me/ns#">
 <head>
     <meta charset="UTF-8">
+    <?= errors_script_tag() ?>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title><?= e($seo_title) ?></title>
     <meta name="description" content="<?= e($seo_desc) ?>">

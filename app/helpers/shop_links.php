@@ -12,9 +12,8 @@
 const SHOP_NAME_MIN = 3;
 const SHOP_NAME_MAX = 30;
 
-// Requests for lookalike names land in the founder account's notifications
-// and wait in Admin → Shop names (see FOUNDER_BUSINESS_ID in app/helpers/auth.php).
-const SHOP_REVIEWER_BUSINESS_ID = 1;
+// Requests for lookalike names wait in Nfelia Ops → Shop names, and the
+// Ops team is told (ShopSetupController).
 
 /**
  * Names that can never be a shop: the mail and cPanel hosts that already live
@@ -24,7 +23,7 @@ const SHOP_RESERVED_NAMES = [
     'www', 'mail', 'webmail', 'email', 'smtp', 'imap', 'pop', 'pop3', 'mx', 'ftp', 'sftp',
     'cpanel', 'whm', 'webdisk', 'cpcalendars', 'cpcontacts', 'autodiscover', 'autoconfig',
     'ns1', 'ns2', 'ns3', 'ns4', 'dns',
-    'nfelia', 'app', 'api', 'admin', 'administrator', 'root', 'system', 'support', 'help', 'helpdesk',
+    'nfelia', 'app', 'api', 'admin', 'administrator', 'ops', 'root', 'system', 'support', 'help', 'helpdesk',
     'contact', 'billing', 'pay', 'payment', 'payments', 'checkout', 'invoice', 'invoices', 'receipt', 'receipts',
     'status', 'blog', 'news', 'docs', 'dashboard', 'login', 'logout', 'signin', 'signup', 'register',
     'secure', 'security', 'account', 'accounts', 'verify', 'verification', 'auth', 'oauth', 'sso',
@@ -140,6 +139,18 @@ function shop_label_from_host(string $host): ?string {
     }
     $label = substr($host, 0, -strlen('.' . $base));
     return ($label === '' || $label === 'www') ? null : $label;
+}
+
+/**
+ * The business with its shop address read now, not from the session. The
+ * session is filled at sign-in, and the address can be approved, changed or
+ * paused while someone stays signed in for weeks; links to shoppers
+ * (tracking, bookings, reviews) must use the live one.
+ */
+function business_with_shop_link(array $business): array {
+    $stmt = get_db()->prepare("SELECT subdomain, subdomain_status FROM businesses WHERE id = ?");
+    $stmt->execute([(int)$business['id']]);
+    return array_merge($business, $stmt->fetch() ?: []);
 }
 
 /**
@@ -398,17 +409,3 @@ function shop_setup_needed(): bool {
     return !($has_link && $has_look);
 }
 
-/**
- * Leave a notification in a business's bell. $action_url is an app path such
- * as 'landing-page'; the bell puts APP_URL in front.
- */
-function shop_notify(int $business_id, string $title, string $message, ?string $action_url = null): void {
-    try {
-        get_db()->prepare("
-            INSERT INTO notifications (business_id, type, title, message, action_url, created_at)
-            VALUES (?, 'general', ?, ?, ?, NOW())
-        ")->execute([$business_id, $title, $message, $action_url === null ? null : ltrim($action_url, '/')]);
-    } catch (PDOException $e) {
-        error_log('[Nfelia] shop_notify failed: ' . $e->getMessage());
-    }
-}

@@ -12,8 +12,9 @@
  * printed by bin/vapid-keys.php). Without them push is simply switched off:
  * push_enabled() is false and the page hides the "Turn on" button.
  *
- * The PWA will reuse this unchanged: it subscribes through the same service
- * worker (/sw.js) and the same endpoint (POST /tasks/push-subscribe).
+ * Phones subscribe through the service worker (/sw.js) at POST
+ * /tasks/push-subscribe. Sending, retrying and forgetting dead
+ * subscriptions is app/helpers/notify.php's job (notify_send_push()).
  */
 
 function push_enabled(): bool {
@@ -193,36 +194,4 @@ function webpush_send(array $sub, array $message, string $urgency = 'normal', in
     $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
     curl_close($ch);
     return $status;
-}
-
-/**
- * Push to every device a user has turned notifications on for. Never
- * throws: a reminder must still reach the bell and email if push fails.
- * $message: title, body, url (path inside the app), tag (replaces an older
- * notification with the same tag instead of stacking).
- */
-function push_to_user(PDO $db, int $user_id, array $message, string $urgency = 'normal'): int {
-    if (!push_enabled()) return 0;
-    $sent = 0;
-    try {
-        $stmt = $db->prepare("SELECT * FROM push_subscriptions WHERE user_id = ? ORDER BY id DESC LIMIT " . PUSH_MAX_DEVICES);
-        $stmt->execute([$user_id]);
-        foreach ($stmt->fetchAll() as $sub) {
-            $status = webpush_send($sub, $message, $urgency);
-            if ($status >= 200 && $status < 300) {
-                $sent++;
-                $db->prepare("UPDATE push_subscriptions SET failures = 0, last_sent_at = NOW() WHERE id = ?")->execute([$sub['id']]);
-            } elseif ($status === 404 || $status === 410) {
-                $db->prepare("DELETE FROM push_subscriptions WHERE id = ?")->execute([$sub['id']]);
-            } elseif ($status !== 0) {
-                // Status 0 means the request never left this server (network,
-                // DNS), which is no fault of the phone, so it does not count.
-                $db->prepare("UPDATE push_subscriptions SET failures = failures + 1 WHERE id = ?")->execute([$sub['id']]);
-                $db->prepare("DELETE FROM push_subscriptions WHERE id = ? AND failures >= 5")->execute([$sub['id']]);
-            }
-        }
-    } catch (Throwable $e) {
-        error_log('Nfelia push: ' . $e->getMessage());
-    }
-    return $sent;
 }

@@ -10,12 +10,14 @@
 
 // Routes that bypass subscription checks entirely: paying, settings, finishing
 // sign-up (an expired trial must not bounce between onboarding and billing)
-// and asking for help.
+// and asking for help. Notifications stay open too: the alert that says the
+// account is on hold must open (and be marked read) while everything else is
+// shut. The Nfelia business locks like any other: the team works in Nfelia
+// Ops (ops.nfelia.com), not in it.
 $exempt_routes = ['settings', 'account', 'logout', 'billing', 'momo', 'countries', 'onboarding',
-                  'support', 'contact-support', 'user-guide'];
+                  'support', 'contact-support', 'user-guide', 'notifications'];
 
-// Nfelia's own business (the founder panel lives there) never locks.
-if (!in_array($controller ?? '', $exempt_routes) && auth_business_id() !== FOUNDER_BUSINESS_ID) {
+if (!in_array($controller ?? '', $exempt_routes)) {
     $db   = get_db();
     // SELECT *, not a column list: during a deploy the code arrives a minute
     // before the migration that adds expiry_exempt, and a missing column
@@ -24,7 +26,7 @@ if (!in_array($controller ?? '', $exempt_routes) && auth_business_id() !== FOUND
     $stmt->execute([auth_business_id()]);
     $sub  = $stmt->fetch() ?: null;
 
-    // A Mobile Money receipt waiting for the founder unlocks nothing (Tom's
+    // A Mobile Money receipt waiting for the Nfelia team unlocks nothing (Tom's
     // decision), but the owner is told it has arrived.
     $stmt = $db->prepare("SELECT COUNT(*) FROM subscription_payments WHERE business_id = ? AND status = 'pending_verification'");
     $stmt->execute([auth_business_id()]);
@@ -58,6 +60,9 @@ if (!in_array($controller ?? '', $exempt_routes) && auth_business_id() !== FOUND
         default:
             if ($waiting) {
                 $_SESSION['billing_warning'] = 'We are checking your Mobile Money payment. We will tell you as soon as it is approved.';
+            } elseif (($sub['status'] ?? '') === 'cancelled' && !empty($sub['current_period_end'])) {
+                $_SESSION['billing_warning'] = 'Your subscription is cancelled. You keep full access until '
+                    . date('j M Y', strtotime((string)$sub['current_period_end'])) . '.';
             }
     }
 }

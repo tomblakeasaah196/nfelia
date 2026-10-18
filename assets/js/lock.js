@@ -26,6 +26,12 @@
         drop: function (k) { try { localStorage.removeItem(k); } catch (e) {} }
     };
     var now = function () { return Date.now(); };
+    // Signed out meanwhile: sign in again, then come back to this page.
+    var signInHere = function () {
+        var base = window.Nfelia.url, here = location.href.replace(/#.*$/, '');
+        var path = here.indexOf(base + '/') === 0 ? here.slice(base.length + 1) : '';
+        return base + '/login' + (path ? '?next=' + encodeURIComponent(path) : '');
+    };
     var AFTER = cfg.after * 1000;
     var PK_KEY = 'nf.pk.' + cfg.user;          // this device has a passkey for this person
     var kept = !!document.querySelector('meta[name="nf-cached"]');
@@ -52,7 +58,7 @@
             pk.api && pk.api('ping').then(function (d) {
                 if (d.ok) store.set('nf.served', String(now()));
                 else if (d.locked) lock('server');
-                else if (d.signedOut) location.href = window.Nfelia.url + '/login';
+                else if (d.signedOut) location.href = signInHere();
             });
         }
     }
@@ -144,7 +150,7 @@
     }
 
     function failed(d) {
-        if (d && d.signedOut) { location.href = window.Nfelia.url + '/login'; return; }
+        if (d && d.signedOut) { location.href = signInHere(); return; }
         say(d && d.message);
     }
 

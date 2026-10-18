@@ -214,10 +214,11 @@ $can_advance = in_array($order['status'], ['approved', 'processing']);
         <?php if ($track_url): ?>
         <?php
         $first_name = preg_split('/\s+/u', trim((string)$order['customer_name']))[0] ?: 'there';
-        $send_track = 'Hello ' . $first_name . ', here is the link to follow your order ' . $order['order_number'] . ' from ' . $business['name'] . ': ' . $track_url;
+        // Where the order stands, ready to send (the email says the same: shop_order_tell()).
+        $send_track = shop_order_whatsapp_text($order, (string)$business['name'], $track_url, $delivery_doc['status'] ?? null);
         $send_review = $review_link ? 'Hello ' . $first_name . ', thank you for your order ' . $order['order_number'] . '. Would you rate it? It takes a few seconds: ' . $review_link : '';
         ?>
-        <div class="bg-brand-white border border-brand-sand rounded-xl shadow-sm overflow-hidden" x-data="{ copied: '' }">
+        <div class="bg-brand-white border border-brand-sand rounded-xl shadow-sm overflow-hidden scroll-mt-24" id="review" x-data="{ copied: '' }">
             <div class="px-5 py-4 border-b border-brand-sand/50">
                 <h3 class="font-heading font-bold text-sm text-brand-plum uppercase tracking-wider">Customer's links</h3>
             </div>
@@ -232,7 +233,7 @@ $can_advance = in_array($order['status'], ['approved', 'processing']);
                         </button>
                         <?php if ($customer_wa !== ''): ?>
                         <a href="https://wa.me/<?= e($customer_wa) ?>?text=<?= e(rawurlencode($send_track)) ?>" target="_blank" rel="noopener"
-                           class="h-10 px-3 inline-flex items-center text-xs font-bold rounded-lg border border-brand-sand text-brand-plum hover:bg-brand-cream">Send on WhatsApp</a>
+                           class="h-10 px-3 inline-flex items-center text-xs font-bold rounded-lg border border-brand-sand text-brand-plum hover:bg-brand-cream">Send update on WhatsApp</a>
                         <?php endif; ?>
                         <a href="<?= e($track_url) ?>" target="_blank" rel="noopener"
                            class="h-10 px-3 inline-flex items-center text-xs font-bold rounded-lg text-brand-plum/70 hover:underline">Open</a>

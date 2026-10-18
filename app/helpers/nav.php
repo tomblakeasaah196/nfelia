@@ -99,13 +99,6 @@ function nav_groups(string $role, string $business_type, int $business_id): arra
             ['Purge data', 'purge', 'trash', ['owner']],
         ],
     ];
-    if ($business_id === FOUNDER_BUSINESS_ID && $role === 'owner') {
-        $groups['Founder panel'] = [
-            ['Admin panel', 'admin', 'shield', $all],
-            ['Countries', 'countries', 'globe', $all],
-            ['MoMo review', 'momo/review', 'money', $all],
-        ];
-    }
     $out = [];
     foreach ($groups as $name => $items) {
         foreach ($items as [$label, $url, $icon, $access]) {

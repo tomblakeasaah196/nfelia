@@ -153,29 +153,27 @@ class ReferralController {
      */
     public static function reward_referral(PDO $db, int $paying_business_id): void {
         $stmt = $db->prepare("
-            SELECT id, referrer_business_id FROM referrals
-            WHERE referred_business_id = ? AND status = 'converted'
+            SELECT r.id, r.referrer_business_id, r.discount_amount, b.name AS referred_name
+            FROM referrals r LEFT JOIN businesses b ON b.id = r.referred_business_id
+            WHERE r.referred_business_id = ? AND r.status = 'converted'
             LIMIT 1
         ");
         $stmt->execute([$paying_business_id]);
         $ref = $stmt->fetch();
 
         if ($ref) {
+            // Once only, even when two payments arrive together.
             $stmt = $db->prepare("
-                UPDATE referrals SET status = 'rewarded', rewarded_at = NOW() WHERE id = ?
+                UPDATE referrals SET status = 'rewarded', rewarded_at = NOW() WHERE id = ? AND status = 'converted'
             ");
             $stmt->execute([$ref['id']]);
-
-            // Notify the referrer
-            try {
-                $stmt = $db->prepare("
-                    INSERT INTO notifications (business_id, type, title, message, action_url, created_at) -- NFELIA AUDIT FIX C07 2026-06-03
-                    VALUES (?, 'referral_rewarded', 'Referral Reward Earned!', 'Your referral just made their first payment. You earned ₦2,500 off your next bill!', ?, NOW())
-                ");
-                $stmt->execute([$ref['referrer_business_id'], APP_URL . '/referrals']);
-            } catch (Exception $e) {
-                error_log("Referral notification failed: " . $e->getMessage());
+            if ($stmt->rowCount() !== 1) {
+                return;
             }
+            notify('referral.rewarded', (int)$ref['referrer_business_id'], [
+                'referred' => $ref['referred_name'] ?: 'A business you invited',
+                'reward'   => (float)$ref['discount_amount'] / 100,   // stored in kobo
+            ], ['dedupe' => (string)$ref['id']]);
         }
     }
 

@@ -57,10 +57,12 @@ error_log
 ./assets/css/src
 
 # Repo-only material. docs/ holds internal audit and brand notes that must
-# never be served. bin/ and db/ are operational, not public.
+# never be served. bin/ and db/ are operational, not public; tests/ seeds
+# and resets a database.
 ./docs
 ./bin
 ./db
+./tests
 ./DEPLOY.md
 ./README.md
 ./CLAUDE.md

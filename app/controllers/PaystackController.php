@@ -169,7 +169,8 @@ class PaystackController {
 
         // Without the secret key every signature would "match" an empty key
         if ($this->secret_key === '') {
-            error_log('[Nfelia] Paystack webhook refused: PAYSTACK_SECRET_KEY is not set.');
+            errors_report('job', 'error', 'Paystack webhook refused: PAYSTACK_SECRET_KEY is not set');
+            heartbeat_finish('paystack_webhook', false, 'refused: no secret key');
             http_response_code(503);
             exit;
         }
@@ -185,7 +186,9 @@ class PaystackController {
         $expected  = hash_hmac('sha512', $raw_body, $this->secret_key);
 
         if (!hash_equals($expected, $signature)) {
-            error_log('[Nfelia] Paystack webhook signature mismatch. Rejecting.');
+            // Someone posting to the webhook, or PAYSTACK_SECRET_KEY no longer matches the dashboard.
+            errors_report('job', 'warning', 'Paystack webhook refused: the signature did not match');
+            heartbeat_finish('paystack_webhook', false, 'refused: signature mismatch');
             http_response_code(401);
             exit;
         }
@@ -202,7 +205,8 @@ class PaystackController {
         // 2. Resolve business
         $biz_id = $this->resolve_business_id($event_data);
         if (!$biz_id) {
-            error_log('[Nfelia] Webhook: could not resolve business_id for event ' . $event_type);
+            errors_report('job', 'warning', 'Paystack webhook ' . $event_type . ': no business matches it');
+            heartbeat_finish('paystack_webhook', true, $event_type . ': no business matches it');
             http_response_code(200);
             echo json_encode(['status' => 'ok', 'message' => 'Business not found']);
             exit;
@@ -211,38 +215,59 @@ class PaystackController {
         // 3. Process event. A payment is keyed by its reference, shared with
         // the callback; anything else by event and code, so a subscription's
         // create, disable and failed-payment events never shadow each other.
+        // Something that goes wrong is recorded in Nfelia Ops and answered
+        // with a 500, so Paystack sends the event again (the claim is let go).
         if ($event_type === 'charge.success') {
-            $result = $this->apply_payment($biz_id, $event_data);
+            try {
+                $result = $this->apply_payment($biz_id, $event_data);
+            } catch (\Throwable $e) {
+                $this->webhook_failed($e, $event_type, $biz_id);
+            }
+            heartbeat_finish('paystack_webhook', true, $event_type . ': ' . $result);
             http_response_code(200);
             echo json_encode(['status' => 'ok', 'message' => $result]);
             exit;
         }
 
-        $key = $event_type . ':' . ($event_data['subscription_code'] ?? $event_data['invoice_code'] ?? $event_data['id'] ?? hash('sha256', $raw_body));
-        if (!$this->claim($biz_id, $event_type, substr($key, 0, 100), $event_data['amount'] ?? null, $event_data['status'] ?? $event_type, $event_data)) {
+        $key = substr($event_type . ':' . ($event_data['subscription_code'] ?? $event_data['invoice_code'] ?? $event_data['id'] ?? hash('sha256', $raw_body)), 0, 100);
+        if (!$this->claim($biz_id, $event_type, $key, $event_data['amount'] ?? null, $event_data['status'] ?? $event_type, $event_data)) {
             http_response_code(200);
             echo json_encode(['status' => 'ok', 'message' => 'Already processed']);
             exit;
         }
 
-        switch ($event_type) {
-            case 'subscription.create':
-                $this->handle_subscription_create($biz_id, $event_data);
-                break;
-            case 'subscription.disable':
-            case 'subscription.not_renew':
-                $this->handle_subscription_disable($biz_id, $event_data);
-                break;
-            case 'invoice.payment_failed':
-                $this->handle_payment_failed($biz_id, $event_data);
-                break;
-            default:
-                // Unknown event — logged by claim() only
-                break;
+        try {
+            switch ($event_type) {
+                case 'subscription.create':
+                    $this->handle_subscription_create($biz_id, $event_data);
+                    break;
+                case 'subscription.disable':
+                case 'subscription.not_renew':
+                    $this->handle_subscription_disable($biz_id, $event_data);
+                    break;
+                case 'invoice.payment_failed':
+                    $this->handle_payment_failed($biz_id, $event_data, $key);
+                    break;
+                default:
+                    // Unknown event — logged by claim() only
+                    break;
+            }
+        } catch (\Throwable $e) {
+            $this->db->prepare("DELETE FROM subscription_history WHERE paystack_reference = ?")->execute([$key]);
+            $this->webhook_failed($e, $event_type, $biz_id);
         }
 
+        heartbeat_finish('paystack_webhook', true, $event_type);
         http_response_code(200);
         echo json_encode(['status' => 'ok']);
+        exit;
+    }
+
+    /** A webhook event that went wrong: recorded in Ops, and Paystack is asked to send it again. */
+    private function webhook_failed(\Throwable $e, string $event_type, int $biz_id): never {
+        errors_report_throwable($e, ['job' => 'Paystack webhook ' . $event_type, 'business_id' => $biz_id]);
+        heartbeat_finish('paystack_webhook', false, $event_type . ' failed; Paystack will send it again');
+        http_response_code(500);
         exit;
     }
 
@@ -281,12 +306,10 @@ class PaystackController {
             WHERE business_id = ?
         ")->execute([$reason ?: null, $biz_id]);
 
-        $until = !empty($sub['current_period_end']) && $sub['current_period_end'] >= date('Y-m-d')
-            ? date('j M Y', strtotime($sub['current_period_end'])) : null;
+        $open_until = !empty($sub['current_period_end']) && $sub['current_period_end'] >= date('Y-m-d') ? (string)$sub['current_period_end'] : null;
+        $until = $open_until ? date('j M Y', strtotime($open_until)) : null;
         $this->claim($biz_id, 'subscription.cancelled', 'cancel_' . $biz_id . '_' . time(), null, 'cancelled', ['reason' => $reason]);
-        $this->notify($biz_id, 'subscription_failed', 'Subscription Cancelled',
-            $until ? "Your subscription is cancelled. Nfelia stays open until {$until}." : 'Your subscription is cancelled.',
-            '/settings?tab=billing');
+        notify('billing.cancelled', $biz_id, ['access_until' => $open_until], ['dedupe' => 'cancel:' . date('Y-m-d H:i')]);
 
         flash('success', $until ? "Subscription cancelled. Nfelia and your website stay open until {$until}." : 'Subscription cancelled.');
         redirect('settings?tab=billing');
@@ -372,16 +395,18 @@ class PaystackController {
             ReferralController::reward_referral($this->db, $biz_id);
         }
 
-        $symbol = $currency === 'NGN' ? '₦' : $currency . ' ';
-        $this->notify($biz_id, 'payment_received', 'Payment Confirmed',
-            $symbol . number_format($paid / 100, 0) . ' received. Thank you!', '/settings?tab=billing');
+        // The owner hears it went through, and until when they're covered
+        $symbols = ['NGN' => '₦', 'GHS' => 'GH₵', 'KES' => 'KSh ', 'ZAR' => 'R', 'USD' => '$'];
+        $sub     = $this->get_subscription($biz_id);
+        notify('billing.paid', $biz_id, [
+            'amount_text' => ($symbols[$currency] ?? $currency . ' ') . number_format($paid / 100, $paid % 100 ? 2 : 0),
+            'period_end'  => $kind === 'seats' ? null : ($sub['current_period_end'] ?? null),
+        ], ['dedupe' => $reference]);
 
         // A card subscription from before now stops renewing by itself: each
         // month the owner pays in Billing and chooses who it covers.
         if ($legacy_plan && self::stop_card_renewals($this->db, $biz_id)) {
-            $this->notify($biz_id, 'subscription_activated', 'Monthly payments have changed',
-                'Your card will not be charged automatically any more. Each month, pay in Billing and choose which staff the month covers.',
-                '/settings?tab=billing');
+            notify('billing.renewals_stopped', $biz_id, [], ['dedupe' => 'renewals-stopped']);
         }
         return 'applied';
     }
@@ -446,18 +471,26 @@ class PaystackController {
         if (!$sub || empty($data['subscription_code']) || $data['subscription_code'] !== ($sub['paystack_subscription_code'] ?? null)) {
             return;
         }
-        $this->db->prepare("
+        $stmt = $this->db->prepare("
             UPDATE subscriptions SET status = 'cancelled', cancelled_at = NOW(),
                 paystack_subscription_code = NULL, paystack_email_token = NULL, updated_at = NOW()
             WHERE business_id = ? AND status IN ('active', 'past_due')
-        ")->execute([$biz_id]);
-
-        $this->notify($biz_id, 'subscription_failed', 'Subscription Ended',
-            'Your card subscription has ended. Pay for the next month in Billing to keep using Nfelia.',
-            '/settings?tab=billing');
+        ");
+        $stmt->execute([$biz_id]);
+        if ($stmt->rowCount() !== 1) {
+            return;
+        }
+        // Paid time left: they keep it. None: Nfelia is paused.
+        $until = !empty($sub['current_period_end']) && $sub['current_period_end'] >= date('Y-m-d') ? (string)$sub['current_period_end'] : null;
+        $key   = 'disabled:' . $data['subscription_code'] . ':' . ($sub['current_period_end'] ?? '');
+        if ($until) {
+            notify('billing.cancelled', $biz_id, ['access_until' => $until], ['dedupe' => $key]);
+        } else {
+            notify('billing.ended', $biz_id, [], ['dedupe' => $key]);
+        }
     }
 
-    private function handle_payment_failed(int $biz_id, array $data): void {
+    private function handle_payment_failed(int $biz_id, array $data, string $key): void {
         $sub = $this->get_subscription($biz_id);
 
         if ($sub && $sub['status'] === 'active') {
@@ -470,9 +503,7 @@ class PaystackController {
             ")->execute([$biz_id]);
         }
 
-        $this->notify($biz_id, 'subscription_failed', 'Payment Failed',
-            'Your subscription payment failed. Please pay in Billing within ' . BILLING_GRACE_DAYS . ' days to keep Nfelia open.',
-            '/settings?tab=billing');
+        notify('billing.failed', $biz_id, [], ['dedupe' => $key]);
     }
 
     /* ══════════════════════════════════════════
@@ -550,18 +581,6 @@ class PaystackController {
                 return false;
             }
             throw $e;
-        }
-    }
-
-    // NFELIA AUDIT FIX — C07 — Fixed column name: link -> action_url — 2026-06-03
-    private function notify(int $biz_id, string $type, string $title, string $message, string $link = ''): void {
-        try {
-            $this->db->prepare("
-                INSERT INTO notifications (business_id, type, title, message, action_url, created_at)
-                VALUES (?, ?, ?, ?, ?, NOW())
-            ")->execute([$biz_id, $type, $title, $message, $link ?: null]);
-        } catch (\Exception $e) {
-            error_log('[Nfelia] notify() failed: ' . $e->getMessage());
         }
     }
 
