@@ -63,7 +63,8 @@ dedupe key means an alert is never sent twice.
 | Alert | Who hears |
 |---|---|
 | New support ticket | Support, Admin |
-| Mobile money payment to check, shop name to check | Support, Admin |
+| Mobile money payment to check | Support, Admin, by bell, phone and email, marked urgent (every transfer is) |
+| Shop name to check | Support, Admin |
 | New, returning or spiking error; health needs attention; the cron has stopped | Support, Admin (phone for crashes, errors and spikes; warnings and slow pages go to the bell only) |
 | Message from the home page | Sales, Admin |
 | Follow-up due on a lead | Its owner, or all of Sales if it has none |
@@ -189,19 +190,18 @@ bash tests/notifications/run.sh ui ops/ui      # Playwright
 |---|---|---|
 | ops/foundation | 101 | Sign-in, passkeys, invites, resets, sessions, roles on every route, CSRF, the audit log |
 | ops/monitor | 117 | Errors broken on purpose in the real app (`tests/ops/boom.php`, test copies only), grouping, masking, alerts, the log reader, health, the summary, clean-up, the watchdog |
-| ops/clients | 89 | Clients, plan changes, notes, "view as" end to end, payments, shop names, support, finance, countries, the old /admin links |
+| ops/clients | 103 | Clients, plan changes, where each stands (from the dates), notes, "view as" end to end, payments (months, ticked staff, seats), shop names, support, finance, countries, the old /admin links |
 | ops/sales | 134 | Home page leads, manual leads and duplicates, the pipeline, owners, follow-ups reminded by the real cron, stalled sign-ups and trials, campaigns (audience, test, send once, rate, unsubscribe, one-click, opt-outs), roles |
 | ops/ui | 47 | A real browser on a phone and a computer: sign-in, passkeys, the menu, dialogs, errors, "view as", leads, the board, a campaign; nothing too wide for a phone |
 
-The client-side suites (engine, flows, cron, sw, ui: 462 checks) still pass
+The client-side suites (engine, flows, cron, sw, ui: 475 checks) still pass
 with the team alerts moved to Ops.
 
 ## 6. Worth knowing
 
-- **IP addresses.** Ops records `REMOTE_ADDR`, as the app does. Behind
-  Cloudflare, that is Cloudflare's address unless the server restores the
-  visitor's (mod_remoteip with Cloudflare's ranges). Check one audit log
-  row after deploying.
+- **IP addresses.** Ops records the visitor's own address through
+  `client_ip()` (audit PR 1), which trusts Cloudflare's header only on
+  requests that came through Cloudflare.
 - **Breaking things on purpose** (`/__boom/…`) works only when `APP_ENV` is
   local or testing.
 - **Local passkeys.** Over plain http on localhost, passkeys use a test-only
@@ -209,7 +209,38 @@ with the team alerts moved to Ops.
 - **Times.** The database and the forms work in Lagos time. Ops compares
   times in SQL, so the PHP time zone doesn't matter.
 
-## 7. Left for later
+## 7. Merged with audit PR 1 (billing)
+
+Main gained the audit's first fix PR while Ops was being built
+(`Lock it down (audit PR 1).md`). Its rules are kept everywhere; where it
+relied on the founder's business (#1), the team's side now lives in Ops:
+
+- **Business #1 locks like any other** (your decision: it becomes
+  ordinary). The audit kept it open so the founder could always approve
+  payments; approvals are in Ops now, which doesn't depend on it.
+- **Mobile Money receipts** alert Admin and Support in Ops: bell, phone and
+  email, marked urgent, as the audit wanted for the founder. Nothing opens
+  for the client until it is approved.
+- **Ops → Payments to check** applies main's rules. A month starts when the
+  current paid month ends. Staff the owner didn't tick are switched off.
+  Seats are added to the month already paid. A turned-down receipt changes
+  nothing.
+- **Ops → Clients, "Give a month"** works like a payment. **Suspend** also
+  stops an old card plan that renews itself.
+- **Where a client stands** (the chips, the filters, campaign groups) comes
+  from `billing_access()`. A paid month that has ended keeps the status
+  "active", so the status alone can't tell "Paying" from "Payment due" or
+  "Paused: not paid". MRR counts only those still inside a paid month or
+  its grace days, in naira.
+- **Billing notices** go through `notify()` (bell, phone, email): the paid
+  month ending (3 days before), its grace days, Nfelia paused, a failed
+  card payment, cancelled. The cron no longer changes any status.
+  Businesses the audit left as they were (`expiry_exempt`) hear nothing
+  until their next payment.
+- **Pushes** go only to real push services (`PUSH_TEST_ENDPOINTS` in tests),
+  for client and Ops alike, at most 10 devices a person.
+
+## 8. Left for later
 
 - **The client data export** (Support): every client's data in a branded,
   signed Excel workbook with several tabs, in the client's colours,

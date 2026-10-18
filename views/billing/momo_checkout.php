@@ -2,8 +2,14 @@
 /**
  * Nfelia — MoMo Checkout View
  * Phase 4 — Mobile Money (Cameroon) payment screen
- * Injected variables: $country, $subscription, $amount_due, $extra_seats, $user, $business
+ * Injected variables: $country, $subscription, $amount_due, $kind, $extra_seats, $covered, $user, $business
  */
+$covered_names = [];
+foreach (billing_team(get_db(), (int)$business['id']) as $member) {
+    if (in_array((int)$member['id'], $covered, true)) {
+        $covered_names[] = $member['full_name'];
+    }
+}
 ?>
 <div class="max-w-lg mx-auto space-y-6">
 
@@ -14,7 +20,7 @@
             <span class="data-text text-xs font-bold text-brand-plum/50 uppercase tracking-widest"><?= e($country['name']) ?> · Mobile Money</span>
         </div>
         <h1 class="font-heading font-bold text-2xl text-brand-plum">Complete Your Payment</h1>
-        <p class="text-sm text-brand-plum/60 mt-1">Your subscription activates as soon as your payment is verified — usually within a few hours.</p>
+        <p class="text-sm text-brand-plum/60 mt-1">We check every payment by hand, usually within a few hours. Nfelia opens <?= $kind === 'seats' ? 'the new seats' : 'the month' ?> as soon as it is approved.</p>
     </div>
 
     <!-- Payment Instructions Card -->
@@ -58,7 +64,9 @@
 
         <form action="<?= APP_URL ?>/momo/submit" method="POST" enctype="multipart/form-data" id="momoForm" class="space-y-5">
             <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
-            <input type="hidden" name="extra_seats" value="<?= (int)$extra_seats ?>">
+            <input type="hidden" name="kind" value="<?= e($kind) ?>">
+            <input type="hidden" name="seats" value="<?= (int)$extra_seats ?>">
+            <input type="hidden" name="covered" value="<?= e(implode(',', $covered)) ?>">
 
             <!-- Receipt Upload -->
             <div>
@@ -103,12 +111,24 @@
                 </div>
                 <div class="text-right">
                     <p class="text-[10px] font-bold text-brand-plum/50 uppercase tracking-widest">For</p>
-                    <p class="text-xs font-semibold text-brand-plum">Nfelia Standard Plan</p>
-                    <?php if ($extra_seats > 0): ?>
-                        <p class="text-[10px] text-brand-plum/50">+ <?= $extra_seats ?> extra seat(s)</p>
+                    <?php if ($kind === 'seats'): ?>
+                        <p class="text-xs font-semibold text-brand-plum"><?= (int)$extra_seats ?> more seat<?= $extra_seats > 1 ? 's' : '' ?> this month</p>
+                    <?php else: ?>
+                        <p class="text-xs font-semibold text-brand-plum">A month of Nfelia</p>
+                        <?php if ($extra_seats > 0): ?>
+                            <p class="text-[10px] text-brand-plum/50">+ <?= (int)$extra_seats ?> staff seat<?= $extra_seats > 1 ? 's' : '' ?></p>
+                        <?php endif; ?>
                     <?php endif; ?>
                 </div>
             </div>
+
+            <?php if ($kind === 'month'): ?>
+            <p class="text-[11px] text-brand-plum/70 leading-relaxed">
+                Covers you<?= $covered_names ? ' and ' . e(implode(', ', $covered_names)) : ' only' ?>.
+                Anyone else on your team is switched off when the payment is approved.
+                <a href="<?= APP_URL ?>/settings?tab=billing" class="font-bold text-brand-burgundy">Change</a>
+            </p>
+            <?php endif; ?>
 
             <button type="submit" id="submitBtn"
                     class="w-full btn-primary text-white py-4 rounded-xl text-xs font-bold uppercase tracking-widest shadow-sm hover:shadow-md transition-all">
@@ -116,8 +136,8 @@
             </button>
 
             <p class="text-center text-[10px] text-brand-plum/40 leading-relaxed">
-                Your receipt is reviewed manually by our team. You will be notified by email and in-app within 24 hours.
-                Your data remains safe and intact during verification.
+                Your receipt is checked by hand by our team. We will tell you by email and here in the app.
+                Your data stays safe while we check.
             </p>
         </form>
     </div>

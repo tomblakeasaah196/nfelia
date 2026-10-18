@@ -163,7 +163,7 @@ s, h, txt = shop("glow-by-temi").get("/robots.txt")
 check("a trial shop keeps them out", txt == "User-agent: *\nDisallow: /\n", txt)
 s, h, txt = shop("nobody-here").get("/robots.txt")
 check("an address with no shop keeps them out", s == 200 and txt == "User-agent: *\nDisallow: /\n", (s, txt))
-sql("UPDATE subscriptions SET status = 'cancelled' WHERE business_id = 11")
+sql("UPDATE subscriptions SET status = 'suspended' WHERE business_id = 11")   # a cancelled month stays open to its end
 s, h, txt = shop("chinedu-co").get("/robots.txt")
 check("a closed shop keeps them out", txt == "User-agent: *\nDisallow: /\n", txt)
 sql("UPDATE subscriptions SET status = 'active' WHERE business_id = 11")

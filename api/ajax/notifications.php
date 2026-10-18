@@ -126,6 +126,9 @@ switch ($action) {
             json_response(['error' => 'Use POST.'], 405);
         }
         $channel = ($in['channel'] ?? 'push') === 'email' ? 'email' : 'push';
+        if (!throttle_allows('push_test', (string)$user_id, 5, 60)) {
+            json_response(['error' => 'That is enough tests for now. Try again in an hour.'], 429);
+        }
         [$ok, $message] = notify_test($biz_id, $user_id, $channel);
         json_response($ok ? ['success' => true, 'message' => $message] : ['error' => $message], $ok ? 200 : 502);
 

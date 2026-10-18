@@ -110,7 +110,7 @@ class OpsSupportController
     private function ticket(int $id): array
     {
         $stmt = $this->db->prepare("
-            SELECT st.*, b.name AS business_name, u.full_name AS user_name, u.email AS user_email, u.phone AS user_phone, s.status AS plan_status
+            SELECT st.*, b.name AS business_name, u.full_name AS user_name, u.email AS user_email, u.phone AS user_phone, s.status AS plan_status, s.trial_ends_at, s.current_period_end, s.grace_ends_at, s.expiry_exempt
             FROM support_tickets st LEFT JOIN businesses b ON b.id = st.business_id LEFT JOIN users u ON u.id = st.user_id
             LEFT JOIN subscriptions s ON s.business_id = st.business_id WHERE st.id = ?");
         $stmt->execute([$id]);

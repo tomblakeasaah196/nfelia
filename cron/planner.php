@@ -26,8 +26,10 @@
  * 5. Invoices past their due date, from 08:00: marked overdue, and the
  *    owner hears once a week while they stay unpaid (for eight weeks).
  *
- * 6. Subscriptions: trials and paid months about to end, ended, or due
- *    (billing_lifecycle() in app/helpers/subscription_helpers.php).
+ * 6. Subscriptions: free trials and paid months about to end, in their
+ *    grace days, or ended (billing_lifecycle() in
+ *    app/helpers/subscription_helpers.php; billing_access() in
+ *    app/helpers/billing.php decides what is open).
  *
  * 7. The Nfelia Ops monitor (app/ops/monitor.php): the server log read into
  *    Ops → Errors, health checks, the 8am summary to the Ops team.
@@ -82,7 +84,7 @@ function planner_cron_business(PDO $db, int $id, DateTimeImmutable $now): ?array
     static $cache = [];
     if (!array_key_exists($id, $cache)) {
         $stmt = $db->prepare("
-            SELECT b.*, s.status AS sub_status, s.trial_ends_at, s.current_period_end, s.grace_ends_at
+            SELECT b.*, s.status AS sub_status, s.trial_ends_at, s.current_period_end, s.grace_ends_at, s.expiry_exempt
             FROM businesses b LEFT JOIN subscriptions s ON s.business_id = b.id
             WHERE b.id = ?");
         $stmt->execute([$id]);

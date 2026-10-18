@@ -17,6 +17,9 @@ class PurgeController
     private $db;
     private $biz_id;
 
+    /** The tables purge may delete from (their names go into SQL). */
+    private const MODULES = ["quotations", "invoices", "receipts", "deliveries", "orders", "products", "customers"];
+
     public function __construct()
     {
         if (!is_logged_in()) {
@@ -166,16 +169,7 @@ class PurgeController
         $module = trim($_GET["module"] ?? "quotations"); // quotations, invoices, receipts, deliveries, orders, products, customers
         $mode = trim($_GET["mode"] ?? "exact"); // exact | batch
 
-        $valid_modules = [
-            "quotations",
-            "invoices",
-            "receipts",
-            "deliveries",
-            "orders",
-            "products",
-            "customers",
-        ];
-        if (!in_array($module, $valid_modules)) {
+        if (!in_array($module, self::MODULES, true)) {
             json_response(["error" => "Unsupported target module"], 400);
             return;
         }
@@ -243,7 +237,7 @@ class PurgeController
         $ids = array_filter(
             array_map("intval", json_decode($ids_raw, true) ?: []),
         );
-        if (empty($ids) || !$module) {
+        if (empty($ids) || !in_array($module, self::MODULES, true)) {
             json_response(["error" => "No valid purge targets provided"], 422);
             return;
         }

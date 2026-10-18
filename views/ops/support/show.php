@@ -42,7 +42,7 @@
                 <dt>Name</dt><dd><?= e($t['user_name'] ?? '—') ?></dd>
                 <dt>Email</dt><dd class="ops-break"><?= e($t['user_email'] ?? '—') ?></dd>
                 <?php if ($t['user_phone']): ?><dt>Phone</dt><dd><?= e($t['user_phone']) ?></dd><?php endif; ?>
-                <dt>Plan</dt><dd><?= ops_plan_chip($t['plan_status']) ?></dd>
+                <dt>Plan</dt><dd><?= ops_plan_chip($t) ?></dd>
             </dl>
         </div></section>
         <?php if ($others): ?>

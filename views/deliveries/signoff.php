@@ -24,7 +24,9 @@ $already_signed = ($delivery['status'] === 'signed_off' && $delivery['signoff_na
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=<?= urlencode($font) ?>:wght@400;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="<?= APP_URL ?>/assets/vendor/alpine-3.14.3.min.js"></script>
     <style>
+        [x-cloak] { display: none !important; }
         :root { --brand-primary: <?= e($primary) ?>; --brand-secondary: <?= e($secondary) ?>; }
         body { font-family: '<?= e($font) ?>', sans-serif; -webkit-tap-highlight-color: transparent; }
         .brand-primary { color: var(--brand-primary); }
@@ -76,7 +78,7 @@ $already_signed = ($delivery['status'] === 'signed_off' && $delivery['signoff_na
                 <div>
                     <div class="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-2">Signature</div>
                     <div class="bg-gray-50 rounded-xl border border-gray-200 p-4 text-center">
-                        <img src="<?= APP_URL . '/' . e($delivery['signoff_signature_path']) ?>" alt="Signature" class="max-h-24 mx-auto">
+                        <img src="<?= APP_URL . '/sign/' . e($delivery['signoff_token']) . '?signature=1' ?>" alt="Signature" class="max-h-24 mx-auto">
                     </div>
                 </div>
                 <?php endif; ?>

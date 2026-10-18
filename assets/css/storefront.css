@@ -1171,3 +1171,7 @@ p, h1, h2, h3, figure, dl, dd { margin: 0; }
 @media print {
     .sf-bagbar, .sf-toast, .sf-bagbtn, .sf-skip, .sf-share, .sf-page__actions { display: none !important; }
 }
+
+/* A field only robots fill in (the shop's forms send it; the server refuses
+   anything that has it filled). Off screen, out of the tab order. */
+.sf-hp { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }

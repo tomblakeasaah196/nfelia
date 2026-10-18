@@ -12,10 +12,6 @@
 class OpsClientsController
 {
     private const PAGE = 30;
-    private const PLANS = [
-        'trial' => 'Free trial', 'active' => 'Paying', 'past_due' => 'Payment due', 'pending_verification' => 'Payment being checked',
-        'cancelled' => 'Cancelled', 'suspended' => 'Suspended',
-    ];
 
     private PDO $db;
     private array $me;
@@ -42,11 +38,13 @@ class OpsClientsController
                          OR EXISTS (SELECT 1 FROM users u WHERE u.business_id = b.id AND (u.email LIKE ? OR u.full_name LIKE ? OR u.phone LIKE ?)))';
             array_push($args, $like, $like, $like, $like, ctype_digit($q) ? (int)$q : 0, $like, $like, $like);
         }
+        // Where each stands is worked out from the dates, as billing_access() does
         if ($plan === 'attention') {
-            $where[] = "(s.status IN ('past_due', 'pending_verification') OR (s.status = 'trial' AND s.trial_ends_at <= CURDATE() + INTERVAL 3 DAY))";
-        } elseif (isset(self::PLANS[$plan])) {
-            $where[] = 's.status = ?';
-            $args[] = $plan;
+            $where[] = "(" . ops_plan_sql('due') . " OR " . ops_plan_sql('paused') . " OR " . ops_plan_sql('checking') . "
+                         OR EXISTS (SELECT 1 FROM subscription_payments sp WHERE sp.business_id = b.id AND sp.status = 'pending_verification')
+                         OR (s.status = 'trial' AND s.trial_ends_at BETWEEN CURDATE() AND CURDATE() + INTERVAL 3 DAY))";
+        } elseif (isset(OPS_PLAN_STATES[$plan])) {
+            $where[] = ops_plan_sql($plan);
         }
         if ($country) {
             $where[] = 'b.country_id = ?';
@@ -63,7 +61,7 @@ class OpsClientsController
 
         $stmt = $this->db->prepare("
             SELECT b.id, b.name, b.email, b.phone, b.created_at, b.subdomain, b.subdomain_status, b.is_active,
-                   s.status AS plan_status, s.trial_ends_at, s.current_period_end, s.payment_method,
+                   s.status AS plan_status, s.trial_ends_at, s.current_period_end, s.grace_ends_at, s.expiry_exempt, s.payment_method,
                    c.flag_emoji, c.name AS country,
                    (SELECT u.full_name FROM users u WHERE u.business_id = b.id AND u.role = 'owner' ORDER BY u.id LIMIT 1) AS owner,
                    (SELECT COUNT(*) FROM users u WHERE u.business_id = b.id AND u.is_active = 1) AS team,
@@ -73,7 +71,7 @@ class OpsClientsController
 
         ops_render('clients/index', [
             'rows' => $stmt->fetchAll(), 'total' => $total, 'page' => $page, 'pages' => $pages,
-            'filter' => compact('q', 'plan', 'country', 'sort'), 'plans' => self::PLANS,
+            'filter' => compact('q', 'plan', 'country', 'sort'), 'plans' => OPS_PLAN_STATES,
             'countries' => $this->db->query("SELECT id, name, flag_emoji FROM countries ORDER BY name")->fetchAll(),
         ], 'Clients');
     }
@@ -119,7 +117,7 @@ class OpsClientsController
         $history = ops_can('audit') ? $all("SELECT a.*, s.full_name, NULL AS business_name FROM ops_audit a LEFT JOIN ops_staff s ON s.id = a.staff_id WHERE a.business_id = ? ORDER BY a.id DESC LIMIT 15", [$b['id']]) : null;
 
         ops_render('clients/show', compact('b', 'people', 'use', 'payments', 'plan_log', 'reviews', 'referred_by', 'referred', 'errors', 'tickets', 'notes', 'views', 'history')
-                   + ['plans' => self::PLANS], $b['name']);
+                   + ['plans' => OPS_PLAN_STATES], $b['name']);
     }
 
     public function plan(string $id): void
@@ -132,9 +130,21 @@ class OpsClientsController
 
         switch ($action) {
             case 'activate':
-                $this->db->prepare("UPDATE subscriptions SET status = 'active', current_period_start = NOW(), current_period_end = DATE_ADD(NOW(), INTERVAL 1 MONTH),
-                                    grace_ends_at = NULL, cancelled_at = NULL WHERE business_id = ?")->execute([$b['id']]);
-                $end = $field('current_period_end');
+                // A month on the house (or paid some other way): it starts
+                // when the current paid month ends, like a payment
+                $stmt = $this->db->prepare("SELECT monthly_amount, extra_seats FROM subscriptions WHERE business_id = ?");
+                $stmt->execute([$b['id']]);
+                $sub = $stmt->fetch() ?: ['monthly_amount' => 0, 'extra_seats' => 0];
+                $prices = billing_prices($this->db, (int)$b['id']);
+                $amount = (float)$sub['monthly_amount'] > 0 ? (float)$sub['monthly_amount'] : $prices['monthly'] + (int)$sub['extra_seats'] * $prices['seat'];
+                $this->db->beginTransaction();
+                try {
+                    [, $end] = billing_start_month($this->db, (int)$b['id'], $amount, (int)$sub['extra_seats'], null, 'manual', 'OPS_' . time());
+                    $this->db->commit();
+                } catch (Throwable $e) {
+                    $this->db->rollBack();
+                    throw $e;
+                }
                 notify('billing.activated', (int)$b['id'], ['period_end' => $end], ['dedupe' => 'activated:' . $end]);
                 $said = 'Activated for a month, to ' . date('j M Y', strtotime((string)$end)) . '.';
                 break;
@@ -152,6 +162,8 @@ class OpsClientsController
                     ops_flash('error', 'Say why it is being suspended (the team sees this in the audit log).');
                     ops_redirect('clients/' . $b['id'] . '#plan');
                 }
+                require_once BASE_PATH . '/app/controllers/PaystackController.php';
+                PaystackController::stop_card_renewals($this->db, (int)$b['id']);   // an old card plan would charge them anyway
                 $this->db->prepare("UPDATE subscriptions SET status = 'suspended' WHERE business_id = ?")->execute([$b['id']]);
                 notify('billing.suspended', (int)$b['id'], [], ['dedupe' => 'suspended:' . date('Y-m-d H')]);
                 $said = 'Suspended: ' . $reason;
@@ -226,7 +238,7 @@ class OpsClientsController
     private function client(int $id): array
     {
         $stmt = $this->db->prepare("
-            SELECT b.*, s.status AS plan_status, s.plan, s.trial_ends_at, s.current_period_start, s.current_period_end, s.grace_ends_at,
+            SELECT b.*, s.status AS plan_status, s.plan, s.trial_ends_at, s.current_period_start, s.current_period_end, s.grace_ends_at, s.expiry_exempt,
                    s.monthly_amount, s.extra_seats, s.user_seats, s.payment_method, s.cancelled_at, s.cancel_reason, s.paystack_subscription_code,
                    c.name AS country, c.flag_emoji, c.currency_symbol AS country_currency
             FROM businesses b LEFT JOIN subscriptions s ON s.business_id = b.id LEFT JOIN countries c ON c.id = b.country_id

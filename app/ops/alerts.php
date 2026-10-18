@@ -16,6 +16,8 @@ require_once __DIR__ . '/ops.php';
 /**
  * One alert to everyone it concerns. $dedupe makes it once per person
  * (the same problem coming back the same day is one alert). Never throws.
+ *   $opts: permission (who hears, default errors), push (default true),
+ *          email (also by email, for what can't wait: a payment to check)
  */
 function ops_alert(PDO $db, string $kind, string $title, string $body, string $url, string $dedupe, array $opts = []): int
 {
@@ -23,9 +25,10 @@ function ops_alert(PDO $db, string $kind, string $title, string $body, string $u
     try {
         $permission = $opts['permission'] ?? 'errors';
         $push       = (bool)($opts['push'] ?? true);
+        $email      = (bool)($opts['email'] ?? false);
         $roles = array_keys(array_filter(OPS_PERMISSIONS, fn($p) => in_array('*', $p, true) || in_array($permission, $p, true)));
         $in    = implode(',', array_fill(0, count($roles), '?'));
-        $stmt  = $db->prepare("SELECT id, alert_push FROM ops_staff WHERE is_active = 1 AND password_hash IS NOT NULL AND role IN ({$in})");
+        $stmt  = $db->prepare("SELECT id, full_name, email, alert_push FROM ops_staff WHERE is_active = 1 AND password_hash IS NOT NULL AND role IN ({$in})");
         $stmt->execute($roles);
         $add = $db->prepare("INSERT IGNORE INTO ops_alerts (staff_id, kind, title, body, url, dedupe_key) VALUES (?, ?, ?, ?, ?, ?)");
         foreach ($stmt->fetchAll() as $person) {
@@ -34,8 +37,14 @@ function ops_alert(PDO $db, string $kind, string $title, string $body, string $u
                 continue;
             }
             $told++;
+            $alert_id = (int)$db->lastInsertId();
+            if ($email) {
+                notify_email(null, (string)$person['email'], (string)$person['full_name'], 'Urgent: ' . $title, 'ops_message', [
+                    'headline' => $title, 'message' => $body, 'button' => 'Open it in Nfelia Ops', 'url' => ops_url('alerts/open/' . $alert_id),
+                    'note' => 'You get this because your Ops role includes it.',
+                ], 'ops-alert:' . $alert_id, 'ops.' . $kind);
+            }
             if ($push && (int)$person['alert_push']) {
-                $alert_id = (int)$db->lastInsertId();
                 notify_queue($db, [
                     'staff_id' => (int)$person['id'], 'event' => 'ops.' . $kind, 'channel' => 'push', 'urgency' => 'high', 'ttl' => 6 * 3600,
                     'payload'  => ['title' => $title, 'body' => $body, 'url' => ops_url('alerts/open/' . $alert_id), 'tag' => 'ops-' . $kind . '-' . md5($dedupe)],

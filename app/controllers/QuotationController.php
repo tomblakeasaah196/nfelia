@@ -235,8 +235,8 @@ class QuotationController {
         if (!$quotation) { not_found(); return; }
 
         // Customer
-        $stmtCust = $this->db->prepare("SELECT * FROM customers WHERE id = ?");
-        $stmtCust->execute([$quotation['customer_id']]);
+        $stmtCust = $this->db->prepare("SELECT * FROM customers WHERE id = ? AND business_id = ?");
+        $stmtCust->execute([$quotation['customer_id'], $this->biz_id]);
         $customer = $stmtCust->fetch();
 
         // Items
@@ -621,7 +621,12 @@ public function update_status($id = null) {
 
         // Validate
         $errors = [];
-        if ($customer_id <= 0) $errors[] = 'Please select a client.';
+        if ($customer_id <= 0 || !owned_by_business($this->db, 'customers', $customer_id, $this->biz_id)) {
+            $errors[] = 'Please select a client.';
+        }
+        if ($bank_id && !owned_by_business($this->db, 'bank_accounts', $bank_id, $this->biz_id)) {
+            $errors[] = 'Please pick one of your bank accounts.';
+        }
         if (empty($item_descs) || count(array_filter($item_descs, 'trim')) === 0) {
             $errors[] = 'At least one line item is required.';
         }
@@ -638,21 +643,6 @@ public function update_status($id = null) {
             require_once BASE_PATH . '/views/layouts/app.php';
             return;
         }
-        
-        // --- IDOR PROTECTION: Verify foreign keys belong to the active business ---
-        $stmtCheck = $this->db->prepare("SELECT id FROM customers WHERE id = ? AND business_id = ?");
-        $stmtCheck->execute([$customer_id, $this->biz_id]);
-        if (!$stmtCheck->fetchColumn()) {
-            $errors[] = 'Invalid client selected.';
-        }
-        
-        if ($bank_id) {
-            $stmtBank = $this->db->prepare("SELECT id FROM bank_accounts WHERE id = ? AND business_id = ?");
-            $stmtBank->execute([$bank_id, $this->biz_id]);
-            if (!$stmtBank->fetchColumn()) {
-                $errors[] = 'Invalid bank account selected.';
-            }
-        }
 
         // Calculate totals
         $subtotal = 0;
@@ -665,6 +655,7 @@ public function update_status($id = null) {
             $price     = max(0, (float)($item_prices[$i] ?? 0));
             $disc_pct  = max(0, min(100, (float)($item_discounts[$i] ?? 0)));
             $prod_id   = (int)($item_products[$i] ?? 0) ?: null;
+            if ($prod_id && !owned_by_business($this->db, 'products', $prod_id, $this->biz_id)) $prod_id = null;
 
             $line_total = $qty * $price;
             $disc_amt   = round($line_total * $disc_pct / 100, 2);

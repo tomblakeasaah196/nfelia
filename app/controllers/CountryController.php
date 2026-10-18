@@ -14,7 +14,6 @@
 class CountryController {
 
     private $db;
-    private const FOUNDER_BUSINESS_ID = 1;
 
     public function __construct() {
         if (!is_logged_in()) { redirect('login'); }
@@ -32,7 +31,7 @@ class CountryController {
     public function toggle() { $this->moved(); }
 
     private function moved(): never {
-        if ((int)auth_business_id() !== self::FOUNDER_BUSINESS_ID) {
+        if ((int)auth_business_id() !== FOUNDER_BUSINESS_ID) {
             redirect('dashboard');
         }
         header('Location: ' . ops_url('countries'), true, 301);
@@ -74,7 +73,7 @@ class CountryController {
     public static function get_active_countries(PDO $db): array {
         $stmt = $db->query("
             SELECT id, name, iso_code, flag_emoji, currency_name, currency_code, currency_symbol,
-                   payment_method, monthly_price, extra_seat_price
+                   payment_method, monthly_price, extra_seat_price, trial_days
             FROM countries WHERE is_active = 1 ORDER BY name ASC
         ");
         return $stmt->fetchAll();

@@ -284,10 +284,10 @@ $sign = (string)q("SELECT signoff_token FROM deliveries WHERE id = 600");
 $tok = (string)q("SELECT token FROM deliveries WHERE id = 600");
 $cust->get("sign/{$sign}");
 if ($cust->status !== 200) { $cust->get("sign/{$tok}"); $sign = $tok; }
-$cust->post("sign/{$sign}", ['signoff_name' => 'Ngozi Eze', 'signature_data' => 'data:image/png;base64,iVBORw0KGgo=']);
+$cust->post("sign/{$sign}", ['signoff_name' => 'Ngozi Eze', 'signature_data' => 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAACXBIWXMAAA7EAAAOxAGVKw4bAAAADElEQVQImWNgYGAAAAAEAAGjChXjAAAAAElFTkSuQmCC']);
 expect('delivery.signed', [ADA, BISI], 'deliveries/view/600');
 eq(latest(ADA, 'delivery.signed')['message'] ?? null, 'Received and signed by Ngozi Eze.', 'who signed');
-$cust->post("sign/{$sign}", ['signoff_name' => 'Ngozi Eze', 'signature_data' => 'data:image/png;base64,iVBORw0KGgo=']);
+$cust->post("sign/{$sign}", ['signoff_name' => 'Ngozi Eze', 'signature_data' => 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAACXBIWXMAAA7EAAAOxAGVKw4bAAAADElEQVQImWNgYGAAAAAEAAGjChXjAAAAAElFTkSuQmCC']);
 eq(count(rows("SELECT id FROM notifications WHERE event = 'delivery.signed'")), 2, 'signing twice tells nobody twice');
 opens(ADA, 'delivery.signed', 'deliveries/view/600', 'ADA-DN-0600');
 
@@ -456,6 +456,29 @@ eq(latest(ADA, 'referral.rewarded')['message'] ?? null, 'Kola Prints joined and 
 $bad = new Http();
 $bad->send('POST', 'api/webhooks', json_encode($paid), ['Content-Type: application/json', 'X-Paystack-Signature: forged']);
 eq($bad->status, 401, 'an unsigned webhook is refused');
+
+section('Paystack: a month at a time, with the staff it covers (app/helpers/billing.php)');
+clean_slate();
+fixture_subscription(2, ['status' => 'active', 'paystack_subscription_code' => null, 'extra_seats' => 2, 'current_period_end' => date('Y-m-d', strtotime('+5 days'))]);
+$end_before = substr((string)q("SELECT current_period_end FROM subscriptions WHERE business_id = 2"), 0, 10);
+$month = ['event' => 'charge.success', 'data' => ['reference' => 'REF-MONTH', 'amount' => 1500000, 'currency' => 'NGN', 'status' => 'success',
+          'metadata' => ['business_id' => 2, 'kind' => 'month', 'amount' => 1500000, 'currency' => 'NGN', 'extra_seats' => 1, 'covered' => [21]],
+          'customer' => ['email' => EMAIL[ADA], 'customer_code' => 'CUS_ada']]];
+$hook($month);
+$sub = rows("SELECT * FROM subscriptions WHERE business_id = 2")[0];
+eq([substr($sub['current_period_start'], 0, 10), substr($sub['current_period_end'], 0, 10)], [$end_before, billing_add_month($end_before)], 'paying early adds a month after the one already paid');
+eq([(int)q("SELECT is_active FROM users WHERE id = 21"), (int)q("SELECT is_active FROM users WHERE id = 22")], [1, 0], 'the staff she ticked stay, the rest are switched off');
+ok(str_starts_with(latest(ADA, 'billing.paid')['message'] ?? '', '₦15,000 received. You’re covered until ' . date('j M Y', strtotime(billing_add_month($end_before)))), 'Ada is told until when');
+$hook($month);
+eq(substr((string)q("SELECT current_period_end FROM subscriptions WHERE business_id = 2"), 0, 10), billing_add_month($end_before), 'the same payment again changes nothing');
+$short = $month;
+$short['data']['reference'] = 'REF-SHORT';
+$short['data']['amount'] = 100000;
+$hook($short);
+eq(count(bell(ADA, 'billing.paid')), 1, 'a payment for less than was asked is not applied');
+eq((int)q("SELECT COUNT(*) FROM subscription_history WHERE paystack_reference = 'REF-SHORT'"), 0, 'nor recorded as paid');
+exec_sql("UPDATE users SET is_active = 1 WHERE id = 22");
+fixture_subscription(2, ['extra_seats' => 0]);
 
 require __DIR__ . '/flows_shop.php';
 

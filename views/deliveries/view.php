@@ -204,7 +204,7 @@ $public_url  = APP_URL . '/delivery/' . $delivery['token'];
                 <?php endif; ?>
                 <div>
                     <div class="text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">Provider</div>
-                    <div class="text-xs font-semibold text-brand-plum"><?= $delivery['provider'] ? ($providers[$delivery['provider']] ?? ucfirst($delivery['provider'])) : '<span class="text-brand-plum/30">Not set</span>' ?></div>
+                    <div class="text-xs font-semibold text-brand-plum"><?= $delivery['provider'] ? ($providers[$delivery['provider']] ?? e(ucfirst($delivery['provider']))) : '<span class="text-brand-plum/30">Not set</span>' ?></div>
                 </div>
                 <div>
                     <div class="text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">Estimated Delivery</div>
@@ -311,7 +311,7 @@ $public_url  = APP_URL . '/delivery/' . $delivery['token'];
                 <div class="sm:col-span-2">
                     <div class="text-[9px] font-bold text-purple-500 uppercase tracking-widest mb-2">Signature</div>
                     <div class="bg-white rounded-lg border border-purple-200 p-3 inline-block">
-                        <img src="<?= APP_URL . '/' . e($delivery['signoff_signature_path']) ?>" alt="Signature" class="max-h-20">
+                        <img src="<?= APP_URL . '/deliveries/signature/' . (int)$delivery['id'] ?>" alt="Signature" class="max-h-20">
                     </div>
                 </div>
                 <?php endif; ?>

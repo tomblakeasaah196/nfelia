@@ -58,7 +58,8 @@ class OpsAlertsController
         $endpoint = (string)($in['endpoint'] ?? '');
         $p256dh   = (string)($in['keys']['p256dh'] ?? '');
         $auth     = (string)($in['keys']['auth'] ?? '');
-        if (!preg_match('#^https://#', $endpoint) && !(ops_passkey_plain_http() && str_starts_with($endpoint, 'http://127.0.0.1'))) {
+        // Only real browser push services, as for the app (app/helpers/webpush.php)
+        if (!push_endpoint_allowed($endpoint)) {
             ops_json(['ok' => false, 'message' => 'This browser gave an address phone alerts cannot use.'], 400);
         }
         if ($p256dh === '' || $auth === '' || strlen($endpoint) > 2000) {
@@ -68,6 +69,10 @@ class OpsAlertsController
             INSERT INTO ops_push_subscriptions (staff_id, endpoint, endpoint_hash, p256dh, auth) VALUES (?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE staff_id = VALUES(staff_id), p256dh = VALUES(p256dh), auth = VALUES(auth), failures = 0
         ")->execute([$this->me['id'], $endpoint, hash('sha256', $endpoint), $p256dh, $auth]);
+        // At most PUSH_MAX_DEVICES each: the oldest go first
+        $this->db->prepare("DELETE FROM ops_push_subscriptions WHERE staff_id = ? AND id NOT IN (
+                                SELECT id FROM (SELECT id FROM ops_push_subscriptions WHERE staff_id = ? ORDER BY id DESC LIMIT " . PUSH_MAX_DEVICES . ") newest)")
+           ->execute([$this->me['id'], $this->me['id']]);
         ops_audit('alerts.device', 'Turned on alerts on a device (' . passkey_device_name((string)($_SERVER['HTTP_USER_AGENT'] ?? '')) . ')');
         ops_json(['ok' => true]);
     }

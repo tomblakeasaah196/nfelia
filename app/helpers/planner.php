@@ -817,11 +817,15 @@ function planner_reminder_when(array $it, string $today): string {
  */
 function planner_business_can_use(array $b, DateTimeImmutable $now): bool {
     if (empty($b['is_active'])) return false;
-    if (($b['sub_status'] ?? null) === null) return true;   // no subscription row yet: a brand-new trial
-    return subscription_open([
-        'status' => $b['sub_status'], 'trial_ends_at' => $b['trial_ends_at'] ?? null,
-        'current_period_end' => $b['current_period_end'] ?? null, 'grace_ends_at' => $b['grace_ends_at'] ?? null,
-    ], $now);
+    if (empty($b['sub_status'])) return true;
+    require_once __DIR__ . '/billing.php';
+    return billing_access([
+        'status'             => $b['sub_status'],
+        'trial_ends_at'      => $b['trial_ends_at'] ?? null,
+        'current_period_end' => $b['current_period_end'] ?? null,
+        'grace_ends_at'      => $b['grace_ends_at'] ?? null,
+        'expiry_exempt'      => $b['expiry_exempt'] ?? 0,
+    ], $now->format('Y-m-d')) !== 'locked';
 }
 
 /** White or ink text, whichever reads better on a business's own colour. */

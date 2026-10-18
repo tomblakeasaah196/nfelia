@@ -77,6 +77,16 @@ class OnboardingController {
                     $this->biz_id
                 ]);
 
+                // The free trial lasts as long as the chosen country's trial,
+                // counted from sign-up
+                if ($selected_country && (int)($selected_country['trial_days'] ?? 0) > 0) {
+                    $this->db->prepare("
+                        UPDATE subscriptions s JOIN businesses b ON b.id = s.business_id
+                        SET s.trial_ends_at = DATE_ADD(DATE(b.created_at), INTERVAL ? DAY)
+                        WHERE s.business_id = ? AND s.status = 'trial'
+                    ")->execute([(int)$selected_country['trial_days'], $this->biz_id]);
+                }
+
                 // Push country + currency into the live session
                 $session_updates = [
                     'onboarding_step' => 2,

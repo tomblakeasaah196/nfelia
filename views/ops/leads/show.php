@@ -93,7 +93,7 @@ $fu = $l['next_follow_up_at'] ? date('Y-m-d\TH:i', strtotime($l['next_follow_up_
         <?php if ($client): ?>
         <section class="ops-card"><div class="ops-card-body">
             <h2>Their Nfelia</h2>
-            <p><a href="<?= e(ops_url('clients/' . (int)$client['id'])) ?>"><?= e($client['name']) ?></a> <?= ops_plan_chip($client['plan_status']) ?></p>
+            <p><a href="<?= e(ops_url('clients/' . (int)$client['id'])) ?>"><?= e($client['name']) ?></a> <?= ops_plan_chip($client) ?></p>
             <?php if ($client['plan_status'] === 'trial' && $client['trial_ends_at']): ?><p class="small muted">Trial ends <?= e(date('j M', strtotime($client['trial_ends_at']))) ?>.</p><?php endif; ?>
         </div></section>
         <?php endif; ?>

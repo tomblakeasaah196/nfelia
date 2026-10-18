@@ -299,20 +299,21 @@ foreach ([
     eq(notify_safe_path($in), $want, var_export($in, true));
 }
 
-section('Who may use Nfelia today (one rule for the app, the shop and the cron)');
-$tz = planner_tz();
-$at = fn($s) => new DateTimeImmutable($s, $tz);
+section('Who may use Nfelia today (one rule for the app, the shop and the cron: billing_access)');
 foreach ([
-    ['trial, its last day', ['status' => 'trial', 'trial_ends_at' => '2026-10-20'], '2026-10-20 23:00', true],
-    ['trial, the day after', ['status' => 'trial', 'trial_ends_at' => '2026-10-19'], '2026-10-20 00:30', false],
-    ['cancelled, paid time left', ['status' => 'cancelled', 'current_period_end' => '2026-10-25'], '2026-10-25 22:00', true],
-    ['cancelled, paid time used', ['status' => 'cancelled', 'current_period_end' => '2026-10-25'], '2026-10-26 08:00', false],
-    ['past due, within the 3 days', ['status' => 'past_due', 'grace_ends_at' => '2026-10-23 10:00:00'], '2026-10-23 09:00', true],
-    ['past due, after', ['status' => 'past_due', 'grace_ends_at' => '2026-10-23 10:00:00'], '2026-10-23 11:00', false],
-    ['suspended', ['status' => 'suspended'], '2026-10-20 08:00', false],
-    ['being checked', ['status' => 'pending_verification'], '2026-10-20 08:00', true],
-] as [$name, $sub, $when, $want]) {
-    eq(subscription_open($sub, $at($when)), $want, $name);
+    ['trial, its last day', ['status' => 'trial', 'trial_ends_at' => '2026-10-20'], '2026-10-20', 'trial'],
+    ['trial, the day after', ['status' => 'trial', 'trial_ends_at' => '2026-10-19'], '2026-10-20', 'locked'],
+    ['a paid month, its last day', ['status' => 'active', 'current_period_end' => '2026-10-20'], '2026-10-20', 'paid'],
+    ['a paid month ended, within the grace days', ['status' => 'active', 'current_period_end' => '2026-10-20'], '2026-10-23', 'grace'],
+    ['a paid month ended, grace over', ['status' => 'active', 'current_period_end' => '2026-10-20'], '2026-10-24', 'locked'],
+    ['already past its date when months began to expire', ['status' => 'active', 'current_period_end' => '2026-09-01', 'expiry_exempt' => 1], '2026-10-24', 'paid'],
+    ['cancelled, paid time left', ['status' => 'cancelled', 'current_period_end' => '2026-10-25'], '2026-10-25', 'paid'],
+    ['cancelled, paid time used', ['status' => 'cancelled', 'current_period_end' => '2026-10-25'], '2026-10-26', 'locked'],
+    ['a failed card payment, within its grace', ['status' => 'past_due', 'grace_ends_at' => '2026-10-23 10:00:00'], '2026-10-23', 'grace'],
+    ['a failed card payment, after', ['status' => 'past_due', 'grace_ends_at' => '2026-10-23 10:00:00'], '2026-10-24', 'locked'],
+    ['suspended', ['status' => 'suspended'], '2026-10-20', 'locked'],
+] as [$name, $sub, $day, $want]) {
+    eq(billing_access($sub, $day), $want, $name);
 }
 eq(shop_visibility(['status' => 'cancelled', 'current_period_end' => date('Y-m-d', strtotime('+3 days'))]), 'live', 'a cancelled shop stays open while paid for');
 eq(shop_visibility(['status' => 'cancelled', 'current_period_end' => '2020-01-01']), 'closed', 'and closes after');

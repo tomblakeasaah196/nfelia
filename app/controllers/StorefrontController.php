@@ -446,8 +446,9 @@ class StorefrontController extends PublicController
         if (($problem = $this->contact_problem($name, $phone, $email)) !== null) {
             json_response(['error' => $problem], 422);
         }
-        $stmt = $this->db->prepare("SELECT COUNT(*) FROM bookings WHERE business_id = ? AND customer_phone = ? AND created_at >= CURDATE()");
-        $stmt->execute([$bid, $phone]);
+        $this->public_form_guard('booking', $bid, $email);
+        $stmt = $this->db->prepare("SELECT COUNT(*) FROM bookings WHERE business_id = ? AND REGEXP_REPLACE(customer_phone, '[^0-9]', '') = ? AND created_at >= CURDATE()");
+        $stmt->execute([$bid, preg_replace('/\D/', '', $phone)]);
         if ((int)$stmt->fetchColumn() >= 5) {
             json_response(['error' => 'Too many bookings today. Please try again tomorrow, or ask on WhatsApp.'], 429);
         }
@@ -458,15 +459,18 @@ class StorefrontController extends PublicController
         $method  = $channel === 'site' && isset($banks[$bank_id]) ? 'bank_transfer' : 'none';
         $proof   = null;
         if ($method === 'bank_transfer' && !empty($_FILES['payment_proof']['tmp_name'])) {
-            $dir = BASE_PATH . '/uploads/booking_proofs/' . $bid;
-            if (!is_dir($dir)) {
-                mkdir($dir, 0755, true);
-            }
-            $file = time() . '_' . bin2hex(random_bytes(4)) . '.png';
-            if (save_image($_FILES['payment_proof'], $dir . '/' . $file, 1200)) {
-                $proof = 'uploads/booking_proofs/' . $bid . '/' . $file;
+            // Private: only the shop sees it (BookingController::proof)
+            $file = bin2hex(random_bytes(16)) . '.jpg';
+            if (save_image($_FILES['payment_proof'], private_file_dir('booking_proofs', $bid) . '/' . $file, 1200, 'jpg')) {
+                $proof = 'storage/private/booking_proofs/' . $bid . '/' . $file;
             }
         }
+        // A booking that doesn't go through leaves no file behind
+        $drop_proof = function () use (&$proof) {
+            if ($proof) {
+                @unlink(BASE_PATH . '/' . $proof);
+            }
+        };
 
         $this->db->beginTransaction();
         try {
@@ -475,6 +479,7 @@ class StorefrontController extends PublicController
             $slot = booking_check($this->db, $business, $item, $info, $_POST);
             if (!$slot['ok']) {
                 $this->db->rollBack();
+                $drop_proof();
                 json_response(['error' => $slot['error']], 409);
             }
             $total   = round($item['price'] * $slot['units'], 2);
@@ -509,6 +514,7 @@ class StorefrontController extends PublicController
             if ($this->db->inTransaction()) {
                 $this->db->rollBack();
             }
+            $drop_proof();
             error_log('Booking failed: ' . $e->getMessage());
             json_response(['error' => 'We couldn\'t send your booking just now. Please try again, or book on WhatsApp.'], 500);
         }
@@ -523,7 +529,7 @@ class StorefrontController extends PublicController
         ], ['business' => $business, 'dedupe' => (string)$booking_id]);
         if ($email !== '' && $url) {
             $symbol = (string)($business['currency_symbol'] ?? '');
-            $vars = ['state' => 'received', 'first_name' => preg_split('/\s+/u', $name)[0], 'shop_name' => (string)$business['name'],
+            $vars = ['state' => 'received', 'first_name' => mail_first_name($name), 'shop_name' => (string)$business['name'],
                      'booking_number' => $number, 'service' => $item['name'], 'when' => $when, 'booking_url' => $url,
                      'total' => sf_money($total, $symbol), 'deposit' => $deposit > 0 ? sf_money($deposit, $symbol) : '', 'message' => ''];
             notify_email($bid, $email, $name, 'Your booking ' . $number . ' with ' . $business['name'], 'booking_update', $vars,
@@ -581,8 +587,7 @@ class StorefrontController extends PublicController
     private function subscription(int $business_id): ?array
     {
         $stmt = $this->db->prepare("
-            SELECT status, trial_ends_at, current_period_end, grace_ends_at, last_payment_date
-            FROM subscriptions WHERE business_id = ?
+            SELECT * FROM subscriptions WHERE business_id = ?
         ");
         $stmt->execute([$business_id]);
         return $stmt->fetch() ?: null;

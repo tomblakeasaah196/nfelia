@@ -207,7 +207,8 @@ function ops_campaign_people(PDO $db, array $audience): array
         $where = match ($group) {
             'trial_ending' => "s.status = 'trial' AND s.trial_ends_at BETWEEN CURDATE() AND CURDATE() + INTERVAL 7 DAY",
             'stalled'      => "b.onboarding_complete = 0",
-            default        => "s.status = " . $db->quote($group),
+            'past_due'     => "(" . ops_plan_sql('due') . " OR " . ops_plan_sql('paused') . ")",   // in their grace days, or paused unpaid
+            default        => ops_plan_sql($group),
         };
         foreach ($db->query("SELECT b.id, b.name, u.full_name, u.email FROM businesses b
                              JOIN users u ON u.business_id = b.id AND u.role = 'owner' AND u.is_active = 1

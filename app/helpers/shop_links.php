@@ -305,25 +305,28 @@ function shop_find_by_name(string $name): ?array {
 /**
  * Whether a shop is open to everyone, open but kept out of search engines, or
  * closed, from its row in subscriptions (null when it has none):
- *   'live'     paying, so indexed normally
- *   'unlisted' on trial, or a first payment still being checked: anyone with
- *              the link can shop, but search engines are told to skip it
- *   'closed'   trial over, grace period over, suspended or cancelled
- * The moments match subscription_check.php, which locks the owner out of the
- * app at the same points.
+ *   'live'     paying (or in the few days' grace after a paid month), so
+ *              indexed normally
+ *   'unlisted' on trial: anyone with the link can shop, but search engines
+ *              are told to skip it
+ *   'closed'   trial over, grace over, or suspended
+ * billing_access() (app/helpers/billing.php) decides, the same answer that
+ * locks the owner out of the app, so both close on the same day.
  */
 function shop_visibility(?array $subscription): string {
     if (!$subscription) {
         return 'unlisted';
     }
-    if (!subscription_open($subscription)) {
-        return 'closed';   // trial over, grace period over, suspended, or a cancelled plan's paid time used up
+    require_once __DIR__ . '/billing.php';
+    switch (billing_access($subscription)) {
+        case 'paid':
+        case 'grace':
+            return 'live';
+        case 'trial':
+            return 'unlisted';
+        default:
+            return 'closed';
     }
-    return match ($subscription['status']) {
-        'trial'                => 'unlisted',
-        'pending_verification' => !empty($subscription['last_payment_date']) ? 'live' : 'unlisted',
-        default                => 'live',   // active, past_due in its grace days, cancelled with paid time left
-    };
 }
 
 /**

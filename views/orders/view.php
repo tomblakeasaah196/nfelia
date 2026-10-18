@@ -90,8 +90,8 @@ $can_advance = in_array($order['status'], ['approved', 'processing']);
                 <div>
                     <span class="text-brand-plum/40 text-xs font-bold uppercase tracking-wider">Proof of Payment</span>
                     <div class="mt-2">
-                        <a href="<?= APP_URL ?>/<?= e($order['payment_proof_path']) ?>" target="_blank" class="inline-block rounded-xl overflow-hidden border border-brand-sand hover:border-brand-gold transition-colors">
-                            <img src="<?= APP_URL ?>/<?= e($order['payment_proof_path']) ?>" alt="Payment proof" class="max-w-xs max-h-48 object-contain">
+                        <a href="<?= APP_URL ?>/orders/proof/<?= (int)$order['id'] ?>" target="_blank" class="inline-block rounded-xl overflow-hidden border border-brand-sand hover:border-brand-gold transition-colors">
+                            <img src="<?= APP_URL ?>/orders/proof/<?= (int)$order['id'] ?>" alt="Payment proof" class="max-w-xs max-h-48 object-contain">
                         </a>
                     </div>
                 </div>

@@ -12,7 +12,7 @@ $day    = fn(?string $d) => $d ? date('j M Y', strtotime($d)) : '—';
 <p class="ops-back"><a href="<?= e(ops_url('clients')) ?>">← Clients</a></p>
 <div class="ops-head">
     <div class="ops-head-main">
-        <div class="ops-chips-row"><?= ops_plan_chip($b['plan_status']) ?>
+        <div class="ops-chips-row"><?= ops_plan_chip($b) ?>
             <?php if ($b['country']): ?><span class="ops-chip"><?= e(trim(($b['flag_emoji'] ?? '') . ' ' . $b['country'])) ?></span><?php endif; ?>
             <?php if (!(int)$b['is_active']): ?><span class="ops-chip ops-chip-bad">Closed</span><?php endif; ?>
             <span class="ops-chip ops-chip-muted">#<?= (int)$b['id'] ?></span></div>
@@ -31,9 +31,9 @@ $day    = fn(?string $d) => $d ? date('j M Y', strtotime($d)) : '—';
         <section class="ops-card" id="plan"><div class="ops-card-body">
             <h2>Plan and payments</h2>
             <dl class="ops-facts">
-                <dt>Plan</dt><dd><?= e($plans[$b['plan_status']] ?? 'No plan') ?><?= $b['payment_method'] ? ' · ' . e($b['payment_method'] === 'paystack' ? 'card (Paystack)' : str_replace('_', ' ', $b['payment_method'])) : '' ?></dd>
+                <dt>Plan</dt><dd><?= e($plans[ops_plan_state($b)] ?? 'No plan') ?><?= $b['payment_method'] ? ' · ' . e($b['payment_method'] === 'paystack' ? 'card (Paystack)' : str_replace('_', ' ', $b['payment_method'])) : '' ?></dd>
                 <?php if ($b['plan_status'] === 'trial'): ?><dt>Trial ends</dt><dd><?= e($day($b['trial_ends_at'])) ?></dd><?php endif; ?>
-                <?php if ($b['current_period_end']): ?><dt>Paid to</dt><dd><?= e($day($b['current_period_end'])) ?><?= $b['grace_ends_at'] && $b['plan_status'] === 'past_due' ? ', 3 extra days to ' . e($day($b['grace_ends_at'])) : '' ?></dd><?php endif; ?>
+                <?php if ($b['current_period_end']): ?><dt>Paid to</dt><dd><?= e($day($b['current_period_end'])) ?><?= ops_plan_state($b) === 'due' ? ', ' . BILLING_GRACE_DAYS . ' extra days to ' . e($day($b['plan_status'] === 'past_due' && $b['grace_ends_at'] ? $b['grace_ends_at'] : billing_add_days((string)$b['current_period_end'], BILLING_GRACE_DAYS))) : '' ?><?= (int)($b['expiry_exempt'] ?? 0) ? ' (left as it was when paid months started to expire)' : '' ?></dd><?php endif; ?>
                 <?php if ($b['monthly_amount']): ?><dt>Monthly</dt><dd class="num"><?= e(($b['country_currency'] ?: '₦') . number_format((float)$b['monthly_amount'])) ?><?= (int)$b['extra_seats'] ? ' + ' . (int)$b['extra_seats'] . ' extra seat' . ((int)$b['extra_seats'] === 1 ? '' : 's') : '' ?></dd><?php endif; ?>
                 <?php if ($b['cancelled_at']): ?><dt>Cancelled</dt><dd><?= e($day($b['cancelled_at'])) ?><?= $b['cancel_reason'] ? ': ' . e($b['cancel_reason']) : '' ?></dd><?php endif; ?>
             </dl>
@@ -123,7 +123,7 @@ $day    = fn(?string $d) => $d ? date('j M Y', strtotime($d)) : '—';
         <section class="ops-card"><div class="ops-card-body">
             <h2>Change the plan</h2>
             <div class="ops-stack">
-                <form method="post" action="<?= e(ops_url('clients/' . (int)$b['id'] . '/plan')) ?>" data-ops-confirm="Activate <?= e($b['name']) ?> for a month from today? They are told.">
+                <form method="post" action="<?= e(ops_url('clients/' . (int)$b['id'] . '/plan')) ?>" data-ops-confirm="Give <?= e($b['name']) ?> a month? It starts when their paid month ends (today if it has), like a payment. They are told.">
                     <?= ops_csrf_field() ?><input type="hidden" name="action" value="activate">
                     <button class="ops-btn ops-btn-secondary ops-btn-block" type="submit">Activate for a month</button>
                 </form>

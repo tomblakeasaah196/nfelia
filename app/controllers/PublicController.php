@@ -84,28 +84,40 @@ class PublicController
             );
         }
         $action = $_POST["action"] ?? "";
-        $client_ip =
-            $_SERVER[
-                "REMOTE_ADDR"
-            ]; /* Vital for non-repudiation of signatures */
-        // A quote can be answered while it is open. Once accepted, declined,
-        // expired or turned into an invoice, signing or declining again would
-        // undo the business's records, so it is refused.
-        $open = in_array($quotation["status"], ["sent", "in_negotiation", "pending_signature"], true);
-        if (in_array($action, ["sign", "decline"], true) && !$open) {
-            json_response(["success" => false, "error" => "This quote has already been answered or has expired. Ask the business for a new one."], 409);
+        $client_ip = client_ip(); /* Vital for non-repudiation of signatures */
+        /* The client can answer a quote only while it is open: not once it is
+           accepted, declined, expired or turned into an invoice. */
+        $open = ["draft", "sent", "in_negotiation", "pending_signature"];
+        if (!in_array($quotation["status"], $open, true)) {
+            json_response(
+                [
+                    "success" => false,
+                    "error" => "This quotation has already been answered. Ask the business if anything needs to change.",
+                ],
+                409,
+            );
         }
-        if ($action === "comment" && !throttle_allows("quote_comment", (string)$quotation["id"], 20, 60)) {
-            json_response(["success" => false, "error" => "Too many messages at once. Please wait a little, or call the business."], 429);
+        if (
+            !throttle_allows("quote_action_ip", $client_ip, 30, 60) ||
+            !throttle_allows("quote_action", (string) $quotation["id"], 20, 60)
+        ) {
+            json_response(
+                [
+                    "success" => false,
+                    "error" => "Too many messages for now. Please try again in an hour, or call the business.",
+                ],
+                429,
+            );
         }
+        $guard = " AND status IN ('draft','sent','in_negotiation','pending_signature')";
         $tell = null;   // the alert for the business, sent once this is saved
-        $stmtC = $db->prepare("SELECT full_name FROM customers WHERE id = ?");
-        $stmtC->execute([(int)$quotation["customer_id"]]);
+        $stmtC = $db->prepare("SELECT full_name FROM customers WHERE id = ? AND business_id = ?");
+        $stmtC->execute([(int)$quotation["customer_id"], (int)$quotation["business_id"]]);
         $customer_name = trim((string)$stmtC->fetchColumn()) ?: "Your customer";
         try {
             $db->beginTransaction();
             if ($action === "comment") {
-                $message = trim($_POST["message"] ?? "");
+                $message = mb_substr(trim($_POST["message"] ?? ""), 0, 2000);
                 if (!$message) {
                     throw new Exception("Message is required.");
                 } /* Log activity */
@@ -120,12 +132,12 @@ class PublicController
                     $client_ip,
                 ]); /* Shift state */
                 $comment_id = $db->lastInsertId();
-                if ($open) {
-                    $db->prepare(
-                        "UPDATE quotations SET status = 'in_negotiation' WHERE id = ?",
-                    )->execute([
-                        $quotation["id"],
-                    ]);
+                $stmtState = $db->prepare(
+                    "UPDATE quotations SET status = 'in_negotiation' WHERE id = ?" . $guard,
+                );
+                $stmtState->execute([$quotation["id"]]);
+                if ($stmtState->rowCount() === 0 && $quotation["status"] !== "in_negotiation") {
+                    throw new Exception("This quotation has already been answered.");
                 }
                 $tell = ["quote.comment", ["comment" => $message], ["dedupe" => "comment-" . $comment_id]];
             } elseif ($action === "sign") {
@@ -135,16 +147,28 @@ class PublicController
                     throw new Exception(
                         "Digital signature and name are legally required.",
                     );
+                }
+                if (
+                    !str_starts_with($signature, "data:image/png;base64,") ||
+                    strlen($signature) > 65000 ||
+                    mb_strlen($name) > 150
+                ) {
+                    throw new Exception(
+                        "That signature didn't come through. Please clear it and sign again.",
+                    );
                 } /* Stamp the quotation with signature data */
                 $stmtUpd = $db->prepare(
-                    " UPDATE quotations SET status = 'accepted', signature_data = ?, signed_by_name = ?, signed_at = NOW(), client_ip = ? WHERE id = ? ",
+                    " UPDATE quotations SET status = 'accepted', signature_data = ?, signed_by_name = ?, signed_at = NOW(), client_ip = ? WHERE id = ? " . $guard,
                 );
                 $stmtUpd->execute([
                     $signature,
                     $name,
                     $client_ip,
                     $quotation["id"],
-                ]); /* Log the signature event */
+                ]);
+                if ($stmtUpd->rowCount() === 0) {
+                    throw new Exception("This quotation has already been answered.");
+                } /* Log the signature event */
                 $stmtLog = $db->prepare(
                     " INSERT INTO quotation_activities (business_id, quotation_id, actor_type, action, message, old_status, new_status) VALUES (?, ?, 'client', 'signed', 'Client signed and legally accepted the proposal.', ?, 'accepted') ",
                 );
@@ -156,10 +180,14 @@ class PublicController
                 $customer_name = $name;
                 $tell = ["quote.accepted", ["total" => (float)($quotation["total"] ?? 0)], ["dedupe" => "accepted"]];
             } elseif ($action === "decline") {
-                $reason = trim($_POST["reason"] ?? "");
-                $db->prepare(
-                    "UPDATE quotations SET status = 'declined' WHERE id = ?",
-                )->execute([$quotation["id"]]);
+                $reason = mb_substr(trim($_POST["reason"] ?? ""), 0, 2000);
+                $stmtState = $db->prepare(
+                    "UPDATE quotations SET status = 'declined' WHERE id = ?" . $guard,
+                );
+                $stmtState->execute([$quotation["id"]]);
+                if ($stmtState->rowCount() === 0) {
+                    throw new Exception("This quotation has already been answered.");
+                }
                 $stmtLog = $db->prepare(
                     " INSERT INTO quotation_activities (business_id, quotation_id, actor_type, action, message, old_status, new_status, meta_data) VALUES (?, ?, 'client', 'declined', ?, ?, 'declined', JSON_OBJECT('ip', ?)) ",
                 );
@@ -183,7 +211,9 @@ class PublicController
             }
             json_response(["success" => true]);
         } catch (Exception $e) {
-            $db->rollBack();
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
             json_response(
                 ["success" => false, "error" => $e->getMessage()],
                 400,
@@ -195,7 +225,7 @@ class PublicController
     ): void {
         $business = $this->get_business($quotation["business_id"]);
         $customer = $quotation["customer_id"]
-            ? $this->get_customer($quotation["customer_id"])
+            ? $this->get_customer($quotation["customer_id"], (int) $quotation["business_id"])
             : null;
         $stmtItems = $this->db->prepare(
             "SELECT * FROM quotation_items WHERE quotation_id = ? ORDER BY sort_order ASC",
@@ -203,7 +233,7 @@ class PublicController
         $stmtItems->execute([$quotation["id"]]);
         $items = $stmtItems->fetchAll();
         $bank = $quotation["bank_account_id"]
-            ? $this->get_bank($quotation["bank_account_id"])
+            ? $this->get_bank($quotation["bank_account_id"], (int) $quotation["business_id"])
             : null;
         $stmtAct = $this->db->prepare(
             "SELECT * FROM quotation_activities WHERE quotation_id = ? ORDER BY created_at ASC",
@@ -216,7 +246,7 @@ class PublicController
     {
         $business = $this->get_business($invoice["business_id"]);
         $customer = $invoice["customer_id"]
-            ? $this->get_customer($invoice["customer_id"])
+            ? $this->get_customer($invoice["customer_id"], (int) $invoice["business_id"])
             : null;
         $stmtItems = $this->db->prepare(
             " SELECT ii.*, p.sku as product_sku FROM invoice_items ii LEFT JOIN products p ON p.id = ii.product_id WHERE ii.invoice_id = ? ORDER BY ii.sort_order ASC ",
@@ -224,7 +254,7 @@ class PublicController
         $stmtItems->execute([$invoice["id"]]);
         $items = $stmtItems->fetchAll();
         $bank = $invoice["bank_account_id"]
-            ? $this->get_bank($invoice["bank_account_id"])
+            ? $this->get_bank($invoice["bank_account_id"], (int) $invoice["business_id"])
             : null;
         require_once BASE_PATH . "/views/invoices/public.php";
     }
@@ -232,7 +262,7 @@ class PublicController
     {
         $business = $this->get_business($receipt["business_id"]);
         $customer = $receipt["customer_id"]
-            ? $this->get_customer($receipt["customer_id"])
+            ? $this->get_customer($receipt["customer_id"], (int) $receipt["business_id"])
             : null; /* Line items (for standalone POS receipts) */
         $items = [];
         if (!$receipt["invoice_id"]) {
@@ -245,9 +275,9 @@ class PublicController
         $invoice = null;
         if ($receipt["invoice_id"]) {
             $stmtInv = $this->db->prepare(
-                "SELECT id, doc_number, total FROM invoices WHERE id = ?",
+                "SELECT id, doc_number, total FROM invoices WHERE id = ? AND business_id = ?",
             );
-            $stmtInv->execute([$receipt["invoice_id"]]);
+            $stmtInv->execute([$receipt["invoice_id"], $receipt["business_id"]]);
             $invoice = $stmtInv->fetch();
         }
         require_once BASE_PATH . "/views/receipts/public.php";
@@ -258,16 +288,16 @@ class PublicController
         $stmt->execute([$id]);
         return $stmt->fetch() ?: null;
     }
-    private function get_customer(int $id): ?array
+    private function get_customer(int $id, int $business_id): ?array
     {
-        $stmt = $this->db->prepare("SELECT * FROM customers WHERE id = ?");
-        $stmt->execute([$id]);
+        $stmt = $this->db->prepare("SELECT * FROM customers WHERE id = ? AND business_id = ?");
+        $stmt->execute([$id, $business_id]);
         return $stmt->fetch() ?: null;
     }
-    private function get_bank(int $id): ?array
+    private function get_bank(int $id, int $business_id): ?array
     {
-        $stmt = $this->db->prepare("SELECT * FROM bank_accounts WHERE id = ?");
-        $stmt->execute([$id]);
+        $stmt = $this->db->prepare("SELECT * FROM bank_accounts WHERE id = ? AND business_id = ?");
+        $stmt->execute([$id, $business_id]);
         return $stmt->fetch() ?: null;
     } /* ────────────────────────────────────────── * PUBLIC DELIVERY NOTE /delivery/{token} * *──────────────────────────────────────────*/
     public function delivery(string $token): void
@@ -284,9 +314,12 @@ class PublicController
             ]);
             return;
         }
+        if (isset($_GET["signature"])) {
+            send_private_file($delivery["signoff_signature_path"]);
+        }
         $business = $this->get_business($delivery["business_id"]);
         $customer = $delivery["customer_id"]
-            ? $this->get_customer($delivery["customer_id"])
+            ? $this->get_customer($delivery["customer_id"], (int) $delivery["business_id"])
             : null;
         $stmtItems = $this->db->prepare(
             " SELECT di.*, p.name AS product_name FROM delivery_items di LEFT JOIN products p ON p.id = di.product_id WHERE di.delivery_id = ? ",
@@ -313,6 +346,9 @@ class PublicController
                 "body" => "It may have expired or already been used. Ask the business for a new link.",
             ]);
             return;
+        }
+        if (isset($_GET["signature"]) && $_SERVER["REQUEST_METHOD"] === "GET") {
+            send_private_file($delivery["signoff_signature_path"]);
         }
         $business = $this->get_business($delivery["business_id"]);
         $stmtItems = $this->db->prepare(
@@ -360,29 +396,50 @@ class PublicController
                 "error" => "Please draw your signature.",
             ]);
             return;
-        } /* Save signature image */
-        $upload_dir = BASE_PATH . "/uploads/delivery_signoffs";
-        if (!is_dir($upload_dir)) {
-            mkdir($upload_dir, 0755, true);
         }
-        $filename = $delivery["id"] . "_signoff.png";
-        $filepath = $upload_dir . "/" . $filename;
-        $relative_path =
-            "uploads/delivery_signoffs/" .
-            $filename; /* Decode base64 and save */
-        $image_data = base64_decode(
-            str_replace("data:image/png;base64,", "", $signature_data),
-        );
-        if ($image_data === false) {
+        /* The signature must be a real PNG of a sensible size. It is redrawn
+           by GD and kept in storage/ under a random name: it is only ever
+           shown through this delivery's own links (send_private_file). */
+        $image_data =
+            strlen($signature_data) <= 3 * 1024 * 1024
+                ? base64_decode(substr($signature_data, 22), true)
+                : false;
+        $info = $image_data ? @getimagesizefromstring($image_data) : false;
+        $image =
+            $info &&
+            $info["mime"] === "image/png" &&
+            $info[0] <= 4000 &&
+            $info[1] <= 2000
+                ? @imagecreatefromstring($image_data)
+                : false;
+        if (!$image) {
             echo json_encode([
                 "success" => false,
-                "error" => "Invalid signature data.",
+                "error" => "That signature didn't come through. Please clear it and sign again.",
             ]);
             return;
         }
-        file_put_contents($filepath, $image_data); /* Update delivery record */
-        $signoff_ip =
-            $_SERVER["HTTP_X_FORWARDED_FOR"] ?? ($_SERVER["REMOTE_ADDR"] ?? "");
+        imagesavealpha($image, true);
+        $filename = bin2hex(random_bytes(16)) . ".png";
+        $filepath =
+            private_file_dir("signatures", (int) $delivery["business_id"]) .
+            "/" .
+            $filename;
+        $relative_path =
+            "storage/private/signatures/" .
+            $delivery["business_id"] .
+            "/" .
+            $filename;
+        $saved = imagepng($image, $filepath, 8);
+        imagedestroy($image);
+        if (!$saved) {
+            echo json_encode([
+                "success" => false,
+                "error" => "That signature didn't come through. Please try again.",
+            ]);
+            return;
+        } /* Update delivery record */
+        $signoff_ip = client_ip();
         // Only one sign-off counts: a second tap finds it already signed.
         $signed = $this->db->prepare(
             " UPDATE deliveries SET status = 'signed_off', signoff_name = ?, signoff_signature_path = ?, signoff_timestamp = NOW(), signoff_ip = ?, actual_delivery = COALESCE(actual_delivery, NOW()) WHERE id = ? AND status <> 'signed_off' ",
@@ -394,6 +451,7 @@ class PublicController
             $delivery["id"],
         ]);
         if ($signed->rowCount() !== 1) {
+            @unlink($filepath);
             echo json_encode([
                 "success" => false,
                 "error" => "This delivery has already been signed off.",
@@ -468,10 +526,10 @@ class PublicController
         if ($quotation) {
             $business = $this->get_business($quotation["business_id"]);
             $customer = $quotation["customer_id"]
-                ? $this->get_customer($quotation["customer_id"])
+                ? $this->get_customer($quotation["customer_id"], (int) $quotation["business_id"])
                 : null;
             $bank = $quotation["bank_account_id"]
-                ? $this->get_bank($quotation["bank_account_id"])
+                ? $this->get_bank($quotation["bank_account_id"], (int) $quotation["business_id"])
                 : null;
             $stmtI = $this->db->prepare(
                 "SELECT * FROM quotation_items WHERE quotation_id = ? ORDER BY sort_order ASC",
@@ -492,10 +550,10 @@ class PublicController
             if ($invoice) {
                 $business = $this->get_business($invoice["business_id"]);
                 $customer = $invoice["customer_id"]
-                    ? $this->get_customer($invoice["customer_id"])
+                    ? $this->get_customer($invoice["customer_id"], (int) $invoice["business_id"])
                     : null;
                 $bank = $invoice["bank_account_id"]
-                    ? $this->get_bank($invoice["bank_account_id"])
+                    ? $this->get_bank($invoice["bank_account_id"], (int) $invoice["business_id"])
                     : null;
                 $stmtI = $this->db->prepare(
                     " SELECT ii.*, p.sku as product_sku FROM invoice_items ii LEFT JOIN products p ON p.id = ii.product_id WHERE ii.invoice_id = ? ORDER BY ii.sort_order ASC ",
@@ -522,7 +580,7 @@ class PublicController
             if ($receipt) {
                 $business = $this->get_business($receipt["business_id"]);
                 $customer = $receipt["customer_id"]
-                    ? $this->get_customer($receipt["customer_id"])
+                    ? $this->get_customer($receipt["customer_id"], (int) $receipt["business_id"])
                     : null;
                 $items = [];
                 if (!$receipt["invoice_id"]) {
@@ -535,9 +593,9 @@ class PublicController
                 $invoice = null;
                 if ($receipt["invoice_id"]) {
                     $stmtInv = $this->db->prepare(
-                        "SELECT id, doc_number, total FROM invoices WHERE id = ?",
+                        "SELECT id, doc_number, total FROM invoices WHERE id = ? AND business_id = ?",
                     );
-                    $stmtInv->execute([$receipt["invoice_id"]]);
+                    $stmtInv->execute([$receipt["invoice_id"], $receipt["business_id"]]);
                     $invoice = $stmtInv->fetch();
                 }
                 ob_start();
@@ -615,7 +673,9 @@ class PublicController
                 ["error" => "Please keep your message under 5,000 characters."],
                 422,
             );
-        } /* Append extra RFQ fields to message */
+        }
+        $this->public_form_guard("quote", $business_id, $email);
+        /* Append extra RFQ fields to message */
         $extras = [];
         if ($company_name) {
             $extras[] = "Company: {$company_name}";
@@ -637,9 +697,9 @@ class PublicController
                 "\n\n--- Additional Info ---\n" . implode("\n", $extras);
         } /* Rate limiting: max 5 requests per phone per business per day */
         $stmtRate = $this->db->prepare(
-            " SELECT COUNT(*) FROM quote_requests WHERE business_id = ? AND phone = ? AND created_at >= CURDATE() ",
+            " SELECT COUNT(*) FROM quote_requests WHERE business_id = ? AND REGEXP_REPLACE(phone, '[^0-9]', '') = ? AND created_at >= CURDATE() ",
         );
-        $stmtRate->execute([$business_id, $phone]);
+        $stmtRate->execute([$business_id, preg_replace("/\D/", "", $phone)]);
         if ((int) $stmtRate->fetchColumn() >= 5) {
             json_response(
                 [
@@ -794,11 +854,13 @@ class PublicController
                 ],
                 422,
             );
-        } /* Rate limiting: max 10 orders per phone per business per day */
+        }
+        $this->public_form_guard("order", $business_id, $customer_email);
+        /* Rate limiting: max 10 orders per phone per business per day */
         $stmtRate = $this->db->prepare(
-            " SELECT COUNT(*) FROM orders WHERE business_id = ? AND customer_phone = ? AND created_at >= CURDATE() ",
+            " SELECT COUNT(*) FROM orders WHERE business_id = ? AND REGEXP_REPLACE(customer_phone, '[^0-9]', '') = ? AND created_at >= CURDATE() ",
         );
-        $stmtRate->execute([$business_id, $customer_phone]);
+        $stmtRate->execute([$business_id, preg_replace("/\D/", "", $customer_phone)]);
         if ((int) $stmtRate->fetchColumn() >= 10) {
             json_response(
                 [
@@ -813,15 +875,18 @@ class PublicController
             $payment_method !== "none" &&
             !empty($_FILES["payment_proof"]["tmp_name"])
         ) {
-            $dest_dir = BASE_PATH . "/uploads/order_proofs/" . $business_id;
-            if (!is_dir($dest_dir)) {
-                mkdir($dest_dir, 0755, true);
-            }
-            $filename = time() . "_" . bin2hex(random_bytes(4)) . ".png";
-            $dest = $dest_dir . "/" . $filename;
-            if (save_image($_FILES["payment_proof"], $dest, 1200)) {
+            /* Private: only the shop sees it (OrderController::proof) */
+            $filename = bin2hex(random_bytes(16)) . ".jpg";
+            $dest =
+                private_file_dir("order_proofs", (int) $business_id) .
+                "/" .
+                $filename;
+            if (save_image($_FILES["payment_proof"], $dest, 1200, "jpg")) {
                 $proof_path =
-                    "uploads/order_proofs/" . $business_id . "/" . $filename;
+                    "storage/private/order_proofs/" .
+                    $business_id .
+                    "/" .
+                    $filename;
             }
         }
         $this->db->beginTransaction();
@@ -934,13 +999,13 @@ class PublicController
                their answer, so the mail server never holds up the checkout */
             if ($customer_email !== "" && $order_url !== null) {
                 $mail_vars = [
-                    "first_name" => preg_split("/\s+/u", $customer_name)[0],
+                    "first_name" => mail_first_name($customer_name),
                     "shop_name" => (string) $business["name"],
                     "order_number" => $order_number,
                     "order_url" => $order_url,
                     "lines" => array_map(
                         fn($oi) => [
-                            "name" => $oi["product_name"] . ($oi["variant_selection"] ? " (" . $oi["variant_selection"] . ")" : ""),
+                            "name" => $oi["product_name"],   /* the shop's words only, never the shopper's */
                             "quantity" => $oi["quantity"],
                             "total" => sf_money((float) $oi["line_total"], (string) ($business["currency_symbol"] ?? "")),
                         ],
@@ -961,6 +1026,13 @@ class PublicController
                 "channel" => $channel,
             ]);
         } catch (\Throwable $e) {
+            if ($this->db->inTransaction()) {
+                /* The order wasn't saved, so its proof goes too */
+                $this->db->rollBack();
+                if ($proof_path) {
+                    @unlink(BASE_PATH . "/" . $proof_path);
+                }
+            }
             error_log("Cart checkout failed: " . $e->getMessage());
             if ($committed) {
                 // The order is placed; only something after it went wrong.
@@ -984,6 +1056,38 @@ class PublicController
      * The limits match the customers table, where every order and quote
      * request also lands (its phone column holds 20 characters).
      */
+    /**
+     * Spam limits for a shop's public forms (orders, quote requests,
+     * bookings): per visitor at this shop (their IP through Cloudflare), per
+     * connection across all shops (set high: many phones share one mobile
+     * network address), per shop, and per email address across all shops,
+     * since each order emails the address typed. A form that fills the hidden
+     * "website" field is a robot. Ends the request when a limit is reached.
+     * Each form also counts its saved requests per phone number, as digits.
+     */
+    protected function public_form_guard(string $form, int $business_id, string $email = ""): void
+    {
+        if (trim((string) ($_POST["website"] ?? "")) !== "") {
+            json_response(["error" => "Please try again."], 422);
+        }
+        $ip = client_ip();
+        $limits = [
+            [$form . "_ip", $business_id . ":" . $ip, 10, 60],
+            [$form . "_ip_all", $ip, 120, 60],
+            [$form . "_shop", (string) $business_id, 60, 60],
+        ];
+        if ($email !== "") {
+            $limits[] = ["form_email", strtolower($email), 10, 60 * 24];
+        }
+        foreach ($limits as [$bucket, $key, $max, $minutes]) {
+            if (!throttle_allows($bucket, $key, $max, $minutes)) {
+                json_response(
+                    ["error" => "Too many requests for now. Please try again later, or message the shop on WhatsApp."],
+                    429,
+                );
+            }
+        }
+    }
     protected function contact_problem(
         string $name,
         string $phone,

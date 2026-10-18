@@ -26,8 +26,8 @@ class OpsFinanceController
             FROM subscription_payments sp JOIN countries c ON c.id = sp.country_id
             WHERE sp.status = 'approved' AND sp.reviewed_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
             GROUP BY sp.currency_code, c.currency_symbol")->fetchAll();
-        $mrr = (float)$db->query("SELECT COALESCE(SUM(monthly_amount + extra_seats * 5000), 0) FROM subscriptions WHERE status = 'active' AND payment_method = 'paystack'")->fetchColumn();
-        $plans = $db->query("SELECT status, COUNT(*) FROM subscriptions GROUP BY status")->fetchAll(PDO::FETCH_KEY_PAIR);
+        $mrr = (float)$db->query(ops_mrr_sql())->fetchColumn();
+        $plans = $db->query("SELECT COALESCE(SUM(" . ops_plan_sql('trial') . "), 0) AS trial FROM subscriptions s")->fetch();
         $signups = (int)$db->query("SELECT COUNT(*) FROM businesses WHERE created_at >= NOW() - INTERVAL 30 DAY")->fetchColumn();
 
         $months = [];

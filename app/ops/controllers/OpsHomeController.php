@@ -53,10 +53,10 @@ class OpsHomeController
             $tiles[] = ['Won this month', (string)$won, 'Leads that started paying', 'leads?stage=paying', $won ? 'ok' : ''];
         }
         if (ops_can('finance')) {
-            $mrr = (float)$db->query("SELECT COALESCE(SUM(monthly_amount + extra_seats * 5000), 0) FROM subscriptions WHERE status = 'active' AND payment_method = 'paystack'")->fetchColumn();
-            $tiles[] = ['Monthly recurring', '₦' . number_format($mrr), $count("SELECT COUNT(*) FROM subscriptions WHERE status = 'active'") . ' paying', 'finance', ''];
+            $mrr = (float)$db->query(ops_mrr_sql())->fetchColumn();
+            $tiles[] = ['Monthly recurring', '₦' . number_format($mrr), $count("SELECT COUNT(*) FROM subscriptions s WHERE " . ops_plan_sql('active')) . ' paying', 'finance', ''];
         } elseif (ops_can('clients')) {
-            $trials = $count("SELECT COUNT(*) FROM subscriptions WHERE status = 'trial' AND trial_ends_at <= CURDATE() + INTERVAL 3 DAY");
+            $trials = $count("SELECT COUNT(*) FROM subscriptions WHERE status = 'trial' AND trial_ends_at BETWEEN CURDATE() AND CURDATE() + INTERVAL 3 DAY");
             $tiles[] = ['Trials ending', (string)$trials, 'In the next 3 days', 'clients?plan=attention', ''];
         }
 

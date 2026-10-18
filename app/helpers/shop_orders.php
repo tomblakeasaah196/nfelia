@@ -215,7 +215,7 @@ function shop_order_tell(PDO $db, int $order_id, string $state, string $message 
         } . ' — ' . $order['shop_name'];
         notify_email((int)$order['business_id'], (string)$order['customer_email'], (string)$order['customer_name'], $subject, 'order_update', [
             'state'        => $state,
-            'first_name'   => preg_split('/\s+/u', trim((string)$order['customer_name']))[0] ?: 'there',
+            'first_name'   => mail_first_name((string)$order['customer_name']),   // plain letters only: anyone can type anything there
             'shop_name'    => (string)$order['shop_name'],
             'order_number' => (string)$order['order_number'],
             'order_url'    => shop_order_url($db, $order, $business),

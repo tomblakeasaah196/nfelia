@@ -119,7 +119,7 @@ class OpsLeadsController
         $history = $stmt->fetchAll();
         $client = null;
         if ($l['business_id']) {
-            $stmt = $this->db->prepare("SELECT b.id, b.name, s.status AS plan_status, s.trial_ends_at FROM businesses b LEFT JOIN subscriptions s ON s.business_id = b.id WHERE b.id = ?");
+            $stmt = $this->db->prepare("SELECT b.id, b.name, s.status AS plan_status, s.trial_ends_at, s.current_period_end, s.grace_ends_at, s.expiry_exempt FROM businesses b LEFT JOIN subscriptions s ON s.business_id = b.id WHERE b.id = ?");
             $stmt->execute([$l['business_id']]);
             $client = $stmt->fetch() ?: null;
         }

@@ -335,29 +335,32 @@ function get_nav_items(): array {
 
 
 /**
- * The life of every subscription, on each cron pass (cron/planner.php), on
- * the database's clock (Lagos time). Each note goes once (notify()'s dedupe),
- * and only for things that happened in the last week, so the first run
- * after a deploy doesn't dig up old history.
+ * The notes about every subscription, on each cron pass (cron/planner.php),
+ * on the database's clock (Lagos time). Each note goes once (notify()'s
+ * dedupe), and only for things that happened in the last week, so the first
+ * run after a deploy doesn't dig up old history. Nothing here changes what a
+ * business may use: billing_access() (app/helpers/billing.php) works that out
+ * from the dates.
  *
  *   trial ending     3 days before trial_ends_at (the trial runs through
- *                    that whole day: subscription_open() in functions.php)
+ *                    that whole day)
  *   trial ended      the day after
- *   renewal soon     3 days before a paid month ends, for plans nothing
- *                    renews by itself (mobile money, set by the Nfelia team,
- *                    or a card plan already cancelled)
- *   due              such a plan's month is up: it moves to past_due with
- *                    3 days to pay (never less than 3 days from now, so
- *                    nobody is shut out without warning)
- *   ended            those days are over, or a cancelled plan's paid time is
+ *   month ending     3 days before a paid month ends (months no longer
+ *                    renew by themselves)
+ *   due              the month is over: BILLING_GRACE_DAYS left to pay (an
+ *                    old card plan that renews itself is left to Paystack)
+ *   ended            those days are over, a card's grace is over, or a
+ *                    cancelled plan's paid time is
  *
- * Card plans that renew themselves are left to Paystack: a failed renewal
- * arrives as invoice.payment_failed (PaystackController).
+ * Businesses already past their date when paid months started to expire
+ * (expiry_exempt) hear nothing until their next payment.
  */
 function billing_lifecycle(PDO $db): array {
+    require_once __DIR__ . '/billing.php';
     $done = ['trial_ending' => 0, 'trial_ended' => 0, 'renewal_soon' => 0, 'due' => 0, 'ended' => 0];
     $owner_open = "EXISTS (SELECT 1 FROM businesses b WHERE b.id = s.business_id AND b.is_active = 1)";
-    $manual = "(s.paystack_subscription_code IS NULL OR s.cancelled_at IS NOT NULL)";
+    $month = "s.status = 'active' AND s.expiry_exempt = 0";
+    $grace = (int)BILLING_GRACE_DAYS;
 
     $each = function (string $sql, callable $fn) use ($db) {
         foreach ($db->query($sql)->fetchAll() as $row) {
@@ -374,29 +377,27 @@ function billing_lifecycle(PDO $db): array {
         });
 
     $each("SELECT s.business_id, s.current_period_end, DATEDIFF(s.current_period_end, CURDATE()) AS days FROM subscriptions s
-           WHERE s.status = 'active' AND {$manual}
-             AND s.current_period_end BETWEEN CURDATE() + INTERVAL 1 DAY AND CURDATE() + INTERVAL 3 DAY AND {$owner_open}",
+           WHERE {$month} AND s.current_period_end BETWEEN CURDATE() AND CURDATE() + INTERVAL 3 DAY AND {$owner_open}",
         function ($r) use (&$done) {
             $done['renewal_soon'] += (int)(bool)notify('billing.renewal_soon', (int)$r['business_id'],
-                ['days' => (int)$r['days'], 'period_end' => $r['current_period_end']], ['dedupe' => 'renewal-soon:' . $r['current_period_end']]);
+                ['days' => (int)$r['days'], 'period_end' => $r['current_period_end']], ['dedupe' => 'renewal-soon:' . substr((string)$r['current_period_end'], 0, 10)]);
         });
 
-    $lapse = $db->prepare("
-        UPDATE subscriptions SET status = 'past_due', updated_at = NOW(),
-            grace_ends_at = GREATEST(TIMESTAMP(current_period_end + INTERVAL 3 DAY, '23:59:59'), NOW() + INTERVAL 3 DAY)
-        WHERE id = ? AND status = 'active'");
-    $each("SELECT s.id, s.business_id, s.current_period_end FROM subscriptions s
-           WHERE s.status = 'active' AND {$manual} AND s.current_period_end < CURDATE() AND {$owner_open}",
-        function ($r) use ($db, $lapse, &$done) {
-            $lapse->execute([$r['id']]);
-            if ($lapse->rowCount() !== 1) return;
-            $grace = $db->prepare("SELECT grace_ends_at FROM subscriptions WHERE id = ?");
-            $grace->execute([$r['id']]);
+    // An old card plan that still renews itself is left to Paystack: a
+    // failed charge arrives as invoice.payment_failed (billing.failed).
+    $each("SELECT s.business_id, s.current_period_end FROM subscriptions s
+           WHERE {$month} AND s.paystack_subscription_code IS NULL
+             AND s.current_period_end < CURDATE() AND s.current_period_end >= CURDATE() - INTERVAL {$grace} DAY AND {$owner_open}",
+        function ($r) use (&$done) {
+            $end = substr((string)$r['current_period_end'], 0, 10);
             $done['due'] += (int)(bool)notify('billing.due', (int)$r['business_id'],
-                ['period_end' => $r['current_period_end'], 'grace_ends' => $grace->fetchColumn()], ['dedupe' => 'due:' . $r['current_period_end']]);
+                ['period_end' => $end, 'grace_ends' => billing_add_days($end, BILLING_GRACE_DAYS)], ['dedupe' => 'due:' . $end]);
         });
 
-    $each("SELECT s.business_id, s.grace_ends_at AS ended FROM subscriptions s
+    $each("SELECT s.business_id, DATE(s.current_period_end) AS ended FROM subscriptions s
+           WHERE {$month} AND s.current_period_end < CURDATE() - INTERVAL {$grace} DAY AND s.current_period_end >= CURDATE() - INTERVAL " . ($grace + 7) . " DAY AND {$owner_open}
+           UNION ALL
+           SELECT s.business_id, s.grace_ends_at FROM subscriptions s
            WHERE s.status = 'past_due' AND s.grace_ends_at < NOW() AND s.grace_ends_at >= NOW() - INTERVAL 7 DAY AND {$owner_open}
            UNION ALL
            SELECT s.business_id, s.current_period_end FROM subscriptions s

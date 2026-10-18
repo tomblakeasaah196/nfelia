@@ -168,7 +168,9 @@ $k->post('momo/submit', ['receipt' => new CURLFile($png, 'image/png', 'receipt.p
 $pay = (int)q("SELECT id FROM subscription_payments WHERE business_id = 3 ORDER BY id DESC LIMIT 1");
 ok($pay > 0, 'Kola sends his receipt');
 eq(ops_told('payment'), [1, 2], 'the Nfelia team is told in Ops: Admin and Support');
-eq((string)q("SELECT body FROM ops_alerts WHERE kind = 'payment' AND staff_id = 2"), 'Kola Prints sent GH₵150 GHS by mobile money.', 'the team sees who and how much');
+eq((string)q("SELECT body FROM ops_alerts WHERE kind = 'payment' AND staff_id = 2"), 'Kola Prints says they sent GH₵150 GHS by Mobile Money (reference MTN-123). Check it and approve or turn it down.', 'the team sees who, how much and the reference');
+deliver();
+ok((bool)array_filter(mails_to('sam@nfelia.test'), fn($m) => $m['subject'] === 'Urgent: Mobile Money payment from Kola Prints'), 'and by email, marked urgent (every transfer is)');
 ok(str_starts_with(latest(KOLA, 'billing.momo_submitted')['message'] ?? '', 'We got your GH₵150 GHS mobile money payment'), 'Kola gets a confirmation');
 eq((string)q("SELECT url FROM ops_alerts WHERE kind = 'payment' AND staff_id = 2"), "payments#payment-{$pay}", 'opening that payment in Ops');
 $t = as_ops('sam@nfelia.test');

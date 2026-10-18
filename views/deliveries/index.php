@@ -107,7 +107,7 @@ $currency = $business['currency_symbol'] ?? '₦';
                                     <span class="text-[10px] text-brand-plum/30">Standalone</span>
                                 <?php endif; ?>
                             </td>
-                            <td class="px-5 py-4 text-[10px] text-brand-plum/60"><?= $d['provider'] ? ($providers[$d['provider']] ?? ucfirst($d['provider'])) : '—' ?></td>
+                            <td class="px-5 py-4 text-[10px] text-brand-plum/60"><?= $d['provider'] ? ($providers[$d['provider']] ?? e(ucfirst($d['provider']))) : '—' ?></td>
                             <td class="px-5 py-4 data-text text-[10px] text-brand-plum/60"><?= $d['estimated_delivery'] ? fmt_date($d['estimated_delivery'], 'd M, H:i') : '—' ?></td>
                             <td class="px-5 py-4 text-center">
                                 <span class="data-text text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded <?= $statuses[$d['status']]['color'] ?? 'bg-gray-100 text-gray-700' ?>">

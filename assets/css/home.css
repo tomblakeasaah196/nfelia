@@ -150,6 +150,12 @@ h1, h2, h3 {
 }
 .flash.is-error p { background: var(--red-tint); color: var(--red); }
 
+/* Arrived from a tenant's website ("Shop by Nfelia"). */
+.from-shop { background: var(--burgundy-tint); border-bottom: 1px solid var(--line); }
+.from-shop .wrap { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; padding-top: 12px; padding-bottom: 12px; }
+.from-shop p { font-size: .875rem; line-height: 1.5; color: var(--ink-2); }
+.from-shop strong { color: var(--ink); }
+
 /* ---------- Hero ---------- */
 .hero { padding: 40px 0 72px; overflow: hidden; }
 .hero .wrap { display: grid; gap: 48px; align-items: center; }
@@ -223,8 +229,64 @@ h1, h2, h3 {
 .seam { display: block; height: 16px; width: 100%; }
 .seam line { stroke-linecap: round; }
 
-/* ---------- Pains ---------- */
-.pains-grid { display: grid; gap: 48px; align-items: start; }
+/* Ticked lists (pricing, the card sheets). */
+.ticks { list-style: none; margin: 20px 0 0; padding: 0; display: grid; gap: 12px; }
+.ticks li { display: flex; gap: 12px; align-items: flex-start; font-weight: 600; font-size: 1rem; line-height: 1.5; }
+.ticks svg { width: 20px; height: 20px; flex: none; color: var(--green); margin-top: 2px; }
+
+/* ---------- Your website ---------- */
+/* overflow-x: clip keeps the tags from widening the page without breaking position: sticky. */
+.site { background: linear-gradient(var(--burgundy-tint), #fff 40%); overflow-x: clip; }
+.site-grid { display: grid; gap: 40px; }
+.site-head { margin-bottom: 0; }
+.site-visual { position: relative; width: min(300px, 78vw); margin: 0 auto; padding: 0 0 24px; }
+.site-visual .tag-order { top: 40%; right: -28px; }
+.site-visual .tag-order .tag-icon { background: var(--green-tint); color: var(--green); }
+.site-visual .tag-saved { bottom: 16%; left: -28px; }
+.site-visual .tag-saved .tag-icon { background: var(--burgundy-tint); color: var(--burgundy); }
+
+/* A phone with the browser's address bar, so the address can be read. */
+.phone-browser { display: flex; flex-direction: column; aspect-ratio: auto; }
+.phone-browser .browser-bar {
+    flex: none; padding: 24px 12px 8px; background: #F4EEF1; border-radius: 24px 24px 0 0;
+}
+.browser-url {
+    display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border-radius: 999px;
+    background: #fff; border: 1px solid var(--border); font-size: .875rem; font-weight: 600; color: var(--ink);
+    white-space: nowrap; overflow: hidden;
+}
+.browser-url svg { width: 14px; height: 14px; flex: none; color: var(--green); }
+.browser-url [data-type-url].is-typing::after {
+    content: ""; display: inline-block; width: 2px; height: 1em; margin-left: 1px; vertical-align: -2px; background: var(--burgundy);
+}
+.phone-browser img { aspect-ratio: 600 / 1060; border-radius: 0 0 24px 24px; }
+
+.site-thread-title { font: 600 1rem/1.4 var(--font-body); }
+.site-thread { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 0; counter-reset: thread; }
+.site-thread li {
+    counter-increment: thread; position: relative; display: flex; align-items: center; gap: 12px;
+    min-height: 40px; padding-left: 0; font-weight: 600;
+}
+.site-thread li::before {
+    content: counter(thread); flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
+    background: #fff; border: 2px solid var(--burgundy); color: var(--burgundy); font: 600 .75rem/1.2 var(--font-body);
+    position: relative; z-index: 1;
+}
+/* The thread joining the steps, with gold stitches. */
+.site-thread li:not(:last-child)::after {
+    content: ""; position: absolute; left: 13px; top: 30px; bottom: -10px; width: 2px;
+    background: repeating-linear-gradient(var(--burgundy) 0 6px, var(--gold) 6px 9px);
+}
+.site-points { list-style: none; margin: 32px 0 0; padding: 24px 0 0; border-top: 1px solid var(--line); display: grid; gap: 20px; }
+.site-points li { display: grid; grid-template-columns: 32px 1fr; gap: 12px; align-items: start; }
+.site-points svg { width: 24px; height: 24px; color: var(--burgundy); margin-top: 2px; }
+.site-points strong { display: block; font-size: 1rem; }
+.site-points span { color: var(--ink-2); font-size: .875rem; line-height: 1.5; }
+.site-details > .btn { margin-top: 32px; }
+
+/* ---------- Sound familiar? (cards) ---------- */
+.see-grid { display: grid; gap: 40px; align-items: start; }
+.see-side .section-head { margin-bottom: 32px; }
 
 .ledger {
     position: relative; background-color: var(--ledger); border: 1px solid rgba(139, 90, 43, .14);
@@ -246,33 +308,59 @@ h1, h2, h3 {
     border: 6px solid rgba(139, 90, 43, .14); transform: rotate(12deg);
 }
 
-.pain-list { list-style: none; margin: 0; padding: 0; display: grid; }
-.pain-list li { display: grid; grid-template-columns: 48px 1fr; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--line); }
-.pain-list li:last-child { border-bottom: 0; }
-.pain-icon { width: 48px; height: 48px; border-radius: var(--radius-m); background: var(--burgundy-tint); color: var(--burgundy); display: grid; place-items: center; }
-.pain-icon svg { width: 24px; height: 24px; }
-.pain-list h3 { font-family: var(--font-body); font-weight: 600; font-size: 1rem; line-height: 1.4; }
-.pain-list p { color: var(--ink-2); font-size: 1rem; margin-top: 4px; }
+.see-cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.see-cards > li { display: flex; }
+.see-card {
+    flex: 1; display: flex; flex-direction: column; gap: 12px; min-height: 172px; padding: 16px;
+    border: 1px solid var(--line); border-radius: 16px; background: #fff; color: var(--ink); text-decoration: none;
+    transition: border-color var(--motion-150) ease;
+}
+.see-card:hover { border-color: var(--burgundy); box-shadow: var(--shadow); }
+.see-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.see-icon { width: 40px; height: 40px; border-radius: var(--radius-m); background: var(--burgundy-tint); color: var(--burgundy); display: grid; place-items: center; flex: none; }
+.see-icon svg { width: 22px; height: 22px; }
+.see-chip { font-size: .75rem; font-weight: 600; line-height: 1.2; padding: 4px 8px; border-radius: 999px; background: var(--gold-soft); color: var(--burgundy-deep); white-space: nowrap; }
+.see-card h3 { font-size: 1.0625rem; line-height: 1.3; letter-spacing: -0.005em; }
+.see-fix { margin-top: auto; display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; color: var(--burgundy); font-weight: 600; font-size: .875rem; line-height: 1.4; }
+.see-fix svg { width: 18px; height: 18px; flex: none; margin-bottom: 1px; }
+.see-note { margin-top: 24px; padding: 0 20px; font-size: .75rem; line-height: 1.4; color: var(--ink-2); text-align: center; }
 
-/* ---------- Fixes (the four screens) ---------- */
-.fixes { background: linear-gradient(var(--burgundy-tint), #fff 30%); }
-.fix-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 72px; position: relative; }
-.fix { display: grid; gap: 32px; align-items: center; position: relative; }
-.fix-media { position: relative; display: flex; justify-content: center; }
-.fix-media .phone { width: min(272px, 70vw); }
-.fix-media .laptop { width: 100%; max-width: 600px; }
-.fix-copy h3 { font-size: clamp(1.5rem, 1.4vw + 1rem, 2rem); line-height: 1.15; letter-spacing: -0.01em; }
-.fix-copy > p { margin-top: 12px; color: var(--ink-2); font-size: 1.125rem; line-height: 1.5; max-width: 42ch; }
-.ticks { list-style: none; margin: 20px 0 0; padding: 0; display: grid; gap: 12px; }
-.ticks li { display: flex; gap: 12px; align-items: flex-start; font-weight: 600; font-size: 1rem; line-height: 1.5; }
-.ticks svg { width: 20px; height: 20px; flex: none; color: var(--green); margin-top: 2px; }
+/* ---------- The sheet behind each card ---------- */
+dialog.see-sheet {
+    border: 0; padding: 0; color: var(--ink); background: #fff;
+    width: 100%; max-width: 100%; max-height: 92vh; max-height: 92dvh;
+    margin: auto 0 0; border-radius: 20px 20px 0 0; overflow-y: auto; overscroll-behavior: contain;
+}
+dialog.see-sheet::backdrop { background: rgba(31, 10, 20, .55); }
+/* The gutter stays when the page stops scrolling behind a sheet, so nothing jumps sideways. */
+html { scrollbar-gutter: stable; }
+html.has-sheet { overflow: hidden; }
+.see-sheet-head {
+    position: sticky; top: 0; z-index: 3; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
+    padding: 20px 20px 16px; background: #fff; border-bottom: 1px solid var(--line);
+}
+.see-pain { font-size: .875rem; color: var(--ink-2); }
+.see-sheet-head h2 { margin-top: 4px; font-size: 1.5rem; line-height: 1.15; letter-spacing: -0.01em; }
+.see-sheet-head .sheet-close { margin-top: -4px; }
+.see-sheet-body { padding: 20px 20px 24px; display: grid; gap: 24px; }
+.see-screens {
+    display: flex; gap: 16px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none;
+    margin: 0 -20px; padding: 4px 20px 8px;
+}
+.see-screens::-webkit-scrollbar { display: none; }
+.see-screen { flex: 0 0 58%; margin: 0; scroll-snap-align: center; }
+.see-screen .phone { border-radius: 28px; padding: 8px; box-shadow: 0 8px 24px rgba(31, 10, 20, .08); }
+.see-screen .phone::before { top: 8px; height: 4px; width: 26%; }
+.see-screen .phone img { border-radius: 20px; }
+.see-small { margin-top: 12px; font-size: .75rem; line-height: 1.4; color: var(--ink-2); text-align: center; }
+.see-screen figcaption { margin-top: 12px; text-align: center; font-size: .875rem; font-weight: 600; color: var(--ink-2); }
+.see-lead { font-size: 1.0625rem; line-height: 1.5; }
+.see-copy .ticks { margin-top: 16px; }
+.see-copy .ticks li { font-weight: 400; }
+.see-copy .btn { margin-top: 24px; width: 100%; }
 
-/* ---------- Extras ---------- */
-.extras { list-style: none; margin: 72px 0 0; padding: 32px 0 0; border-top: 1px solid var(--line); display: grid; gap: 24px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
-.extras li { display: grid; grid-template-columns: 40px 1fr; gap: 12px; align-items: start; }
-.extras svg { width: 24px; height: 24px; color: var(--burgundy); margin-top: 2px; }
-.extras strong { display: block; font-size: 1rem; }
-.extras span { color: var(--ink-2); font-size: .875rem; line-height: 1.5; }
+/* Without JavaScript the address alone opens a sheet, and its close link goes back to the cards. */
+html:not(.js) dialog.see-sheet:target { display: block; position: fixed; inset: auto 0 0; z-index: 90; box-shadow: 0 -8px 40px rgba(31, 10, 20, .25); }
 
 /* ---------- Stories ---------- */
 .stories-grid { display: grid; gap: 24px; }
@@ -520,6 +608,8 @@ dialog.sheet-small { width: min(440px, calc(100vw - 32px)); }
     .tag-icon { width: 32px; height: 32px; }
     .tag-owed { right: -8px; }
     .ledger { font-size: 1.375rem; padding-left: 56px; }
+    .see-card h3 { font-size: 1rem; }
+    .see-icon { width: 36px; height: 36px; }
 }
 
 /* ---------- Medium and wide (min 768px) ---------- */
@@ -528,20 +618,25 @@ dialog.sheet-small { width: min(440px, calc(100vw - 32px)); }
     .hero { padding: 56px 0 96px; }
     .hero .wrap { grid-template-columns: 1.05fr .95fr; gap: 40px; }
     .section { padding: 104px 0; }
-    .pains-grid { grid-template-columns: .9fr 1.1fr; gap: 64px; }
-    .fix-list { gap: 112px; }
-    .fix { grid-template-columns: 1fr 1fr; gap: clamp(48px, 7vw, 96px); }
-    .fix:nth-child(even) .fix-media { order: 2; }
-    /* The seam running down between the screens and the words. */
-    .fix-list::before {
-        content: ""; position: absolute; top: 40px; bottom: 40px; left: 50%; width: 2px;
-        background: repeating-linear-gradient(var(--burgundy) 0 16px, transparent 16px 24px);
-        opacity: .35;
-    }
-    .fix::after {
-        content: ""; position: absolute; left: calc(50% - 8px); width: 16px; height: 16px; border-radius: 50%;
-        background: #fff; border: 3px solid var(--burgundy);
-    }
+    .site-grid { grid-template-columns: 1fr minmax(300px, 380px); grid-template-areas: "head visual" "details visual"; column-gap: clamp(48px, 7vw, 96px); row-gap: 32px; align-items: start; }
+    .site-head { grid-area: head; }
+    .site-details { grid-area: details; }
+    .site-visual { grid-area: visual; width: 100%; margin: 0; position: sticky; top: 96px; }
+    .site-visual .tag-order { right: -40px; }
+    .site-visual .tag-saved { left: -64px; }
+    .site-points { grid-template-columns: 1fr 1fr; gap: 24px 32px; }
+    .see-grid { grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: clamp(40px, 6vw, 80px); }
+    .see-side { position: sticky; top: 96px; }
+    .see-cards { gap: 16px; }
+    .see-card { min-height: 188px; padding: 20px; }
+    .see-card h3 { font-size: 1.1875rem; }
+
+    dialog.see-sheet { margin: auto; width: min(880px, calc(100vw - 48px)); max-height: min(90vh, 820px); border-radius: 20px; border: 1px solid var(--border); }
+    .see-sheet-head { padding: 24px 28px 20px; }
+    .see-sheet-head h2 { font-size: 1.75rem; }
+    .see-sheet-body { grid-template-columns: auto 1fr; gap: 36px; padding: 28px; align-items: start; }
+    .see-screens { margin: 0; padding: 0; overflow: visible; display: grid; grid-template-columns: repeat(2, 200px); }
+    .see-copy { padding-top: 8px; }
     .stories-grid { grid-template-columns: 1fr 1fr; }
     .how-grid { grid-template-columns: 1fr 1fr; gap: 64px; }
     .price-card { grid-template-columns: 1fr 1.1fr; }
@@ -570,28 +665,35 @@ dialog.sheet-small { width: min(440px, calc(100vw - 32px)); }
     .js [data-reveal].is-in,
     .js [data-reveal-group].is-in > * { opacity: 1; transform: none; }
 
-    /* In a feature row the screen arrives from its own side. */
-    .js .fix[data-reveal] { transform: none; }
-    .js .fix[data-reveal] .fix-media { transform: translateX(-8px); transition: transform var(--motion-300) var(--ease-out); }
-    .js .fix[data-reveal]:nth-child(even) .fix-media { transform: translateX(8px); }
-    .js .fix[data-reveal].is-in .fix-media { transform: none; }
+    /* The website's tags arrive once its address has typed in (home.js). */
+    .js [data-site-visual] .tag { opacity: 0; transform: translateY(8px); }
+    .js [data-site-visual].is-typed .tag { animation: rise var(--motion-300) var(--ease-out) forwards; }
+    .js [data-site-visual].is-typed .tag-saved { animation-delay: .4s; }
+    .browser-url [data-type-url].is-typing::after { animation: caret 1s steps(1) infinite; }
+
+    /* Sheets rise from the bottom on phones and settle in on wider screens. */
+    dialog.see-sheet[open] { animation: sheet-up var(--motion-300) var(--ease-out); }
+    dialog.see-sheet[open]::backdrop { animation: fade-in var(--motion-200) var(--ease-out); }
+    @media (min-width: 768px) {
+        dialog.see-sheet[open] { animation: settle var(--motion-200) var(--ease-out); }
+    }
 
     @media (hover: hover) {
-        .fix-media .phone, .fix-media .laptop { transition: transform var(--motion-200) var(--ease-out); }
-        .fix:hover .fix-media .phone, .fix:hover .fix-media .laptop { transform: translateY(-4px); }
+        .see-card { transition: border-color var(--motion-150) ease, transform var(--motion-200) var(--ease-out); }
+        .see-card:hover { transform: translateY(-2px); }
+        .see-card .see-fix svg { transition: transform var(--motion-200) var(--ease-out); }
+        .see-card:hover .see-fix svg { transform: translateX(3px); }
         .btn-primary:active, .btn-light:active { transform: scale(.98); }
     }
 
     .faq-list details[open] p { animation: fade-down var(--motion-200) var(--ease-out); }
     .wa-panel:not([hidden]), .wa-nudge:not([hidden]) { animation: rise var(--motion-200) var(--ease-out); }
 
-    /* The seam between the four screens is stitched as you scroll. */
+    /* The thread between the website's steps is stitched as you scroll. */
     @supports (animation-timeline: view()) {
-        @media (min-width: 768px) {
-            .fix-list::before {
-                transform-origin: top; animation: seam linear both;
-                animation-timeline: view(); animation-range: entry 10% cover 70%;
-            }
+        .site-thread li:not(:last-child)::after {
+            transform-origin: top; animation: seam linear both;
+            animation-timeline: view(); animation-range: entry 20% cover 50%;
         }
     }
 }
@@ -600,3 +702,7 @@ dialog.sheet-small { width: min(440px, calc(100vw - 32px)); }
 @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes fade-down { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 @keyframes seam { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+@keyframes sheet-up { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes settle { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes caret { 50% { opacity: 0; } }

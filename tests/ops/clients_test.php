@@ -73,6 +73,29 @@ $grace->post(o('clients/3/plan'), ['action' => 'suspend', 'reason' => 'Chargebac
 eq((string)q("SELECT status FROM subscriptions WHERE business_id = 3"), 'suspended', 'with one, it is suspended');
 $grace->post(o('clients/3/plan'), ['action' => 'activate']);
 eq((string)q("SELECT status FROM subscriptions WHERE business_id = 3"), 'active', 'activated for a month');
+$today = (string)q("SELECT CURDATE()");
+eq(substr((string)q("SELECT current_period_end FROM subscriptions WHERE business_id = 3"), 0, 10), billing_add_month($today), 'from today, as it had no paid month');
+$grace->post(o('clients/3/plan'), ['action' => 'activate']);
+eq(substr((string)q("SELECT current_period_end FROM subscriptions WHERE business_id = 3"), 0, 10), billing_add_month(billing_add_month($today)), 'a second month starts when the first ends, like a payment');
+
+section('Where a client stands comes from the dates (billing_access)');
+$keep_end = (string)q("SELECT current_period_end FROM subscriptions WHERE business_id = 3");
+fixture_subscription(3, ['current_period_end' => date('Y-m-d', strtotime($today . ' -1 day'))]);
+$grace->get(o('clients?plan=due'));
+ok(str_contains($grace->body, 'Kola Prints') && str_contains($grace->body, 'Payment due'), 'a month that ended yesterday: "Payment due", though the status is still active');
+$grace->get(o('clients/3'));
+ok(str_contains($grace->body, '3 extra days to'), 'its page says until when');
+fixture_subscription(3, ['current_period_end' => date('Y-m-d', strtotime($today . ' -10 days'))]);
+$grace->get(o('clients?plan=paused'));
+ok(str_contains($grace->body, 'Kola Prints') && str_contains($grace->body, 'Paused: not paid'), 'ten days on: "Paused: not paid"');
+$grace->get(o('clients?plan=active'));
+ok(!str_contains($grace->body, 'Kola Prints'), 'and not among the paying');
+$grace->get(o('clients?plan=attention'));
+ok(str_contains($grace->body, 'Kola Prints'), '"Needs attention" has it');
+fixture_subscription(3, ['expiry_exempt' => 1]);
+$grace->get(o('clients?plan=active'));
+ok(str_contains($grace->body, 'Kola Prints'), 'one left as it was when months began to expire still counts as paying');
+fixture_subscription(3, ['expiry_exempt' => 0, 'current_period_end' => $keep_end]);
 $lola->post(o('clients/3/plan'), ['action' => 'suspend', 'reason' => 'Sales should not']);
 eq((string)q("SELECT status FROM subscriptions WHERE business_id = 3"), 'active', 'Sales cannot change a plan');
 $grace->post(o('clients/2/credit'), ['hide' => '1']);
@@ -168,6 +191,31 @@ eq((string)q("SELECT status FROM subscription_payments WHERE id = ?", [$pay]), '
 eq((int)q("SELECT reviewed_by_staff FROM subscription_payments WHERE id = ?", [$pay]), 2, 'by Sam');
 eq((string)q("SELECT status FROM subscriptions WHERE business_id = 3"), 'active', 'Kola\'s plan is active');
 ok((bool)bell(KOLA, 'billing.paid'), 'Kola is told');
+
+// Main's billing (app/helpers/billing.php): a month starts when the paid one
+// ends, staff the owner didn't tick are switched off, seats add to the month.
+$ada_end = (string)q("SELECT current_period_end FROM subscriptions WHERE business_id = 2");
+$ada_end = substr($ada_end, 0, 10);
+$add_payment = function (string $kind, int $seats, ?string $covered) use ($file) {
+    file_put_contents($file, base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='));
+    exec_sql("INSERT INTO subscription_payments (business_id, subscription_id, country_id, amount, currency_code, payment_method, kind, extra_seats, covered_user_ids, receipt_path, status, submitted_at)
+              VALUES (2, 0, 1, 15000, 'NGN', 'mobile_money', ?, ?, ?, ?, 'pending_verification', NOW())", [$kind, $seats, $covered, $file]);
+    return (int)q("SELECT MAX(id) FROM subscription_payments");
+};
+$month = $add_payment('month', 1, '21');
+$sam->get(o('payments'));
+ok(str_contains($sam->body, 'for a month for the owner and 1 staff'), 'the list says what it pays for');
+$sam->post(o("payments/{$month}/approve"));
+$sub = rows("SELECT * FROM subscriptions WHERE business_id = 2")[0];
+eq([substr($sub['current_period_start'], 0, 10), substr($sub['current_period_end'], 0, 10)], [$ada_end, billing_add_month($ada_end)], 'approving a month: it starts when the paid month ends');
+eq([(int)q("SELECT is_active FROM users WHERE id = 21"), (int)q("SELECT is_active FROM users WHERE id = 22")], [1, 0], 'Bisi, who was ticked, stays; Chidi is switched off');
+eq((int)$sub['extra_seats'], 1, 'with the seat it paid for');
+$seats = $add_payment('seats', 2, null);
+$sam->post(o("payments/{$seats}/approve"));
+eq((int)q("SELECT extra_seats FROM subscriptions WHERE business_id = 2"), 3, 'approving seats adds them to the month already paid');
+eq(substr((string)q("SELECT current_period_end FROM subscriptions WHERE business_id = 2"), 0, 10), billing_add_month($ada_end), 'and leaves the month as it was');
+exec_sql("UPDATE users SET is_active = 1 WHERE id = 22");
+
 $lola->get(o('payments'));
 eq($lola->status, 403, 'Sales cannot check payments');
 @unlink($file);

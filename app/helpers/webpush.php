@@ -117,13 +117,50 @@ function webpush_der_to_raw(string $der): string {
     return $out;
 }
 
+/** The most devices one person can have notifications on at once. */
+const PUSH_MAX_DEVICES = 10;
+
+/**
+ * Is this a real browser push service? Only those are ever called, so a
+ * made-up "subscription" can't make Nfelia's server knock on other hosts.
+ */
+function push_endpoint_allowed(string $endpoint): bool {
+    if (push_endpoint_is_test($endpoint)) {
+        return true;
+    }
+    $parts = parse_url($endpoint);
+    if (($parts['scheme'] ?? '') !== 'https' || empty($parts['host']) || isset($parts['port']) || isset($parts['user'])) {
+        return false;
+    }
+    $host = strtolower($parts['host']);
+    foreach (['fcm.googleapis.com', 'android.googleapis.com', 'updates.push.services.mozilla.com', 'web.push.apple.com'] as $exact) {
+        if ($host === $exact) return true;
+    }
+    foreach (['.push.apple.com', '.notify.windows.com'] as $suffix) {
+        if (str_ends_with($host, $suffix)) return true;
+    }
+    return false;
+}
+
+/**
+ * A stand-in push service for local tests (docs/handoff/testkit/push_endpoint.php),
+ * named in .env as PUSH_TEST_ENDPOINTS=http://127.0.0.1:8098/,... Never set
+ * in production.
+ */
+function push_endpoint_is_test(string $endpoint): bool {
+    foreach (array_filter(array_map('trim', explode(',', (string)($_ENV['PUSH_TEST_ENDPOINTS'] ?? '')))) as $prefix) {
+        if (str_starts_with($endpoint, $prefix)) return true;
+    }
+    return false;
+}
+
 /**
  * Send one notification to one subscription row (push_subscriptions).
  * Returns the HTTP status; 0 means the request never left.
  * 404 and 410 mean the browser unsubscribed, so the caller deletes the row.
  */
 function webpush_send(array $sub, array $message, string $urgency = 'normal', int $ttl = 86400): int {
-    if (!push_enabled()) return 0;
+    if (!push_enabled() || !push_endpoint_allowed((string)$sub['endpoint'])) return 0;
 
     try {
         $body = webpush_encrypt(
@@ -142,7 +179,9 @@ function webpush_send(array $sub, array $message, string $urgency = 'normal', in
         CURLOPT_POST           => true,
         CURLOPT_POSTFIELDS     => $body,
         CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CONNECTTIMEOUT => 5,
         CURLOPT_TIMEOUT        => 10,
+        CURLOPT_PROTOCOLS      => push_endpoint_is_test((string)$sub['endpoint']) ? CURLPROTO_HTTP | CURLPROTO_HTTPS : CURLPROTO_HTTPS,
         CURLOPT_HTTPHEADER     => [
             'Authorization: ' . $auth,
             'Content-Encoding: aes128gcm',

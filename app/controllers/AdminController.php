@@ -10,8 +10,6 @@
  */
 class AdminController {
 
-    private const NFELIA_BUSINESS_ID = 1;
-
     /** Old admin pages → their place in Ops. */
     private const MOVED = [
         'dashboard' => '', 'businesses' => 'clients', 'support' => 'support', 'feedback' => 'feedback', 'referrals' => 'referrals',
@@ -68,11 +66,11 @@ class AdminController {
     }
 
     private function may_set_up(): bool {
-        return (int)auth_business_id() === self::NFELIA_BUSINESS_ID && is_owner() && ops_active_admins() === 0;
+        return is_platform_admin() && ops_active_admins() === 0;
     }
 
     private function moved(string $page): never {
-        if ((int)auth_business_id() !== self::NFELIA_BUSINESS_ID) {
+        if ((int)auth_business_id() !== FOUNDER_BUSINESS_ID) {
             redirect('dashboard');
         }
         header('Location: ' . ops_url(self::MOVED[$page] ?? ''), true, 301);

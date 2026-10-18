@@ -98,45 +98,6 @@ function slugify(string $text): string {
  * Format money amounts.
  * Uses the provided symbol — defaults to the session business symbol, then ₦.
  */
-/**
- * Whether a business may use Nfelia now, from its row in subscriptions. The
- * one rule behind the app's lock-out (app/middleware/subscription_check.php),
- * the shop staying open (shop_visibility) and the cron's reminders
- * (planner_business_can_use), on Lagos time like the rest of the app:
- *
- *   trial                 through the whole of trial_ends_at
- *   active                yes (cron/planner.php moves a plan that is not
- *                         renewed by card to past_due once its period ends)
- *   pending_verification  yes: a mobile money payment is being checked
- *   past_due              until grace_ends_at (else 3 days after the period)
- *   cancelled             through the period already paid for (a trial
- *                         cancelled early, through the trial)
- *   suspended             no
- */
-function subscription_open(array $sub, ?DateTimeImmutable $now = null): bool {
-    $tz    = planner_tz();
-    $now   = $now ?? new DateTimeImmutable('now', $tz);
-    $today = $now->format('Y-m-d');
-    $day   = fn($v) => $v ? substr((string)$v, 0, 10) : null;
-    switch ($sub['status'] ?? null) {
-        case 'trial':
-            return empty($sub['trial_ends_at']) || $today <= $day($sub['trial_ends_at']);
-        case 'active':
-        case 'pending_verification':
-            return true;
-        case 'past_due':
-            if (!empty($sub['grace_ends_at'])) {
-                return $now <= new DateTimeImmutable($sub['grace_ends_at'], $tz);
-            }
-            return !empty($sub['current_period_end']) && $today <= planner_add_days($day($sub['current_period_end']), 3);
-        case 'cancelled':
-            $until = $day($sub['current_period_end'] ?? null) ?? $day($sub['trial_ends_at'] ?? null);
-            return $until !== null && $today <= $until;
-        default:
-            return false;
-    }
-}
-
 function money(float $amount, string $symbol = ''): string {
     if ($symbol === '') {
         $symbol = $_SESSION['business']['currency_symbol'] ?? '₦';
@@ -201,15 +162,21 @@ function generate_otp(): string {
 /**
  * Resize and save an uploaded image using GD.
  *
+ * Files over 20 MB or 52 megapixels are refused before GD opens them, and the
+ * saved copy is at most $max_width wide and three times that tall, so a huge
+ * or very tall picture can't fill the disk or the server's memory.
+ *
  * @param array  $file      $_FILES entry
  * @param string $dest      Full destination path
  * @param int    $max_width Maximum width in pixels
+ * @param string $format    'png' (keeps transparency) or 'jpg' (photos and screenshots)
  * @return bool
  */
-function save_image(array $file, string $dest, int $max_width = 800): bool {
-    $tmp  = $file['tmp_name'];
+function save_image(array $file, string $dest, int $max_width = 800, string $format = 'png'): bool {
+    $tmp  = $file['tmp_name'] ?? '';
+    if ($tmp === '' || !is_file($tmp) || filesize($tmp) > 20 * 1024 * 1024) return false;
     $info = @getimagesize($tmp);
-    if (!$info) return false;
+    if (!$info || $info[0] < 1 || $info[1] < 1 || $info[0] * $info[1] > 52000000) return false;
 
     $mime = $info['mime'];
     switch ($mime) {
@@ -223,10 +190,11 @@ function save_image(array $file, string $dest, int $max_width = 800): bool {
     $orig_w = imagesx($src);
     $orig_h = imagesy($src);
 
-    // Only resize if wider than max
-    if ($orig_w > $max_width) {
-        $new_w = $max_width;
-        $new_h = (int)round($orig_h * ($max_width / $orig_w));
+    // Only resize if wider than max, or taller than three times that
+    $scale = min(1, $max_width / $orig_w, ($max_width * 3) / $orig_h);
+    if ($scale < 1) {
+        $new_w = max(1, (int)round($orig_w * $scale));
+        $new_h = max(1, (int)round($orig_h * $scale));
         $dst = imagecreatetruecolor($new_w, $new_h);
 
         // Preserve transparency for PNG
@@ -240,10 +208,64 @@ function save_image(array $file, string $dest, int $max_width = 800): bool {
         $src = $dst;
     }
 
+    if ($format === 'jpg') {
+        // Flatten onto white: JPEG has no transparency
+        $flat = imagecreatetruecolor(imagesx($src), imagesy($src));
+        imagefill($flat, 0, 0, imagecolorallocate($flat, 255, 255, 255));
+        imagecopy($flat, $src, 0, 0, 0, 0, imagesx($src), imagesy($src));
+        imagedestroy($src);
+        $result = imagejpeg($flat, $dest, 82);
+        imagedestroy($flat);
+        return $result;
+    }
+
     // Save as PNG (logos need transparency support)
     $result = imagepng($src, $dest, 8);
     imagedestroy($src);
     return $result;
+}
+
+/**
+ * Where private files live: delivery signatures and payment proofs. storage/
+ * is closed to the web (.htaccess), so these are only ever sent by
+ * send_private_file() from a page that has checked who is asking.
+ */
+function private_file_dir(string $kind, int $business_id): string {
+    $dir = BASE_PATH . '/storage/private/' . $kind . '/' . $business_id;
+    if (!is_dir($dir)) {
+        mkdir($dir, 0750, true);
+    }
+    return $dir;
+}
+
+/**
+ * Send a private image (its path relative to the app, as stored) and stop.
+ * Files saved before they moved to storage/ are still read from their old
+ * folders under uploads/, which .htaccess now closes to the web.
+ */
+function send_private_file(?string $rel_path): never {
+    $rel     = ltrim((string)$rel_path, '/');
+    $allowed = ['storage/private/', 'uploads/delivery_signoffs/', 'uploads/order_proofs/', 'uploads/booking_proofs/'];
+    $full    = false;
+    foreach ($allowed as $prefix) {
+        if (str_starts_with($rel, $prefix)) {
+            $full = realpath(BASE_PATH . '/' . $rel);
+            break;
+        }
+    }
+    $info = ($full && str_starts_with($full, realpath(BASE_PATH) . '/') && is_file($full)) ? @getimagesize($full) : false;
+    if (!$info || !in_array($info['mime'], ['image/png', 'image/jpeg', 'image/webp'], true)) {
+        while (ob_get_level()) { ob_end_clean(); }
+        http_response_code(404);
+        exit;
+    }
+    while (ob_get_level()) { ob_end_clean(); }
+    header('Content-Type: ' . $info['mime']);
+    header('Content-Length: ' . filesize($full));
+    header('Cache-Control: private, no-store');
+    header('X-Content-Type-Options: nosniff');
+    readfile($full);
+    exit;
 }
 
 /**
@@ -338,4 +360,28 @@ function csrf_token(): string {
 /*** CSRF hidden input field*/
 function csrf_field(): string {
     return '<input type="hidden" name="csrf_token" value="' . htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8') . '">';
-}
+}
+
+/**
+ * Does this row belong to the business? Ids posted from a form (a client, a bank
+ * account, a product, an invoice) are checked with this before they are saved,
+ * so one business can't attach another business's records to its documents.
+ */
+function owned_by_business(PDO $db, string $table, ?int $id, int $business_id): bool {
+    $tables = ['customers', 'bank_accounts', 'products', 'invoices', 'quotations', 'suppliers', 'receipts', 'deliveries'];
+    if (!$id || $id <= 0 || !in_array($table, $tables, true)) return false;
+    $stmt = $db->prepare("SELECT 1 FROM `{$table}` WHERE id = ? AND business_id = ? LIMIT 1");
+    $stmt->execute([$id, $business_id]);
+    return (bool)$stmt->fetchColumn();
+}
+
+/**
+ * The first name to greet someone with in an email, from a name a shopper
+ * typed: plain letters only (no links, numbers or long text), or "there".
+ * Anyone can type any email address into a shop's form, so nothing they
+ * write themselves goes out in the email.
+ */
+function mail_first_name(string $name): string {
+    $first = preg_split('/\s+/u', trim($name))[0] ?? '';
+    return preg_match("/^\p{L}[\p{L}'’-]{0,29}$/u", $first) ? $first : 'there';
+}

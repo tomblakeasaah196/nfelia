@@ -18,6 +18,7 @@
 // ops.<host> is worked out like a shop's address; the cron loads Ops
 // without the app's other helpers, so it brings what it needs.
 require_once BASE_PATH . '/app/helpers/shop_links.php';
+require_once BASE_PATH . '/app/helpers/billing.php';
 
 const OPS_LABEL        = 'ops';
 const OPS_SESSION      = '__Host-nfelia_ops';
@@ -211,7 +212,8 @@ function ops_role_label(string $role): string
 
 function ops_ip(): string
 {
-    return substr((string)($_SERVER['REMOTE_ADDR'] ?? ''), 0, 45);
+    // The visitor's own address behind Cloudflare (client_ip(), app/helpers/auth.php)
+    return substr(function_exists('client_ip') ? client_ip() : (string)($_SERVER['REMOTE_ADDR'] ?? ''), 0, 45);
 }
 
 function ops_csrf(): string
@@ -573,19 +575,77 @@ function ops_asset(string $path): string
     return '/' . ltrim($path, '/') . (is_file($file) ? '?v=' . filemtime($file) : '');
 }
 
-/** A plan's state as a chip. */
-function ops_plan_chip(?string $status): string
+/**
+ * Where a client stands, as billing_access() decides (app/helpers/billing.php):
+ * a paid month that has ended keeps the status "active", so the status alone
+ * can't say. $sub is a row with status (or plan_status), trial_ends_at,
+ * current_period_end, grace_ends_at and expiry_exempt.
+ *   trial, trial_over, active (paid), due (in its grace days), paused
+ *   (not paid), cancelled, suspended, checking (an old pending receipt), none
+ */
+function ops_plan_state(?array $sub): string
 {
-    [$label, $tone] = match ($status) {
-        'active'               => ['Paying', 'ok'],
-        'trial'                => ['Free trial', 'accent'],
-        'past_due'             => ['Payment due', 'warn'],
-        'pending_verification' => ['Being checked', 'warn'],
-        'cancelled'            => ['Cancelled', 'muted'],
-        'suspended'            => ['Suspended', 'bad'],
-        default                => ['No plan', 'muted'],
+    $status = $sub['plan_status'] ?? $sub['status'] ?? null;
+    if (!$status) return 'none';
+    if (in_array($status, ['cancelled', 'suspended'], true)) return $status;
+    if ($status === 'pending_verification') return 'checking';
+    $access = billing_access(['status' => $status] + $sub);
+    return match ($access) {
+        'trial' => 'trial',
+        'paid'  => 'active',
+        'grace' => 'due',
+        default => $status === 'trial' ? 'trial_over' : 'paused',
     };
-    return '<span class="ops-chip ops-chip-' . $tone . '">' . e($label) . '</span>';
+}
+
+/** The labels of ops_plan_state(), for lists and filters. */
+const OPS_PLAN_STATES = [
+    'trial' => 'Free trial', 'trial_over' => 'Trial over', 'active' => 'Paying', 'due' => 'Payment due',
+    'paused' => 'Paused: not paid', 'cancelled' => 'Cancelled', 'suspended' => 'Suspended', 'checking' => 'Being checked', 'none' => 'No plan',
+];
+
+/** A subscription row (alias s) in one of those states, in SQL. */
+function ops_plan_sql(string $state): string
+{
+    $g = (int)BILLING_GRACE_DAYS;
+    $paid    = "(s.expiry_exempt = 1 OR s.current_period_end IS NULL OR s.current_period_end >= CURDATE())";
+    $grace   = "DATE(COALESCE(s.grace_ends_at, s.current_period_end + INTERVAL {$g} DAY))";
+    return match ($state) {
+        'trial'      => "(s.status = 'trial' AND (s.trial_ends_at IS NULL OR s.trial_ends_at >= CURDATE()))",
+        'trial_over' => "(s.status = 'trial' AND s.trial_ends_at < CURDATE())",
+        'active'     => "(s.status = 'active' AND {$paid})",
+        'due'        => "((s.status = 'active' AND NOT {$paid} AND s.current_period_end >= CURDATE() - INTERVAL {$g} DAY)
+                          OR (s.status = 'past_due' AND {$grace} >= CURDATE()))",
+        'paused'     => "((s.status = 'active' AND NOT {$paid} AND s.current_period_end < CURDATE() - INTERVAL {$g} DAY)
+                          OR (s.status = 'past_due' AND ({$grace} < CURDATE() OR {$grace} IS NULL)))",
+        'checking'   => "s.status = 'pending_verification'",
+        'none'       => "s.id IS NULL",
+        default      => "s.status = " . get_db()->quote($state),
+    };
+}
+
+/** A client's plan as a chip: a subscription row (see ops_plan_state), or a state. */
+function ops_plan_chip(array|string|null $plan): string
+{
+    $state = is_array($plan) ? ops_plan_state($plan) : ($plan ?? 'none');
+    $tone = match ($state) {
+        'active' => 'ok', 'trial' => 'accent', 'due', 'checking' => 'warn', 'paused', 'suspended', 'trial_over' => 'bad', default => 'muted',
+    };
+    return '<span class="ops-chip ops-chip-' . $tone . '">' . e(OPS_PLAN_STATES[$state] ?? $state) . '</span>';
+}
+
+/**
+ * Monthly recurring revenue, in naira: what each paying business's last
+ * month cost (monthly_amount includes its seats), for those still inside a
+ * paid month or its grace days. Businesses paying in another currency are
+ * left out (app/helpers/billing.php).
+ */
+function ops_mrr_sql(): string
+{
+    return "SELECT COALESCE(SUM(s.monthly_amount), 0) FROM subscriptions s
+            JOIN businesses b ON b.id = s.business_id LEFT JOIN countries c ON c.id = b.country_id
+            WHERE s.status = 'active' AND COALESCE(c.currency_code, 'NGN') = 'NGN'
+              AND (s.expiry_exempt = 1 OR s.current_period_end IS NULL OR s.current_period_end >= CURDATE() - INTERVAL " . (int)BILLING_GRACE_DAYS . " DAY)";
 }
 
 /** Seconds to add to time() to compare with a database (Lagos) time read by strtotime() in PHP's own zone. */

@@ -1,52 +1,68 @@
 <?php
 /**
  * Nfelia — Subscription Middleware
- * Blocks access for suspended/expired accounts.
- * Allows grace period: 3 days after billing failure.
+ * Sends a business whose trial or paid month (and its grace days) is over to
+ * Billing. billing_access() in app/helpers/billing.php decides, the same
+ * answer that closes the shop and stops reminders.
  *
  * NFELIA AUDIT FIX — C03 — Redirect target fixed from account/billing to settings?tab=billing — 2026-06-03
- * NFELIA Phase 4   — Added pending_verification as passthrough status — 2026-06-03
  */
 
-// Routes that bypass subscription checks entirely
-// Notifications stay open too: the alert that says the account is on hold
-// must open (and be marked read) even while everything else is shut.
-$exempt_routes = ['settings', 'account', 'logout', 'billing', 'momo', 'countries', 'notifications'];
+// Routes that bypass subscription checks entirely: paying, settings, finishing
+// sign-up (an expired trial must not bounce between onboarding and billing)
+// and asking for help. Notifications stay open too: the alert that says the
+// account is on hold must open (and be marked read) while everything else is
+// shut. The Nfelia business locks like any other: the team works in Nfelia
+// Ops (ops.nfelia.com), not in it.
+$exempt_routes = ['settings', 'account', 'logout', 'billing', 'momo', 'countries', 'onboarding',
+                  'support', 'contact-support', 'user-guide', 'notifications'];
 
 if (!in_array($controller ?? '', $exempt_routes)) {
     $db   = get_db();
-    $stmt = $db->prepare("SELECT status, trial_ends_at, current_period_end, grace_ends_at FROM subscriptions WHERE business_id = ?");
+    // SELECT *, not a column list: during a deploy the code arrives a minute
+    // before the migration that adds expiry_exempt, and a missing column
+    // must not stop every page
+    $stmt = $db->prepare("SELECT * FROM subscriptions WHERE business_id = ?");
     $stmt->execute([auth_business_id()]);
-    $sub  = $stmt->fetch();
+    $sub  = $stmt->fetch() ?: null;
 
-    if ($sub && !subscription_open($sub)) {
-        // The same rule closes the shop and stops the cron's reminders
-        // (subscription_open() in app/helpers/functions.php).
-        [$level, $why] = match ($sub['status']) {
-            'trial'     => ['warning', 'Your free trial has ended. Choose a plan to carry on. Everything you added is still here.'],
-            'past_due'  => ['error', 'Your payment is overdue and the 3 extra days have passed. Pay to carry on.'],
-            'cancelled' => ['warning', 'Your subscription has ended. Resubscribe to carry on where you left off.'],
-            default     => ['error', 'Your account is on hold. Open billing to restore it, or contact Nfelia support.'],
-        };
-        flash($level, $why);
-        redirect('settings?tab=billing');
-    }
+    // A Mobile Money receipt waiting for the Nfelia team unlocks nothing (Tom's
+    // decision), but the owner is told it has arrived.
+    $stmt = $db->prepare("SELECT COUNT(*) FROM subscription_payments WHERE business_id = ? AND status = 'pending_verification'");
+    $stmt->execute([auth_business_id()]);
+    $waiting = (int)$stmt->fetchColumn() > 0;
 
-    // Still open, with something to know about. Worked out on every page,
-    // so it goes away the moment the plan is paid.
     unset($_SESSION['billing_warning']);
-    if ($sub) {
-        $day = fn($d) => date('j M Y', strtotime((string)$d));
-        if ($sub['status'] === 'past_due') {
-            $grace = $sub['grace_ends_at'] ?: planner_add_days(substr((string)$sub['current_period_end'], 0, 10), 3);
-            $left  = max(0, planner_days_between(planner_today(), substr((string)$grace, 0, 10)));
-            $_SESSION['billing_warning'] = 'Your payment is due. Pay ' . ($left === 0 ? 'today' : 'within ' . $left . ' day' . ($left === 1 ? '' : 's'))
-                . ' to keep using Nfelia.';
-        } elseif ($sub['status'] === 'pending_verification') {
-            $_SESSION['billing_warning'] = 'Your payment is being checked. We\'ll let you know within 24 hours.';
-        } elseif ($sub['status'] === 'cancelled') {
-            $_SESSION['billing_warning'] = 'Your subscription is cancelled. You keep full access until '
-                . $day($sub['current_period_end'] ?: $sub['trial_ends_at']) . '.';
-        }
+    switch (billing_access($sub)) {
+        case 'locked':
+            if (!is_owner()) {
+                flash('warning', 'Nfelia is paused for this business until the owner pays for the month.');
+            } elseif ($waiting) {
+                flash('warning', 'We have your Mobile Money payment and are checking it now. Nfelia opens again as soon as it is approved.');
+            } elseif (($sub['status'] ?? '') === 'trial') {
+                flash('warning', 'Your free trial has ended. Pay for a month to carry on.');
+            } elseif (($sub['status'] ?? '') === 'suspended') {
+                flash('error', 'Your account is suspended. Pay for a month to open it again, or contact support.');
+            } else {
+                flash('warning', 'Your paid month has ended. Pay for the next month to open Nfelia and your website again.');
+            }
+            redirect('settings?tab=billing');
+
+        case 'grace':
+            $until = ($sub['status'] ?? '') === 'past_due' && !empty($sub['grace_ends_at'])
+                ? substr($sub['grace_ends_at'], 0, 10)
+                : billing_add_days((string)$sub['current_period_end'], BILLING_GRACE_DAYS);
+            $_SESSION['billing_warning'] = $waiting
+                ? 'We are checking your Mobile Money payment.'
+                : 'Your paid month has ended. Pay by ' . date('j M', strtotime($until)) . ' to keep Nfelia and your website open.';
+            break;
+
+        default:
+            if ($waiting) {
+                $_SESSION['billing_warning'] = 'We are checking your Mobile Money payment. We will tell you as soon as it is approved.';
+            } elseif (($sub['status'] ?? '') === 'cancelled' && !empty($sub['current_period_end'])) {
+                $_SESSION['billing_warning'] = 'Your subscription is cancelled. You keep full access until '
+                    . date('j M Y', strtotime((string)$sub['current_period_end'])) . '.';
+            }
     }
 }

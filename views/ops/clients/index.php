@@ -29,7 +29,7 @@ $noun = ['client', 'clients'];
                 <label for="f-plan">Plan</label>
                 <select class="ops-select" id="f-plan" name="plan">
                     <option value="">Any plan</option>
-                    <option value="attention"<?= $filter['plan'] === 'attention' ? ' selected' : '' ?>>Needs attention (due, being checked, trial ending)</option>
+                    <option value="attention"<?= $filter['plan'] === 'attention' ? ' selected' : '' ?>>Needs attention (due, paused, being checked, trial ending)</option>
                     <?php foreach ($plans as $k => $label): ?><option value="<?= e($k) ?>"<?= $filter['plan'] === $k ? ' selected' : '' ?>><?= e($label) ?></option><?php endforeach; ?>
                 </select>
             </div>
@@ -67,7 +67,7 @@ $noun = ['client', 'clients'];
                     <a class="cell-main" href="<?= e(ops_url('clients/' . (int)$b['id'])) ?>"><?= e($b['name']) ?></a>
                     <span class="cell-sub"><?= e(trim(($b['owner'] ? $b['owner'] . ' · ' : '') . ($b['email'] ?? ''))) ?><?= $b['subdomain'] ? ' · ' . e($b['subdomain'] . '.' . shop_base_host()) : '' ?><?= $b['country'] ? ' · ' . e(trim(($b['flag_emoji'] ?? '') . ' ' . $b['country'])) : '' ?></span>
                 </td>
-                <td data-label="Plan"><?= ops_plan_chip($b['plan_status']) ?>
+                <td data-label="Plan"><?= ops_plan_chip($b) ?>
                     <?php if ($b['plan_status'] === 'trial' && $b['trial_ends_at']): ?><span class="cell-sub">ends <?= e(date('j M', strtotime($b['trial_ends_at']))) ?></span>
                     <?php elseif ($b['current_period_end'] && in_array($b['plan_status'], ['active', 'past_due', 'cancelled'], true)): ?><span class="cell-sub">to <?= e(date('j M', strtotime($b['current_period_end']))) ?></span><?php endif; ?>
                 </td>

@@ -201,6 +201,9 @@ jobs:
             echo "MAIL_PASSWORD=sink"
             echo "MAIL_FROM_ADDRESS=no-reply@nfelia.test"
             echo "PAYSTACK_SECRET_KEY=sk_test_ci_only"
+            # The stand-in push service (push_sink.php): only real push
+            # services and these are ever called (app/helpers/webpush.php).
+            echo "PUSH_TEST_ENDPOINTS=http://127.0.0.1:8098/"
             php bin/vapid-keys.php
           } > .env
 

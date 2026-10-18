@@ -23,7 +23,7 @@ $splash = ($_GET['source'] ?? '') === 'pwa';
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700&family=Plus+Jakarta+Sans:wght@400;600&display=swap">
-    <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/home.css?v=4">
+    <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/home.css?v=5">
     <script>window.Nfelia = { url: '<?= APP_URL ?>', csrf: '<?= e(csrf_token()) ?>' };</script>
 </head>
 <body class="auth-page">
@@ -76,7 +76,7 @@ $splash = ($_GET['source'] ?? '') === 'pwa';
     </main>
 
     <p class="auth-links"><a href="<?= APP_URL ?>/">Return to home</a></p>
-    <script src="<?= APP_URL ?>/assets/js/home.js?v=5" defer></script>
+    <script src="<?= APP_URL ?>/assets/js/home.js?v=6" defer></script>
     <script src="<?= APP_URL ?>/assets/js/passkey.js?v=<?= filemtime(BASE_PATH . '/assets/js/passkey.js') ?>" defer></script>
 </body>
 </html>

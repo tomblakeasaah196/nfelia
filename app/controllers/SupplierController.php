@@ -151,7 +151,7 @@ class SupplierController {
 
         $editing = true;
 
-        $title     = "Edit — " . e($supplier['full_name']);
+        $title     = "Edit — " . $supplier['full_name'];
         $view_file = BASE_PATH . '/views/suppliers/form.php';
         require_once BASE_PATH . '/views/layouts/app.php';
     }
@@ -220,7 +220,7 @@ class SupplierController {
         $wa_number = preg_replace('/[^0-9]/', '', $wa_number);
         if (str_starts_with($wa_number, '0')) $wa_number = '234' . substr($wa_number, 1);
 
-        $title     = e($supplier['full_name']);
+        $title     = $supplier['full_name'];
         $view_file = BASE_PATH . '/views/suppliers/view.php';
         require_once BASE_PATH . '/views/layouts/app.php';
     }
