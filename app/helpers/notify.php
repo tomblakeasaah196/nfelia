@@ -62,8 +62,9 @@ const NOTIFY_FIELDS = ['quiet_hours', 'quiet_from', 'quiet_to', 'hide_amounts'];
  * same tag replaces the older one on the phone), text (title and body;
  * $m formats money and is null when this person must not see amounts),
  * private (the phone title for people who hide amounts), and for email:
- * lines (label => value rows), button, template (default 'notification')
- * and brand ('business' or 'nfelia').
+ * lines (label => value rows), button, template (default 'notification';
+ * 'needs' names the vars a special template can't do without, else the
+ * plain one is used) and brand ('business' or 'nfelia').
  */
 function notify_events(): array
 {
@@ -140,7 +141,7 @@ function notify_events(): array
             'lines' => fn($d, $m) => [
                 'Order' => $d['order_number'], 'Customer' => $d['customer'], 'Phone' => $d['phone'] ?? '',
                 'Items' => (string)(int)$d['items'], 'Total' => $m ? $m($d['total']) : '',
-                'Delivery' => $d['fulfillment'] === 'delivery' ? ($d['address'] ?: 'Delivery') : 'Pickup',
+                'Delivery' => $d['fulfillment'] === 'delivery' ? (($d['address'] ?? '') ?: 'Delivery') : 'Pickup',
                 'Note' => $d['note'] ?? '',
             ],
             'button' => 'Open the order',
@@ -259,7 +260,7 @@ function notify_events(): array
             'tag' => fn($d) => 'task-' . (int)$d['task_id'],
             'text' => fn($d, $m) => [$d['title'], $d['line']],
             'private' => 'Reminder',
-            'template' => 'task_reminder',
+            'template' => 'task_reminder', 'needs' => ['item', 'when'],
         ],
         'morning.plan' => [
             'topic' => 'morning', 'to' => 'user', 'ttl' => 6 * 3600,
@@ -267,7 +268,7 @@ function notify_events(): array
             'tag' => fn($d) => 'morning',
             'text' => fn($d, $m) => [$d['title'], $d['line']],
             'private' => 'Your plan for today',
-            'template' => 'morning_plan',
+            'template' => 'morning_plan', 'needs' => ['first_name', 'day', 'summary', 'today'],
         ],
         'task.assigned' => [
             'topic' => 'tasks', 'to' => 'user',
@@ -624,12 +625,16 @@ function notify(string $event, int $business_id, array $data = [], array $opts =
 
             if (in_array('email', $channels, true) && $want['email'] && filter_var($person['email'], FILTER_VALIDATE_EMAIL)) {
                 $lines = isset($def['lines']) ? array_filter(($def['lines'])($data, $sees ? $money : null), fn($v) => $v !== null && $v !== '') : [];
+                $template = $def['template'] ?? 'notification';
+                if (array_diff($def['needs'] ?? [], array_keys($opts['vars'] ?? []))) {
+                    $template = 'notification';
+                }
                 notify_queue($db, [
                     'business_id' => $business_id, 'notification_id' => $nid, 'user_id' => $uid, 'event' => $event,
                     'channel' => 'email', 'recipient' => $person['email'], 'recipient_name' => $person['full_name'],
                     'payload' => [
                         'subject'  => $title,
-                        'template' => $def['template'] ?? 'notification',
+                        'template' => $template,
                         'brand'    => ($def['brand'] ?? 'business') === 'nfelia' ? null : $business_id,
                         'vars'     => array_merge([
                             'subject'      => $title,

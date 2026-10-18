@@ -211,6 +211,7 @@ function settlementModal() {
             this.successMsg = '';
 
             const fd = new FormData();
+            fd.append('csrf_token', window.Nfelia.csrf);
             fd.append('amount', this.amount);
             fd.append('method', this.method);
             fd.append('settlement_date', this.date);
@@ -218,7 +219,7 @@ function settlementModal() {
             fd.append('note', this.note);
 
             try {
-                const res = await fetch('<?= APP_URL ?>/debts/settle/<?= $debt['id'] ?>', { method: 'POST', body: fd });
+                const res = await fetch('<?= APP_URL ?>/debts/settle/<?= $debt['id'] ?>', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } });
                 const data = await res.json();
                 if (data.success) {
                     this.successMsg = '<?= $currency ?>' + this.amount.toLocaleString() + ' settlement recorded!';

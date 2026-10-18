@@ -1,0 +1,14 @@
+-- A stand-in for the generate_doc_number() procedure the live database has (db/schema.sql
+-- is structure only and leaves procedures out). Loaded by tests/notifications/setup.sh.
+DROP PROCEDURE IF EXISTS generate_doc_number;
+DELIMITER //
+CREATE PROCEDURE generate_doc_number(IN p_biz INT, IN p_type VARCHAR(5), OUT p_out VARCHAR(30))
+BEGIN
+  DECLARE n INT DEFAULT 0;
+  INSERT INTO document_counters (business_id, doc_type, last_number) VALUES (p_biz, p_type, 0)
+    ON DUPLICATE KEY UPDATE last_number = last_number;
+  UPDATE document_counters SET last_number = last_number + 1 WHERE business_id = p_biz AND doc_type = p_type;
+  SELECT last_number INTO n FROM document_counters WHERE business_id = p_biz AND doc_type = p_type;
+  SELECT CONCAT(UPPER(doc_prefix), '-', p_type, '-', LPAD(n + 200, 3, '0')) INTO p_out FROM businesses WHERE id = p_biz;
+END//
+DELIMITER ;

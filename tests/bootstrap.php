@@ -1,7 +1,8 @@
 <?php
 /**
  * Loads the app the way index.php does, without routing or a session, so
- * tests can call helpers directly. Uses the .env of the checkout it is in.
+ * tests can call helpers directly. Settings come from the checkout's .env;
+ * real environment variables win over it (CI has no .env file).
  */
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 
@@ -10,7 +11,13 @@ $root = dirname(__DIR__);
 if (is_file($root . '/vendor/autoload.php')) {
     require_once $root . '/vendor/autoload.php';
 }
-require_once $root . '/config/database.php';
+require_once $root . '/config/database.php';   // reads .env into $_ENV
+foreach (['APP_ENV', 'APP_URL', 'DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASS', 'MAIL_HOST', 'MAIL_PORT', 'MAIL_ENCRYPTION',
+          'MAIL_USERNAME', 'MAIL_PASSWORD', 'MAIL_FROM_ADDRESS', 'VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT', 'PAYSTACK_SECRET_KEY'] as $key) {
+    if (getenv($key) !== false) {
+        $_ENV[$key] = getenv($key);
+    }
+}
 require_once $root . '/config/app.php';
 require_once $root . '/config/mail.php';
 foreach (['functions', 'auth', 'token', 'mail', 'webpush', 'planner', 'shop_links', 'storefront', 'cloudflare',

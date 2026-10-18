@@ -86,7 +86,9 @@ class DeedController {
 
         // Fetch business + customer context
         $business = $this->get_business($biz_id);
-        $customer = $this->get_customer($customer_id, $biz_id);
+        // A walk-in sale has nobody to give a deed to.
+        if (!$customer_id) { flash('error', 'A deed needs a customer. Add the customer to the receipt first.'); redirect('dashboard'); return; }
+        $customer = $this->get_customer((int)$customer_id, $biz_id);
         if (!$customer) { flash('error', 'Client not found.'); redirect('dashboard'); return; }
 
         // If provenance_text is blank, pull from the first product's provenance_text (if set)

@@ -9,7 +9,9 @@
  */
 
 // Routes that bypass subscription checks entirely
-$exempt_routes = ['settings', 'account', 'logout', 'billing', 'momo', 'countries'];
+// Notifications stay open too: the alert that says the account is on hold
+// must open (and be marked read) even while everything else is shut.
+$exempt_routes = ['settings', 'account', 'logout', 'billing', 'momo', 'countries', 'notifications'];
 
 if (!in_array($controller ?? '', $exempt_routes)) {
     $db   = get_db();

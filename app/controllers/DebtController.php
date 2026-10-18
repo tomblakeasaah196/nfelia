@@ -233,7 +233,10 @@ class DebtController {
         }
 
         if (is_ajax()) {
-            // AJAX settlement
+            // AJAX settlement: the same token check, answered as JSON
+            if (!hash_equals($_SESSION['csrf_token'] ?? '', (string)($_POST['csrf_token'] ?? ''))) {
+                json_response(['error' => 'This page is out of date. Reload it and try again.'], 403);
+            }
             $amount = (float)($_POST['amount'] ?? 0);
             $method = trim($_POST['method'] ?? '');
             $reference = trim($_POST['reference'] ?? '');
