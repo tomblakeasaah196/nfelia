@@ -308,6 +308,7 @@ class OrderController
                 ], ["actor" => (int) $this->get_current_user_id(), "dedupe" => (string) $order["id"]]);
             }
 
+            shop_order_tell($this->db, (int) $order["id"], "confirmed");
             flash("success", "Order {$order["order_number"]} approved. Invoice created.");
         } catch (\Exception $e) {
             if ($this->db->inTransaction()) {
@@ -347,6 +348,7 @@ class OrderController
         ]);
 
         if ($stmt->rowCount()) {
+            shop_order_tell($this->db, (int) $id, "turned_down", mb_substr(trim($_POST["reason"] ?? ""), 0, 300));
             flash("info", "Order rejected.");
         } else {
             flash("error", "Order not found or cannot be rejected.");
@@ -385,15 +387,22 @@ class OrderController
             redirect("orders/view/{$id}");
         }
 
-        $this->db
-            ->prepare(
-                "UPDATE orders SET status = ? WHERE id = ? AND business_id = ?",
-            )
-            ->execute([$new_status, (int) $id, $this->biz_id]);
+        // From the status the page showed, so a double tap tells the shopper once.
+        $moved = $this->db->prepare(
+            "UPDATE orders SET status = ? WHERE id = ? AND business_id = ? AND status = ?",
+        );
+        $moved->execute([$new_status, (int) $id, $this->biz_id, $order["status"]]);
         // A fulfilled order can be reviewed: the link shows on the order and
         // on the shopper's tracking page
         if ($new_status === "fulfilled") {
             review_invite($this->db, (int) $id);
+        }
+        if ($moved->rowCount() === 1) {
+            shop_order_tell($this->db, (int) $id, match ($new_status) {
+                "processing" => "preparing",
+                "fulfilled"  => "delivered",
+                default      => "cancelled",
+            });
         }
         flash("success", "Order status updated to {$new_status}.");
         redirect("orders/view/{$id}");

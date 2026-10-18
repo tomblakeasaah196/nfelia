@@ -411,6 +411,9 @@ class PublicController
             );
             $stmtOrder->execute([$delivery["id"], $delivery["business_id"]]);
             $order_id = (int) $stmtOrder->fetchColumn();
+            if ($order_id) {
+                shop_order_tell($this->db, $order_id, "delivered");
+            }
             $review = $order_id ? review_invite($this->db, $order_id) : null;
             if ($review && $review["status"] === "invited" && $business) {
                 $review_link = review_url($business, $review);

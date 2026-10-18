@@ -311,13 +311,24 @@ class DeliveryController {
             $updates[] = "actual_delivery = NOW()";
         }
 
-        $updates[] = "1=1"; // placeholder for trailing comma safety
         $params[]  = $id;
         $params[]  = $this->biz_id;
+        $params[]  = $delivery['status'];
 
+        // From the status the page showed: a double tap moves it (and tells
+        // the shopper) once.
         $set_sql = implode(', ', $updates);
-        $this->db->prepare("UPDATE deliveries SET {$set_sql} WHERE id = ? AND business_id = ?")
-                  ->execute($params);
+        $moved = $this->db->prepare("UPDATE deliveries SET {$set_sql} WHERE id = ? AND business_id = ? AND status = ?");
+        $moved->execute($params);
+
+        // A shop order on its way, or delivered: the shopper hears.
+        if ($moved->rowCount() === 1 && in_array($new_status, ['dispatched', 'in_transit', 'delivered'], true)) {
+            $stmt = $this->db->prepare("SELECT id FROM orders WHERE delivery_id = ? AND business_id = ? LIMIT 1");
+            $stmt->execute([$id, $this->biz_id]);
+            if ($order_id = (int)$stmt->fetchColumn()) {
+                shop_order_tell($this->db, $order_id, $new_status === 'delivered' ? 'delivered' : 'on_the_way');
+            }
+        }
 
         flash('success', 'Status updated to ' . self::STATUSES[$new_status]['label'] . '.');
         redirect('deliveries/view/' . $id);
