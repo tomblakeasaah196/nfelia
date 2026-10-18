@@ -794,7 +794,17 @@ class InvoiceController {
 
         $this->db->beginTransaction();
         try {
+            $stock_before = null;
             if ($id) {
+                // A sent invoice's goods are already off the shelf (send(), or
+                // approving a shop order): note them, to move only the difference.
+                $stmtLock = $this->db->prepare("SELECT status, doc_number FROM invoices WHERE id = ? AND business_id = ? FOR UPDATE");
+                $stmtLock->execute([$id, $this->biz_id]);
+                $locked = $stmtLock->fetch();
+                if ($locked && $locked['status'] === 'sent') {
+                    $stock_before = $this->stock_lines($id);
+                }
+
                 $this->db->prepare("
                     UPDATE invoices SET
                         customer_id = ?, bank_account_id = ?, issue_date = ?, due_date = ?,
@@ -845,8 +855,11 @@ class InvoiceController {
                 ]);
             }
 
+            $restocked = $stock_before !== null
+                && $this->move_stock_by_difference($id, $locked['doc_number'], $stock_before, $this->stock_lines($id));
+
             $this->db->commit();
-            flash('success', 'Invoice saved.');
+            flash('success', $restocked ? 'Invoice saved. Stock updated to match.' : 'Invoice saved.');
             redirect('invoices/view/' . $id);
 
         } catch (\Throwable $e) {
@@ -859,6 +872,61 @@ class InvoiceController {
     /* ══════════════════════════════════════════
      *  PRIVATE HELPERS
      * ══════════════════════════════════════════ */
+
+    /**
+     * The goods on an invoice's lines, by product: quantity and price.
+     * Services have no stock and are left out.
+     */
+    private function stock_lines(int $invoice_id): array {
+        $stmt = $this->db->prepare("
+            SELECT ii.product_id, SUM(ii.quantity) AS qty, MAX(ii.unit_price) AS unit_price
+            FROM invoice_items ii
+            JOIN products p ON p.id = ii.product_id AND p.business_id = ?
+            WHERE ii.invoice_id = ? AND p.is_service = 0
+            GROUP BY ii.product_id
+        ");
+        $stmt->execute([$this->biz_id, $invoice_id]);
+        $lines = [];
+        foreach ($stmt->fetchAll() as $row) {
+            $lines[(int)$row['product_id']] = ['qty' => (float)$row['qty'], 'unit_price' => (float)$row['unit_price']];
+        }
+        return $lines;
+    }
+
+    /**
+     * After a sent invoice is edited, move stock by the difference only:
+     * more of an item comes off, less (or a removed line) goes back. Then
+     * cancelling it later still restores exactly what is on it. True when
+     * any stock moved. Runs inside save_invoice()'s transaction.
+     */
+    private function move_stock_by_difference(int $invoice_id, string $doc_number, array $before, array $after): bool {
+        $user  = auth_user();
+        $moved = false;
+        foreach (array_unique(array_merge(array_keys($before), array_keys($after))) as $product_id) {
+            $change = ($after[$product_id]['qty'] ?? 0) - ($before[$product_id]['qty'] ?? 0);
+            if (abs($change) < 0.005) continue;
+
+            $stmtQty = $this->db->prepare("SELECT stock_qty FROM products WHERE id = ? AND business_id = ? FOR UPDATE");
+            $stmtQty->execute([$product_id, $this->biz_id]);
+            $qty_before = (float)$stmtQty->fetchColumn();
+            $qty_after  = $qty_before - $change;
+
+            $this->db->prepare("UPDATE products SET stock_qty = ? WHERE id = ? AND business_id = ?")
+                      ->execute([$qty_after, $product_id, $this->biz_id]);
+
+            $this->db->prepare("
+                INSERT INTO stock_movements (business_id, product_id, user_id, type, quantity, stock_before, stock_after, unit_cost, reference_type, reference_id, note, movement_date)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'invoice', ?, ?, CURDATE())
+            ")->execute([
+                $this->biz_id, $product_id, $user['id'],
+                $change > 0 ? 'sale' : 'return', abs($change), $qty_before, $qty_after,
+                ($after[$product_id] ?? $before[$product_id])['unit_price'], $invoice_id,
+                ($change > 0 ? 'Stock deducted' : 'Stock restored') . ' — invoice ' . $doc_number . ' edited'
+            ]);
+            $moved = true;
+        }
+        return $moved;
+    }
 
     private function find_invoice($id): ?array {
         if (!$id) return null;
