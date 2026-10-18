@@ -9,6 +9,7 @@
  *   shop_name     shown above the title on a shop's own page
  *   whatsapp      digits only; shows a "Chat on WhatsApp" button
  *   action_url    a link out, with action_label
+ *   form_action   a button that posts there, with form_label (unsubscribing)
  */
 http_response_code((int)($notice['status'] ?? 404));
 header('X-Robots-Tag: noindex, nofollow');
@@ -57,6 +58,12 @@ header('X-Robots-Tag: noindex, nofollow');
         <?php endif; ?>
         <h1><?= e($notice['title']) ?></h1>
         <p><?= e($notice['body']) ?></p>
+
+        <?php if (!empty($notice['form_action'])): ?>
+        <form class="actions" method="post" action="<?= e($notice['form_action']) ?>">
+            <button class="btn btn-primary" type="submit" style="border:0;cursor:pointer;font:inherit"><?= e($notice['form_label'] ?? 'Confirm') ?></button>
+        </form>
+        <?php endif; ?>
 
         <?php if (!empty($notice['whatsapp']) || !empty($notice['action_url'])): ?>
         <div class="actions">

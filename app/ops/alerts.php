@@ -59,7 +59,7 @@ function ops_alert_one(PDO $db, int $staff_id, string $kind, string $title, stri
         if ($person && (int)$person['alert_push']) {
             notify_queue($db, [
                 'staff_id' => $staff_id, 'event' => 'ops.' . $kind, 'channel' => 'push', 'ttl' => 6 * 3600,
-                'payload'  => ['title' => $title, 'body' => $body, 'url' => ops_url('alerts/open/' . $alert_id), 'tag' => 'ops-' . $kind],
+                'payload'  => ['title' => $title, 'body' => $body, 'url' => ops_url('alerts/open/' . $alert_id), 'tag' => 'ops-' . $kind . '-' . md5($url)],
             ]);
         }
     } catch (Throwable $e) {

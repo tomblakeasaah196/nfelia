@@ -12,6 +12,7 @@
 
 require_once __DIR__ . '/ops.php';
 require_once __DIR__ . '/passkeys.php';
+require_once __DIR__ . '/sales.php';
 
 function ops_routes(): array
 {
@@ -84,6 +85,23 @@ function ops_routes(): array
         ['POST', 'countries',                    'OpsCountriesController', 'add',            'settings'],
         ['POST', 'countries/(\d+)',              'OpsCountriesController', 'edit',           'settings'],
         ['POST', 'countries/(\d+)/toggle',       'OpsCountriesController', 'toggle',         'settings'],
+
+        // Sales: leads, the pipeline, follow-ups, campaigns
+        ['GET',  'leads',                        'OpsLeadsController',   'index',            'sales'],
+        ['POST', 'leads',                        'OpsLeadsController',   'add',              'sales'],
+        ['GET',  'leads/(\d+)',                  'OpsLeadsController',   'show',             'sales'],
+        ['POST', 'leads/(\d+)',                  'OpsLeadsController',   'update',           'sales'],
+        ['POST', 'leads/(\d+)/stage',            'OpsLeadsController',   'stage',            'sales'],
+        ['POST', 'leads/(\d+)/owner',            'OpsLeadsController',   'owner',            'sales'],
+        ['POST', 'leads/(\d+)/follow-up',        'OpsLeadsController',   'follow_up',        'sales'],
+        ['POST', 'leads/(\d+)/notes',            'OpsLeadsController',   'note',             'sales'],
+        ['GET',  'campaigns',                    'OpsCampaignsController', 'index',          'campaigns'],
+        ['GET',  'campaigns/new',                'OpsCampaignsController', 'create_form',    'campaigns'],
+        ['POST', 'campaigns',                    'OpsCampaignsController', 'create',         'campaigns'],
+        ['GET',  'campaigns/(\d+)',              'OpsCampaignsController', 'show',           'campaigns'],
+        ['POST', 'campaigns/(\d+)',              'OpsCampaignsController', 'update',         'campaigns'],
+        ['POST', 'campaigns/(\d+)/test',         'OpsCampaignsController', 'test',           'campaigns'],
+        ['POST', 'campaigns/(\d+)/send',         'OpsCampaignsController', 'send',           'campaigns'],
 
         // The team, and everything done in Ops
         ['GET',  'team',                         'OpsTeamController',    'index',            'team'],

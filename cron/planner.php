@@ -318,6 +318,16 @@ try {
     errors_report_throwable($e, ['job' => 'Cron: Ops monitor']);
 }
 
+// Sales: stalled sign-ups and ending trials become leads, follow-ups
+// remind their owner, campaigns go out a few at a time (app/ops/sales.php).
+try {
+    require_once __DIR__ . '/../app/ops/sales.php';
+    $done += ops_sales_cron($db, $now);
+} catch (Throwable $e) {
+    $done['errors']++;
+    errors_report_throwable($e, ['job' => 'Cron: Ops sales']);
+}
+
 /* ── 8. Phone notifications and emails still waiting ───────── */
 
 // Most go straight after the page that caused them has answered. This

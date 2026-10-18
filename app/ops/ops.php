@@ -15,6 +15,10 @@
  * call here carries the CSRF token.
  */
 
+// ops.<host> is worked out like a shop's address; the cron loads Ops
+// without the app's other helpers, so it brings what it needs.
+require_once BASE_PATH . '/app/helpers/shop_links.php';
+
 const OPS_LABEL        = 'ops';
 const OPS_SESSION      = '__Host-nfelia_ops';
 const OPS_IDLE_SECONDS = 12 * 3600;     // unused this long: sign in again
@@ -488,6 +492,10 @@ function ops_nav(array $staff): array
             ['errors', 'Errors',    'alert', ops_can('errors', $staff) ? $count("SELECT COUNT(*) FROM error_groups WHERE status = 'open' AND level IN ('fatal', 'error') AND kind <> 'slow'") : null, 'errors'],
             ['health', 'Health',    'pulse', null, 'errors'],
         ],
+        'Sales' => [
+            ['leads',     'Leads',     'target', ops_can('sales', $staff) ? $count("SELECT COUNT(*) FROM leads WHERE next_follow_up_at <= NOW() AND stage IN ('new', 'contacted', 'demo', 'trial')") : null, 'sales'],
+            ['campaigns', 'Campaigns', 'mail',   null, 'campaigns'],
+        ],
         'Clients' => [
             ['clients',    'Clients',      'shop',   null, 'clients'],
             ['payments',   'Payments to check', 'chart', ops_can('clients.act', $staff) ? $count("SELECT COUNT(*) FROM subscription_payments WHERE status = 'pending_verification'") : null, 'clients.act'],
@@ -578,4 +586,10 @@ function ops_plan_chip(?string $status): string
         default                => ['No plan', 'muted'],
     };
     return '<span class="ops-chip ops-chip-' . $tone . '">' . e($label) . '</span>';
+}
+
+/** Seconds to add to time() to compare with a database (Lagos) time read by strtotime() in PHP's own zone. */
+function ops_tz_shift(): int
+{
+    return (new DateTimeZone(APP_TIMEZONE))->getOffset(new DateTimeImmutable()) - (new DateTimeZone(date_default_timezone_get()))->getOffset(new DateTimeImmutable());
 }

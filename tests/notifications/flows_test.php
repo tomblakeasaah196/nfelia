@@ -48,12 +48,6 @@ function opens(int $who, string $event, string $want, ?string $page_has = null):
 }
 
 /** One rule for the whole trigger: these people, this link, nobody else. */
-/** Who in the Ops team was told about this kind of thing (ops_alerts), by staff id. */
-function ops_told(string $kind): array
-{
-    return array_map('intval', array_column(rows("SELECT staff_id FROM ops_alerts WHERE kind = ? ORDER BY staff_id", [$kind]), 'staff_id'));
-}
-
 function expect(string $event, array $who, string $url): void
 {
     $got = told($event);

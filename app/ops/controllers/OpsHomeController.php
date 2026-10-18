@@ -40,6 +40,18 @@ class OpsHomeController
             $state = ops_health_state(ops_health($db));
             $tiles[] = ['Health', ['ok' => 'All good', 'warn' => 'Worth a look', 'bad' => 'Needs attention'][$state], 'The cron, emails, phones, the server', 'health', $state === 'ok' ? 'ok' : ($state === 'bad' ? 'bad' : '')];
         }
+        if (ops_can('sales') && !ops_can('errors')) {
+            // Sales' own first page: what to do today.
+            $due = $count("SELECT COUNT(*) FROM leads WHERE next_follow_up_at <= NOW() + INTERVAL 1 DAY AND stage IN ('new', 'contacted', 'demo', 'trial')"
+                         . " AND (owner_id = " . (int)$staff['id'] . " OR owner_id IS NULL)");
+            $tiles[] = ['Follow-ups today', (string)$due, 'Yours, and nobody\'s, due by tomorrow', 'leads?due=1', $due ? 'bad' : 'ok'];
+            $new = $count("SELECT COUNT(*) FROM leads WHERE stage = 'new'");
+            $tiles[] = ['New leads', (string)$new, 'Not spoken to yet', 'leads?stage=new', ''];
+            $trial = $count("SELECT COUNT(*) FROM leads WHERE stage = 'trial'");
+            $tiles[] = ['On a trial', (string)$trial, 'Leads using the free trial now', 'leads?stage=trial', ''];
+            $won = $count("SELECT COUNT(*) FROM leads WHERE stage = 'paying' AND stage_changed_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')");
+            $tiles[] = ['Won this month', (string)$won, 'Leads that started paying', 'leads?stage=paying', $won ? 'ok' : ''];
+        }
         if (ops_can('finance')) {
             $mrr = (float)$db->query("SELECT COALESCE(SUM(monthly_amount + extra_seats * 5000), 0) FROM subscriptions WHERE status = 'active' AND payment_method = 'paystack'")->fetchColumn();
             $tiles[] = ['Monthly recurring', '₦' . number_format($mrr), $count("SELECT COUNT(*) FROM subscriptions WHERE status = 'active'") . ' paying', 'finance', ''];

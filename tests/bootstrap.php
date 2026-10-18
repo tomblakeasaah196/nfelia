@@ -28,4 +28,5 @@ require_once $root . '/app/helpers/errors.php';
 require_once $root . '/app/helpers/view_as.php';
 require_once $root . '/app/ops/ops.php';
 require_once $root . '/app/ops/alerts.php';
+require_once $root . '/app/ops/sales.php';
 $_SERVER += ['REQUEST_METHOD' => 'GET', 'REMOTE_ADDR' => '127.0.0.1', 'HTTP_HOST' => parse_url(APP_URL, PHP_URL_HOST)];

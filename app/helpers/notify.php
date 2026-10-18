@@ -640,7 +640,7 @@ function notify(string $event, int $business_id, array $data = [], array $opts =
  * address): no bell row, the same outbox and retries. $dedupe keeps the
  * same email from going twice. $business_id brands it, or null for Nfelia.
  */
-function notify_email(?int $business_id, string $to, string $name, string $subject, string $template, array $vars, ?string $dedupe = null, string $event = 'email'): ?int
+function notify_email(?int $business_id, string $to, string $name, string $subject, string $template, array $vars, ?string $dedupe = null, string $event = 'email', array $headers = []): ?int
 {
     try {
         if (!filter_var($to, FILTER_VALIDATE_EMAIL)) {
@@ -649,7 +649,8 @@ function notify_email(?int $business_id, string $to, string $name, string $subje
         return notify_queue(get_db(), [
             'business_id' => $business_id, 'event' => $event, 'channel' => 'email',
             'recipient' => $to, 'recipient_name' => $name, 'dedupe_key' => $dedupe,
-            'payload' => ['subject' => $subject, 'template' => $template, 'brand' => $business_id, 'vars' => $vars + ['subject' => $subject]],
+            'payload' => ['subject' => $subject, 'template' => $template, 'brand' => $business_id, 'vars' => $vars + ['subject' => $subject]]
+                       + ($headers ? ['headers' => $headers] : []),
         ]);
     } catch (Throwable $e) {
         error_log("Nfelia notify_email {$template}: " . $e->getMessage());
@@ -866,7 +867,7 @@ function notify_send_email(PDO $db, array $row): array
     if (str_starts_with($html, 'Error: email template')) {
         return ['failed', mb_substr($html, 0, 255)];
     }
-    return send_mail($row['recipient'], (string)$row['recipient_name'], (string)($p['subject'] ?? 'Nfelia'), $html, true)
+    return send_mail($row['recipient'], (string)$row['recipient_name'], (string)($p['subject'] ?? 'Nfelia'), $html, true, (array)($p['headers'] ?? []))
         ? ['sent', null]
         : ['retry', 'the mail server did not accept it'];
 }

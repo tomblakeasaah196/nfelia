@@ -77,6 +77,12 @@ function ops_phone(int $staff_id, string $kind = 'ok'): array
             'private' => webpush_private_pem($pair['d'], $pair['public']), 'public' => $pair['public'], 'auth' => $auth];
 }
 
+/** Who in Ops got an alert of this kind, as staff ids. */
+function ops_told(string $kind): array
+{
+    return array_map('intval', array_column(rows("SELECT staff_id FROM ops_alerts WHERE kind = ? ORDER BY staff_id", [$kind]), 'staff_id'));
+}
+
 /** Ops alerts in someone's bell. */
 function ops_bell(int $staff_id): array
 {
@@ -91,6 +97,16 @@ function monitor_slate(): void
         exec_sql("DELETE FROM {$t}");
     }
     exec_sql("DELETE FROM auth_throttle");
+}
+
+/** The monitor starts reading the server's logs from here: what they already hold is not this run's. */
+function logs_read_up_to_now(): void
+{
+    require_once dirname(__DIR__, 2) . '/app/ops/monitor.php';
+    foreach (ops_log_sources() as $path) {
+        clearstatcache(true, $path);
+        ops_setting_set(get_db(), 'log:' . sha1($path), json_encode(['offset' => (int)filesize($path), 'inode' => (int)fileinode($path)]));
+    }
 }
 
 /** Break the app on purpose (tests/ops/boom.php). */

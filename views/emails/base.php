@@ -99,7 +99,7 @@
                                 </tr>
                                 <tr>
                                     <td colspan="2" style="padding-top:16px;font-size:9px;color:#c0b8b4;border-top:1px solid #E8E4DA;margin-top:12px;">
-                                        &copy; <?= date('Y') ?> Nfelia. This email was sent from <?= htmlspecialchars($biz_name, ENT_QUOTES) ?>'s workspace on Nfelia.
+                                        &copy; <?= date('Y') ?> Nfelia. <?php if (!empty($is_platform)): ?>This email was sent by the Nfelia team.<?php else: ?>This email was sent from <?= htmlspecialchars($biz_name, ENT_QUOTES) ?>'s workspace on Nfelia.<?php endif; ?>
                                         If you did not expect this, you may safely ignore it.
                                     </td>
                                 </tr>

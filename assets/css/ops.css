@@ -262,6 +262,14 @@ a.ops-kpi:hover { border-color: var(--line-2); box-shadow: var(--shadow); text-d
 .ops-detail .ops-card + .ops-card { margin-top: 0; }
 .ops-detail h2 { margin-bottom: 8px; }
 @media (max-width: 960px) { .ops-detail { grid-template-columns: minmax(0, 1fr); } .ops-detail-side { order: -1; } }
+/* A record worked from a phone (a lead): the cards used most go first, whichever column they sit in on a computer. */
+@media (max-width: 960px) {
+    .ops-detail.is-woven { display: flex; flex-direction: column; align-items: stretch; }
+    .ops-detail.is-woven > .ops-detail-main, .ops-detail.is-woven > .ops-detail-side { display: contents; }
+    .ops-detail.is-woven .ops-card { order: 3; }
+    .ops-detail.is-woven .ops-card.is-first { order: 1; }
+    .ops-detail.is-woven .ops-card.is-early { order: 2; }
+}
 .ops-lead { color: var(--ink); }
 .ops-more { margin-top: 12px; }
 .ops-more > summary { cursor: pointer; color: var(--accent); font-weight: 600; font-size: .875rem; }
@@ -366,3 +374,27 @@ a.ops-kpi:hover { border-color: var(--line-2); box-shadow: var(--shadow); text-d
 .ops-country > summary::-webkit-details-marker { display: none; }
 .ops-country > summary .grow { flex: 1; min-width: 0; }
 .ops-country[open] > summary { border-bottom: 1px solid var(--line); }
+
+/* ── Sales: the board, the stepper, the list/board toggle ── */
+.ops-toggle { display: inline-flex; border: 1px solid var(--line-2); border-radius: var(--radius-sm); overflow: hidden; background: var(--surface); }
+.ops-toggle a { padding: 9px 14px; color: var(--ink-2); font-weight: 600; font-size: .875rem; }
+.ops-toggle a:hover { text-decoration: none; background: var(--sunken); }
+.ops-toggle a[aria-current="page"] { background: var(--accent); color: #fff; }
+.ops-board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(230px, 1fr); gap: 12px; overflow-x: auto; padding-bottom: 8px; scroll-snap-type: x proximity; }
+.ops-board-col { background: var(--sunken); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; scroll-snap-align: start; min-width: 0; }
+.ops-board-col h2 { font-size: 1rem; }
+.ops-board-col ul { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.ops-lead-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; }
+.ops-lead-card .cell-main { font-weight: 600; overflow-wrap: anywhere; }
+.ops-lead-card .cell-sub { color: var(--muted); font-size: .8125rem; overflow-wrap: anywhere; }
+.ops-lead-when { margin-top: 4px; font-size: .8125rem; }
+.ops-lead-empty { color: var(--muted); font-size: .875rem; padding: 6px 2px; }
+.ops-stepper { list-style: none; margin: 8px 0 0; padding: 0; display: flex; gap: 6px; flex-wrap: wrap; }
+.ops-stepper button { border: 1px solid var(--line-2); background: var(--surface); color: var(--ink-2); border-radius: 999px; padding: 8px 14px; font: 600 .875rem var(--font-body); cursor: pointer; min-height: 40px; }
+.ops-stepper button:hover { border-color: var(--accent); color: var(--accent); }
+.ops-stepper .is-current button { background: var(--accent); color: #fff; border-color: var(--accent); cursor: default; }
+.ops-due b { color: var(--bad); }
+.ops-fieldset { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 14px; margin: 4px 0 0; }
+.ops-checks-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px 24px; }
+.ops-checks-grid > div { display: flex; flex-direction: column; gap: 8px; }
+.ops-preview { width: 100%; height: 560px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: #fff; }

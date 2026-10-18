@@ -88,6 +88,7 @@ if (in_array(APP_ENV, ['local', 'testing'], true) && str_starts_with(trim($_GET[
 // before shops, and "ops" is a reserved shop name, so no shop can take it.
 require_once __DIR__ . '/app/ops/ops.php';
 require_once __DIR__ . '/app/ops/alerts.php';   // the Ops team hears from the app (payments, tickets, shop names, leads)
+require_once __DIR__ . '/app/ops/sales.php';
 if (ops_is_host($_SERVER['HTTP_HOST'] ?? '')) {
     require_once __DIR__ . '/app/ops/router.php';
     ops_dispatch();
@@ -178,6 +179,26 @@ if ($controller === 'support-view') {
     redirect('dashboard');
 }
 view_as_guard($url);
+
+// The link at the foot of every campaign email (app/ops/sales.php). Opening
+// it asks; the button unsubscribes, so mail scanners that open links don't.
+if ($controller === 'unsubscribe') {
+    [$send_id, $token] = array_pad(explode('-', (string)$action, 2), 2, '');
+    $stmt = get_db()->prepare("SELECT * FROM campaign_sends WHERE id = ?");
+    $stmt->execute([(int)$send_id]);
+    $send = $stmt->fetch();
+    if (!$send || !hash_equals((string)$send['token'], $token)) {
+        $notice = ['title' => 'This link does not work', 'body' => 'It may have been copied wrongly. Reply to the email and we\'ll take you off the list ourselves.', 'status' => 404];
+    } elseif ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        get_db()->prepare("INSERT IGNORE INTO email_opt_outs (email, campaign_id) VALUES (?, ?)")->execute([strtolower($send['email']), $send['campaign_id']]);
+        $notice = ['title' => 'You\'re unsubscribed', 'body' => 'We won\'t send ' . $send['email'] . ' any more emails like that one. Emails about your own Nfelia account still come.', 'status' => 200];
+    } else {
+        $notice = ['title' => 'Unsubscribe?', 'body' => 'Stop emails like this from the Nfelia team to ' . $send['email'] . '. Emails about your own Nfelia account still come.', 'status' => 200,
+                   'form_action' => APP_URL . '/unsubscribe/' . (int)$send['id'] . '-' . $token, 'form_label' => 'Unsubscribe'];
+    }
+    require __DIR__ . '/views/public/notice.php';
+    exit;
+}
 
 // ---- ROUTE TABLE ----
 // Public routes (no auth required)
