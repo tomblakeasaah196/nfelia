@@ -144,6 +144,11 @@ a:hover { text-decoration: underline; }
 .ops-table td { padding: 12px 16px; border-bottom: 1px solid var(--line); vertical-align: middle; }
 .ops-table tr:last-child td { border-bottom: 0; }
 .ops-table tbody tr.is-link:hover { background: var(--sunken); }
+/* A row marked is-link opens wherever you tap it: its main link stretches over the row.
+   Other controls in the row (a tick box) sit above it. */
+.ops-table tbody tr.is-link { position: relative; cursor: pointer; }
+.ops-table tr.is-link a.cell-main::after { content: ""; position: absolute; inset: 0; }
+.ops-table tr.is-link input, .ops-table tr.is-link button, .ops-table tr.is-link select, .ops-table tr.is-link label { position: relative; z-index: 1; }
 .ops-table .cell-main { font-weight: 600; color: var(--ink); }
 .ops-table a.cell-main { color: var(--accent); }
 .ops-table .cell-sub { display: block; color: var(--muted); font-size: .8125rem; font-weight: 400; }
@@ -384,7 +389,9 @@ a.ops-kpi:hover { border-color: var(--line-2); box-shadow: var(--shadow); text-d
 .ops-board-col { background: var(--sunken); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; scroll-snap-align: start; min-width: 0; }
 .ops-board-col h2 { font-size: 1rem; }
 .ops-board-col ul { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.ops-lead-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; }
+.ops-lead-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; position: relative; cursor: pointer; }
+.ops-lead-card:hover { border-color: var(--accent); }
+.ops-lead-card a.cell-main::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
 .ops-lead-card .cell-main { font-weight: 600; overflow-wrap: anywhere; }
 .ops-lead-card .cell-sub { color: var(--muted); font-size: .8125rem; overflow-wrap: anywhere; }
 .ops-lead-when { margin-top: 4px; font-size: .8125rem; }
