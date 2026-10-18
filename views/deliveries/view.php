@@ -204,7 +204,7 @@ $public_url  = APP_URL . '/delivery/' . $delivery['token'];
                 <?php endif; ?>
                 <div>
                     <div class="text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">Provider</div>
-                    <div class="text-xs font-semibold text-brand-plum"><?= $delivery['provider'] ? ($providers[$delivery['provider']] ?? ucfirst($delivery['provider'])) : '<span class="text-brand-plum/30">Not set</span>' ?></div>
+                    <div class="text-xs font-semibold text-brand-plum"><?= $delivery['provider'] ? ($providers[$delivery['provider']] ?? e(ucfirst($delivery['provider']))) : '<span class="text-brand-plum/30">Not set</span>' ?></div>
                 </div>
                 <div>
                     <div class="text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">Estimated Delivery</div>

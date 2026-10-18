@@ -100,7 +100,7 @@ class DebtController {
             $fetch_sql = "
                 SELECT d.*, c.full_name AS party_name, c.phone AS party_phone
                 FROM debts d
-                LEFT JOIN customers c ON c.id = d.customer_id
+                LEFT JOIN customers c ON c.id = d.customer_id AND c.business_id = d.business_id
                 WHERE {$where_sql}
                 ORDER BY {$order}
                 LIMIT {$per_page} OFFSET {$offset}
@@ -109,7 +109,7 @@ class DebtController {
             $fetch_sql = "
                 SELECT d.*, s.full_name AS party_name, s.phone AS party_phone
                 FROM debts d
-                LEFT JOIN suppliers s ON s.id = d.supplier_id
+                LEFT JOIN suppliers s ON s.id = d.supplier_id AND s.business_id = d.business_id
                 WHERE {$where_sql}
                 ORDER BY {$order}
                 LIMIT {$per_page} OFFSET {$offset}
@@ -428,8 +428,12 @@ class DebtController {
         if (!in_array($type, ['receivable', 'payable'])) $errors[] = 'Invalid debt type.';
         if ($description === '') $errors[] = 'Description is required.';
         if ($total_amount <= 0) $errors[] = 'Amount must be greater than zero.';
-        if ($type === 'receivable' && !$customer_id) $errors[] = 'Please select a customer.';
-        if ($type === 'payable' && !$supplier_id) $errors[] = 'Please select a supplier.';
+        if ($type === 'receivable' && !owned_by_business($this->db, 'customers', $customer_id, $this->biz_id)) {
+            $errors[] = 'Please select a customer.';
+        }
+        if ($type === 'payable' && !owned_by_business($this->db, 'suppliers', $supplier_id, $this->biz_id)) {
+            $errors[] = 'Please select a supplier.';
+        }
 
         if (!empty($errors)) {
             flash('error', implode(' ', $errors));

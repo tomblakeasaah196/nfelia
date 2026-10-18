@@ -414,6 +414,7 @@ class DeliveryController {
         $delivery_address    = trim($_POST['delivery_address'] ?? '');
         $pickup_address      = trim($_POST['pickup_address'] ?? '');
         $provider            = trim($_POST['provider'] ?? '');
+        if (!array_key_exists($provider, self::PROVIDERS)) $provider = '';
         $rider_name          = trim($_POST['rider_name'] ?? '');
         $rider_phone         = trim($_POST['rider_phone'] ?? '');
         $booking_reference   = trim($_POST['booking_reference'] ?? '');
@@ -434,6 +435,14 @@ class DeliveryController {
         $errors = [];
         if ($recipient_name === '') $errors[] = 'Recipient name is required.';
         if ($delivery_address === '') $errors[] = 'Delivery address is required.';
+        if ($invoice_id && !owned_by_business($this->db, 'invoices', $invoice_id, $this->biz_id)) {
+            $errors[] = 'Please pick one of your invoices.';
+            $invoice_id = null;
+        }
+        if ($customer_id && !owned_by_business($this->db, 'customers', $customer_id, $this->biz_id)) {
+            $errors[] = 'Please pick one of your clients.';
+            $customer_id = null;
+        }
 
         $valid_items = 0;
         foreach ($item_descriptions as $i => $desc) {
@@ -510,6 +519,7 @@ class DeliveryController {
                 $qty        = (float)($item_quantities[$i] ?? 0);
                 $unit       = trim($item_units[$i] ?? '');
                 $product_id = (int)($item_product_ids[$i] ?? 0) ?: null;
+                if ($product_id && !owned_by_business($this->db, 'products', $product_id, $this->biz_id)) $product_id = null;
                 $item_note  = trim($item_notes[$i] ?? '');
 
                 if ($desc === '' || $qty <= 0) continue;

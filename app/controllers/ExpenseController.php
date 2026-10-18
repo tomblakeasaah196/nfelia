@@ -86,7 +86,7 @@ class ExpenseController {
         // Count
         $stmtC = $this->db->prepare("
             SELECT COUNT(*) FROM expenses e
-            LEFT JOIN suppliers s ON s.id = e.supplier_id
+            LEFT JOIN suppliers s ON s.id = e.supplier_id AND s.business_id = e.business_id
             WHERE {$where_sql}
         ");
         $stmtC->execute($params);
@@ -97,7 +97,7 @@ class ExpenseController {
         $stmtQ = $this->db->prepare("
             SELECT e.*, s.full_name AS supplier_name
             FROM expenses e
-            LEFT JOIN suppliers s ON s.id = e.supplier_id
+            LEFT JOIN suppliers s ON s.id = e.supplier_id AND s.business_id = e.business_id
             WHERE {$where_sql}
             ORDER BY {$order}
             LIMIT {$per_page} OFFSET {$offset}
@@ -386,6 +386,10 @@ class ExpenseController {
         $errors = [];
         if ($description === '') $errors[] = 'Description is required.';
         if ($expense_date === '') $errors[] = 'Expense date is required.';
+        if ($supplier_id && !owned_by_business($this->db, 'suppliers', $supplier_id, $this->biz_id)) {
+            $errors[] = 'Please pick one of your suppliers.';
+            $supplier_id = null;
+        }
 
         if ($category === 'stock_purchase') {
             // Recalculate amount from line items
@@ -505,6 +509,7 @@ class ExpenseController {
                     $qty        = (float)($item_quantities[$i] ?? 0);
                     $unit_cost  = (float)($item_unit_costs[$i] ?? 0);
                     $product_id = (int)($item_product_ids[$i] ?? 0) ?: null;
+                    if ($product_id && !owned_by_business($this->db, 'products', $product_id, $this->biz_id)) $product_id = null;
 
                     if ($desc === '' || $qty <= 0 || $unit_cost <= 0) continue;
 

@@ -187,7 +187,7 @@ class PublicController
     ): void {
         $business = $this->get_business($quotation["business_id"]);
         $customer = $quotation["customer_id"]
-            ? $this->get_customer($quotation["customer_id"])
+            ? $this->get_customer($quotation["customer_id"], (int) $quotation["business_id"])
             : null;
         $stmtItems = $this->db->prepare(
             "SELECT * FROM quotation_items WHERE quotation_id = ? ORDER BY sort_order ASC",
@@ -195,7 +195,7 @@ class PublicController
         $stmtItems->execute([$quotation["id"]]);
         $items = $stmtItems->fetchAll();
         $bank = $quotation["bank_account_id"]
-            ? $this->get_bank($quotation["bank_account_id"])
+            ? $this->get_bank($quotation["bank_account_id"], (int) $quotation["business_id"])
             : null;
         $stmtAct = $this->db->prepare(
             "SELECT * FROM quotation_activities WHERE quotation_id = ? ORDER BY created_at ASC",
@@ -208,7 +208,7 @@ class PublicController
     {
         $business = $this->get_business($invoice["business_id"]);
         $customer = $invoice["customer_id"]
-            ? $this->get_customer($invoice["customer_id"])
+            ? $this->get_customer($invoice["customer_id"], (int) $invoice["business_id"])
             : null;
         $stmtItems = $this->db->prepare(
             " SELECT ii.*, p.sku as product_sku FROM invoice_items ii LEFT JOIN products p ON p.id = ii.product_id WHERE ii.invoice_id = ? ORDER BY ii.sort_order ASC ",
@@ -216,7 +216,7 @@ class PublicController
         $stmtItems->execute([$invoice["id"]]);
         $items = $stmtItems->fetchAll();
         $bank = $invoice["bank_account_id"]
-            ? $this->get_bank($invoice["bank_account_id"])
+            ? $this->get_bank($invoice["bank_account_id"], (int) $invoice["business_id"])
             : null;
         require_once BASE_PATH . "/views/invoices/public.php";
     }
@@ -224,7 +224,7 @@ class PublicController
     {
         $business = $this->get_business($receipt["business_id"]);
         $customer = $receipt["customer_id"]
-            ? $this->get_customer($receipt["customer_id"])
+            ? $this->get_customer($receipt["customer_id"], (int) $receipt["business_id"])
             : null; /* Line items (for standalone POS receipts) */
         $items = [];
         if (!$receipt["invoice_id"]) {
@@ -237,9 +237,9 @@ class PublicController
         $invoice = null;
         if ($receipt["invoice_id"]) {
             $stmtInv = $this->db->prepare(
-                "SELECT id, doc_number, total FROM invoices WHERE id = ?",
+                "SELECT id, doc_number, total FROM invoices WHERE id = ? AND business_id = ?",
             );
-            $stmtInv->execute([$receipt["invoice_id"]]);
+            $stmtInv->execute([$receipt["invoice_id"], $receipt["business_id"]]);
             $invoice = $stmtInv->fetch();
         }
         require_once BASE_PATH . "/views/receipts/public.php";
@@ -250,16 +250,16 @@ class PublicController
         $stmt->execute([$id]);
         return $stmt->fetch() ?: null;
     }
-    private function get_customer(int $id): ?array
+    private function get_customer(int $id, int $business_id): ?array
     {
-        $stmt = $this->db->prepare("SELECT * FROM customers WHERE id = ?");
-        $stmt->execute([$id]);
+        $stmt = $this->db->prepare("SELECT * FROM customers WHERE id = ? AND business_id = ?");
+        $stmt->execute([$id, $business_id]);
         return $stmt->fetch() ?: null;
     }
-    private function get_bank(int $id): ?array
+    private function get_bank(int $id, int $business_id): ?array
     {
-        $stmt = $this->db->prepare("SELECT * FROM bank_accounts WHERE id = ?");
-        $stmt->execute([$id]);
+        $stmt = $this->db->prepare("SELECT * FROM bank_accounts WHERE id = ? AND business_id = ?");
+        $stmt->execute([$id, $business_id]);
         return $stmt->fetch() ?: null;
     } /* ────────────────────────────────────────── * PUBLIC DELIVERY NOTE /delivery/{token} * *──────────────────────────────────────────*/
     public function delivery(string $token): void
@@ -278,7 +278,7 @@ class PublicController
         }
         $business = $this->get_business($delivery["business_id"]);
         $customer = $delivery["customer_id"]
-            ? $this->get_customer($delivery["customer_id"])
+            ? $this->get_customer($delivery["customer_id"], (int) $delivery["business_id"])
             : null;
         $stmtItems = $this->db->prepare(
             " SELECT di.*, p.name AS product_name FROM delivery_items di LEFT JOIN products p ON p.id = di.product_id WHERE di.delivery_id = ? ",
@@ -463,10 +463,10 @@ class PublicController
         if ($quotation) {
             $business = $this->get_business($quotation["business_id"]);
             $customer = $quotation["customer_id"]
-                ? $this->get_customer($quotation["customer_id"])
+                ? $this->get_customer($quotation["customer_id"], (int) $quotation["business_id"])
                 : null;
             $bank = $quotation["bank_account_id"]
-                ? $this->get_bank($quotation["bank_account_id"])
+                ? $this->get_bank($quotation["bank_account_id"], (int) $quotation["business_id"])
                 : null;
             $stmtI = $this->db->prepare(
                 "SELECT * FROM quotation_items WHERE quotation_id = ? ORDER BY sort_order ASC",
@@ -487,10 +487,10 @@ class PublicController
             if ($invoice) {
                 $business = $this->get_business($invoice["business_id"]);
                 $customer = $invoice["customer_id"]
-                    ? $this->get_customer($invoice["customer_id"])
+                    ? $this->get_customer($invoice["customer_id"], (int) $invoice["business_id"])
                     : null;
                 $bank = $invoice["bank_account_id"]
-                    ? $this->get_bank($invoice["bank_account_id"])
+                    ? $this->get_bank($invoice["bank_account_id"], (int) $invoice["business_id"])
                     : null;
                 $stmtI = $this->db->prepare(
                     " SELECT ii.*, p.sku as product_sku FROM invoice_items ii LEFT JOIN products p ON p.id = ii.product_id WHERE ii.invoice_id = ? ORDER BY ii.sort_order ASC ",
@@ -517,7 +517,7 @@ class PublicController
             if ($receipt) {
                 $business = $this->get_business($receipt["business_id"]);
                 $customer = $receipt["customer_id"]
-                    ? $this->get_customer($receipt["customer_id"])
+                    ? $this->get_customer($receipt["customer_id"], (int) $receipt["business_id"])
                     : null;
                 $items = [];
                 if (!$receipt["invoice_id"]) {
@@ -530,9 +530,9 @@ class PublicController
                 $invoice = null;
                 if ($receipt["invoice_id"]) {
                     $stmtInv = $this->db->prepare(
-                        "SELECT id, doc_number, total FROM invoices WHERE id = ?",
+                        "SELECT id, doc_number, total FROM invoices WHERE id = ? AND business_id = ?",
                     );
-                    $stmtInv->execute([$receipt["invoice_id"]]);
+                    $stmtInv->execute([$receipt["invoice_id"], $receipt["business_id"]]);
                     $invoice = $stmtInv->fetch();
                 }
                 ob_start();

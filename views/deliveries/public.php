@@ -175,7 +175,7 @@ $status_color = $statuses[$delivery['status']]['color'] ?? 'bg-gray-100 text-gra
                         <?php if ($delivery['provider']): ?>
                         <div>
                             <div class="text-[9px] text-gray-400 uppercase">Provider</div>
-                            <div class="text-xs font-bold text-gray-700"><?= $providers[$delivery['provider']] ?? ucfirst($delivery['provider']) ?></div>
+                            <div class="text-xs font-bold text-gray-700"><?= $providers[$delivery['provider']] ?? e(ucfirst($delivery['provider'])) ?></div>
                         </div>
                         <?php endif; ?>
                         <?php if ($delivery['rider_name']): ?>

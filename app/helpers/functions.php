@@ -300,3 +300,15 @@ function csrf_token(): string {
 function csrf_field(): string {
     return '<input type="hidden" name="csrf_token" value="' . htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8') . '">';
 }
+/**
+ * Does this row belong to the business? Ids posted from a form (a client, a bank
+ * account, a product, an invoice) are checked with this before they are saved,
+ * so one business can't attach another business's records to its documents.
+ */
+function owned_by_business(PDO $db, string $table, ?int $id, int $business_id): bool {
+    $tables = ['customers', 'bank_accounts', 'products', 'invoices', 'quotations', 'suppliers', 'receipts', 'deliveries'];
+    if (!$id || $id <= 0 || !in_array($table, $tables, true)) return false;
+    $stmt = $db->prepare("SELECT 1 FROM `{$table}` WHERE id = ? AND business_id = ? LIMIT 1");
+    $stmt->execute([$id, $business_id]);
+    return (bool)$stmt->fetchColumn();
+}
