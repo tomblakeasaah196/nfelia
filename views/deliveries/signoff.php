@@ -23,7 +23,9 @@ $already_signed = ($delivery['status'] === 'signed_off' && $delivery['signoff_na
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=<?= urlencode($font) ?>:wght@400;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="<?= APP_URL ?>/assets/vendor/alpine-3.14.3.min.js"></script>
     <style>
+        [x-cloak] { display: none !important; }
         :root { --brand-primary: <?= e($primary) ?>; --brand-secondary: <?= e($secondary) ?>; }
         body { font-family: '<?= e($font) ?>', sans-serif; -webkit-tap-highlight-color: transparent; }
         .brand-primary { color: var(--brand-primary); }
