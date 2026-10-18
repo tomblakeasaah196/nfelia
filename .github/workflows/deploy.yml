@@ -157,7 +157,9 @@ jobs:
         image: mariadb:10.11
         env:
           MARIADB_ROOT_PASSWORD: root
-          MARIADB_DATABASE: nfelia_test
+          # The same name as a local copy: an early migration
+          # (20261017120000_normalise_collations) names the database.
+          MARIADB_DATABASE: smartqaq_nfelia_core
           MARIADB_USER: nf
           MARIADB_PASSWORD: nf_ci_pass
         ports: ['3306:3306']
@@ -191,7 +193,7 @@ jobs:
             echo "APP_URL=http://localhost:8099"
             echo "DB_HOST=127.0.0.1"
             echo "DB_PORT=3306"
-            echo "DB_NAME=nfelia_test"
+            echo "DB_NAME=smartqaq_nfelia_core"
             echo "DB_USER=nf"
             echo "DB_PASS=nf_ci_pass"
             echo "MAIL_HOST=127.0.0.1"
