@@ -3,6 +3,10 @@
 Everything in Nfelia that tells someone something: the bell, phone push and
 email. Read before changing any of it. Line numbers are as of commit ad76b6e.
 
+> This describes the system **before** the rebuild. How it works now, the
+> tests and the deploy notes are in `Notifications.md`. Every bug in section 3
+> is fixed there.
+
 ## 1. How it works today
 
 **Three channels, three separate code paths.** Nothing ties them together:
