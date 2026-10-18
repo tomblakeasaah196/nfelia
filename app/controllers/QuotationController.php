@@ -591,6 +591,7 @@ public function update_status($id = null) {
         $email = trim($_POST['email'] ?? '');
 
         if ($name === '') { json_response(['error' => 'Name is required'], 422); }
+        if ($p = phone_problem($phone)) { json_response(['error' => $p], 422); }   // D4
 
         $stmt = $this->db->prepare("
             INSERT INTO customers (business_id, full_name, phone, email)
@@ -766,28 +767,6 @@ public function update_status($id = null) {
         }
     }
 
-    /* ──────────────────────────────────────────
-     *  AJAX — Mark comments as read by client
-     * ────────────────────────────────────────── */
-    public function mark_comments_read($token = null) {
-        if (!is_ajax() || $_SERVER['REQUEST_METHOD'] !== 'POST') { http_response_code(403); exit; }
-
-        // Find quotation by token (since the client isn't logged in)
-        $stmt = $this->db->prepare("SELECT id FROM quotations WHERE token = ?");
-        $stmt->execute([$token]);
-        $q_id = $stmt->fetchColumn();
-
-        if ($q_id) {
-            $this->db->prepare("
-                UPDATE quotation_activities 
-                SET is_client_read = 1 
-                WHERE quotation_id = ? AND actor_type = 'business' AND is_client_read = 0
-            ")->execute([$q_id]);
-        }
-        
-        echo json_encode(['success' => true]);
-        exit;
-    }
     
     /* ══════════════════════════════════════════
      *  PRIVATE HELPERS

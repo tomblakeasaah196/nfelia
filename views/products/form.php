@@ -374,12 +374,14 @@ $units = [
                     Cancel
                 </a>
                 <?php if ($editing): ?>
-                    <form method="POST" action="<?= APP_URL ?>/products/duplicate/<?= (int)$product['id'] ?>" class="pt-2">
-                        <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
-                        <button type="submit" class="w-full text-center text-[10px] font-bold text-brand-plum/40 uppercase tracking-widest hover:text-brand-gold transition-colors py-2">
+                    <?php /* A form can't sit inside the edit form (D8): this button
+                             sends the edit form's token to the duplicate address */ ?>
+                    <div class="pt-2">
+                        <button type="submit" formaction="<?= APP_URL ?>/products/duplicate/<?= (int)$product['id'] ?>" formnovalidate
+                                class="w-full text-center text-[10px] font-bold text-brand-plum/40 uppercase tracking-widest hover:text-brand-gold transition-colors py-2">
                             Duplicate This Product
                         </button>
-                    </form>
+                    </div>
                 <?php endif; ?>
             </div>
         </div>

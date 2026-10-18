@@ -187,8 +187,12 @@ class AuthController {
                 ReferralController::convert_referral($db, $ref_code, $business_id, $email);
             }
 
-            // Auto-login after registration
-            login_user(
+            // Auto-login after registration, with the same session a sign-in
+            // makes, so no page meets a missing field (D11)
+            $account = account_find('id', (int)$user_id);
+            if ($account) {
+                signin_session($account);
+            } else login_user(
                 ['id' => $user_id, 'full_name' => $full_name, 'email' => $email, 'role' => 'owner'],
                 [
                     'id'                  => $business_id, 

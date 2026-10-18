@@ -115,7 +115,7 @@ $currency = $business['currency_symbol'] ?? '₦';
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <input type="text" x-model="newSupplierName" placeholder="Supplier name *"
                        class="px-3 py-2 text-xs font-medium bg-brand-white border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">
-                <input type="tel" x-model="newSupplierPhone" placeholder="Phone number"
+                <input type="tel" maxlength="50" x-model="newSupplierPhone" placeholder="Phone number"
                        class="px-3 py-2 text-xs font-medium bg-brand-white border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">
             </div>
             <div class="flex gap-2">
@@ -333,8 +333,10 @@ function expenseForm() {
             const fd = new FormData();
             fd.append('full_name', this.newSupplierName);
             fd.append('phone', this.newSupplierPhone);
-            const res = await fetch('<?= APP_URL ?>/expenses/create_supplier', { method: 'POST', body: fd });
-            const data = await res.json();
+            fd.append('csrf_token', window.Nfelia.csrf);
+            const res = await fetch('<?= APP_URL ?>/expenses/create_supplier', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+            const data = await res.json().catch(() => ({ error: 'That didn\'t save. Please try again.' }));
+            if (data.error) { alert(data.error); return; }
             if (data.id) {
                 this.supplierId = data.id;
                 this.supplierSearch = data.full_name;

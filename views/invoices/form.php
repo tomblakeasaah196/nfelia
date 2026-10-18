@@ -89,7 +89,7 @@ if (empty($items_json)) {
                     <div class="grid sm:grid-cols-3 gap-3">
                         <input type="text" x-model="newClient.name" placeholder="Full Name *"
                                class="px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/25">
-                        <input type="text" x-model="newClient.phone" placeholder="Phone"
+                        <input type="tel" maxlength="20" x-model="newClient.phone" placeholder="Phone"
                                class="px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/25">
                         <input type="email" x-model="newClient.email" placeholder="Email"
                                class="px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/25">

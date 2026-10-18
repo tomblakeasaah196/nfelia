@@ -150,7 +150,11 @@ $public_url  = APP_URL . '/delivery/' . $delivery['token'];
                 <?php if ($customer): ?>
                 <div class="sm:col-span-2 pt-2 border-t border-brand-sand/50">
                     <div class="text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">Linked Customer</div>
+                    <?php if (!empty($customer['deleted_at'])): ?>
+                    <span class="text-xs font-bold text-brand-plum"><?= e($customer['full_name']) ?> <span class="font-normal text-brand-plum/50">(deleted)</span></span>
+                    <?php else: ?>
                     <a href="<?= APP_URL ?>/customers/view/<?= $customer['id'] ?>" class="text-xs font-bold text-blue-500 hover:text-blue-700"><?= e($customer['full_name']) ?></a>
+                    <?php endif; ?>
                 </div>
                 <?php endif; ?>
             </div>

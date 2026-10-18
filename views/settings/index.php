@@ -142,7 +142,7 @@ $current_staff_count = count($staff);
             </div>
             <div>
                 <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Phone</label>
-                <input type="text" name="phone" value="<?= e($business['phone'] ?? '') ?>"
+                <input type="tel" name="phone" maxlength="20" value="<?= e($business['phone'] ?? '') ?>"
                        class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum"
                        placeholder="e.g. 08012345678">
             </div>

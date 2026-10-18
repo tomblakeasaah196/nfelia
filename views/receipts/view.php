@@ -33,7 +33,9 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
 <!-- Who paid what -->
 <section class="nf-doc" aria-label="Receipt <?= e($receipt['doc_number']) ?>">
     <p class="nf-doc-who">
-        <?php if ($customer): ?>
+        <?php if ($customer && !empty($customer['deleted_at'])): ?>
+            <span><?= e($customer['full_name']) ?> (deleted)</span>
+        <?php elseif ($customer): ?>
             <a href="<?= APP_URL ?>/customers/view/<?= (int)$customer['id'] ?>" data-prefetch><?= e($customer['full_name']) ?></a>
         <?php else: ?>
             <span>Walk-in customer</span>

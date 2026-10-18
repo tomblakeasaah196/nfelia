@@ -99,7 +99,7 @@ class DebtController {
         // Fetch
         if ($tab === 'receivable') {
             $fetch_sql = "
-                SELECT d.*, c.full_name AS party_name, c.phone AS party_phone
+                SELECT d.*, c.full_name AS party_name, c.phone AS party_phone, c.deleted_at AS party_deleted
                 FROM debts d
                 LEFT JOIN customers c ON c.id = d.customer_id AND c.business_id = d.business_id
                 WHERE {$where_sql}
@@ -108,7 +108,7 @@ class DebtController {
             ";
         } else {
             $fetch_sql = "
-                SELECT d.*, s.full_name AS party_name, s.phone AS party_phone
+                SELECT d.*, s.full_name AS party_name, s.phone AS party_phone, s.deleted_at AS party_deleted
                 FROM debts d
                 LEFT JOIN suppliers s ON s.id = d.supplier_id AND s.business_id = d.business_id
                 WHERE {$where_sql}

@@ -142,11 +142,11 @@ $fonts = FONT_PAIRINGS ?? [];
 
                         <div>
                             <label class="block text-xs font-bold text-brand-plum uppercase tracking-widest mb-2">Primary Phone</label>
-                            <input type="text" name="phone" class="w-full px-4 py-3 bg-brand-white border border-brand-sand text-brand-plum text-sm focus:border-brand-gold focus:ring-0 outline-none rounded-none" placeholder="e.g. 08012345678">
+                            <input type="tel" name="phone" maxlength="20" class="w-full px-4 py-3 bg-brand-white border border-brand-sand text-brand-plum text-sm focus:border-brand-gold focus:ring-0 outline-none rounded-none" placeholder="e.g. 08012345678">
                         </div>
                         <div>
                             <label class="block text-xs font-bold text-brand-plum uppercase tracking-widest mb-2">WhatsApp Contact</label>
-                            <input type="text" name="whatsapp" class="w-full px-4 py-3 bg-brand-white border border-brand-sand text-brand-plum text-sm focus:border-brand-gold focus:ring-0 outline-none rounded-none" placeholder="For automated client receipts">
+                            <input type="tel" name="whatsapp" maxlength="20" class="w-full px-4 py-3 bg-brand-white border border-brand-sand text-brand-plum text-sm focus:border-brand-gold focus:ring-0 outline-none rounded-none" placeholder="For automated client receipts">
                         </div>
 
                         <div class="md:col-span-2">

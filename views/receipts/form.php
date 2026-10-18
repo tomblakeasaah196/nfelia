@@ -54,7 +54,7 @@ $currency = $business['currency_symbol'] ?? '₦';
                     </button>
                     <input type="text" x-model="newClient.name" placeholder="Full Name *" class="w-full px-3 py-2 text-xs font-medium bg-brand-white border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">
                     <div class="grid grid-cols-2 gap-2">
-                        <input type="text" x-model="newClient.phone" placeholder="Phone" class="w-full px-3 py-2 text-xs font-medium bg-brand-white border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">
+                        <input type="tel" maxlength="20" x-model="newClient.phone" placeholder="Phone" class="w-full px-3 py-2 text-xs font-medium bg-brand-white border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">
                         <input type="email" x-model="newClient.email" placeholder="Email" class="w-full px-3 py-2 text-xs font-medium bg-brand-white border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">
                     </div>
                     <button type="button" @click="saveClient()" class="btn-primary text-white px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest">Save Client</button>

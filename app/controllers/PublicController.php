@@ -85,6 +85,14 @@ class PublicController
         }
         $action = $_POST["action"] ?? "";
         $client_ip = client_ip(); /* Vital for non-repudiation of signatures */
+        /* The client opened the business's replies: they are read (D7). Allowed
+           whatever the quote's state, like reading the page. */
+        if ($action === "mark_read") {
+            $db->prepare(
+                "UPDATE quotation_activities SET is_client_read = 1 WHERE quotation_id = ? AND actor_type = 'business' AND is_client_read = 0",
+            )->execute([(int) $quotation["id"]]);
+            json_response(["success" => true]);
+        }
         /* The client can answer a quote only while it is open: not once it is
            accepted, declined, expired or turned into an invoice. */
         $open = ["draft", "sent", "in_negotiation", "pending_signature"];

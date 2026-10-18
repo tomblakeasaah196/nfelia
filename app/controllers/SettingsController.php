@@ -181,6 +181,11 @@ class SettingsController {
             redirect('settings?tab=business');
             return;
         }
+        if ($p = phone_problem($phone)) {   // D4
+            flash('error', $p);
+            redirect('settings?tab=business');
+            return;
+        }
 
         if (!preg_match('/^#[0-9a-fA-F]{6}$/', $primary_color)) $primary_color = '#1a1a2e';
         if (!preg_match('/^#[0-9a-fA-F]{6}$/', $secondary_color)) $secondary_color = '#c5a55a';

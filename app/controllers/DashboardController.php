@@ -52,7 +52,7 @@ class DashboardController {
         [$overdue_count, $overdue_value] = $count("SELECT COUNT(*), COALESCE(SUM(balance_due), 0) FROM invoices WHERE business_id = ? AND status = 'overdue'");
         [$orders_waiting]   = $count("SELECT COUNT(*) FROM orders WHERE business_id = ? AND status IN ('pending', 'pending_verification')");
         [$low_stock_count]  = $count("SELECT COUNT(*) FROM v_low_stock_products WHERE business_id = ?");
-        [$deliveries_open]  = $count("SELECT COUNT(*) FROM deliveries WHERE business_id = ? AND status IN ('pending_dispatch', 'dispatched', 'in_transit')");
+        [$deliveries_open]  = $count("SELECT COUNT(*) FROM deliveries WHERE business_id = ? AND deleted_at IS NULL AND status IN ('pending_dispatch', 'dispatched', 'in_transit')");   // D9
         [$quotes_accepted]  = $count("SELECT COUNT(*) FROM quotations WHERE business_id = ? AND status = 'accepted'");
 
         // Today, from Tasks and Calendar: late things first, then today's.

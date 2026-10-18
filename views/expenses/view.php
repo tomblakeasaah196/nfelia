@@ -63,7 +63,9 @@ $pay_badge = match($expense['payment_status']) {
 
         <div>
             <div class="text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">Supplier</div>
-            <?php if ($supplier): ?>
+            <?php if ($supplier && !empty($supplier['deleted_at'])): ?>
+                <span class="text-sm font-medium text-brand-plum"><?= e($supplier['full_name']) ?> <span class="text-brand-plum/50">(deleted)</span></span>
+            <?php elseif ($supplier): ?>
                 <a href="<?= APP_URL ?>/suppliers/view/<?= $supplier['id'] ?>" class="text-sm font-medium text-blue-600 hover:text-blue-800">
                     <?= e($supplier['full_name']) ?>
                     <?php if ($supplier['business_name']): ?><span class="text-brand-plum/40 text-xs"> — <?= e($supplier['business_name']) ?></span><?php endif; ?>

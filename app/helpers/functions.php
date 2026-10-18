@@ -86,10 +86,27 @@ function generate_token(): string {
 }
 
 /**
- * Derive a document prefix from a business name
+ * Plain ASCII letters for a name: "Ọja" becomes "Oja", "Éclat" "Eclat".
+ */
+function ascii_fold(string $text): string {
+    if (function_exists('transliterator_transliterate')) {
+        $t = transliterator_transliterate('Any-Latin; Latin-ASCII', $text);
+        if ($t !== false) return $t;
+    }
+    $t = function_exists('iconv') ? @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $text) : false;
+    return $t !== false ? $t : (string)preg_replace('/[^\x20-\x7E]/', '', $text);
+}
+
+/**
+ * Derive a document prefix from a business name. Works on its plain letters,
+ * so a name starting with "Ọ" or "É" doesn't break sign-up (D3).
  */
 function derive_prefix(string $business_name): string {
-    $words = preg_split('/\s+/', trim(strtoupper($business_name)));
+    $plain = (string)preg_replace('/[^A-Za-z0-9\s]/', '', ascii_fold($business_name));
+    $words = preg_split('/\s+/', trim(strtoupper($plain)), -1, PREG_SPLIT_NO_EMPTY);
+    if (!$words) {
+        return 'NFE';
+    }
     if (count($words) >= 3) {
         return substr($words[0], 0, 1) . substr($words[1], 0, 1) . substr($words[2], 0, 1);
     } elseif (count($words) === 2) {
@@ -100,10 +117,27 @@ function derive_prefix(string $business_name): string {
 }
 
 /**
+ * What's wrong with a phone number typed in a form, or null when it is fine
+ * (or empty). Too long or too few digits is refused before it reaches a
+ * column that can't hold it (D4).
+ */
+function phone_problem(string $phone, int $max = 20): ?string {
+    $phone = trim($phone);
+    if ($phone === '') {
+        return null;
+    }
+    $digits = preg_replace('/\D/', '', $phone);
+    if (strlen($phone) > $max || strlen($digits) < 7 || strlen($digits) > 15) {
+        return 'Enter a phone number like 0803 123 4567.';
+    }
+    return null;
+}
+
+/**
  * Generate a URL-safe business slug
  */
 function slugify(string $text): string {
-    $text = strtolower(trim($text));
+    $text = strtolower(trim(ascii_fold($text)));
     $text = preg_replace('/[^a-z0-9\s-]/', '', $text);
     $text = preg_replace('/[\s-]+/', '-', $text);
     return trim($text, '-');
