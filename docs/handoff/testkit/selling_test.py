@@ -183,7 +183,7 @@ s, h, _ = shop("glow-by-temi").get(f"/p/{glow_pid}")
 s, h, page = shop("glow-by-temi").get(path_of(h.get("location", "")))
 check("trial shop's product pages stay out of search", '<meta name="robots" content="noindex, nofollow">' in page and "noindex" in h.get("x-robots-tag", ""), h)
 chin = one("SELECT id FROM businesses WHERE subdomain = 'chinedu-co'")
-sql(f"UPDATE subscriptions SET status = 'cancelled' WHERE business_id = {chin}")
+sql(f"UPDATE subscriptions SET status = 'suspended' WHERE business_id = {chin}")   # a cancelled month stays open to its end
 chin_pid = one(f"SELECT id FROM products WHERE business_id = {chin} ORDER BY id LIMIT 1")
 s, h, page = shop("chinedu-co").get(f"/p/{chin_pid}")
 check("a closed shop's product page says closed for now", s == 200 and "closed for now" in page, (s, page[:200]))
@@ -258,9 +258,8 @@ s, h, page = Client().get(f"/delivery/{note_token}")
 check("the public delivery note opens", s == 200 and not PHP_NOISE.search(page) and "Olokun wrap dress" in page, (s, PHP_NOISE.search(page)))
 s, h, page = Client().get(f"/sign/{signoff}")
 check("the sign-off page opens", s == 200 and not PHP_NOISE.search(page), (s, PHP_NOISE.search(page)))
-png = "data:image/png;base64," + base64.b64encode(bytes.fromhex(
-    "89504e470d0a1a0a0000000d4948445200000001000000010806000000"
-    "1f15c4890000000d49444154789c6360000002000154a24f5d0000000049454e44ae426082")).decode()
+# A 1x1 PNG that image libraries can open (signatures are redrawn before saving)
+png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
 s, h, raw = Client().req("POST", f"/sign/{signoff}", {"signoff_name": "Ada Okafor", "signature_data": png})
 sj = json.loads(raw)
 review_link = sj.get("review_url") or ""

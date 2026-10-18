@@ -106,16 +106,23 @@ function sitemap_xml(array $urls): string {
  * what the directory needs.
  */
 function seo_live_shops(PDO $db, bool $directory_only = false): array {
-    $rows = $db->query("
+    $sql = fn(string $exempt) => "
         SELECT b.id, b.name, b.subdomain, b.tagline, b.category, b.city, b.city_slug, b.logo_path, b.directory_opt_in,
                b.storefront_published_at, b.storefront_look, b.updated_at,
-               s.status, s.trial_ends_at, s.current_period_end, s.grace_ends_at, s.last_payment_date, s.expiry_exempt
+               s.status, s.trial_ends_at, s.current_period_end, s.grace_ends_at, s.last_payment_date, {$exempt} AS expiry_exempt
         FROM businesses b
         LEFT JOIN subscriptions s ON s.business_id = b.id
         WHERE b.subdomain IS NOT NULL AND b.subdomain_status = 'active' AND b.landing_enabled = 1 AND b.is_active = 1
         " . ($directory_only ? "AND b.directory_opt_in = 1" : "") . "
         ORDER BY b.name ASC
-    ")->fetchAll();
+    ";
+    try {
+        $rows = $db->query($sql('s.expiry_exempt'))->fetchAll();
+    } catch (PDOException $e) {
+        // The minute of a deploy before the migration adds the column
+        error_log('[Nfelia] seo_live_shops: ' . $e->getMessage());
+        $rows = $db->query($sql('0'))->fetchAll();
+    }
     return array_values(array_filter($rows, fn($row) => shop_visibility($row['status'] !== null ? $row : null) === 'live'));
 }
 

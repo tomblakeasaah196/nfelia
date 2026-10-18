@@ -316,7 +316,8 @@ class PaystackController {
             return 'mismatch';
         }
 
-        $legacy_plan = $kind === null && !empty($data['plan']);
+        $legacy_plan = $kind === null && !empty($data['plan'])
+            && !empty(($this->get_subscription($biz_id) ?? [])['paystack_subscription_code']);
         $this->db->beginTransaction();
         try {
             if (!$this->claim($biz_id, 'charge.success', $reference, $paid, 'success', $data)) {

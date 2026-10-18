@@ -110,6 +110,7 @@ def shop(label):
 
 
 def book(label, pid, **fields):
+    sql("DELETE FROM auth_throttle")   # these checks are about bookings, not the spam limits (lockdown_test.js)
     data = {"customer_name": "Ada Okafor", "customer_phone": "0803 555 0101", "channel": "site"}
     data.update(fields)
     return shop(label).json("POST", f"/book/{pid}", data)
@@ -238,7 +239,7 @@ s, j = book("glow-by-temi", GEL, date=day(5), time="10:00", customer_name="", cu
 check("name and phone are needed", s == 422, (s, j))
 s, j = book("glow-by-temi", GEL, date=day(5), time="10:00", customer_phone="12", customer_name="A")
 check("a phone number has to look like one", s == 422 and "phone number" in j.get("error", ""), (s, j))
-sql("UPDATE subscriptions SET status = 'cancelled' WHERE business_id = 11")
+sql("UPDATE subscriptions SET status = 'suspended' WHERE business_id = 11")   # a cancelled month stays open to its end
 s, h, page = shop("chinedu-co").get(f"/book/{AC}-ac-servicing")
 s2, j2 = book("chinedu-co", AC, date=day(6), time="09:00", customer_phone="0803 555 0601")
 check("a closed shop takes no bookings", "closed for now" in page and s2 == 403, (s, s2))
@@ -253,7 +254,7 @@ parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="payment_pro
 parts.append(f"--{boundary}--\r\n".encode())
 s, h, raw = shop("glow-by-temi").req("POST", f"/book/{BRAIDS}", headers={"Content-Type": f"multipart/form-data; boundary={boundary}"}, body=b"".join(parts))
 proof = one("SELECT payment_proof_path FROM bookings WHERE customer_phone = '0803 555 0701'")
-check("the deposit's proof is kept", s == 200 and proof and proof.startswith("uploads/booking_proofs/4/"), (s, raw[:200], proof))
+check("the deposit's proof is kept, privately", s == 200 and proof and proof.startswith("storage/private/booking_proofs/4/"), (s, raw[:200], proof))
 
 # ── The shopper's booking page ─────────────────────────────────────────
 path = urllib.parse.urlparse(braids_link).path

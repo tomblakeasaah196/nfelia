@@ -680,7 +680,7 @@ class PublicController
                 422,
             );
         }
-        $this->public_form_guard("quote", $business_id, $phone, $email);
+        $this->public_form_guard("quote", $business_id, $email);
         /* Append extra RFQ fields to message */
         $extras = [];
         if ($company_name) {
@@ -703,9 +703,9 @@ class PublicController
                 "\n\n--- Additional Info ---\n" . implode("\n", $extras);
         } /* Rate limiting: max 5 requests per phone per business per day */
         $stmtRate = $this->db->prepare(
-            " SELECT COUNT(*) FROM quote_requests WHERE business_id = ? AND phone = ? AND created_at >= CURDATE() ",
+            " SELECT COUNT(*) FROM quote_requests WHERE business_id = ? AND REGEXP_REPLACE(phone, '[^0-9]', '') = ? AND created_at >= CURDATE() ",
         );
-        $stmtRate->execute([$business_id, $phone]);
+        $stmtRate->execute([$business_id, preg_replace("/\D/", "", $phone)]);
         if ((int) $stmtRate->fetchColumn() >= 5) {
             json_response(
                 [
@@ -854,12 +854,12 @@ class PublicController
                 422,
             );
         }
-        $this->public_form_guard("order", $business_id, $customer_phone, $customer_email);
+        $this->public_form_guard("order", $business_id, $customer_email);
         /* Rate limiting: max 10 orders per phone per business per day */
         $stmtRate = $this->db->prepare(
-            " SELECT COUNT(*) FROM orders WHERE business_id = ? AND customer_phone = ? AND created_at >= CURDATE() ",
+            " SELECT COUNT(*) FROM orders WHERE business_id = ? AND REGEXP_REPLACE(customer_phone, '[^0-9]', '') = ? AND created_at >= CURDATE() ",
         );
-        $stmtRate->execute([$business_id, $customer_phone]);
+        $stmtRate->execute([$business_id, preg_replace("/\D/", "", $customer_phone)]);
         if ((int) $stmtRate->fetchColumn() >= 10) {
             json_response(
                 [
@@ -1066,23 +1066,23 @@ class PublicController
      */
     /**
      * Spam limits for a shop's public forms (orders, quote requests,
-     * bookings): per visitor (their IP through Cloudflare), per shop, per
-     * phone number as digits (so "0803 123 4567" and "08031234567" are one),
-     * and per email address across all shops, since each order emails the
-     * address typed. A form that fills the hidden "website" field is a robot.
-     * Ends the request when a limit is reached.
+     * bookings): per visitor at this shop (their IP through Cloudflare), per
+     * connection across all shops (set high: many phones share one mobile
+     * network address), per shop, and per email address across all shops,
+     * since each order emails the address typed. A form that fills the hidden
+     * "website" field is a robot. Ends the request when a limit is reached.
+     * Each form also counts its saved requests per phone number, as digits.
      */
-    protected function public_form_guard(string $form, int $business_id, string $phone, string $email = ""): void
+    protected function public_form_guard(string $form, int $business_id, string $email = ""): void
     {
         if (trim((string) ($_POST["website"] ?? "")) !== "") {
             json_response(["error" => "Please try again."], 422);
         }
         $ip = client_ip();
         $limits = [
-            [$form . "_ip", $ip, 10, 60],
-            [$form . "_ip_day", $ip, 40, 60 * 24],
+            [$form . "_ip", $business_id . ":" . $ip, 10, 60],
+            [$form . "_ip_all", $ip, 120, 60],
             [$form . "_shop", (string) $business_id, 60, 60],
-            [$form . "_phone", $business_id . ":" . preg_replace("/\D/", "", $phone), 5, 60 * 24],
         ];
         if ($email !== "") {
             $limits[] = ["form_email", strtolower($email), 10, 60 * 24];

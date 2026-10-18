@@ -14,9 +14,13 @@
 $exempt_routes = ['settings', 'account', 'logout', 'billing', 'momo', 'countries', 'onboarding',
                   'support', 'contact-support', 'user-guide'];
 
-if (!in_array($controller ?? '', $exempt_routes)) {
+// Nfelia's own business (the founder panel lives there) never locks.
+if (!in_array($controller ?? '', $exempt_routes) && auth_business_id() !== FOUNDER_BUSINESS_ID) {
     $db   = get_db();
-    $stmt = $db->prepare("SELECT status, trial_ends_at, current_period_end, grace_ends_at, expiry_exempt FROM subscriptions WHERE business_id = ?");
+    // SELECT *, not a column list: during a deploy the code arrives a minute
+    // before the migration that adds expiry_exempt, and a missing column
+    // must not stop every page
+    $stmt = $db->prepare("SELECT * FROM subscriptions WHERE business_id = ?");
     $stmt->execute([auth_business_id()]);
     $sub  = $stmt->fetch() ?: null;
 

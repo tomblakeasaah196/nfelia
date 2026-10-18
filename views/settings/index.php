@@ -713,12 +713,12 @@ async function updateRole(memberId, newRole, selectEl) {
         <div class="mb-4">
             <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-2">Staff seats (<?= e($sym) ?><?= number_format($seat_cost, 0) ?> each)</label>
             <div class="flex items-center gap-3">
-                <button type="button" @click="seats = Math.max(covered.length, seats - 1)" aria-label="One seat fewer" class="w-8 h-8 rounded-lg bg-brand-cream border border-brand-sand flex items-center justify-center hover:border-brand-gold">−</button>
+                <button type="button" @click="spare = Math.max(0, spare - 1)" aria-label="One seat fewer" class="w-8 h-8 rounded-lg bg-brand-cream border border-brand-sand flex items-center justify-center hover:border-brand-gold">−</button>
                 <span class="data-text text-lg font-extrabold text-brand-plum w-8 text-center" x-text="totalSeats()"></span>
-                <button type="button" @click="seats = Math.min(<?= MAX_SEATS - 1 ?>, totalSeats() + 1)" aria-label="One seat more" class="w-8 h-8 rounded-lg bg-brand-cream border border-brand-sand flex items-center justify-center hover:border-brand-gold">+</button>
+                <button type="button" @click="spare = Math.max(0, Math.min(<?= MAX_SEATS - 1 ?> - covered.length, spare + 1))" aria-label="One seat more" class="w-8 h-8 rounded-lg bg-brand-cream border border-brand-sand flex items-center justify-center hover:border-brand-gold">+</button>
                 <span class="text-xs text-brand-plum/50" x-text="totalSeats() === 0 ? 'Just you' : (1 + totalSeats()) + ' people in all, with you'"></span>
             </div>
-            <p class="text-[10px] text-brand-plum/40 mt-2">Up to <?= MAX_SEATS ?> people (you and <?= MAX_SEATS - 1 ?> staff). Need more? Email support@nfelia.com.</p>
+            <p class="text-[10px] text-brand-plum/40 mt-2">One for each person ticked; add spare seats for new staff. Up to <?= MAX_SEATS ?> people (you and <?= MAX_SEATS - 1 ?> staff). Need more? Email support@nfelia.com.</p>
         </div>
 
         <div class="flex items-center justify-between mb-4 p-3 bg-brand-cream rounded-lg">
@@ -760,11 +760,11 @@ async function updateRole(memberId, newRole, selectEl) {
     function payMonth() {
         return {
             covered: <?= json_encode(array_map('intval', array_column($team, 'id'))) ?>,
-            seats: <?= (int)min(MAX_SEATS - 1, max(count($team), (int)($subscription['extra_seats'] ?? 0))) ?>,
+            spare: 0,
             add: 1,
             loading: false,
             errorMsg: '',
-            totalSeats() { return Math.max(this.seats, this.covered.length); },
+            totalSeats() { return Math.min(<?= MAX_SEATS - 1 ?>, this.covered.length + this.spare); },
             money(n) { return <?= json_encode($sym) ?> + Math.round(n).toLocaleString(); },
 
             async pay(fields) {

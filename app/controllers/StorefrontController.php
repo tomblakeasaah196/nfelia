@@ -450,9 +450,9 @@ class StorefrontController extends PublicController
         if (($problem = $this->contact_problem($name, $phone, $email)) !== null) {
             json_response(['error' => $problem], 422);
         }
-        $this->public_form_guard('booking', $bid, $phone, $email);
-        $stmt = $this->db->prepare("SELECT COUNT(*) FROM bookings WHERE business_id = ? AND customer_phone = ? AND created_at >= CURDATE()");
-        $stmt->execute([$bid, $phone]);
+        $this->public_form_guard('booking', $bid, $email);
+        $stmt = $this->db->prepare("SELECT COUNT(*) FROM bookings WHERE business_id = ? AND REGEXP_REPLACE(customer_phone, '[^0-9]', '') = ? AND created_at >= CURDATE()");
+        $stmt->execute([$bid, preg_replace('/\D/', '', $phone)]);
         if ((int)$stmt->fetchColumn() >= 5) {
             json_response(['error' => 'Too many bookings today. Please try again tomorrow, or ask on WhatsApp.'], 429);
         }
@@ -595,8 +595,7 @@ class StorefrontController extends PublicController
     private function subscription(int $business_id): ?array
     {
         $stmt = $this->db->prepare("
-            SELECT status, trial_ends_at, current_period_end, grace_ends_at, last_payment_date, expiry_exempt
-            FROM subscriptions WHERE business_id = ?
+            SELECT * FROM subscriptions WHERE business_id = ?
         ");
         $stmt->execute([$business_id]);
         return $stmt->fetch() ?: null;
