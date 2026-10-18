@@ -38,6 +38,7 @@ require_once __DIR__ . '/app/helpers/signin.php';
 require_once __DIR__ . '/app/helpers/passkeys.php';
 require_once __DIR__ . '/app/helpers/notify.php';
 require_once __DIR__ . '/app/helpers/screens.php';
+require_once __DIR__ . '/app/helpers/view_as.php';
 
 // --- GLOBAL EXCEPTION & FATAL ERROR HANDLER ---
 // Start output buffering so we can erase half-loaded pages if a crash happens
@@ -86,6 +87,7 @@ if (in_array(APP_ENV, ['local', 'testing'], true) && str_starts_with(trim($_GET[
 // ops.nfelia.com is the Nfelia team's own place (app/ops/). It is looked for
 // before shops, and "ops" is a reserved shop name, so no shop can take it.
 require_once __DIR__ . '/app/ops/ops.php';
+require_once __DIR__ . '/app/ops/alerts.php';   // the Ops team hears from the app (payments, tickets, shop names, leads)
 if (ops_is_host($_SERVER['HTTP_HOST'] ?? '')) {
     require_once __DIR__ . '/app/ops/router.php';
     ops_dispatch();
@@ -159,6 +161,23 @@ if ($url === '' && !is_logged_in() && !isset($_COOKIE[REMEMBER_COOKIE])) {
 $controller = $segments[0] ?? 'dashboard';
 $action     = $segments[1] ?? 'index';
 $param      = $segments[2] ?? null;
+
+// Nfelia support looking at this business from Ops: read-only, short
+// (app/helpers/view_as.php).
+if ($controller === 'support-view') {
+    if ($action === 'end' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        csrf_verify();
+        header('Location: ' . view_as_end());
+        exit;
+    }
+    if ($problem = view_as_start((string)$action)) {
+        $notice = ['title' => 'This link has expired', 'body' => $problem, 'status' => 410, 'action_url' => ops_url('clients'), 'action_label' => 'Back to Nfelia Ops'];
+        require __DIR__ . '/views/public/notice.php';
+        exit;
+    }
+    redirect('dashboard');
+}
+view_as_guard($url);
 
 // ---- ROUTE TABLE ----
 // Public routes (no auth required)

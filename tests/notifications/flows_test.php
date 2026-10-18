@@ -7,6 +7,7 @@
  * sign-in when they are signed out.   php tests/notifications/flows_test.php
  */
 require __DIR__ . '/lib.php';
+require_once __DIR__ . '/../ops/lib.php';   // the Nfelia team works in Ops (tests/ops)
 t_guard();
 fixture_reset();
 
@@ -47,6 +48,12 @@ function opens(int $who, string $event, string $want, ?string $page_has = null):
 }
 
 /** One rule for the whole trigger: these people, this link, nobody else. */
+/** Who in the Ops team was told about this kind of thing (ops_alerts), by staff id. */
+function ops_told(string $kind): array
+{
+    return array_map('intval', array_column(rows("SELECT staff_id FROM ops_alerts WHERE kind = ? ORDER BY staff_id", [$kind]), 'staff_id'));
+}
+
 function expect(string $event, array $who, string $url): void
 {
     $got = told($event);
@@ -375,12 +382,14 @@ clean_slate();
 $a->get('contact-support');
 $a->post('support/submit_ticket', ['subject' => 'Printing invoices', 'message' => 'The PDF is blank.']);
 $ticket = (int)q("SELECT id FROM support_tickets WHERE subject = 'Printing invoices'");
-expect('platform.ticket', [TOLU, SADE], "admin/support#ticket-{$ticket}");
-eq(latest(TOLU, 'platform.ticket')['message'] ?? null, "Ada's Hair & Co: Printing invoices", 'the Nfelia team sees who and what');
-opens(TOLU, 'platform.ticket', "admin/support#ticket-{$ticket}", "id=\"ticket-{$ticket}\"");
-$t = as_(TOLU);
-$t->get('admin/support');
-$t->post('admin/reply_ticket', ['ticket_id' => $ticket, 'reply' => 'Fixed. Try again.', 'new_status' => 'replied']);
+eq(ops_told('ticket'), [1, 2], 'the Nfelia team is told in Ops: Admin and Support, not Sales');
+eq(told('platform.ticket'), [], 'and nobody in the Nfelia business (it is an ordinary business now)');
+eq((string)q("SELECT body FROM ops_alerts WHERE kind = 'ticket' AND staff_id = 1"), "Ada's Hair & Co: Printing invoices", 'who and what');
+eq((string)q("SELECT url FROM ops_alerts WHERE kind = 'ticket' AND staff_id = 1"), "support/{$ticket}", 'opening the ticket itself');
+$t = as_ops('sam@nfelia.test');
+$t->get(o("support/{$ticket}"));
+ok(str_contains($t->body, 'The PDF is blank.'), 'Support opens it in Ops');
+$t->post(o("support/{$ticket}/reply"), ['reply' => 'Fixed. Try again.', 'status' => 'replied']);
 expect('support.reply', [ADA], "contact-support#ticket-{$ticket}");
 eq(latest(ADA, 'support.reply')['message'] ?? null, 'About “Printing invoices”: Fixed. Try again.', 'Ada reads the reply');
 deliver();
@@ -389,11 +398,13 @@ opens(ADA, 'support.reply', "contact-support#ticket-{$ticket}", 'Fixed. Try agai
 
 section('The Nfelia team manages a plan');
 clean_slate();
-$t->post('admin/manage_subscription', ['business_id' => 3, 'action' => 'extend_trial', 'days' => 7]);
+$t = as_ops('grace@nfelia.test');
+$t->get(o('clients/3'));
+$t->post(o('clients/3/plan'), ['action' => 'extend_trial', 'days' => 7]);
 ok(str_starts_with(latest(KOLA, 'billing.trial_extended')['message'] ?? '', 'We added 7 days. Your trial now ends'), 'Kola hears his trial was extended, and to when');
-$t->post('admin/manage_subscription', ['business_id' => 3, 'action' => 'activate']);
+$t->post(o('clients/3/plan'), ['action' => 'activate']);
 ok(str_starts_with(latest(KOLA, 'billing.activated')['message'] ?? '', 'The Nfelia team activated your subscription until'), 'activated, and until when');
-$t->post('admin/manage_subscription', ['business_id' => 3, 'action' => 'suspend']);
+$t->post(o('clients/3/plan'), ['action' => 'suspend', 'reason' => 'Testing a suspension']);
 eq(latest(KOLA, 'billing.suspended')['title'] ?? null, 'Your account is on hold', 'put on hold');
 deliver();
 eq(count(mails_to(EMAIL[KOLA])), 3, 'each by email too (billing always emails)');
@@ -404,9 +415,8 @@ clean_slate();
 $visitor = new Http();
 $visitor->get('');
 $visitor->post('public-feedback', ['enterprise' => 'Mama Put Kitchen', 'contact' => '08099998888', 'message' => 'How much is it a month?']);
-expect('platform.prospect', [TOLU, SADE], 'admin/feedback#prospects');
-eq(latest(TOLU, 'platform.prospect')['message'] ?? null, 'Mama Put Kitchen (08099998888): How much is it a month?', 'with the number to reply on');
-opens(TOLU, 'platform.prospect', 'admin/feedback#prospects', 'Mama Put Kitchen');
+eq(ops_told('lead'), [1, 3], 'the Nfelia team is told in Ops: Admin and Sales');
+eq((string)q("SELECT body FROM ops_alerts WHERE kind = 'lead' AND staff_id = 3"), 'Mama Put Kitchen (08099998888): How much is it a month?', 'with the number to reply on');
 
 section('Cancelling keeps what was paid for');
 clean_slate();

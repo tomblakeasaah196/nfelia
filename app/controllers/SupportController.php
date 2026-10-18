@@ -70,9 +70,9 @@ class SupportController {
         $ticket_id = (int)$this->db->lastInsertId();
 
         // The Nfelia team hears about it (app/helpers/notify.php).
-        notify('platform.ticket', NOTIFY_PLATFORM_BUSINESS_ID, [
-            'ticket_id' => $ticket_id, 'business' => auth_business()['name'], 'subject' => $subject,
-        ], ['dedupe' => (string)$ticket_id]);
+        // The Nfelia team answers in Ops → Support.
+        ops_alert(get_db(), 'ticket', 'New support ticket', auth_business()['name'] . ': ' . notify_excerpt($subject, 120),
+                  'support/' . (int)$ticket_id, 'ticket:' . (int)$ticket_id, ['permission' => 'support']);
 
         flash('success', "Your message has been sent. We'll respond shortly.");
         redirect('contact-support');

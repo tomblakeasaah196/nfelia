@@ -27,8 +27,6 @@ const NOTIFY_OWNER = ['owner'];
 const NOTIFY_BOSS  = ['owner', 'admin'];
 const NOTIFY_TEAM  = ['owner', 'admin', 'staff'];
 
-/** Platform alerts go to this business (the Nfelia team) until ops.nfelia.com exists. */
-const NOTIFY_PLATFORM_BUSINESS_ID = 1;
 
 /**
  * What a person chooses about, with the defaults. 'locked' emails cannot be
@@ -48,7 +46,6 @@ const NOTIFY_TOPICS = [
     'account'   => ['label' => 'Your shop & Nfelia',           'hint' => 'Shop link decisions, support replies, referral rewards.',   'push' => true, 'email' => true,  'locked' => false, 'roles' => NOTIFY_BOSS],
     'team'      => ['label' => 'Your team',                    'hint' => 'Someone joins or leaves your team.',                        'push' => true, 'email' => false, 'locked' => false, 'roles' => NOTIFY_BOSS],
     'security'  => ['label' => 'Sign-ins & security',          'hint' => 'A new device signs in, or your password, email or passkeys change.', 'push' => true, 'email' => true, 'locked' => true, 'roles' => NOTIFY_TEAM],
-    'platform'  => ['label' => 'Nfelia team',                  'hint' => 'Payments to review, support tickets, shop names, messages.', 'push' => true, 'email' => false, 'locked' => false, 'roles' => NOTIFY_TEAM],
 ];
 
 /** The person's own choices, as stored on users. */
@@ -57,7 +54,7 @@ const NOTIFY_FIELDS = ['quiet_hours', 'quiet_from', 'quiet_to', 'hide_amounts'];
 /* ═══════════════════════════════════════════════════════════════════
  *  THE EVENTS
  * ═══════════════════════════════════════════════════════════════════
- * Each: topic, to (owner | boss | team | user | platform), urgency, ttl
+ * Each: topic, to (owner | boss | team | user), urgency, ttl
  * (seconds a push stays worth delivering), url, tag (a newer push with the
  * same tag replaces the older one on the phone), text (title and body;
  * $m formats money and is null when this person must not see amounts),
@@ -460,6 +457,15 @@ function notify_events(): array
             'private' => 'New sign-in to your account',
             'button' => 'Check your account',
         ],
+        'security.view_as' => [
+            'topic' => 'security', 'to' => 'user', 'brand' => 'nfelia', 'urgency' => 'high',
+            'url' => fn($d) => 'settings?tab=profile', 'tag' => fn($d) => 'security',
+            'text' => fn($d, $m) => ['Nfelia support looked at your account',
+                                     $d['staff'] . ' from Nfelia opened your account to see what you see, read-only, for 30 minutes: ' . notify_excerpt($d['reason'], 160)
+                                     . '. Nothing was changed. Questions? Reply to support.'],
+            'private' => 'Nfelia support looked at your account',
+            'button' => 'Open Nfelia',
+        ],
         'security.password_changed' => [
             'topic' => 'security', 'to' => 'user', 'brand' => 'nfelia', 'urgency' => 'high',
             'url' => fn($d) => 'settings?tab=profile', 'tag' => fn($d) => 'security',
@@ -486,32 +492,6 @@ function notify_events(): array
             'url' => fn($d) => 'dashboard', 'tag' => fn($d) => 'security',
             'text' => fn($d, $m) => ['Your role changed', $d['by'] . ' made you ' . $d['role'] . ' at ' . $d['business'] . '.'],
             'private' => 'Your role changed',
-        ],
-
-        /* ── The Nfelia team (business 1 until ops.nfelia.com) ── */
-        'platform.momo_submitted' => [
-            'topic' => 'platform', 'to' => 'platform', 'urgency' => 'high',
-            'url' => fn($d) => 'momo/review#payment-' . (int)$d['payment_id'], 'tag' => fn($d) => 'momo-' . (int)$d['payment_id'],
-            'text' => fn($d, $m) => ['MoMo payment to review', $d['business'] . ' sent ' . $d['amount_text'] . ' by mobile money.'],
-            'private' => 'MoMo payment to review',
-        ],
-        'platform.ticket' => [
-            'topic' => 'platform', 'to' => 'platform',
-            'url' => fn($d) => 'admin/support#ticket-' . (int)$d['ticket_id'], 'tag' => fn($d) => 'ticket-' . (int)$d['ticket_id'],
-            'text' => fn($d, $m) => ['New support ticket', $d['business'] . ': ' . notify_excerpt($d['subject'], 120)],
-            'private' => 'New support ticket',
-        ],
-        'platform.shop_name' => [
-            'topic' => 'platform', 'to' => 'platform',
-            'url' => fn($d) => 'admin/shop-names', 'tag' => fn($d) => 'shop-name',
-            'text' => fn($d, $m) => ['Shop name to review', $d['business'] . ' asked for ' . $d['host'] . '.'],
-            'private' => 'Shop name to review',
-        ],
-        'platform.prospect' => [
-            'topic' => 'platform', 'to' => 'platform',
-            'url' => fn($d) => 'admin/feedback#prospects', 'tag' => fn($d) => 'prospect',
-            'text' => fn($d, $m) => ['Message from the home page', $d['name'] . ' (' . $d['contact'] . '): ' . notify_excerpt($d['message'], 140)],
-            'private' => 'Message from the home page',
         ],
 
         /* ── Checking it works (More > Notifications) ─────────── */
@@ -553,9 +533,6 @@ function notify(string $event, int $business_id, array $data = [], array $opts =
         }
         $db = get_db();
         $to = $def['to'];
-        if ($to === 'platform') {
-            $business_id = NOTIFY_PLATFORM_BUSINESS_ID;
-        }
         $business = $opts['business'] ?? null;
         if (!$business || (int)($business['id'] ?? 0) !== $business_id) {
             $stmt = $db->prepare("SELECT id, name, currency_symbol, logo_path, primary_color, tagline, email FROM businesses WHERE id = ?");
@@ -904,7 +881,7 @@ function notify_recipients(PDO $db, int $business_id, string $to, array $user_id
     $roles = match ($to) {
         'owner'    => NOTIFY_OWNER,
         'boss'     => NOTIFY_BOSS,
-        'team', 'platform', 'user' => NOTIFY_TEAM,
+        'team', 'user' => NOTIFY_TEAM,
         default    => throw new InvalidArgumentException("unknown audience {$to}"),
     };
     $sql = "SELECT id, role, full_name, email, quiet_hours, quiet_from, quiet_to, hide_amounts
@@ -968,7 +945,6 @@ function notify_prefs(int $user_id): array
     $topics = [];
     foreach (NOTIFY_TOPICS as $key => $t) {
         if (!in_array($u['role'] ?? 'staff', $t['roles'], true)) continue;
-        if ($key === 'platform' && (int)($u['business_id'] ?? 0) !== NOTIFY_PLATFORM_BUSINESS_ID) continue;
         $topics[$key] = ['label' => $t['label'], 'hint' => $t['hint'], 'locked' => $t['locked']] + $mine[$key];
     }
     return [

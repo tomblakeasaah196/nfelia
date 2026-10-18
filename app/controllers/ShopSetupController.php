@@ -262,9 +262,9 @@ class ShopSetupController {
         ")->execute([$name, $this->biz_id]);
 
         if ($business['subdomain_requested'] !== $name) {
-            notify('platform.shop_name', SHOP_REVIEWER_BUSINESS_ID, [
-                'business' => $business['name'], 'host' => $name . '.' . shop_base_host(),
-            ], ['dedupe' => $this->biz_id . ':' . $name]);
+            // The Nfelia team decides in Ops → Shop names.
+            ops_alert(get_db(), 'shop_name', 'Shop name to check', $business['name'] . ' asked for ' . $name . '.' . shop_base_host() . '.',
+                      'shop-names', 'shop-name:' . $this->biz_id . ':' . $name, ['permission' => 'clients.act']);
         }
     }
 }

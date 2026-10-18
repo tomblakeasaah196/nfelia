@@ -37,7 +37,8 @@ const OPS_ROLES = [
  *   exports          send a client their data
  *   sales            leads and the pipeline
  *   campaigns        email campaigns
- *   finance          Nfelia's own revenue and expenses
+ *   finance          Nfelia's own revenue, expenses and referrals
+ *   settings         countries, prices and payment details
  *   team, audit      the Ops team, and everything done in Ops
  */
 const OPS_PERMISSIONS = [
@@ -306,7 +307,9 @@ function ops_headers(): void
 {
     header('Cache-Control: no-store');
     header('X-Frame-Options: DENY');
-    header("Content-Security-Policy: frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
+    // form-action also covers where a form's answer redirects: "View as" goes on to the app.
+    $app = parse_url(APP_URL, PHP_URL_SCHEME) . '://' . parse_url(APP_URL, PHP_URL_HOST) . (parse_url(APP_URL, PHP_URL_PORT) ? ':' . parse_url(APP_URL, PHP_URL_PORT) : '');
+    header("Content-Security-Policy: frame-ancestors 'none'; base-uri 'self'; form-action 'self' {$app}");
     header('X-Robots-Tag: noindex, nofollow');
     header('Referrer-Policy: same-origin');
     header('X-Content-Type-Options: nosniff');
@@ -485,9 +488,20 @@ function ops_nav(array $staff): array
             ['errors', 'Errors',    'alert', ops_can('errors', $staff) ? $count("SELECT COUNT(*) FROM error_groups WHERE status = 'open' AND level IN ('fatal', 'error') AND kind <> 'slow'") : null, 'errors'],
             ['health', 'Health',    'pulse', null, 'errors'],
         ],
-        'Nfelia team' => [
-            ['team',  'Team',      'users', null, 'team'],
-            ['audit', 'Audit log', 'list',  null, 'audit'],
+        'Clients' => [
+            ['clients',    'Clients',      'shop',   null, 'clients'],
+            ['payments',   'Payments to check', 'chart', ops_can('clients.act', $staff) ? $count("SELECT COUNT(*) FROM subscription_payments WHERE status = 'pending_verification'") : null, 'clients.act'],
+            ['shop-names', 'Shop names',   'target', ops_can('clients.act', $staff) ? $count("SELECT COUNT(*) FROM businesses WHERE subdomain_status = 'pending' AND subdomain_requested IS NOT NULL") : null, 'clients.act'],
+            ['support',    'Support',      'chat',   ops_can('support', $staff) ? $count("SELECT COUNT(*) FROM support_tickets WHERE status = 'open'") : null, 'support'],
+            ['reviews',    'Reviews',      'eye',    null, 'support'],
+            ['feedback',   'Feedback',     'mail',   null, 'support'],
+        ],
+        'Nfelia' => [
+            ['finance',   'Finance',   'chart', null, 'finance'],
+            ['referrals', 'Referrals', 'users', null, 'finance'],
+            ['countries', 'Countries', 'home',  null, 'settings'],
+            ['team',      'Team',      'users', null, 'team'],
+            ['audit',     'Audit log', 'list',  null, 'audit'],
         ],
     ];
     $nav = [];
@@ -549,4 +563,19 @@ function ops_asset(string $path): string
 {
     $file = BASE_PATH . '/' . ltrim($path, '/');
     return '/' . ltrim($path, '/') . (is_file($file) ? '?v=' . filemtime($file) : '');
+}
+
+/** A plan's state as a chip. */
+function ops_plan_chip(?string $status): string
+{
+    [$label, $tone] = match ($status) {
+        'active'               => ['Paying', 'ok'],
+        'trial'                => ['Free trial', 'accent'],
+        'past_due'             => ['Payment due', 'warn'],
+        'pending_verification' => ['Being checked', 'warn'],
+        'cancelled'            => ['Cancelled', 'muted'],
+        'suspended'            => ['Suspended', 'bad'],
+        default                => ['No plan', 'muted'],
+    };
+    return '<span class="ops-chip ops-chip-' . $tone . '">' . e($label) . '</span>';
 }

@@ -338,3 +338,31 @@ a.ops-kpi:hover { border-color: var(--line-2); box-shadow: var(--shadow); text-d
   .ops-table.is-stacked.is-compact td[data-label]::before { width: auto; }
   .ops-table.is-stacked.is-compact td[data-label] .cell-sub { display: inline; margin-left: 4px; }
 }
+
+/* ── Queues (payments, shop names): each item with its actions beside it ── */
+.ops-queue { list-style: none; margin: 0; padding: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.ops-queue li { display: flex; gap: 16px; align-items: flex-start; padding: 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.ops-queue li:last-child { border-bottom: 0; }
+.ops-queue .what { flex: 1 1 320px; min-width: 0; }
+.ops-queue .meta { color: var(--muted); font-size: .8125rem; margin: 2px 0 6px; overflow-wrap: anywhere; }
+.ops-queue-actions { display: flex; flex-direction: column; gap: 8px; align-items: flex-end; flex: 0 1 280px; }
+.ops-queue-actions form { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 640px) { .ops-queue-actions { align-items: stretch; flex-basis: 100%; } .ops-queue-actions form { justify-content: flex-start; } }
+
+/* ── Tabs across a list (support, reviews) ── */
+.ops-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 14px; border-bottom: 1px solid var(--line); }
+.ops-tabs a { padding: 10px 14px; color: var(--ink-2); font-weight: 600; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.ops-tabs a:hover { color: var(--ink); text-decoration: none; }
+.ops-tabs a[aria-current="page"] { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* ── Small pieces ── */
+.ops-kpis-sm .ops-kpi { padding: 12px; }
+.ops-kpis-sm .ops-kpi .value { font-size: 1.375rem; }
+.ops-inline-form { display: flex; gap: 8px; }
+.ops-inline-form .ops-select { flex: 1; min-height: 40px; }
+.ops-bars-6 { grid-template-columns: repeat(6, minmax(0, 1fr)); height: 180px; gap: 12px; }
+.ops-bar-value { font-size: .75rem; color: var(--ink-2); }
+.ops-country > summary { display: flex; align-items: center; gap: 12px; padding: 14px 16px; cursor: pointer; list-style: none; flex-wrap: wrap; }
+.ops-country > summary::-webkit-details-marker { display: none; }
+.ops-country > summary .grow { flex: 1; min-width: 0; }
+.ops-country[open] > summary { border-bottom: 1px solid var(--line); }

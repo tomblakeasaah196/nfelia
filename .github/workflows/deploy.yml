@@ -214,7 +214,7 @@ jobs:
           echo "::error::the app did not start"; cat "$RUNNER_TEMP/app.log"; exit 1
 
       - name: Engine, every trigger over HTTP, the cron, the service worker, Nfelia Ops
-        run: bash tests/notifications/run.sh engine flows cron sw ops/foundation ops/monitor
+        run: bash tests/notifications/run.sh engine flows cron sw ops/foundation ops/monitor ops/clients
 
       - name: Browser for the UI checks
         id: browser

@@ -27,7 +27,7 @@ $sample = [
     'amount_text' => '₦10,000', 'period_end' => date('Y-m-d'), 'access_until' => date('Y-m-d'), 'trial_ends' => date('Y-m-d'),
     'grace_ends' => date('Y-m-d H:i:s'), 'host' => 'adas-hair.nfelia.com', 'changed' => true, 'has_current' => false, 'ticket_id' => 1,
     'subject' => 'Cannot print', 'reply' => 'Fixed now.', 'referred' => 'Kola Prints', 'reward' => 2500, 'role' => 'an admin',
-    'device' => 'Chrome on Android', 'new_email' => 'new@example.test', 'business' => "Ada's Hair & Co", 'payment_id' => 1,
+    'device' => 'Chrome on Android', 'staff' => 'Sam from Nfelia', 'new_email' => 'new@example.test', 'business' => "Ada's Hair & Co", 'payment_id' => 1,
     'contact' => '08030000000', 'count' => 4,
 ];
 $money = fn($a) => notify_money_text((float)$a, '₦');
@@ -36,7 +36,7 @@ $problems = [];
 foreach (notify_events() as $key => $def) {
     $where = "{$key}: ";
     if ($def['topic'] !== null && !isset(NOTIFY_TOPICS[$def['topic']])) $problems[] = $where . 'unknown topic';
-    if (!in_array($def['to'], ['owner', 'boss', 'team', 'user', 'platform'], true)) $problems[] = $where . 'unknown audience';
+    if (!in_array($def['to'], ['owner', 'boss', 'team', 'user'], true)) $problems[] = $where . 'unknown audience';
     if (empty($def['private'])) $problems[] = $where . 'no lock-screen title';
     if (!is_file(BASE_PATH . '/views/emails/' . ($def['template'] ?? 'notification') . '.php')) $problems[] = $where . 'email template missing';
     try {
@@ -47,7 +47,7 @@ foreach (notify_events() as $key => $def) {
             [$title, $body] = ($def['text'])($sample, $m);
             if (trim($title) === '' || trim($body) === '') $problems[] = $where . 'empty title or body' . ($m ? '' : ' for staff');
             // (The Nfelia team's own staff do see what a customer paid Nfelia: they check it.)
-            if ($m === null && $def['to'] !== 'platform' && preg_match('/₦\d/u', $title . $body)) $problems[] = $where . 'shows an amount to staff';
+            if ($m === null && preg_match('/₦\d/u', $title . $body)) $problems[] = $where . 'shows an amount to staff';
         }
         if (isset($def['lines'])) ($def['lines'])($sample, $money);
         if (isset($def['tag'])) ($def['tag'])($sample);
@@ -90,8 +90,7 @@ notify('billing.failed', 2, []);
 eq(told('billing.failed'), [20], 'billing: the owner only');
 notify('task.assigned', 2, $sample, ['users' => [22, 30, 23]]);
 eq(told('task.assigned'), [22], 'named people: only active members of this business (not Kola from another one, not Dayo)');
-notify('platform.ticket', 2, $sample);
-eq(told('platform.ticket'), [10, 11], 'Nfelia team alerts go to business 1, whatever business they are about');
+ok(!array_filter(array_keys(notify_events()), fn($k) => str_starts_with($k, 'platform.')), 'no Nfelia-team alerts in a business\'s bell: they go to Ops (app/ops/alerts.php)');
 clean_slate();
 notify('payment.invoice', 2, $sample, ['actor' => 21]);
 eq(told('payment.invoice'), [20], 'whoever recorded it is left out');
@@ -130,7 +129,7 @@ $p = notify_prefs(22);
 eq(array_keys($p['topics']), ['orders', 'bookings', 'stock', 'reminders', 'morning', 'tasks', 'security'], 'staff choose only what reaches staff');
 eq(array_keys(notify_prefs(20)['topics']), ['orders', 'bookings', 'money', 'customers', 'overdue', 'stock', 'reminders', 'morning', 'tasks', 'billing', 'account', 'team', 'security'],
    'the owner chooses everything (and no Nfelia-team topic outside business 1)');
-ok(isset(notify_prefs(10)['topics']['platform']), 'the Nfelia team gets the platform topic');
+ok(!isset(notify_prefs(10)['topics']['platform']), 'the Nfelia business is an ordinary business: no Nfelia-team topic');
 eq([$p['topics']['orders']['push'], $p['topics']['orders']['email']], [true, true], 'orders default to phone and email');
 eq([$p['topics']['stock']['push'], $p['topics']['stock']['email']], [true, false], 'everything else defaults to phone (and the bell)');
 notify_set_pref(get_db(), 21, 'money', false, true);

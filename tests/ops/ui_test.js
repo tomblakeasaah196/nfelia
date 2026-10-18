@@ -172,6 +172,31 @@ const watch = (page, who) => page.on('pageerror', (e) => errors.push(`${who}: ${
   ok(await page.locator('.ops-inbox li.is-new').count() > 0, 'the alerts inbox has them, unread');
   await page.screenshot({ path: path.join(OUT, 'alerts-phone.png'), fullPage: true });
 
+  console.log('\nClients, and viewing one as its owner');
+  await wide.goto(`${OPS}/clients`);
+  await wide.addStyleTag({ content: still });
+  ok(await wide.locator('table tbody tr').count() >= 3, 'the clients list');
+  await wide.screenshot({ path: path.join(OUT, 'clients-computer.png'), fullPage: true });
+  await wide.goto(`${OPS}/clients/2`);
+  await wide.addStyleTag({ content: still });
+  await wide.screenshot({ path: path.join(OUT, 'client-computer.png'), fullPage: true });
+  await wide.click('[data-ops-dialog=view-as]');
+  await wide.fill('#view-why', 'Checking the invoice layout for a ticket');
+  const [tab] = await Promise.all([wide.context().waitForEvent('page'), wide.click('#view-as button[type=submit]')]);
+  await tab.waitForLoadState('load');
+  watch(tab, 'view-as');
+  ok(tab.url() === `${APP.origin}/dashboard`, 'View as opens their Nfelia in a new tab: ' + tab.url());
+  ok(await tab.locator('[data-view-as]').count() === 1, 'with the read-only banner');
+  await tab.addStyleTag({ content: still });
+  await tab.screenshot({ path: path.join(OUT, 'view-as-computer.png') });
+  await Promise.all([tab.waitForNavigation(), tab.click('[data-view-as] button[type=submit]')]);
+  ok(tab.url().startsWith(`${OPS}/clients/2`), 'End goes back to the client in Ops');
+  await page.goto(`${OPS}/clients/2`);
+  await page.addStyleTag({ content: still });
+  const wideness = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  ok(wideness <= 0, 'a client page fits a phone (overflow ' + wideness + 'px)');
+  await page.screenshot({ path: path.join(OUT, 'client-phone.png'), fullPage: true });
+
   ok(errors.length === 0, 'no script errors on any page' + (errors.length ? ': ' + errors.join(' | ') : ''));
   await browser.close();
   console.log(`\nScreenshots: ${OUT}`);

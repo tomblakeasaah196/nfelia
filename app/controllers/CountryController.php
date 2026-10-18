@@ -19,176 +19,24 @@ class CountryController {
     public function __construct() {
         if (!is_logged_in()) { redirect('login'); }
         $this->db = get_db();
-        // Countries management is admin-only
+    }
+
+    /**
+     * Countries are managed in Nfelia Ops now (ops.nfelia.com/countries,
+     * app/ops/controllers/OpsCountriesController.php). The old pages send
+     * the Nfelia business there, and everyone else home.
+     */
+    public function index() { $this->moved(); }
+    public function add()   { $this->moved(); }
+    public function edit()  { $this->moved(); }
+    public function toggle() { $this->moved(); }
+
+    private function moved(): never {
         if ((int)auth_business_id() !== self::FOUNDER_BUSINESS_ID) {
-            flash('error', 'Access denied.');
             redirect('dashboard');
-            exit;
         }
-    }
-
-    /* ══════════════════════════════════════════
-     *  LIST — GET /countries
-     * ══════════════════════════════════════════ */
-    public function index() {
-        $user     = auth_user();
-        $business = auth_business();
-
-        $stmt = $this->db->query("
-            SELECT c.*,
-                   (SELECT COUNT(*) FROM businesses b WHERE b.country_id = c.id) AS business_count
-            FROM countries c
-            ORDER BY c.is_active DESC, c.name ASC
-        ");
-        $countries = $stmt->fetchAll();
-
-        $tab       = 'countries';
-        $title     = 'Admin — Countries';
-        $view_file = BASE_PATH . '/views/admin/countries.php';
-        require_once BASE_PATH . '/views/layouts/app.php';
-    }
-
-    /* ══════════════════════════════════════════
-     *  ADD — POST /countries/add
-     * ══════════════════════════════════════════ */
-    public function add() {
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { redirect('countries'); return; }
-        csrf_verify();
-
-        $name            = trim($_POST['name'] ?? '');
-        $iso_code        = strtoupper(trim($_POST['iso_code'] ?? ''));
-        $flag_emoji      = trim($_POST['flag_emoji'] ?? '');
-        $currency_name   = trim($_POST['currency_name'] ?? '');
-        $currency_code   = strtoupper(trim($_POST['currency_code'] ?? ''));
-        $currency_symbol = trim($_POST['currency_symbol'] ?? '');
-        $payment_method  = trim($_POST['payment_method'] ?? 'paystack');
-        $payment_instructions = trim($_POST['payment_instructions'] ?? '');
-        $momo_number     = trim($_POST['momo_number'] ?? '');
-        $monthly_price   = (float)($_POST['monthly_price'] ?? 0);
-        $extra_seat_price = (float)($_POST['extra_seat_price'] ?? 0);
-        $trial_days      = max(1, (int)($_POST['trial_days'] ?? 14));
-        $is_active       = isset($_POST['is_active']) ? 1 : 0;
-
-        $valid_methods = ['paystack', 'mobile_money', 'stripe', 'manual', 'other'];
-        if (!in_array($payment_method, $valid_methods)) $payment_method = 'other';
-
-        if (!$name || strlen($iso_code) !== 2 || !$currency_code || !$currency_symbol) {
-            flash('error', 'Name, ISO code (2 letters), currency code, and symbol are required.');
-            redirect('countries');
-            return;
-        }
-
-        try {
-            $this->db->prepare("
-                INSERT INTO countries
-                    (name, iso_code, flag_emoji, currency_name, currency_code, currency_symbol,
-                     payment_method, payment_instructions, momo_number,
-                     monthly_price, extra_seat_price, trial_days, is_active)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ")->execute([
-                $name, $iso_code, $flag_emoji ?: null,
-                $currency_name, $currency_code, $currency_symbol,
-                $payment_method,
-                $payment_instructions ?: null,
-                $momo_number ?: null,
-                $monthly_price, $extra_seat_price,
-                $trial_days, $is_active,
-            ]);
-            flash('success', "{$name} added successfully.");
-        } catch (\PDOException $e) {
-            if ($e->getCode() == 23000) {
-                flash('error', "ISO code '{$iso_code}' already exists.");
-            } else {
-                error_log('[Nfelia] CountryController::add failed: ' . $e->getMessage());
-                flash('error', 'Failed to add country. Please try again.');
-            }
-        }
-
-        redirect('countries');
-    }
-
-    /* ══════════════════════════════════════════
-     *  EDIT — POST /countries/edit
-     *  Updates pricing, instructions, MoMo number
-     * ══════════════════════════════════════════ */
-    public function edit() {
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { redirect('countries'); return; }
-        csrf_verify();
-
-        $id                   = (int)($_POST['country_id'] ?? 0);
-        $payment_instructions = trim($_POST['payment_instructions'] ?? '');
-        $momo_number          = trim($_POST['momo_number'] ?? '');
-        $monthly_price        = (float)($_POST['monthly_price'] ?? 0);
-        $extra_seat_price     = (float)($_POST['extra_seat_price'] ?? 0);
-        $payment_method       = trim($_POST['payment_method'] ?? '');
-        $trial_days           = max(1, (int)($_POST['trial_days'] ?? 14));
-        $currency_symbol      = trim($_POST['currency_symbol'] ?? '');
-        $flag_emoji           = trim($_POST['flag_emoji'] ?? '');
-
-        if (!$id) {
-            flash('error', 'Invalid country.');
-            redirect('countries');
-            return;
-        }
-
-        $valid_methods = ['paystack', 'mobile_money', 'stripe', 'manual', 'other'];
-        if (!in_array($payment_method, $valid_methods)) $payment_method = null;
-
-        $sets  = ["updated_at = NOW()"];
-        $params = [];
-
-        if ($payment_instructions !== '') { $sets[] = "payment_instructions = ?"; $params[] = $payment_instructions; }
-        else                              { $sets[] = "payment_instructions = NULL"; }
-
-        if ($momo_number !== '') { $sets[] = "momo_number = ?"; $params[] = $momo_number; }
-        else                     { $sets[] = "momo_number = NULL"; }
-
-        $sets[] = "monthly_price = ?";    $params[] = $monthly_price;
-        $sets[] = "extra_seat_price = ?"; $params[] = $extra_seat_price;
-        $sets[] = "trial_days = ?";       $params[] = $trial_days;
-
-        if ($payment_method) { $sets[] = "payment_method = ?"; $params[] = $payment_method; }
-        if ($currency_symbol) { $sets[] = "currency_symbol = ?"; $params[] = $currency_symbol; }
-        if ($flag_emoji) { $sets[] = "flag_emoji = ?"; $params[] = $flag_emoji; }
-
-        $params[] = $id;
-        $this->db->prepare("UPDATE countries SET " . implode(', ', $sets) . " WHERE id = ?")
-                  ->execute($params);
-
-        flash('success', 'Country updated.');
-        redirect('countries');
-    }
-
-    /* ══════════════════════════════════════════
-     *  TOGGLE — POST /countries/toggle
-     * ══════════════════════════════════════════ */
-    public function toggle() {
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            json_response(['error' => 'Method not allowed'], 405);
-            return;
-        }
-        csrf_verify();
-
-        $id = (int)($_POST['country_id'] ?? 0);
-        if (!$id) { json_response(['error' => 'Invalid ID'], 400); return; }
-
-        $stmt = $this->db->prepare("SELECT is_active, iso_code FROM countries WHERE id = ?");
-        $stmt->execute([$id]);
-        $country = $stmt->fetch();
-
-        if (!$country) { json_response(['error' => 'Not found'], 404); return; }
-
-        // Prevent deactivating Nigeria (core market)
-        if ($country['iso_code'] === 'NG') {
-            json_response(['error' => 'Nigeria cannot be deactivated — it is the primary market.'], 400);
-            return;
-        }
-
-        $new_status = $country['is_active'] ? 0 : 1;
-        $this->db->prepare("UPDATE countries SET is_active = ?, updated_at = NOW() WHERE id = ?")
-                  ->execute([$new_status, $id]);
-
-        json_response(['success' => true, 'is_active' => $new_status]);
+        header('Location: ' . ops_url('countries'), true, 301);
+        exit;
     }
 
     /* ══════════════════════════════════════════

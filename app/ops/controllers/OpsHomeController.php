@@ -20,22 +20,32 @@ class OpsHomeController
             ")->fetchAll();
         }
 
+        // At most five, what needs someone first.
         $tiles = [];
+        $count = fn(string $sql) => (int)$db->query($sql)->fetchColumn();
+        if (ops_can('errors')) {
+            $open = $count("SELECT COUNT(*) FROM error_groups WHERE status = 'open' AND level IN ('fatal', 'error') AND kind <> 'slow'");
+            $tiles[] = ['Open errors', (string)$open, 'Crashes and errors nobody has taken on', 'errors', $open ? 'bad' : 'ok'];
+        }
+        if (ops_can('clients.act')) {
+            $pay = $count("SELECT COUNT(*) FROM subscription_payments WHERE status = 'pending_verification'");
+            $tiles[] = ['Payments to check', (string)$pay, 'Mobile money receipts waiting', 'payments', $pay ? 'bad' : ''];
+        }
+        if (ops_can('support')) {
+            $tickets = $count("SELECT COUNT(*) FROM support_tickets WHERE status = 'open'");
+            $tiles[] = ['Open tickets', (string)$tickets, 'Clients waiting on an answer', 'support', $tickets ? 'bad' : ''];
+        }
         if (ops_can('errors')) {
             require_once BASE_PATH . '/app/ops/monitor.php';
-            $e = $db->query("
-                SELECT SUM(status = 'open' AND level IN ('fatal', 'error') AND kind <> 'slow') AS open_errors,
-                       SUM(first_seen_at > NOW() - INTERVAL 1 DAY AND kind <> 'slow' AND level NOT IN ('notice', 'deprecated')) AS new_day,
-                       SUM(regressed_at > NOW() - INTERVAL 7 DAY) AS back_week,
-                       SUM(kind = 'slow' AND last_seen_at > NOW() - INTERVAL 1 DAY) AS slow_day
-                FROM error_groups
-            ")->fetch();
             $state = ops_health_state(ops_health($db));
-            $tiles[] = ['Open errors', (string)(int)$e['open_errors'], 'Crashes and errors nobody has handled', 'errors', (int)$e['open_errors'] ? 'bad' : 'ok'];
-            $tiles[] = ['New today', (string)(int)$e['new_day'], 'Problems first seen in the last 24 hours', 'errors?sort=new&status=all', ''];
-            $tiles[] = ['Came back', (string)(int)$e['back_week'], 'Marked fixed, then happened again (7 days)', 'errors?status=all&sort=recent', (int)$e['back_week'] ? 'bad' : ''];
             $tiles[] = ['Health', ['ok' => 'All good', 'warn' => 'Worth a look', 'bad' => 'Needs attention'][$state], 'The cron, emails, phones, the server', 'health', $state === 'ok' ? 'ok' : ($state === 'bad' ? 'bad' : '')];
-            $tiles[] = ['Slow pages', (string)(int)$e['slow_day'], 'Over ' . (ERRORS_SLOW_MS / 1000) . ' seconds, last 24 hours', 'errors?kind=slow', ''];
+        }
+        if (ops_can('finance')) {
+            $mrr = (float)$db->query("SELECT COALESCE(SUM(monthly_amount + extra_seats * 5000), 0) FROM subscriptions WHERE status = 'active' AND payment_method = 'paystack'")->fetchColumn();
+            $tiles[] = ['Monthly recurring', '₦' . number_format($mrr), $count("SELECT COUNT(*) FROM subscriptions WHERE status = 'active'") . ' paying', 'finance', ''];
+        } elseif (ops_can('clients')) {
+            $trials = $count("SELECT COUNT(*) FROM subscriptions WHERE status = 'trial' AND trial_ends_at <= CURDATE() + INTERVAL 3 DAY");
+            $tiles[] = ['Trials ending', (string)$trials, 'In the next 3 days', 'clients?plan=attention', ''];
         }
 
         ops_render('home', ['tiles' => $tiles, 'passkeys' => $passkeys, 'recent' => $recent], 'Home');

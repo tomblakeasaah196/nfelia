@@ -481,9 +481,10 @@ class AuthController {
             $feedback_id = (int)$db->lastInsertId();
 
             // The Nfelia team hears about it, with the contact to reply on.
-            notify('platform.prospect', NOTIFY_PLATFORM_BUSINESS_ID, [
-                'name' => $enterprise, 'contact' => $contact !== '' ? $contact : 'no contact given', 'message' => $message,
-            ], ['dedupe' => (string)$feedback_id]);
+            // A lead for the Nfelia team's Sales (Ops → Leads).
+            ops_alert(get_db(), 'lead', 'Message from the home page',
+                      $enterprise . ' (' . ($contact !== '' ? $contact : 'no contact given') . '): ' . notify_excerpt($message, 140),
+                      'leads', 'prospect:' . (int)$feedback_id, ['permission' => 'sales']);
 
             flash('success', 'Thank you. We got your message and will reply soon.');
             redirect('');

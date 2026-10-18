@@ -35,6 +35,25 @@ function account_find(string $column, string|int $value): ?array
 /** Sign in a row from account_find(). */
 function signin_start(array $user): void
 {
+    signin_session($user);
+    get_db()->prepare("UPDATE users SET last_login_at = NOW() WHERE id = ?")->execute([$user['id']]);
+
+    unset($_SESSION['locked']);
+    $_SESSION['last_active'] = time();
+    // The first app page after this offers a passkey and the home-screen
+    // app (views/layouts/app.php, assets/js/lock.js and shell.js).
+    $_SESSION['just_signed_in'] = true;
+
+    signin_note_device($user);
+}
+
+/**
+ * The session for a row from account_find(), and nothing else: no record
+ * of a sign-in. Nfelia support's read-only view (app/helpers/view_as.php)
+ * uses it alone, so looking changes nothing for the client.
+ */
+function signin_session(array $user): void
+{
     login_user(
         [
             'id'          => $user['id'],
@@ -63,15 +82,6 @@ function signin_start(array $user): void
             'email_verified_at'   => $user['email_verified_at'],
         ]
     );
-    get_db()->prepare("UPDATE users SET last_login_at = NOW() WHERE id = ?")->execute([$user['id']]);
-
-    unset($_SESSION['locked']);
-    $_SESSION['last_active'] = time();
-    // The first app page after this offers a passkey and the home-screen
-    // app (views/layouts/app.php, assets/js/lock.js and shell.js).
-    $_SESSION['just_signed_in'] = true;
-
-    signin_note_device($user);
 }
 
 /** The cookie that tells this device apart, a year long. */

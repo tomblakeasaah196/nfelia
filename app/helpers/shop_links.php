@@ -12,9 +12,8 @@
 const SHOP_NAME_MIN = 3;
 const SHOP_NAME_MAX = 30;
 
-// Requests for lookalike names land in the founder account's notifications
-// and wait in Admin → Shop names (see AdminController::FOUNDER_BUSINESS_ID).
-const SHOP_REVIEWER_BUSINESS_ID = 1;
+// Requests for lookalike names wait in Nfelia Ops → Shop names, and the
+// Ops team is told (ShopSetupController).
 
 /**
  * Names that can never be a shop: the mail and cPanel hosts that already live
