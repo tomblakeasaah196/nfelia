@@ -92,6 +92,14 @@ class BookingController
         $booking = $this->posted($id, ['pending']);
         $user    = auth_user();
 
+        // A request older than BOOKING_HOLD_HOURS stopped holding its time:
+        // someone else may have booked it since
+        if (strtotime((string)$booking['created_at']) < time() - BOOKING_HOLD_HOURS * 3600 && booking_clashes($this->db, $booking)) {
+            flash('error', 'That time has been booked by someone else since this request came in. Agree another time with '
+                . planner_first_name($booking['customer_name']) . ' on WhatsApp, or decline it.');
+            redirect('bookings/view/' . (int)$booking['id']);
+        }
+
         $start = new DateTimeImmutable((string)$booking['starts_at'], planner_tz());
         $end   = new DateTimeImmutable((string)$booking['ends_at'], planner_tz());
         [$title, $time, $end_time] = match ($booking['kind']) {
@@ -254,7 +262,7 @@ class BookingController
         }
         $symbol = (string)($business['currency_symbol'] ?? '');
         $vars = [
-            'state' => $state, 'first_name' => planner_first_name($booking['customer_name']), 'shop_name' => (string)$business['name'],
+            'state' => $state, 'first_name' => mail_first_name((string)$booking['customer_name']), 'shop_name' => (string)$business['name'],
             'booking_number' => $booking['booking_number'], 'service' => $booking['product_name'], 'when' => booking_when($booking),
             'booking_url' => $url, 'total' => sf_money((float)$booking['total'], $symbol),
             'deposit' => (float)$booking['deposit_due'] > 0 ? sf_money((float)$booking['deposit_due'], $symbol) : '', 'message' => $message,

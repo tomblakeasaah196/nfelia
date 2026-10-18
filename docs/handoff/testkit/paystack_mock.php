@@ -1,7 +1,7 @@
 <?php
 // A stand-in for the Paystack API, for the local test kits. Run it with
-//   php -S 127.0.0.1:8098 docs/handoff/testkit/paystack_mock.php
-// and point the app at it in .env: PAYSTACK_API_BASE=http://127.0.0.1:8098
+//   php -S 127.0.0.1:8096 docs/handoff/testkit/paystack_mock.php
+// and point the app at it in .env: PAYSTACK_API_BASE=http://127.0.0.1:8096
 //
 // initialize   remembers the payment and sends the browser straight back to
 //              the callback, as if the customer paid

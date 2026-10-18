@@ -679,7 +679,9 @@ class PublicController
                 ["error" => "Please keep your message under 5,000 characters."],
                 422,
             );
-        } /* Append extra RFQ fields to message */
+        }
+        $this->public_form_guard("quote", $business_id, $phone, $email);
+        /* Append extra RFQ fields to message */
         $extras = [];
         if ($company_name) {
             $extras[] = "Company: {$company_name}";
@@ -851,7 +853,9 @@ class PublicController
                 ],
                 422,
             );
-        } /* Rate limiting: max 10 orders per phone per business per day */
+        }
+        $this->public_form_guard("order", $business_id, $customer_phone, $customer_email);
+        /* Rate limiting: max 10 orders per phone per business per day */
         $stmtRate = $this->db->prepare(
             " SELECT COUNT(*) FROM orders WHERE business_id = ? AND customer_phone = ? AND created_at >= CURDATE() ",
         );
@@ -997,13 +1001,13 @@ class PublicController
                their answer, so the mail server never holds up the checkout */
             if ($customer_email !== "" && $order_url !== null) {
                 $mail_vars = [
-                    "first_name" => preg_split("/\s+/u", $customer_name)[0],
+                    "first_name" => mail_first_name($customer_name),
                     "shop_name" => (string) $business["name"],
                     "order_number" => $order_number,
                     "order_url" => $order_url,
                     "lines" => array_map(
                         fn($oi) => [
-                            "name" => $oi["product_name"] . ($oi["variant_selection"] ? " (" . $oi["variant_selection"] . ")" : ""),
+                            "name" => $oi["product_name"],   /* the shop's words only, never the shopper's */
                             "quantity" => $oi["quantity"],
                             "total" => sf_money((float) $oi["line_total"], (string) ($business["currency_symbol"] ?? "")),
                         ],
@@ -1060,6 +1064,38 @@ class PublicController
      * The limits match the customers table, where every order and quote
      * request also lands (its phone column holds 20 characters).
      */
+    /**
+     * Spam limits for a shop's public forms (orders, quote requests,
+     * bookings): per visitor (their IP through Cloudflare), per shop, per
+     * phone number as digits (so "0803 123 4567" and "08031234567" are one),
+     * and per email address across all shops, since each order emails the
+     * address typed. A form that fills the hidden "website" field is a robot.
+     * Ends the request when a limit is reached.
+     */
+    protected function public_form_guard(string $form, int $business_id, string $phone, string $email = ""): void
+    {
+        if (trim((string) ($_POST["website"] ?? "")) !== "") {
+            json_response(["error" => "Please try again."], 422);
+        }
+        $ip = client_ip();
+        $limits = [
+            [$form . "_ip", $ip, 10, 60],
+            [$form . "_ip_day", $ip, 40, 60 * 24],
+            [$form . "_shop", (string) $business_id, 60, 60],
+            [$form . "_phone", $business_id . ":" . preg_replace("/\D/", "", $phone), 5, 60 * 24],
+        ];
+        if ($email !== "") {
+            $limits[] = ["form_email", strtolower($email), 10, 60 * 24];
+        }
+        foreach ($limits as [$bucket, $key, $max, $minutes]) {
+            if (!throttle_allows($bucket, $key, $max, $minutes)) {
+                json_response(
+                    ["error" => "Too many requests for now. Please try again later, or message the shop on WhatsApp."],
+                    429,
+                );
+            }
+        }
+    }
     protected function contact_problem(
         string $name,
         string $phone,

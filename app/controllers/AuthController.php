@@ -521,6 +521,13 @@ class AuthController {
         }
         csrf_verify();
 
+        // This phone stops getting this person's notifications. The browser
+        // keeps its subscription; whoever signs in next takes it over.
+        if (isset($_COOKIE[PUSH_COOKIE]) && is_logged_in()) {
+            get_db()->prepare("DELETE FROM push_subscriptions WHERE endpoint_hash = ? AND user_id = ?")
+                    ->execute([(string)$_COOKIE[PUSH_COOKIE], (int)auth_user()['id']]);
+        }
+
         // Delete the sessions table row if remember-me was active
         if (isset($_COOKIE[REMEMBER_COOKIE])) {
             $db = get_db();

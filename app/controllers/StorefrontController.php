@@ -450,6 +450,7 @@ class StorefrontController extends PublicController
         if (($problem = $this->contact_problem($name, $phone, $email)) !== null) {
             json_response(['error' => $problem], 422);
         }
+        $this->public_form_guard('booking', $bid, $phone, $email);
         $stmt = $this->db->prepare("SELECT COUNT(*) FROM bookings WHERE business_id = ? AND customer_phone = ? AND created_at >= CURDATE()");
         $stmt->execute([$bid, $phone]);
         if ((int)$stmt->fetchColumn() >= 5) {
@@ -531,7 +532,7 @@ class StorefrontController extends PublicController
             'bookings/view/' . $booking_id);
         if ($email !== '' && $url) {
             $symbol = (string)($business['currency_symbol'] ?? '');
-            $vars = ['state' => 'received', 'first_name' => preg_split('/\s+/u', $name)[0], 'shop_name' => (string)$business['name'],
+            $vars = ['state' => 'received', 'first_name' => mail_first_name($name), 'shop_name' => (string)$business['name'],
                      'booking_number' => $number, 'service' => $item['name'], 'when' => $when, 'booking_url' => $url,
                      'total' => sf_money($total, $symbol), 'deposit' => $deposit > 0 ? sf_money($deposit, $symbol) : '', 'message' => ''];
             after_response(function () use ($email, $name, $number, $business, $vars) {

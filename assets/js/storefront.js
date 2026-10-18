@@ -467,7 +467,7 @@
         if (!LIVE) { stepError('pay', PREVIEW_NOTE); return; }
         var fd = new FormData();
         fd.append('channel', channel);
-        ['customer_name', 'customer_phone', 'customer_email', 'delivery_address', 'customer_note'].forEach(function (n) { fd.append(n, field(n)); });
+        ['customer_name', 'customer_phone', 'customer_email', 'delivery_address', 'customer_note', 'website'].forEach(function (n) { fd.append(n, field(n)); });
         var delivery = $('input[name="fulfillment_type"][value="delivery"]', bag);
         fd.append('fulfillment_type', delivery && delivery.checked ? 'delivery' : 'pickup');
         fd.append('items', JSON.stringify(cart.map(function (l) {
@@ -973,6 +973,7 @@
             var fd = new FormData();
             fd.append('channel', channel);
             ['customer_name', 'customer_phone', 'customer_email', 'customer_note'].forEach(function (n) { fd.append(n, bookForm.elements[n].value.trim()); });
+            fd.append('website', bookForm.elements.website ? bookForm.elements.website.value : '');   // empty unless a robot filled it
             if (B.mode === 'nights') {
                 fd.append('checkin', pick.checkin);
                 fd.append('checkout', pick.checkout);

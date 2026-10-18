@@ -78,6 +78,7 @@ $bag_word = $settings['look'] === 'market' ? 'order' : 'bag';
 
         <form class="sf-step sf-form" data-step="details" hidden novalidate>
             <p class="sf-step__count" tabindex="-1">Step 1 of 3: your details</p>
+            <input type="text" name="website" class="sf-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
             <label class="sf-field">
                 <span class="sf-field__label">Your name</span>
                 <input type="text" name="customer_name" required maxlength="100" autocomplete="name">

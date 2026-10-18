@@ -373,3 +373,14 @@ function owned_by_business(PDO $db, string $table, ?int $id, int $business_id): 
     $stmt->execute([$id, $business_id]);
     return (bool)$stmt->fetchColumn();
 }
+
+/**
+ * The first name to greet someone with in an email, from a name a shopper
+ * typed: plain letters only (no links, numbers or long text), or "there".
+ * Anyone can type any email address into a shop's form, so nothing they
+ * write themselves goes out in the email.
+ */
+function mail_first_name(string $name): string {
+    $first = preg_split('/\s+/u', trim($name))[0] ?? '';
+    return preg_match("/^\p{L}[\p{L}'’-]{0,29}$/u", $first) ? $first : 'there';
+}
