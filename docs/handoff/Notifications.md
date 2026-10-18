@@ -16,7 +16,7 @@ to watch when deploying. `Notifications audit.md` describes the system
 | 4 | Lock screen | Full details, with a per-person "Hide amounts on the lock screen" switch. |
 | 5 | New alerts | Overdue invoices (daily, then weekly). Customer actions (quote declined, shop quote requests, debt payments, quote expired). Team and security (new device, password or email changed, passkey added, staff added or removed, invite email). Task follow-ups (done, taken off you). |
 | 6 | Shoppers | An email at each step of their order, plus a pre-written WhatsApp button on the order page. |
-| 7 | Nfelia-team alerts | These stay in business #1's bell until ops.nfelia.com exists. Only their links and wording were fixed. |
+| 7 | Nfelia-team alerts | These stayed in business #1's bell until ops.nfelia.com existed. They now go to the team in Nfelia Ops (`Ops.md`), and business #1 is ordinary. |
 | 8 | Cancelling | A cancelled plan keeps access until its period ends, with a warning 3 days before. MoMo and admin-activated plans now really lapse. |
 
 ## 2. How it works
@@ -31,7 +31,8 @@ notify('order.new', $business_id, ['order_id' => 12, 'order_number' => 'ORD-0012
    `NOTIFY_TOPICS` holds the 14 topics a person can switch, with their
    defaults, which ones are locked, and which roles see each one.
 2. **Who hears.** The audience is `owner`, `boss` (owner and admins), `team`,
-   `user` (`opts['users']`) or `platform` (business 1). The person who caused
+   or `user` (`opts['users']`). (Alerts for the Nfelia team go through
+   `ops_alert()` in Nfelia Ops instead: `Ops.md`.) The person who caused
    the alert is left out unless `opts['self']` is set. Inactive people never hear.
 3. **The bell.** Each person gets their own row in `notifications`, with the
    event, its data, `read_at`, and a `dedupe_key`. The key is unique per
@@ -115,7 +116,6 @@ for the WhatsApp button on `views/orders/view.php`.
 | `shop.link_live` / `.link_refused`, `support.reply`, `referral.rewarded` | boss | account (phone, email) | AdminController, ReferralController |
 | `team.joined` / `.removed` | boss | team (phone) | SettingsController |
 | `security.new_device`, `.password_changed`, `.email_changed`, `.passkey_added`, `.role_changed` | the person | security (phone, email always) | signin.php, SettingsController, api/ajax/auth.php |
-| `platform.momo_submitted`, `.ticket`, `.shop_name`, `.prospect` | business 1 | platform (phone) | MoMoController, SupportController, ShopSetupController, AuthController |
 | `system.test` | the person | (none) | the test buttons in More → Notifications |
 
 Shoppers get emails (not alerts) when an order is placed, confirmed, being
@@ -202,9 +202,8 @@ and phone contacts.
 
 ## 7. Left for later
 
-- **ops.nfelia.com:** Nfelia-team alerts still go to business 1's bell. When
-  the ops platform exists, point `platform` at its team and change
-  `NOTIFY_PLATFORM_BUSINESS_ID`.
+- ~~ops.nfelia.com~~ Done: Nfelia-team alerts now go to the team in Nfelia
+  Ops (`ops_alert()`, see `Ops.md`). The `platform` audience is gone.
 - `SettingsController::update_role` has no CSRF check (SameSite=Lax cookies
   limit the risk).
 - Dead files: `backupSettingsController.php`, `backupOnboardingController.php`.
