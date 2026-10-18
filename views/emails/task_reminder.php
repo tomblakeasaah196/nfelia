@@ -1,5 +1,5 @@
 <?php
-/* views/emails/task_reminder.php — Variables: $item (a planner item), $when ("Today at 2:00pm"), $open_url */
+/* views/emails/task_reminder.php — Variables: $item (a planner item), $when ("Today at 2:00pm"), $open_url, $prefs_url */
 $h       = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES);
 $is_late = $item['date'] && $item['date'] < planner_today();
 $on_brand = planner_text_on($biz_color);
@@ -47,5 +47,5 @@ $on_brand = planner_text_on($biz_color);
 
 <p style="margin:0;font-size:12px;line-height:1.4;color:#5B4650;">
     A reminder from your Tasks &amp; Calendar.
-    <a href="<?= $h($open_url) ?>?reminders=1" style="color:#5B4650;">Turn off reminder emails</a>
+    <a href="<?= $h($prefs_url ?? $open_url . '?reminders=1') ?>" style="color:#5B4650;">Turn off reminder emails</a>
 </p>

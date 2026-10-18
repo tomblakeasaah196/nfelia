@@ -55,6 +55,7 @@
             <form action="<?= APP_URL ?>/signin" method="POST" class="space-y-5">
                 <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
                 <input type="hidden" name="token" value="<?= e($token) ?>">
+                <input type="hidden" name="next" value="<?= e(signin_next_valid($_GET['next'] ?? '')) ?>">
                 
                 <button type="submit" class="w-full bg-brand-burgundy text-brand-white text-xs font-bold py-4 uppercase tracking-widest hover:bg-brand-gold transition-colors">
                     Sign In

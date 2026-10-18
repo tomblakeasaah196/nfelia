@@ -262,6 +262,36 @@ $tabs = [
         </div>
     </div>
 
+    <!-- Messages from the home page: people who aren't signed up yet. The
+         notification for each one links here (#prospects). -->
+    <div id="prospects" class="scroll-mt-24 mb-6">
+        <h3 class="font-semibold text-gray-900 mb-3">Messages from the home page</h3>
+        <div class="space-y-3">
+            <?php foreach ($prospects ?? [] as $pr):
+                $digits = preg_replace('/\D+/', '', (string)$pr['contact_info']); ?>
+            <div class="bg-white rounded-xl border p-4">
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <p class="font-medium text-sm text-gray-900"><?= htmlspecialchars($pr['enterprise_name']) ?></p>
+                        <p class="text-xs text-gray-500 mt-0.5">
+                            <?php if (strlen($digits) >= 7): ?>
+                                <a class="underline" href="https://wa.me/<?= htmlspecialchars($digits) ?>" target="_blank" rel="noopener"><?= htmlspecialchars($pr['contact_info']) ?></a>
+                            <?php else: ?>
+                                <?= htmlspecialchars($pr['contact_info'] ?: 'No contact given') ?>
+                            <?php endif; ?>
+                        </p>
+                    </div>
+                    <p class="text-xs text-gray-400 shrink-0"><?= date('M j, Y', strtotime($pr['created_at'])) ?></p>
+                </div>
+                <p class="mt-2 text-sm text-gray-600"><?= nl2br(htmlspecialchars($pr['message'])) ?></p>
+            </div>
+            <?php endforeach; ?>
+            <?php if (empty($prospects)): ?>
+            <div class="text-center py-6 text-gray-400"><p>No messages yet.</p></div>
+            <?php endif; ?>
+        </div>
+    </div>
+
     <!-- Feedback List -->
     <div class="space-y-3">
         <?php foreach ($feedbacks as $fb): ?>
@@ -395,7 +425,7 @@ $tabs = [
     <!-- Ticket List -->
     <div class="space-y-4">
         <?php foreach ($support_tickets as $ticket): ?>
-        <div class="bg-white rounded-xl border p-5" x-data="{ showReply: false }">
+        <div class="bg-white rounded-xl border p-5 scroll-mt-24" id="ticket-<?= (int)$ticket['id'] ?>" x-data="{ showReply: false }">
             <div class="flex items-start justify-between gap-3">
                 <div>
                     <div class="flex items-center gap-2 flex-wrap">

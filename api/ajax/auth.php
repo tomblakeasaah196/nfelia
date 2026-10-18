@@ -129,7 +129,7 @@ try {
             if (!empty($in['remember'])) {
                 signin_remember($account);
             }
-            json_response(['ok' => true, 'redirect' => APP_URL . '/dashboard']);
+            json_response(['ok' => true, 'redirect' => APP_URL . '/' . signin_destination($in['next'] ?? null)]);
 
         case 'passkey-remove':
             $need_open();

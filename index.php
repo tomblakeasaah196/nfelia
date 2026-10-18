@@ -259,6 +259,7 @@ function dispatch_app(string $controller, string $action, ?string $param): void 
         'feedback'        => 'FeedbackController',
         'tasks'           => 'TasksController',
         'more'            => 'MoreController',
+        'notifications'   => 'NotificationsController',
         
         // Management & Settings
         'reports'         => 'ReportController',  // profit_loss + profit_loss_pdf
@@ -328,7 +329,10 @@ function dispatch_ajax(string $action, ?string $param): void {
 
     // Locked (app/helpers/signin.php): nothing answers until it is unlocked,
     // except the sign-in and lock API itself and payment webhooks.
-    if (!in_array($action, ['auth', 'webhooks'], true) && is_logged_in()) {
+    // The service worker renewing a push subscription is not someone using
+    // the app: it neither waits on the lock nor keeps it away.
+    $sw_renewal = $action === 'notifications' && ($_GET['action'] ?? '') === 'resubscribe';
+    if (!in_array($action, ['auth', 'webhooks'], true) && !$sw_renewal && is_logged_in()) {
         if (lock_engaged()) {
             header('X-Nfelia-Locked: 1');
             json_response(['success' => false, 'locked' => true, 'message' => 'Nfelia is locked. Unlock it to carry on.'], 401);

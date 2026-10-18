@@ -14,7 +14,7 @@
  * sends X-Nfelia-Page). Never kept: anything but GET, /api, sign-in pages,
  * documents shared with customers (/doc) and downloads.
  */
-var VERSION = '2026-10-17.1';
+var VERSION = '2026-10-19.1';
 var FILES = 'nf-files-' + VERSION; // the app's own files, replaced with each version
 var PAGES = 'nf-pages';            // pages someone opened, kept for offline reading
 var SLOW_MS = 8000;                // after this long, show the kept copy instead of waiting
@@ -219,14 +219,30 @@ self.addEventListener('message', function (event) {
 });
 
 // ---------- Notifications ----------
-// Only ever open a page of this site.
+// Every notification opens notifications/open/{id}: the server marks it read
+// and sends on to the exact page, through sign-in first when needed
+// (app/controllers/NotificationsController.php). Only ever a page of this site.
 function safeUrl(path) {
     try {
-        var url = new URL(path || 'tasks', scope);
+        var url = new URL(path || 'notifications', scope);
         return url.origin === self.location.origin ? url.href : scope;
     } catch (e) {
         return scope;
     }
+}
+
+// Pages that are open hear about it, so the bell's number moves at once.
+function tellPages(message) {
+    return self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (list) {
+        list.forEach(function (c) { c.postMessage(message); });
+    });
+}
+
+function appBadge(count) {
+    if (!self.navigator || typeof count !== 'number') return Promise.resolve();
+    var set = count > 0 ? self.navigator.setAppBadge && self.navigator.setAppBadge(count)
+                        : self.navigator.clearAppBadge && self.navigator.clearAppBadge();
+    return Promise.resolve(set).catch(function () {});
 }
 
 self.addEventListener('push', function (event) {
@@ -234,31 +250,54 @@ self.addEventListener('push', function (event) {
     try { data = event.data ? event.data.json() : {}; }
     catch (e) { data = { title: 'Nfelia', body: event.data ? event.data.text() : '' }; }
 
-    event.waitUntil(self.registration.showNotification(data.title || 'Nfelia', {
-        body: data.body || '',
-        icon: scope + 'android-chrome-192x192.png',
-        badge: scope + 'icons/badge-96.png',
-        tag: data.tag || undefined,
-        renotify: !!data.tag,
-        data: { url: safeUrl(data.url) }
-    }));
+    event.waitUntil(Promise.all([
+        self.registration.showNotification(data.title || 'Nfelia', {
+            body: data.body || '',
+            icon: scope + 'android-chrome-192x192.png',
+            badge: scope + 'icons/badge-96.png',
+            tag: data.tag || undefined,
+            renotify: !!data.tag,
+            timestamp: Date.now(),
+            data: { url: safeUrl(data.url), id: data.id || null }
+        }),
+        appBadge(data.badge),
+        tellPages({ type: 'nf-notify', id: data.id || null, badge: data.badge })
+    ]));
 });
 
 self.addEventListener('notificationclick', function (event) {
     event.notification.close();
     var url = (event.notification.data && event.notification.data.url) || scope;
     event.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (list) {
-        for (var i = 0; i < list.length; i++) {
-            if (list[i].url === url && 'focus' in list[i]) return list[i].focus();
-        }
-        // Nfelia is open on another page: bring that tab here instead of opening another.
+        // Nfelia is already open: bring it forward on this notification's page
+        // instead of opening another window.
         for (var j = 0; j < list.length; j++) {
             if (new URL(list[j].url).origin === self.location.origin && 'navigate' in list[j]) {
-                return list[j].navigate(url)
-                    .then(function (c) { return c ? c.focus() : self.clients.openWindow(url); })
+                var client = list[j];
+                return client.focus()
+                    .then(function (c) { return (c || client).navigate(url); })
+                    .then(function (c) { return c || self.clients.openWindow(url); })
                     .catch(function () { return self.clients.openWindow(url); });
             }
         }
         return self.clients.openWindow(url);
     }));
+});
+
+// The browser replaced this phone's subscription (they expire, or the push
+// service rotates them). Save the new one in place of the old, so alerts
+// keep arriving without anyone opening Nfelia first.
+self.addEventListener('pushsubscriptionchange', function (event) {
+    var old = event.oldSubscription;
+    event.waitUntil(Promise.resolve(event.newSubscription || (old && old.options
+        ? self.registration.pushManager.subscribe(old.options) : null)
+    ).then(function (sub) {
+        if (!sub || !old) return;
+        return fetch(new URL('api/notifications?action=resubscribe', scope).href, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ old_endpoint: old.endpoint, subscription: sub.toJSON() })
+        });
+    }).catch(function () {}));
 });

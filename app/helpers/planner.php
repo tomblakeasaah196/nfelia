@@ -817,20 +817,11 @@ function planner_reminder_when(array $it, string $today): string {
  */
 function planner_business_can_use(array $b, DateTimeImmutable $now): bool {
     if (empty($b['is_active'])) return false;
-    switch ($b['sub_status'] ?? null) {
-        case 'suspended':
-        case 'cancelled':
-            return false;
-        case 'trial':
-            return empty($b['trial_ends_at']) || $now <= new DateTimeImmutable($b['trial_ends_at'], planner_tz());
-        case 'past_due':
-            $grace = $b['grace_ends_at']
-                ? new DateTimeImmutable($b['grace_ends_at'], planner_tz())
-                : (new DateTimeImmutable($b['current_period_end'] ?? 'now', planner_tz()))->modify('+3 days');
-            return $now <= $grace;
-        default:
-            return true;
-    }
+    if (($b['sub_status'] ?? null) === null) return true;   // no subscription row yet: a brand-new trial
+    return subscription_open([
+        'status' => $b['sub_status'], 'trial_ends_at' => $b['trial_ends_at'] ?? null,
+        'current_period_end' => $b['current_period_end'] ?? null, 'grace_ends_at' => $b['grace_ends_at'] ?? null,
+    ], $now);
 }
 
 /** White or ink text, whichever reads better on a business's own colour. */
@@ -843,16 +834,4 @@ function planner_text_on(string $hex): string {
     }
     // Contrast against white versus against ink (#1F0A14, luminance 0.0068).
     return 1.05 / ($lum + 0.05) >= ($lum + 0.05) / 0.0568 ? '#FFFFFF' : '#1F0A14';
-}
-
-/* ── Notifications ─────────────────────────────────────────── */
-
-/** A bell entry for one person. Never throws. */
-function planner_notify(PDO $db, int $biz_id, ?int $user_id, string $title, string $message, string $url): void {
-    try {
-        $db->prepare("INSERT INTO notifications (business_id, user_id, type, title, message, action_url) VALUES (?, ?, 'general', ?, ?, ?)")
-           ->execute([$biz_id, $user_id, mb_substr($title, 0, 255), $message, ltrim($url, '/')]);
-    } catch (Throwable $e) {
-        error_log('Nfelia planner notify: ' . $e->getMessage());
-    }
 }

@@ -3,8 +3,11 @@
  * Nfelia — Tasks & Calendar reminders. cPanel runs it every five minutes
  * with the crontab line below this comment.
  *
- * 1. Reminders that are due: a bell entry, a phone notification and, when
- *    the person wants it, an email. The task row is the queue: reminded_at
+ * Everything it tells people goes through notify() (app/helpers/notify.php):
+ * the bell always, the phone and email as each person chose, never a buzz in
+ * their quiet hours.
+ *
+ * 1. Reminders that are due. The task row is the queue: reminded_at
  *    is stamped before anything is sent, so a failure never repeats a
  *    reminder or holds up the rest. A reminder more than a day old (the first
  *    run after the cron is set up, or after the server was down) is stamped
@@ -14,16 +17,19 @@
  *    late items, today's items and deliveries due in the next two days.
  *    A day with nothing in it sends nothing.
  *
- * 3. Low stock, once a day from 09:00, for people who turned it on.
+ * 3. Low stock, once a day from 09:00, to the team.
  *
  * 4. Quotes past their date: a sent quote turns Expired the day after its
- *    expiry date, so it stops counting as waiting on an answer.
+ *    expiry date, so it stops counting as waiting on an answer, and the
+ *    owner hears about it.
  *
- * 5. Free trials that end within three days: a bell note for the business,
- *    once (check_expiring_trials() in app/helpers/subscription_helpers.php).
+ * 5. Invoices past their due date, from 08:00: marked overdue, and the
+ *    owner hears once a week while they stay unpaid (for eight weeks).
  *
- * The phone buzzes only for people who want it, and never in their quiet
- * hours (app/helpers/notify.php); the bell entry is always made.
+ * 6. Subscriptions: trials and paid months about to end, ended, or due
+ *    (billing_lifecycle() in app/helpers/subscription_helpers.php).
+ *
+ * 7. Phone notifications and emails still waiting, retried.
  *
  * Every time here is Lagos time from planner_now(), the same clock remind_at
  * was worked out with when the task was saved.
@@ -57,15 +63,8 @@ if ((int)$db->query("SELECT GET_LOCK('nfelia_planner', 0)")->fetchColumn() !== 1
 $now   = planner_now();
 $now_s = $now->format('Y-m-d H:i:s');
 $today = $now->format('Y-m-d');
-$done  = ['reminders' => 0, 'stale' => 0, 'skipped' => 0, 'mornings' => 0, 'quiet' => 0, 'low_stock' => 0, 'hushed' => 0,
-          'quotes_expired' => 0, 'trial_notes' => 0, 'errors' => 0];
-
-/** Whether this person's phone may buzz now for a reminder or the morning plan. */
-function planner_cron_may_buzz(array $user, DateTimeImmutable $now, array &$done): bool {
-    if ((int)($user['notify_reminders'] ?? 1) !== 1) return false;
-    if (notify_quiet($user, $now)) { $done['hushed']++; return false; }
-    return true;
-}
+$done  = ['reminders' => 0, 'stale' => 0, 'skipped' => 0, 'mornings' => 0, 'quiet' => 0, 'low_stock' => 0,
+          'quotes_expired' => 0, 'overdue_notes' => 0, 'errors' => 0];
 
 /** A business that can use the app right now (with its subscription), or null. */
 function planner_cron_business(PDO $db, int $id, DateTimeImmutable $now): ?array {
@@ -85,8 +84,7 @@ function planner_cron_business(PDO $db, int $id, DateTimeImmutable $now): ?array
 /** An active member of the business, or null. */
 function planner_cron_user(PDO $db, int $id, int $biz_id): ?array {
     $stmt = $db->prepare("
-        SELECT id, business_id, full_name, email, role, reminder_email, morning_email,
-               notify_reminders, quiet_hours, quiet_from, quiet_to
+        SELECT id, business_id, full_name, email, role
         FROM users WHERE id = ? AND business_id = ? AND is_active = 1");
     $stmt->execute([$id, $biz_id]);
     return $stmt->fetch() ?: null;
@@ -119,18 +117,10 @@ foreach ($due->fetchAll() as $row) {
         $when = planner_reminder_when($it, $today);
         $line = implode(' · ', array_filter([$when, $it['subtitle']]));
 
-        planner_notify($db, (int)$business['id'], (int)$user['id'], $it['title'], $line, 'tasks');
-        if (planner_cron_may_buzz($user, $now, $done)) {
-            push_to_user($db, (int)$user['id'], [
-                'title' => $it['title'], 'body' => $line, 'url' => 'tasks', 'tag' => 'task-' . $it['task_id'],
-            ], 'high');
-        }
-        if ((int)$user['reminder_email'] === 1) {
-            $subject = 'Reminder: ' . $it['title'];
-            send_branded_mail($user['email'], $user['full_name'], $subject, 'task_reminder', [
-                'subject' => $subject, 'item' => $it, 'when' => $when, 'open_url' => APP_URL . '/tasks',
-            ], $business);
-        }
+        notify('task.reminder', (int)$business['id'], ['task_id' => $it['task_id'], 'title' => $it['title'], 'line' => $line], [
+            'users' => [(int)$user['id']], 'business' => $business, 'dedupe' => $row['id'] . ':' . $row['remind_at'],
+            'vars'  => ['subject' => 'Reminder: ' . $it['title'], 'item' => $it, 'when' => $when],
+        ]);
         $done['reminders']++;
     } catch (Throwable $e) {
         $done['errors']++;
@@ -143,8 +133,7 @@ foreach ($due->fetchAll() as $row) {
 $hour = (int)$now->format('G');
 if ($hour >= 7 && $hour < 11) {
     $people = $db->prepare("
-        SELECT id, business_id, full_name, email, role, morning_email,
-               notify_reminders, quiet_hours, quiet_from, quiet_to
+        SELECT id, business_id, full_name, email, role
         FROM users u
         WHERE is_active = 1
           AND NOT EXISTS (SELECT 1 FROM planner_sends s WHERE s.user_id = u.id AND s.kind = 'morning' AND s.send_date = ?)
@@ -167,16 +156,10 @@ if ($hour >= 7 && $hour < 11) {
             if ($summary['count'] === 0) { $done['quiet']++; continue; }
 
             $title = 'Your day: ' . $summary['count'] . ' thing' . ($summary['count'] > 1 ? 's' : '') . ' today';
-            planner_notify($db, (int)$business['id'], (int)$user['id'], $title, $summary['line'], 'tasks');
-            if (planner_cron_may_buzz($user, $now, $done)) {
-                push_to_user($db, (int)$user['id'], ['title' => $title, 'body' => $summary['line'], 'url' => 'tasks', 'tag' => 'morning']);
-            }
-            if ((int)$user['morning_email'] === 1) {
-                send_branded_mail($user['email'], $user['full_name'], $title, 'morning_plan', [
-                    'subject' => $title, 'first_name' => planner_first_name($user['full_name']),
-                    'day' => $day, 'summary' => $summary['line'], 'today' => $today, 'open_url' => APP_URL . '/tasks',
-                ], $business);
-            }
+            notify('morning.plan', (int)$business['id'], ['title' => $title, 'line' => $summary['line']], [
+                'users' => [(int)$user['id']], 'business' => $business, 'dedupe' => $today,
+                'vars'  => ['first_name' => planner_first_name($user['full_name']), 'day' => $day, 'summary' => $summary['line'], 'today' => $today],
+            ]);
             $done['mornings']++;
         } catch (Throwable $e) {
             $done['errors']++;
@@ -187,16 +170,14 @@ if ($hour >= 7 && $hour < 11) {
 
 /* ── 3. Low stock ──────────────────────────────────────────── */
 
+// Once a day per business, to the team: the bell row it leaves today is the
+// mark that it has been done.
 if ($hour >= 9 && $hour < 21) {
-    $people = $db->prepare("
-        SELECT id, business_id, quiet_hours, quiet_from, quiet_to
-        FROM users u
-        WHERE is_active = 1 AND notify_low_stock = 1
-          AND NOT EXISTS (SELECT 1 FROM planner_sends s WHERE s.user_id = u.id AND s.kind = 'low_stock' AND s.send_date = ?)
-        ORDER BY id
+    $shops = $db->prepare("
+        SELECT DISTINCT v.business_id FROM v_low_stock_products v
+        WHERE NOT EXISTS (SELECT 1 FROM notifications n WHERE n.business_id = v.business_id AND n.event = 'stock.low' AND n.created_at >= ?)
         LIMIT 500");
-    $people->execute([$today]);
-    $claim = $db->prepare("INSERT IGNORE INTO planner_sends (user_id, kind, send_date) VALUES (?, 'low_stock', ?)");
+    $shops->execute([$today . ' 00:00:00']);
     // The three most urgent (empty shelves first), with how many in all.
     $low = $db->prepare("
         SELECT name, stock_qty, COUNT(*) OVER () AS n, SUM(stock_qty <= 0) OVER () AS out_n
@@ -204,13 +185,9 @@ if ($hour >= 9 && $hour < 21) {
         ORDER BY stock_qty <= 0 DESC, units_needed DESC, name
         LIMIT 3");
 
-    foreach ($people->fetchAll() as $user) {
-        // Quiet now: try again on a later run today, once the quiet hours end.
-        if (notify_quiet($user, $now)) { $done['hushed']++; continue; }
-        $claim->execute([$user['id'], $today]);
-        if ($claim->rowCount() !== 1) continue;
+    foreach ($shops->fetchAll(PDO::FETCH_COLUMN) as $biz_id) {
         try {
-            $business = planner_cron_business($db, (int)$user['business_id'], $now);
+            $business = planner_cron_business($db, (int)$biz_id, $now);
             if (!$business) { $done['skipped']++; continue; }
             $low->execute([$business['id']]);
             $items = $low->fetchAll();
@@ -222,12 +199,11 @@ if ($hour >= 9 && $hour < 21) {
                    : ($out === 0 ? ($n === 1 ? 'is running low' : 'are running low') : 'need restocking'));
             $names = array_map(fn($p) => $p['name'] . ((float)$p['stock_qty'] <= 0 ? ' (none left)' : ' (' . (float)$p['stock_qty'] . ' left)'), $items);
             $body  = implode(', ', $names) . ($n > 3 ? ', and ' . ($n - 3) . ' more.' : '.');
-            planner_notify($db, (int)$business['id'], (int)$user['id'], $title, $body, 'products?stock=restock');
-            push_to_user($db, (int)$user['id'], ['title' => $title, 'body' => $body, 'url' => 'products?stock=restock', 'tag' => 'low-stock']);
+            notify('stock.low', (int)$business['id'], ['title' => $title, 'body' => $body], ['business' => $business, 'dedupe' => $today]);
             $done['low_stock']++;
         } catch (Throwable $e) {
             $done['errors']++;
-            error_log('Nfelia low stock for user ' . $user['id'] . ': ' . $e->getMessage());
+            error_log('Nfelia low stock for business ' . $biz_id . ': ' . $e->getMessage());
         }
     }
 }
@@ -238,23 +214,110 @@ if ($hour >= 9 && $hour < 21) {
 // change nothing. Only sent quotes: one the customer replied to, or is
 // signing, is still being talked over.
 try {
-    $expire = $db->prepare("
-        UPDATE quotations SET status = 'expired'
-        WHERE status = 'sent' AND expiry_date IS NOT NULL AND expiry_date < ?");
-    $expire->execute([$today]);
-    $done['quotes_expired'] = $expire->rowCount();
+    $due_quotes = $db->prepare("
+        SELECT q.id, q.business_id, q.doc_number, q.expiry_date, c.full_name AS customer
+        FROM quotations q LEFT JOIN customers c ON c.id = q.customer_id
+        WHERE q.status = 'sent' AND q.expiry_date IS NOT NULL AND q.expiry_date < ?
+        LIMIT 500");
+    $due_quotes->execute([$today]);
+    $expire = $db->prepare("UPDATE quotations SET status = 'expired' WHERE id = ? AND status = 'sent'");
+    foreach ($due_quotes->fetchAll() as $q) {
+        $expire->execute([$q['id']]);
+        if ($expire->rowCount() !== 1) continue;
+        $done['quotes_expired']++;
+        if (planner_cron_business($db, (int)$q['business_id'], $now)) {
+            notify('quote.expired', (int)$q['business_id'], [
+                'quotation_id' => (int)$q['id'], 'quotation_number' => $q['doc_number'],
+                'customer' => (string)$q['customer'], 'expiry_date' => $q['expiry_date'],
+            ], ['dedupe' => (string)$q['id']]);
+        }
+    }
 } catch (Throwable $e) {
     $done['errors']++;
     error_log('Nfelia planner quote expiry: ' . $e->getMessage());
 }
 
-/* ── 5. Free trials about to end ───────────────────────────── */
+/* ── 5. Invoices past their due date ───────────────────────── */
+
+// From 08:00, so nobody is woken by it. Marked overdue (the dashboard does
+// the same when it opens), and the owner hears once in each week the
+// invoice stays unpaid: the first run in week one, week two, and so on, for
+// eight weeks. A missed day doesn't lose the week's note.
+if ($hour >= 8 && $hour < 20) {
+    try {
+        $db->prepare("UPDATE invoices SET status = 'overdue' WHERE status IN ('sent','partially_paid') AND due_date < ?")->execute([$today]);
+        $overdue = $db->prepare("
+            SELECT i.id, i.business_id, i.doc_number, i.balance_due, DATEDIFF(?, i.due_date) AS days, c.full_name AS customer
+            FROM invoices i LEFT JOIN customers c ON c.id = i.customer_id
+            WHERE i.status = 'overdue' AND i.balance_due > 0 AND i.due_date < ? AND i.due_date >= ? - INTERVAL 56 DAY
+            LIMIT 2000");
+        $overdue->execute([$today, $today, $today]);
+        $by_business = [];
+        foreach ($overdue->fetchAll() as $inv) {
+            $by_business[(int)$inv['business_id']][] = $inv;
+        }
+        $told = $db->prepare("SELECT 1 FROM notifications WHERE business_id = ? AND event = 'invoice.overdue' AND dedupe_key = ? LIMIT 1");
+        foreach ($by_business as $biz_id => $invoices) {
+            if (!planner_cron_business($db, $biz_id, $now)) continue;
+            // Only the ones not yet told about this week.
+            $due = array_values(array_filter($invoices, function ($inv) use ($told) {
+                $told->execute([$inv['business_id'], 'invoice.overdue:' . $inv['id'] . ':week' . intdiv((int)$inv['days'] - 1, 7)]);
+                return !$told->fetchColumn();
+            }));
+            if (!$due) continue;
+            // A few: one alert each. Many at once (the first morning, a busy
+            // month): each still lands in the bell, but the phone and inbox
+            // get one summary instead of a burst.
+            $quietly = count($due) > 3;
+            foreach ($due as $inv) {
+                $done['overdue_notes'] += (int)(bool)notify('invoice.overdue', $biz_id, [
+                    'invoice_id' => (int)$inv['id'], 'invoice_number' => $inv['doc_number'], 'customer' => (string)$inv['customer'],
+                    'balance' => (float)$inv['balance_due'], 'days' => (int)$inv['days'],
+                ], ['dedupe' => $inv['id'] . ':week' . intdiv((int)$inv['days'] - 1, 7)] + ($quietly ? ['channels' => []] : []));
+            }
+            if ($quietly) {
+                notify('invoice.overdue_many', $biz_id, ['count' => count($due), 'total' => array_sum(array_column($due, 'balance_due'))],
+                       ['dedupe' => $today]);
+            }
+        }
+    } catch (Throwable $e) {
+        $done['errors']++;
+        error_log('Nfelia planner overdue invoices: ' . $e->getMessage());
+    }
+}
+
+/* ── 6. Subscriptions ──────────────────────────────────────── */
 
 try {
-    $done['trial_notes'] = check_expiring_trials();
+    foreach (billing_lifecycle($db) as $k => $v) {
+        $done['billing_' . $k] = $v;
+    }
 } catch (Throwable $e) {
     $done['errors']++;
-    error_log('Nfelia planner trial check: ' . $e->getMessage());
+    error_log('Nfelia planner billing: ' . $e->getMessage());
+}
+
+/* ── 7. Phone notifications and emails still waiting ───────── */
+
+// Most go straight after the page that caused them has answered. This
+// sends what this run queued, and tries again what failed (a mail server
+// or push service that was down), with longer waits each time
+// (app/helpers/notify.php).
+$sent = notify_flush();
+$done['outbox_sent']  = $sent['sent'];
+$done['outbox_retry'] = $sent['retry'];
+$done['outbox_gave_up'] = $sent['failed'];
+
+// Once a day: read alerts go after six months, everything after a year,
+// and the record of sends after a month.
+if ($hour === 3) {
+    try {
+        $db->exec("DELETE FROM notifications WHERE (is_read = 1 AND created_at < NOW() - INTERVAL 6 MONTH) OR created_at < NOW() - INTERVAL 12 MONTH");
+        $db->exec("DELETE FROM notify_outbox WHERE status IN ('sent', 'skipped', 'failed') AND created_at < NOW() - INTERVAL 1 MONTH");
+    } catch (Throwable $e) {
+        $done['errors']++;
+        error_log('Nfelia planner notification cleanup: ' . $e->getMessage());
+    }
 }
 
 $db->query("SELECT RELEASE_LOCK('nfelia_planner')");

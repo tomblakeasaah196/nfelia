@@ -53,7 +53,6 @@ $tiles = array_values(array_filter($nav_groups['Your business'] ?? [], fn($i) =>
 <?php endforeach; ?>
 
 <?php require BASE_PATH . '/views/partials/notify_sheet.php'; ?>
-<script src="<?= APP_URL ?>/assets/js/push.js?v=<?= filemtime(BASE_PATH . '/assets/js/push.js') ?>" defer></script>
 <script src="<?= APP_URL ?>/assets/js/notify.js?v=<?= filemtime(BASE_PATH . '/assets/js/notify.js') ?>" defer></script>
 
 <dialog class="nf-sheet" id="nf-appearance" aria-labelledby="nf-appearance-h">

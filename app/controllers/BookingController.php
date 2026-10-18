@@ -105,10 +105,17 @@ class BookingController
                          $booking['customer_id'] ?: null, $remind, $remind ? planner_remind_at($start->format('Y-m-d'), $time, $remind) : null,
                          (int)$user['id']]);
             $task_id = (int)$this->db->lastInsertId();
-            $this->db->prepare("
+            $confirmed = $this->db->prepare("
                 UPDATE bookings SET status = 'confirmed', task_id = ?, decided_by = ?, decided_at = NOW()
                 WHERE id = ? AND business_id = ? AND status = 'pending'
-            ")->execute([$task_id, (int)$user['id'], (int)$booking['id'], $this->biz_id]);
+            ");
+            $confirmed->execute([$task_id, (int)$user['id'], (int)$booking['id'], $this->biz_id]);
+            if ($confirmed->rowCount() !== 1) {
+                // Someone else answered it a moment ago: no second appointment.
+                $this->db->rollBack();
+                flash('error', $booking['booking_number'] . ' was already answered. Here it is as it stands.');
+                redirect('bookings/view/' . (int)$booking['id']);
+            }
             $this->db->commit();
         } catch (\Throwable $e) {
             $this->db->rollBack();
@@ -227,20 +234,26 @@ class BookingController
 
     private function decide(array $booking, string $status, string $message): void
     {
-        $this->db->prepare("
+        // Only from the state it was in when the page showed it: two people
+        // deciding at once, or a double tap, tell the shopper once.
+        $stmt = $this->db->prepare("
             UPDATE bookings SET status = ?, owner_message = ?, decided_by = ?, decided_at = NOW()
-            WHERE id = ? AND business_id = ?
-        ")->execute([$status, $message !== '' ? $message : null, (int)auth_user()['id'], (int)$booking['id'], $this->biz_id]);
-        $this->tell_shopper($booking, $status, $message);
+            WHERE id = ? AND business_id = ? AND status = ?
+        ");
+        $stmt->execute([$status, $message !== '' ? $message : null, (int)auth_user()['id'], (int)$booking['id'], $this->biz_id, $booking['status']]);
+        if ($stmt->rowCount() === 1) {
+            $this->tell_shopper($booking, $status, $message);
+        }
     }
 
     /**
-     * Email the shopper when they gave an address (after the page has
-     * answered). Their booking page always shows the news.
+     * Email the shopper when they gave an address, through the outbox (sent
+     * after the page has answered, retried if the mail server is down).
+     * Their booking page always shows the news.
      */
     private function tell_shopper(array $booking, string $state, string $message): void
     {
-        $business = auth_business();
+        $business = business_with_shop_link(auth_business());
         $url = booking_url($business, $booking);
         if (empty($booking['customer_email']) || !$url) {
             return;
@@ -252,19 +265,8 @@ class BookingController
             'booking_url' => $url, 'total' => sf_money((float)$booking['total'], $symbol),
             'deposit' => (float)$booking['deposit_due'] > 0 ? sf_money((float)$booking['deposit_due'], $symbol) : '', 'message' => $message,
         ];
-        $email = (string)$booking['customer_email'];
-        $name  = (string)$booking['customer_name'];
         $subject = 'Your booking ' . $booking['booking_number'] . ' with ' . $business['name'];
-        after_response(function () use ($email, $name, $subject, $vars, $business) {
-            // The flash message is already set: free the session for the next page
-            if (session_status() === PHP_SESSION_ACTIVE) {
-                session_write_close();
-            }
-            try {
-                send_branded_mail($email, $name, $subject, 'booking_update', $vars, $business);
-            } catch (\Throwable $e) {
-                error_log('Booking email failed: ' . $e->getMessage());
-            }
-        });
+        notify_email($this->biz_id, (string)$booking['customer_email'], (string)$booking['customer_name'], $subject, 'booking_update', $vars,
+                     'booking:' . (int)$booking['id'] . ':' . $state, 'shopper.booking');
     }
 }

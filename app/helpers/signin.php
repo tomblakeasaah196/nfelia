@@ -72,6 +72,55 @@ function signin_start(array $user): void
     $_SESSION['just_signed_in'] = true;
 }
 
+/**
+ * Where someone was going when sign-in got in the way: a notification they
+ * tapped, a link in an email. app/middleware/auth_check.php keeps it in the
+ * session and passes it to the sign-in page as ?next=, so either one is
+ * enough; every way in (password, passkey, emailed link) then goes there.
+ */
+function signin_next_here(): string
+{
+    $path  = trim((string)($_GET['url'] ?? ''), '/');
+    $query = $_GET;
+    unset($query['url'], $query['source']);
+    return notify_safe_path($path . ($query ? '?' . http_build_query($query) : ''));
+}
+
+/** A place worth coming back to after sign-in: inside the app, not a sign-in page. */
+function signin_next_valid(?string $next): string
+{
+    $next = notify_safe_path($next);
+    $auth = '#^(login|logout|signin|login-link|register|forgot-password|reset-password|recovery-sent|verify|verify-email|api|dashboard)([/?\#]|$)#';
+    return ($next === '' || preg_match($auth, $next)) ? '' : $next;
+}
+
+function signin_next_keep(?string $next): void
+{
+    $next = signin_next_valid($next);
+    if ($next !== '') {
+        $_SESSION['signin_next'] = $next;
+    }
+}
+
+/** Where to go once signed in: what the form carried, else what was kept, else home. */
+function signin_destination(?string $posted = null): string
+{
+    $kept = $_SESSION['signin_next'] ?? '';
+    unset($_SESSION['signin_next']);
+    foreach ([$posted, $kept] as $candidate) {
+        $next = signin_next_valid($candidate);
+        if ($next !== '') return $next;
+    }
+    return 'dashboard';
+}
+
+/** The sign-in page, carrying where to go afterwards. */
+function signin_url(string $next = '', string $page = 'login'): string
+{
+    $next = signin_next_valid($next);
+    return $page . ($next !== '' ? '?next=' . rawurlencode($next) : '');
+}
+
 /** "Keep me signed in": a 30-day token for this device. */
 function signin_remember(array $user): void
 {

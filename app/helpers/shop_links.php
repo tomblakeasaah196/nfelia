@@ -143,6 +143,18 @@ function shop_label_from_host(string $host): ?string {
 }
 
 /**
+ * The business with its shop address read now, not from the session. The
+ * session is filled at sign-in, and the address can be approved, changed or
+ * paused while someone stays signed in for weeks; links to shoppers
+ * (tracking, bookings, reviews) must use the live one.
+ */
+function business_with_shop_link(array $business): array {
+    $stmt = get_db()->prepare("SELECT subdomain, subdomain_status FROM businesses WHERE id = ?");
+    $stmt->execute([(int)$business['id']]);
+    return array_merge($business, $stmt->fetch() ?: []);
+}
+
+/**
  * Lower-case a typed name and turn spaces, dots and underscores into hyphens,
  * so "Bisi Indigo" becomes "bisi-indigo". Tone marks and dots come off first,
  * so "Ṣadé Ọlá" becomes "sade-ola". The rules are checked afterwards.
@@ -305,31 +317,14 @@ function shop_visibility(?array $subscription): string {
     if (!$subscription) {
         return 'unlisted';
     }
-    $now = new DateTime();
-    switch ($subscription['status']) {
-        case 'active':
-            return 'live';
-
-        case 'trial':
-            return ($subscription['trial_ends_at'] && $now > new DateTime($subscription['trial_ends_at']))
-                ? 'closed' : 'unlisted';
-
-        case 'pending_verification':
-            return !empty($subscription['last_payment_date']) ? 'live' : 'unlisted';
-
-        case 'past_due':
-            if ($subscription['grace_ends_at']) {
-                $grace_end = new DateTime($subscription['grace_ends_at']);
-            } elseif ($subscription['current_period_end']) {
-                $grace_end = (new DateTime($subscription['current_period_end']))->modify('+3 days');
-            } else {
-                return 'closed';
-            }
-            return $now > $grace_end ? 'closed' : 'live';
-
-        default: // suspended, cancelled
-            return 'closed';
+    if (!subscription_open($subscription)) {
+        return 'closed';   // trial over, grace period over, suspended, or a cancelled plan's paid time used up
     }
+    return match ($subscription['status']) {
+        'trial'                => 'unlisted',
+        'pending_verification' => !empty($subscription['last_payment_date']) ? 'live' : 'unlisted',
+        default                => 'live',   // active, past_due in its grace days, cancelled with paid time left
+    };
 }
 
 /**
@@ -412,17 +407,3 @@ function shop_setup_needed(): bool {
     return !($has_link && $has_look);
 }
 
-/**
- * Leave a notification in a business's bell. $action_url is an app path such
- * as 'landing-page'; the bell puts APP_URL in front.
- */
-function shop_notify(int $business_id, string $title, string $message, ?string $action_url = null): void {
-    try {
-        get_db()->prepare("
-            INSERT INTO notifications (business_id, type, title, message, action_url, created_at)
-            VALUES (?, 'general', ?, ?, ?, NOW())
-        ")->execute([$business_id, $title, $message, $action_url === null ? null : ltrim($action_url, '/')]);
-    } catch (PDOException $e) {
-        error_log('[Nfelia] shop_notify failed: ' . $e->getMessage());
-    }
-}

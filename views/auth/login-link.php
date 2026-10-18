@@ -76,6 +76,7 @@
             </div>
 
             <form action="<?= APP_URL ?>/login-link" method="POST" class="space-y-5">
+                <input type="hidden" name="next" value="<?= e(signin_next_valid($_GET['next'] ?? ($_SESSION['signin_next'] ?? ''))) ?>">
                 <?= csrf_field() ?>
 
                 <div>

@@ -20,6 +20,11 @@ if (isset($_COOKIE['nfelia_remember'])) {
 }
 
 if (!is_logged_in()) {
+    // Where they were going (a notification, a link in an email): sign-in
+    // comes straight back to it (app/helpers/signin.php).
+    $signin_next = ($_SERVER['REQUEST_METHOD'] === 'GET' && !is_ajax()) ? signin_next_here() : '';
+    signin_next_keep($signin_next);
+
     if (isset($_COOKIE[REMEMBER_COOKIE])) {
         $db    = get_db();
         $token = $_COOKIE[REMEMBER_COOKIE];
@@ -70,6 +75,8 @@ if (!is_logged_in()) {
                     'email_verified_at'   => $session['email_verified_at'] ?? null,
                 ]
             );
+            // This very page carries on, so there is nothing to come back to.
+            unset($_SESSION['signin_next']);
             // Back after a while: open on the lock, not straight into the business.
             $_SESSION['remember_id'] = (int)$session['remember_row_id'];
             $idle = $session['idle_seconds'] === null ? PHP_INT_MAX : (int)$session['idle_seconds'];
@@ -87,15 +94,15 @@ if (!is_logged_in()) {
                 'samesite' => 'Lax',
             ]);
             flash('error', 'Session expired. Please log in again.');
-            redirect('login');
+            redirect(signin_url($signin_next));
         }
     } elseif (($_GET['source'] ?? '') === 'pwa') {
         // The installed app, opened while signed out: straight to sign-in,
         // which plays the opening. No scolding message on a fresh start.
         redirect('login?source=pwa');
     } else {
-        flash('error', 'Please log in to continue.');
-        redirect('login');
+        flash('error', $signin_next !== '' ? 'Sign in to open that.' : 'Please log in to continue.');
+        redirect(signin_url($signin_next));
     }
 }
 

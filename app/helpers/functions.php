@@ -98,6 +98,45 @@ function slugify(string $text): string {
  * Format money amounts.
  * Uses the provided symbol — defaults to the session business symbol, then ₦.
  */
+/**
+ * Whether a business may use Nfelia now, from its row in subscriptions. The
+ * one rule behind the app's lock-out (app/middleware/subscription_check.php),
+ * the shop staying open (shop_visibility) and the cron's reminders
+ * (planner_business_can_use), on Lagos time like the rest of the app:
+ *
+ *   trial                 through the whole of trial_ends_at
+ *   active                yes (cron/planner.php moves a plan that is not
+ *                         renewed by card to past_due once its period ends)
+ *   pending_verification  yes: a mobile money payment is being checked
+ *   past_due              until grace_ends_at (else 3 days after the period)
+ *   cancelled             through the period already paid for (a trial
+ *                         cancelled early, through the trial)
+ *   suspended             no
+ */
+function subscription_open(array $sub, ?DateTimeImmutable $now = null): bool {
+    $tz    = planner_tz();
+    $now   = $now ?? new DateTimeImmutable('now', $tz);
+    $today = $now->format('Y-m-d');
+    $day   = fn($v) => $v ? substr((string)$v, 0, 10) : null;
+    switch ($sub['status'] ?? null) {
+        case 'trial':
+            return empty($sub['trial_ends_at']) || $today <= $day($sub['trial_ends_at']);
+        case 'active':
+        case 'pending_verification':
+            return true;
+        case 'past_due':
+            if (!empty($sub['grace_ends_at'])) {
+                return $now <= new DateTimeImmutable($sub['grace_ends_at'], $tz);
+            }
+            return !empty($sub['current_period_end']) && $today <= planner_add_days($day($sub['current_period_end']), 3);
+        case 'cancelled':
+            $until = $day($sub['current_period_end'] ?? null) ?? $day($sub['trial_ends_at'] ?? null);
+            return $until !== null && $today <= $until;
+        default:
+            return false;
+    }
+}
+
 function money(float $amount, string $symbol = ''): string {
     if ($symbol === '') {
         $symbol = $_SESSION['business']['currency_symbol'] ?? '₦';
@@ -299,4 +338,4 @@ function csrf_token(): string {
 /*** CSRF hidden input field*/
 function csrf_field(): string {
     return '<input type="hidden" name="csrf_token" value="' . htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8') . '">';
-}
+}

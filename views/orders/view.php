@@ -217,7 +217,7 @@ $can_advance = in_array($order['status'], ['approved', 'processing']);
         $send_track = 'Hello ' . $first_name . ', here is the link to follow your order ' . $order['order_number'] . ' from ' . $business['name'] . ': ' . $track_url;
         $send_review = $review_link ? 'Hello ' . $first_name . ', thank you for your order ' . $order['order_number'] . '. Would you rate it? It takes a few seconds: ' . $review_link : '';
         ?>
-        <div class="bg-brand-white border border-brand-sand rounded-xl shadow-sm overflow-hidden" x-data="{ copied: '' }">
+        <div class="bg-brand-white border border-brand-sand rounded-xl shadow-sm overflow-hidden scroll-mt-24" id="review" x-data="{ copied: '' }">
             <div class="px-5 py-4 border-b border-brand-sand/50">
                 <h3 class="font-heading font-bold text-sm text-brand-plum uppercase tracking-wider">Customer's links</h3>
             </div>

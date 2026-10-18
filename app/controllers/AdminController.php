@@ -179,12 +179,13 @@ class AdminController {
                     UPDATE subscriptions SET status = 'active', current_period_start = NOW(),
                     current_period_end = DATE_ADD(NOW(), INTERVAL 1 MONTH) WHERE business_id = ?
                 ")->execute([$biz_id]);
-                $this->admin_notify($biz_id, 'subscription_activated', 'Your subscription has been activated by the Nfelia team.');
+                $end = $this->subscription_field($biz_id, 'current_period_end');
+                notify('billing.activated', $biz_id, ['period_end' => $end], ['dedupe' => 'activated:' . $end]);
                 break;
 
             case 'suspend':
                 $this->db->prepare("UPDATE subscriptions SET status = 'suspended' WHERE business_id = ?")->execute([$biz_id]);
-                $this->admin_notify($biz_id, 'subscription_suspended', 'Your account has been suspended. Contact support for assistance.');
+                notify('billing.suspended', $biz_id, [], ['dedupe' => 'suspended:' . date('Y-m-d H')]);
                 break;
 
             case 'extend_trial':
@@ -193,7 +194,8 @@ class AdminController {
                     UPDATE subscriptions SET status = 'trial', trial_ends_at = DATE_ADD(COALESCE(trial_ends_at, NOW()), INTERVAL ? DAY)
                     WHERE business_id = ?
                 ")->execute([$days, $biz_id]);
-                $this->admin_notify($biz_id, 'trial_expiring_soon', "Your trial has been extended by {$days} days. Enjoy!");
+                $ends = $this->subscription_field($biz_id, 'trial_ends_at');
+                notify('billing.trial_extended', $biz_id, ['days' => $days, 'trial_ends' => $ends], ['dedupe' => 'trial:' . $ends]);
                 break;
 
             default:
@@ -246,6 +248,9 @@ class AdminController {
 
         // Average
         $avg_rating = $total_fb > 0 ? array_sum(array_map(fn($r, $c) => $r * $c, array_keys($rating_dist), array_values($rating_dist))) / $total_fb : 0;
+
+        // Messages from the home page's contact form (people not signed up yet)
+        $prospects = $this->db->query("SELECT * FROM general_feedback ORDER BY id DESC LIMIT 50")->fetchAll();
 
         $tab       = 'feedback';
         $title     = 'Admin — Feedback';
@@ -456,13 +461,14 @@ class AdminController {
             UPDATE support_tickets SET admin_reply = ?, status = ?, replied_at = NOW() WHERE id = ?
         ")->execute([$reply, $status, $ticket_id]);
 
-        // Notify the business
-        $stmt = $this->db->prepare("SELECT business_id, subject FROM support_tickets WHERE id = ?");
+        // The person who wrote in hears back, in the app and by email
+        $stmt = $this->db->prepare("SELECT business_id, user_id, subject FROM support_tickets WHERE id = ?");
         $stmt->execute([$ticket_id]);
         $ticket = $stmt->fetch();
         if ($ticket) {
-            $this->admin_notify($ticket['business_id'], 'support_reply',
-                'We replied to your support message: "' . htmlspecialchars(substr($ticket['subject'], 0, 50)) . '"');
+            notify('support.reply', (int)$ticket['business_id'], [
+                'ticket_id' => $ticket_id, 'subject' => $ticket['subject'], 'reply' => $reply,
+            ], ['users' => [(int)$ticket['user_id']], 'dedupe' => $ticket_id . ':' . md5($reply)]);
         }
 
         flash('success', 'Reply sent.'); // NFELIA AUDIT FIX L04 2026-06-03
@@ -573,11 +579,7 @@ class AdminController {
                 WHERE id = ? AND subdomain_status = 'pending' AND subdomain_requested = ?
             ")->execute([$is_rename ? 'active' : 'rejected', auth_user()['id'], $biz_id, $name]);
 
-            if ($is_rename) {
-                shop_notify($biz_id, 'Your shop link stays the same', "We couldn't approve {$host}. Your shop keeps its current link.", 'landing-page');
-            } else {
-                shop_notify($biz_id, 'Please choose another shop name', "We couldn't approve {$host}. Choose another name to open your shop.", 'shop-setup');
-            }
+            notify('shop.link_refused', $biz_id, ['host' => $host, 'has_current' => $is_rename], ['dedupe' => 'refused:' . $name . ':' . time()]);
 
             flash('success', $host . ' was turned down. ' . $biz['name'] . ' has been told.');
             redirect('admin/shop-names');
@@ -613,11 +615,7 @@ class AdminController {
         }
         storefront_purge($biz_id, $is_rename ? [$biz['subdomain']] : []);
 
-        if ($is_rename) {
-            shop_notify($biz_id, 'Your new shop link is live', "{$host} is approved. Your old link sends people to it for the next 90 days, so update it wherever you've shared it.", 'landing-page');
-        } else {
-            shop_notify($biz_id, 'Your shop link is live', "{$host} is approved. Share it with your customers.", 'landing-page');
-        }
+        notify('shop.link_live', $biz_id, ['host' => $host, 'changed' => $is_rename], ['dedupe' => 'live:' . $name]);
 
         flash('success', $host . ' is live for ' . $biz['name'] . '.');
         redirect('admin/shop-names');
@@ -625,29 +623,10 @@ class AdminController {
 
     /* ── Internal helpers ─────────────────────── */
 
-    /**
-     * notifications.type is an ENUM: a type it doesn't list (support_reply,
-     * subscription_suspended…) made the insert fail and the owner was never
-     * told. Those go in as 'general'.
-     */
-    private const NOTIFICATION_TYPES = [
-        'low_stock', 'invoice_overdue', 'payment_received', 'delivery_signed', 'subscription_renewal',
-        'subscription_failed', 'trial_ending', 'feedback_request', 'general', 'momo_submitted', 'momo_approved',
-        'momo_rejected', 'subscription_activated', 'subscription_cancelled',
-    ];
-
-    private function admin_notify(int $biz_id, string $type, string $message): void {
-        if (!in_array($type, self::NOTIFICATION_TYPES, true)) {
-            $type = 'general';
-        }
-        try {
-            $stmt = $this->db->prepare("
-                INSERT INTO notifications (business_id, type, title, message, created_at)
-                VALUES (?, ?, 'Nfelia Admin', ?, NOW())
-            ");
-            $stmt->execute([$biz_id, $type, $message]);
-        } catch (Exception $e) {
-            error_log("Admin notification failed: " . $e->getMessage());
-        }
+    private function subscription_field(int $biz_id, string $field): ?string {
+        $stmt = $this->db->prepare("SELECT {$field} FROM subscriptions WHERE business_id = ?");
+        $stmt->execute([$biz_id]);
+        $value = $stmt->fetchColumn();
+        return $value === false || $value === null ? null : substr((string)$value, 0, 10);
     }
 }

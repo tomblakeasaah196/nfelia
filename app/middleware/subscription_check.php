@@ -17,49 +17,34 @@ if (!in_array($controller ?? '', $exempt_routes)) {
     $stmt->execute([auth_business_id()]);
     $sub  = $stmt->fetch();
 
+    if ($sub && !subscription_open($sub)) {
+        // The same rule closes the shop and stops the cron's reminders
+        // (subscription_open() in app/helpers/functions.php).
+        [$level, $why] = match ($sub['status']) {
+            'trial'     => ['warning', 'Your free trial has ended. Choose a plan to carry on. Everything you added is still here.'],
+            'past_due'  => ['error', 'Your payment is overdue and the 3 extra days have passed. Pay to carry on.'],
+            'cancelled' => ['warning', 'Your subscription has ended. Resubscribe to carry on where you left off.'],
+            default     => ['error', 'Your account is on hold. Open billing to restore it, or contact Nfelia support.'],
+        };
+        flash($level, $why);
+        redirect('settings?tab=billing');
+    }
+
+    // Still open, with something to know about. Worked out on every page,
+    // so it goes away the moment the plan is paid.
+    unset($_SESSION['billing_warning']);
     if ($sub) {
-        $today = new DateTime();
-
-        switch ($sub['status']) {
-
-            case 'trial':
-                if ($sub['trial_ends_at'] && $today > new DateTime($sub['trial_ends_at'])) {
-                    flash('warning', 'Your free trial has ended. Subscribe to continue.');
-                    redirect('settings?tab=billing');
-                }
-                break;
-
-            case 'past_due':
-                $grace_end = $sub['grace_ends_at']
-                    ? new DateTime($sub['grace_ends_at'])
-                    : (new DateTime($sub['current_period_end']))->modify('+3 days');
-
-                if ($today > $grace_end) {
-                    flash('error', 'Your payment failed and the grace period has ended. Please update billing.');
-                    redirect('settings?tab=billing');
-                }
-                // Show warning banner within grace period
-                $_SESSION['billing_warning'] = 'Payment failed. Access restricted in ' .
-                    max(0, (int)$today->diff($grace_end)->days) . ' day(s). Please update billing.';
-                break;
-
-            case 'pending_verification':
-                // User has submitted MoMo receipt — allow full access for up to 3 days
-                // Admin reviews and either approves (→ active) or rejects (→ trial/past_due)
-                $_SESSION['billing_warning'] = 'Your payment is under review. We\'ll notify you within 24 hours.';
-                break;
-
-            case 'suspended':
-                flash('error', 'Your account is suspended. Please update your billing to restore access.');
-                redirect('settings?tab=billing');
-                break;
-
-            case 'cancelled':
-                flash('warning', 'Your subscription is cancelled. Resubscribe to continue.');
-                redirect('settings?tab=billing');
-                break;
-
-            // 'active' falls through with no action
+        $day = fn($d) => date('j M Y', strtotime((string)$d));
+        if ($sub['status'] === 'past_due') {
+            $grace = $sub['grace_ends_at'] ?: planner_add_days(substr((string)$sub['current_period_end'], 0, 10), 3);
+            $left  = max(0, planner_days_between(planner_today(), substr((string)$grace, 0, 10)));
+            $_SESSION['billing_warning'] = 'Your payment is due. Pay ' . ($left === 0 ? 'today' : 'within ' . $left . ' day' . ($left === 1 ? '' : 's'))
+                . ' to keep using Nfelia.';
+        } elseif ($sub['status'] === 'pending_verification') {
+            $_SESSION['billing_warning'] = 'Your payment is being checked. We\'ll let you know within 24 hours.';
+        } elseif ($sub['status'] === 'cancelled') {
+            $_SESSION['billing_warning'] = 'Your subscription is cancelled. You keep full access until '
+                . $day($sub['current_period_end'] ?: $sub['trial_ends_at']) . '.';
         }
     }
 }

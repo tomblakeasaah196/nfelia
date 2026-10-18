@@ -45,11 +45,12 @@ class TasksController {
             'customer' => (int)($_GET['customer'] ?? 0) ?: null,
             'invoice'  => (int)($_GET['invoice'] ?? 0) ?: null,
             'date'     => planner_valid_date($_GET['date'] ?? null) ? $_GET['date'] : null,
+            'task'     => $this->task_to_open((int)($_GET['task'] ?? 0), $user, $business, $today),
         ];
 
-        $stmt = $this->db->prepare("SELECT morning_email, reminder_email FROM users WHERE id = ? AND business_id = ?");
-        $stmt->execute([$user['id'], $this->biz_id]);
-        $prefs = $stmt->fetch() ?: ['morning_email' => 1, 'reminder_email' => 1];
+        // The same choices as More > Notifications (app/helpers/notify.php).
+        $mine  = notify_prefs_for($this->db, [(int)$user['id']])[(int)$user['id']];
+        $prefs = ['morning_email' => $mine['morning']['email'], 'reminder_email' => $mine['reminders']['email']];
 
         $data = [
             'today'     => $today,
@@ -181,8 +182,21 @@ class TasksController {
             $id = (int)$this->db->lastInsertId();
         }
 
-        if ($assigned_to && $assigned_to !== (int)$user['id'] && (int)($existing['assigned_to'] ?? 0) !== $assigned_to) {
-            $this->tell_assignee($assigned_to, $title, $date, $time, $user);
+        $was = (int)($existing['assigned_to'] ?? 0);
+        if ($assigned_to && $assigned_to !== (int)$user['id'] && $was !== $assigned_to) {
+            $this->tell_assignee($id, $assigned_to, $title, $date, $time, $user);
+        }
+        // Taken off someone's list by someone else: they hear who has it now.
+        if ($was && $was !== (int)$user['id'] && $was !== (int)$assigned_to) {
+            $to_name = '';
+            if ($assigned_to) {
+                $stmt = $this->db->prepare("SELECT full_name FROM users WHERE id = ?");
+                $stmt->execute([$assigned_to]);
+                $to_name = planner_first_name((string)$stmt->fetchColumn());
+            }
+            notify('task.unassigned', $this->biz_id, [
+                'task_id' => $id, 'title' => $title, 'by' => planner_first_name($user['full_name']), 'to_name' => $to_name,
+            ], ['users' => [$was], 'actor' => (int)$user['id'], 'dedupe' => $id . ':off:' . $was . ':' . time()]);
         }
 
         $this->respond($existing ? 'Saved.' : ($kind === 'appointment' ? 'Appointment added.' : 'Task added.'));
@@ -202,6 +216,13 @@ class TasksController {
 
         if ($done && $task['done_at'] === null) {
             $this->db->prepare("UPDATE tasks SET done_at = NOW(), done_by = ? WHERE id = ?")->execute([$user['id'], $task['id']]);
+
+            // Someone finished a task another person gave them: that person hears.
+            if ($task['assigned_to'] && (int)$task['created_by'] !== (int)$user['id']) {
+                notify('task.done', $this->biz_id, [
+                    'task_id' => (int)$task['id'], 'title' => $task['title'], 'by' => planner_first_name($user['full_name']),
+                ], ['users' => [(int)$task['created_by']], 'actor' => (int)$user['id'], 'dedupe' => $task['id'] . ':done:' . planner_today()]);
+            }
 
             // Repeats: the next one appears when this one is ticked.
             if ($task['repeat_every'] && $task['due_date']) {
@@ -391,7 +412,7 @@ class TasksController {
         }
 
         if ($assigned_to && $assigned_to !== (int)$user['id']) {
-            $this->tell_assignee($assigned_to, $title, $finish, null, $user);
+            $this->tell_assignee($parent_id, $assigned_to, $title, $finish, null, $user);
         }
         $this->respond('Job plan added: ' . count($steps) . ' steps.');
     }
@@ -402,8 +423,8 @@ class TasksController {
     public function prefs() {
         $in   = $this->json_in();
         $user = auth_user();
-        $this->db->prepare("UPDATE users SET morning_email = ?, reminder_email = ? WHERE id = ? AND business_id = ?")
-                 ->execute([!empty($in['morning_email']) ? 1 : 0, !empty($in['reminder_email']) ? 1 : 0, $user['id'], $this->biz_id]);
+        notify_set_pref($this->db, (int)$user['id'], 'morning', null, !empty($in['morning_email']));
+        notify_set_pref($this->db, (int)$user['id'], 'reminders', null, !empty($in['reminder_email']));
         json_response(['success' => true, 'message' => 'Saved.']);
     }
 
@@ -444,14 +465,8 @@ class TasksController {
 
     public function push_test() {
         $this->json_in();
-        $sent = push_to_user($this->db, (int)auth_user()['id'], [
-            'title' => 'Notifications work',
-            'body'  => 'This is how Nfelia will remind you about deliveries, appointments and money due.',
-            'url'   => 'tasks', 'tag' => 'nfelia-test',
-        ], 'high');
-        json_response($sent > 0
-            ? ['success' => true, 'message' => 'Sent. Check your phone.']
-            : ['error' => 'Nothing arrived. Turn notifications off and on again on this phone.'], $sent > 0 ? 200 : 502);
+        [$ok, $message] = notify_test($this->biz_id, (int)auth_user()['id'], 'push');
+        json_response($ok ? ['success' => true, 'message' => $message] : ['error' => $message], $ok ? 200 : 502);
     }
 
     /* ══════════════════════════════════════════
@@ -499,6 +514,18 @@ class TasksController {
         return $stmt->fetch() ?: null;
     }
 
+    /**
+     * /tasks?task=12, from a reminder or an assignment alert: that task (or
+     * job), opened on arrival, when this person may see it.
+     */
+    private function task_to_open(int $id, array $user, array $business, string $today): ?array {
+        $task = $this->find_task($id);
+        if (!$task || !$this->can_edit($task, $user)) return null;
+        $is_job = $task['plan'] !== null && $task['parent_id'] === null;
+        $rows = planner_fetch_tasks($this->db, $this->biz_id, ['ids' => [$id], 'jobs' => $is_job]);
+        return $rows ? planner_task_item($rows[0], $today, $business) : null;
+    }
+
     private function can_edit(array $task, array $user): bool {
         return planner_is_manager($user)
             || (int)$task['created_by'] === (int)$user['id']
@@ -539,12 +566,12 @@ class TasksController {
         ")->execute([$parent_id, $this->biz_id]);
     }
 
-    private function tell_assignee(int $to, string $title, ?string $date, ?string $time, array $from): void {
-        $when = $date ? ' · ' . trim(planner_fmt_day($date, planner_today()) . ' ' . planner_fmt_time($time)) : '';
-        $msg  = planner_first_name($from['full_name']) . ' gave you: ' . $title . $when;
-        planner_notify($this->db, $this->biz_id, $to, 'New task for you', $msg, 'tasks');
-        $db = $this->db;
-        after_response(fn() => push_to_user($db, $to, ['title' => 'New task for you', 'body' => $msg, 'url' => 'tasks', 'tag' => 'assigned']));
+    /** The person a task was given to hears, as they chose (More > Notifications), never in their quiet hours. */
+    private function tell_assignee(int $task_id, int $to, string $title, ?string $date, ?string $time, array $from): void {
+        notify('task.assigned', $this->biz_id, [
+            'task_id' => $task_id, 'title' => $title, 'from' => planner_first_name($from['full_name']),
+            'when' => $date ? trim(planner_fmt_day($date, planner_today()) . ' ' . planner_fmt_time($time)) : '',
+        ], ['users' => [$to], 'actor' => (int)$from['id'], 'dedupe' => $task_id . ':to:' . $to . ':' . time()]);
     }
 
     private function customers(): array {

@@ -187,32 +187,6 @@ class MoMoController {
             $payment_id = $this->db->lastInsertId();
 
             $this->db->commit();
-
-            // Notify admin (business_id = 1) — in-app
-            try {
-                $this->db->prepare("
-                    INSERT INTO notifications (business_id, type, title, message, action_url, created_at)
-                    VALUES (1, 'momo_submitted', 'New MoMo Payment Pending', ?, ?, NOW())
-                ")->execute([
-                    e($business['name']) . ' submitted a payment receipt of ' .
-                    $country['currency_symbol'] . number_format($amount_due, 0) . ' ' . $country['currency_code'] .
-                    ' — awaiting your review.',
-                    'momo/review'
-                ]);
-            } catch (\Exception $e) {
-                error_log('[Nfelia] MoMo admin notification failed: ' . $e->getMessage());
-            }
-
-            // Confirmation email to the user
-            $confirm_msg = "Hello " . e($user['full_name']) . ",\n\n" .
-                "We've received your payment receipt submission of " .
-                $country['currency_symbol'] . number_format($amount_due, 0) . " " . $country['currency_code'] . ".\n\n" .
-                "Our team will review and confirm your subscription within 24 hours. You will receive a notification once it's approved.\n\n" .
-                "Reference: " . ($reference_num ?: 'Not provided') . "\n" .
-                "Submitted: " . date('d M Y, H:i') . "\n\n" .
-                "Thank you for choosing Nfelia.\n\nThe Nfelia Team";
-            send_mail($user['email'], $user['full_name'], 'Payment Submission Received — Nfelia', $confirm_msg);
-
         } catch (\Exception $e) {
             $this->db->rollBack();
             error_log('[Nfelia] MoMo submit failed: ' . $e->getMessage());
@@ -220,6 +194,14 @@ class MoMoController {
             redirect('momo/checkout');
             return;
         }
+
+        // The Nfelia team is told there's a payment to check, and the owner
+        // gets a confirmation (in the app and by email: billing always emails).
+        $amount_text = $country['currency_symbol'] . number_format($amount_due, 0) . ' ' . $country['currency_code'];
+        notify('platform.momo_submitted', NOTIFY_PLATFORM_BUSINESS_ID, [
+            'payment_id' => (int)$payment_id, 'business' => $business['name'], 'amount_text' => $amount_text,
+        ], ['dedupe' => (string)$payment_id]);
+        notify('billing.momo_submitted', $this->biz_id, ['amount_text' => $amount_text], ['dedupe' => (string)$payment_id]);
 
         flash('success', 'Payment receipt submitted! We\'ll verify and activate your subscription within 24 hours.');
         redirect('settings?tab=billing');
@@ -304,12 +286,17 @@ class MoMoController {
 
         $this->db->beginTransaction();
         try {
-            // Mark payment as approved
-            $this->db->prepare("
+            // Mark payment as approved: once, even if two people approve together
+            $marked = $this->db->prepare("
                 UPDATE subscription_payments
                 SET status = 'approved', reviewed_at = NOW(), reviewed_by = ?
-                WHERE id = ?
-            ")->execute([$reviewer_id, $payment_id]);
+                WHERE id = ? AND status = 'pending_verification'
+            ");
+            $marked->execute([$reviewer_id, $payment_id]);
+            if ($marked->rowCount() !== 1) {
+                $this->db->rollBack();
+                json_response(['error' => 'Payment not found or already reviewed'], 409);
+            }
 
             // Activate the subscription
             $period_start = date('Y-m-d');
@@ -335,35 +322,23 @@ class MoMoController {
             // Log status change
             $this->log_status_change($payment['business_id'], 'pending_verification', 'active', $reviewer_id, 'MoMo payment approved');
 
-            // In-app notification to the business
-            $this->db->prepare("
-                INSERT INTO notifications (business_id, type, title, message, action_url, created_at)
-                VALUES (?, 'momo_approved', 'Payment Approved!', ?, ?, NOW())
-            ")->execute([
-                $payment['business_id'],
-                'Your payment of ' . $payment['currency_symbol'] . number_format($payment['amount'], 0) .
-                ' has been verified. Your Nfelia subscription is now active!',
-                APP_URL . '/settings?tab=billing'
-            ]);
-
             $this->db->commit();
-
-            // Email the customer
-            $msg = "Hello " . $payment['owner_name'] . ",\n\n" .
-                "Your payment of " . $payment['currency_symbol'] . number_format($payment['amount'], 0) .
-                " " . $payment['currency_code'] . " has been verified and approved.\n\n" .
-                "Your Nfelia subscription is now ACTIVE. You have full access to all modules.\n\n" .
-                "Subscription valid until: " . date('d M Y', strtotime($period_end)) . "\n\n" .
-                "Thank you for your payment!\n\nThe Nfelia Team";
-            send_mail($payment['owner_email'], $payment['owner_name'], 'Subscription Activated — Nfelia', $msg);
-
-            json_response(['success' => true, 'message' => 'Payment approved and subscription activated.']);
-
         } catch (\Exception $e) {
             $this->db->rollBack();
             error_log('[Nfelia] MoMo approve failed: ' . $e->getMessage());
             json_response(['error' => 'Failed to approve. Please try again.'], 500);
         }
+
+        // The owner hears (in the app and by email), and whoever invited
+        // them earns their reward, as with a card payment.
+        notify('billing.paid', (int)$payment['business_id'], [
+            'amount_text' => $payment['currency_symbol'] . number_format($payment['amount'], 0) . ' ' . $payment['currency_code'],
+            'period_end'  => $period_end,
+        ], ['dedupe' => 'momo:' . $payment_id]);
+        require_once __DIR__ . '/ReferralController.php';
+        ReferralController::reward_referral($this->db, (int)$payment['business_id']);
+
+        json_response(['success' => true, 'message' => 'Payment approved and subscription activated.']);
     }
 
     /* ══════════════════════════════════════════
@@ -401,11 +376,16 @@ class MoMoController {
 
         $this->db->beginTransaction();
         try {
-            $this->db->prepare("
+            $marked = $this->db->prepare("
                 UPDATE subscription_payments
                 SET status = 'rejected', rejection_reason = ?, reviewed_at = NOW(), reviewed_by = ?
-                WHERE id = ?
-            ")->execute([$reason, $reviewer_id, $payment_id]);
+                WHERE id = ? AND status = 'pending_verification'
+            ");
+            $marked->execute([$reason, $reviewer_id, $payment_id]);
+            if ($marked->rowCount() !== 1) {
+                $this->db->rollBack();
+                json_response(['error' => 'Payment not found or already reviewed'], 409);
+            }
 
             // Revert subscription to previous status (trial or keep past_due)
             $stmt = $this->db->prepare("SELECT status FROM subscriptions WHERE business_id = ?");
@@ -419,41 +399,19 @@ class MoMoController {
 
             $this->log_status_change($payment['business_id'], 'pending_verification', $revert_to, $reviewer_id, 'MoMo payment rejected: ' . $reason);
 
-            // In-app notification
-            $this->db->prepare("
-                INSERT INTO notifications (business_id, type, title, message, action_url, created_at)
-                VALUES (?, 'momo_rejected', 'Payment Rejected', ?, ?, NOW())
-            ")->execute([
-                $payment['business_id'],
-                'Your payment receipt could not be verified. Reason: ' . $reason . ' — Please resubmit.',
-                APP_URL . '/momo/checkout'
-            ]);
-
             $this->db->commit();
-
-            // Email the customer
-            $momo_link = APP_URL . '/momo/checkout';
-            $msg = "Hello " . $payment['owner_name'] . ",\n\n" .
-                "Unfortunately, we could not verify your recent payment of " .
-                $payment['currency_symbol'] . number_format($payment['amount'], 0) .
-                " " . $payment['currency_code'] . ".\n\n" .
-                "Reason: " . $reason . "\n\n" .
-                "Please resubmit your payment using the link below. Make sure your receipt clearly shows:\n" .
-                "- Your name or phone number\n" .
-                "- The exact amount sent\n" .
-                "- The transaction reference number\n\n" .
-                "Resubmit here: " . $momo_link . "\n\n" .
-                "If you need help, contact us at support@nfelia.com\n\n" .
-                "The Nfelia Team";
-            send_mail($payment['owner_email'], $payment['owner_name'], 'Action Required: Payment Resubmission — Nfelia', $msg);
-
-            json_response(['success' => true, 'message' => 'Payment rejected. Customer notified.']);
-
         } catch (\Exception $e) {
             $this->db->rollBack();
             error_log('[Nfelia] MoMo reject failed: ' . $e->getMessage());
             json_response(['error' => 'Failed to reject. Please try again.'], 500);
         }
+
+        // The owner hears why, in the app and by email, with a link to send it again.
+        notify('billing.momo_rejected', (int)$payment['business_id'], [
+            'reason' => $reason,
+        ], ['dedupe' => 'momo:' . $payment_id]);
+
+        json_response(['success' => true, 'message' => 'Payment rejected. Customer notified.']);
     }
 
     /* ══════════════════════════════════════════

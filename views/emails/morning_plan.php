@@ -1,5 +1,5 @@
 <?php
-/* views/emails/morning_plan.php — Variables: $first_name, $day (late / today / soon planner items), $summary, $open_url */
+/* views/emails/morning_plan.php — Variables: $first_name, $day (late / today / soon planner items), $summary, $open_url, $prefs_url */
 $h        = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES);
 $on_brand = planner_text_on($biz_color);
 $chip     = [
@@ -62,5 +62,5 @@ $max = 8;   // a longer list belongs in the app, not an email
 
 <p style="margin:0;font-size:12px;line-height:1.4;color:#5B4650;">
     Nfelia sends this on mornings when you have something planned.
-    <a href="<?= $h($open_url) ?>?reminders=1" style="color:#5B4650;">Turn off morning emails</a>
+    <a href="<?= $h($prefs_url ?? $open_url . '?reminders=1') ?>" style="color:#5B4650;">Turn off morning emails</a>
 </p>

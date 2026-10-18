@@ -262,12 +262,9 @@ class ShopSetupController {
         ")->execute([$name, $this->biz_id]);
 
         if ($business['subdomain_requested'] !== $name) {
-            shop_notify(
-                SHOP_REVIEWER_BUSINESS_ID,
-                'Shop name to review',
-                $business['name'] . ' asked for ' . $name . '.' . shop_base_host() . '.',
-                'admin/shop-names'
-            );
+            notify('platform.shop_name', SHOP_REVIEWER_BUSINESS_ID, [
+                'business' => $business['name'], 'host' => $name . '.' . shop_base_host(),
+            ], ['dedupe' => $this->biz_id . ':' . $name]);
         }
     }
 }

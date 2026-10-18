@@ -38,7 +38,7 @@ class InvoiceController {
         ")->execute([$this->biz_id]);
 
         // ── Auto-create debt records for newly overdue ──
-        $this->create_overdue_debts_and_notifications();
+        $this->create_overdue_debts();
 
         $where  = ["i.business_id = ?"];
         $params = [$this->biz_id];
@@ -388,6 +388,19 @@ class InvoiceController {
 
         $this->db->beginTransaction();
         try {
+            // Read the balance again with the row held: two taps of Record
+            // at once must not both pass the check above and overpay.
+            $stmtLock = $this->db->prepare("SELECT amount_paid, total, balance_due FROM invoices WHERE id = ? AND business_id = ? FOR UPDATE");
+            $stmtLock->execute([$id, $this->biz_id]);
+            $fresh = $stmtLock->fetch();
+            if (!$fresh || $amount > (float)$fresh['balance_due'] + 0.001) {
+                $this->db->rollBack();
+                $err = 'This payment was already recorded, or is more than what is left to pay. Reload the invoice.';
+                if (is_ajax()) { json_response(['error' => $err], 409); }
+                flash('error', $err); redirect('invoices/view/' . $id); return;
+            }
+            $invoice = array_merge($invoice, $fresh);
+
             // Insert payment
             $stmtPay = $this->db->prepare("
                 INSERT INTO payments (business_id, invoice_id, user_id, amount, payment_date, method, reference, note)
@@ -422,31 +435,17 @@ class InvoiceController {
                 $this->update_debt_on_payment($id, $amount, $new_balance);
             }
 
-            // Create notification for business owner
-            $this->db->prepare("
-                INSERT INTO notifications (business_id, user_id, type, title, message, action_url)
-                VALUES (?, ?, 'payment_received', ?, ?, ?)
-            ")->execute([
-                $this->biz_id, $user['id'],
-                'Payment received — ' . $invoice['doc_number'],
-                money($amount, '₦') . ' received via ' . str_replace('_', ' ', $method) . '. ' .
-                    ($new_balance <= 0 ? 'Invoice fully paid!' : 'Balance remaining: ' . money($new_balance, '₦')),
-                APP_URL . '/invoices/view/' . $id
-            ]);
-
             $this->db->commit();
 
-            // The owner's and admins' phones buzz (app/helpers/notify.php).
+            // Owners and admins hear about it, except whoever recorded it
+            // (app/helpers/notify.php).
             $stmtWho = $this->db->prepare("SELECT full_name FROM customers WHERE id = ?");
             $stmtWho->execute([$invoice['customer_id']]);
-            $payer = trim((string)$stmtWho->fetchColumn());
-            notify_money_in(
-                $this->biz_id, (int)$user['id'],
-                notify_money_text($amount) . ' received',
-                ($payer !== '' ? $payer . ' paid ' : 'Payment on ') . $invoice['doc_number'] . '. '
-                    . ($new_balance <= 0 ? 'Fully paid.' : notify_money_text($new_balance) . ' left to pay.'),
-                'invoices/view/' . $id
-            );
+            notify('payment.invoice', $this->biz_id, [
+                'invoice_id' => (int)$id, 'invoice_number' => $invoice['doc_number'],
+                'customer' => trim((string)$stmtWho->fetchColumn()), 'amount' => $amount,
+                'method' => str_replace('_', ' ', $method), 'balance' => max(0, $new_balance),
+            ], ['actor' => (int)$user['id'], 'dedupe' => (string)$payment_id]);
 
             $result = [
                 'success'      => true,
@@ -886,10 +885,12 @@ class InvoiceController {
     }
 
     /**
-     * Create debt records + notifications for invoices that just became overdue.
-     * Called from index() on each page load.
+     * Create debt records for invoices that just became overdue. Called from
+     * index() on each page load. The overdue alert itself comes from the
+     * cron, every morning, whether or not anyone opens this list
+     * (cron/planner.php).
      */
-    private function create_overdue_debts_and_notifications(): void {
+    private function create_overdue_debts(): void {
         // Find overdue invoices without a debt record yet
         $stmt = $this->db->prepare("
             SELECT i.id, i.doc_number, i.customer_id, i.balance_due, i.due_date, i.user_id,
@@ -897,7 +898,7 @@ class InvoiceController {
             FROM invoices i
             LEFT JOIN customers c ON c.id = i.customer_id
             WHERE i.business_id = ? AND i.status = 'overdue'
-              AND NOT EXISTS (SELECT 1 FROM debts d WHERE d.invoice_id = i.id AND d.business_id = i.business_id AND d.status IN ('active','settling'))
+              AND NOT EXISTS (SELECT 1 FROM debts d WHERE d.invoice_id = i.id AND d.business_id = i.business_id AND d.status IN ('active','settling','written_off'))
         ");
         $stmt->execute([$this->biz_id]);
 
@@ -912,18 +913,6 @@ class InvoiceController {
                 'Overdue invoice ' . $inv['doc_number'],
                 $inv['customer_name'], $inv['customer_phone'],
                 $inv['balance_due'], $inv['balance_due'], $inv['due_date']
-            ]);
-
-            // Create notification
-            $days = (int)((time() - strtotime($inv['due_date'])) / 86400);
-            $this->db->prepare("
-                INSERT INTO notifications (business_id, user_id, type, title, message, action_url)
-                VALUES (?, ?, 'invoice_overdue', ?, ?, ?)
-            ")->execute([
-                $this->biz_id, $inv['user_id'],
-                'Invoice Overdue — ' . $inv['doc_number'],
-                $inv['customer_name'] . ' owes ' . money((float)$inv['balance_due'], '₦') . ' — ' . $days . ' day' . ($days > 1 ? 's' : '') . ' past due.',
-                APP_URL . '/invoices/view/' . $inv['id']
             ]);
         }
     }
@@ -949,4 +938,4 @@ class InvoiceController {
             ")->execute([$new_settled, max(0, $remaining_balance), $new_status, $debt['id']]);
         }
     }
-}
+}

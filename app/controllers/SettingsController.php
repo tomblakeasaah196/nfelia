@@ -444,7 +444,7 @@ class SettingsController {
             return;
         }
 
-        $this->db->beginTransaction();
+        $role = in_array($_POST['staff_role'] ?? '', ['admin', 'staff']) ? $_POST['staff_role'] : 'staff';
         try {
             $this->db->prepare("
                 INSERT INTO users (business_id, full_name, email, password_hash, role, created_at)
@@ -452,23 +452,29 @@ class SettingsController {
             ")->execute([
                 $this->biz_id, $full_name, $email,
                 password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]),
-                in_array($_POST['staff_role'] ?? '', ['admin', 'staff']) ? $_POST['staff_role'] : 'staff'
+                $role
             ]);
+            $member_id = (int)$this->db->lastInsertId();
 
-            $this->db->prepare("
-                INSERT INTO notifications (business_id, type, title, message, action_url, created_at)
-                VALUES (?, 'general', ?, ?, ?, NOW())
-            ")->execute([
-                $this->biz_id,
-                'New Team Member',
-                $full_name . ' has been added to your team.',
-                '/settings?tab=staff'
-            ]);
+            // The rest of the team hears; the new member gets a welcome with
+            // how to sign in (never the password: the owner tells them that).
+            notify('team.joined', $this->biz_id, ['name' => $full_name, 'role' => $role, 'by' => planner_first_name($user['full_name'])],
+                   ['actor' => (int)$user['id'], 'dedupe' => (string)$member_id]);
+            $business = auth_business();
+            notify_email(null, $email, $full_name, 'You’ve joined ' . $business['name'] . ' on Nfelia', 'notification', [
+                'headline' => 'Welcome to ' . $business['name'],
+                'message'  => planner_first_name($user['full_name']) . ' added you to their team on Nfelia as ' . ($role === 'admin' ? 'an admin' : 'staff')
+                            . '. Sign in with this email address and the password ' . planner_first_name($user['full_name'])
+                            . ' gives you, or choose “Email me a sign-in link”.',
+                'lines'    => ['Business' => $business['name'], 'Your email' => $email],
+                'button'   => 'Sign in to Nfelia',
+                'open_url' => APP_URL . '/login',
+                'always'   => true,
+            ], 'staff-welcome:' . $member_id, 'team.welcome');
 
-            $this->db->commit();
-            flash('success', $full_name . ' added to your team.');
+            flash('success', $full_name . ' added to your team. We emailed them how to sign in.');
         } catch (\Exception $e) {
-            $this->db->rollBack();
+            error_log('Add staff failed: ' . $e->getMessage());
             flash('error', 'Failed to add team member. Please try again.');
         }
 
@@ -510,6 +516,12 @@ class SettingsController {
         }
 
         $this->db->prepare("UPDATE users SET is_active = 0 WHERE id = ? AND business_id = ?")->execute([$staff_id, $this->biz_id]);
+        // Their phones stop getting the business's alerts, and "keep me
+        // signed in" stops working for them.
+        $this->db->prepare("DELETE FROM push_subscriptions WHERE user_id = ?")->execute([$staff_id]);
+        $this->db->prepare("DELETE FROM sessions WHERE user_id = ?")->execute([$staff_id]);
+        notify('team.removed', $this->biz_id, ['name' => $staff_member['full_name'], 'by' => planner_first_name($user['full_name'])],
+               ['actor' => (int)$user['id'], 'dedupe' => $staff_id . ':' . time()]);
 
         flash('success', $staff_member['full_name'] . ' removed from your team.');
         redirect('settings?tab=staff');
@@ -676,6 +688,13 @@ SVG;
 
         $this->db->prepare("UPDATE users SET role = ? WHERE id = ? AND business_id = ?")
                   ->execute([$new_role, $staff_id, $this->biz_id]);
+
+        if ($member['role'] !== $new_role) {
+            notify('security.role_changed', $this->biz_id, [
+                'role' => $new_role === 'admin' ? 'an admin' : 'staff', 'by' => planner_first_name($user['full_name']),
+                'business' => auth_business()['name'],
+            ], ['users' => [$staff_id], 'dedupe' => $staff_id . ':' . $new_role . ':' . time()]);
+        }
 
         echo json_encode(['success' => true, 'role' => $new_role]);
         exit;

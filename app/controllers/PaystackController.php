@@ -153,28 +153,31 @@ class PaystackController {
         $is_mid_cycle  = (bool)($data['metadata']['is_mid_cycle'] ?? false);
         $amount_paid   = (int)($data['amount'] ?? 0);
 
-        $this->activate_subscription(
-            $biz_id,
-            $amount_paid,
-            $extra_seats,
-            $data['authorization']['authorization_code'] ?? null,
-            $data['customer']['customer_code'] ?? null,
-            $reference,
-            $is_mid_cycle
-        );
+        // The webhook may have handled this payment already, or this page was
+        // refreshed: each payment is acted on once, by whichever comes first.
+        if ($this->claim($biz_id, 'charge.success', $reference, $amount_paid, 'success', 'Payment verified via callback', $data)) {
+            try {
+                $this->activate_subscription(
+                    $biz_id,
+                    $amount_paid,
+                    $extra_seats,
+                    $data['authorization']['authorization_code'] ?? null,
+                    $data['customer']['customer_code'] ?? null,
+                    $reference,
+                    $is_mid_cycle
+                );
 
-        require_once __DIR__ . '/ReferralController.php';
-        if ($discount_kobo > 0) {
-            ReferralController::apply_discount($this->db, $biz_id);
+                require_once __DIR__ . '/ReferralController.php';
+                if ($discount_kobo > 0) {
+                    ReferralController::apply_discount($this->db, $biz_id);
+                }
+                ReferralController::reward_referral($this->db, $biz_id);
+            } catch (\Throwable $e) {
+                $this->unclaim($reference);   // the webhook, or a reload, can try again
+                throw $e;
+            }
+            $this->tell_paid($biz_id, $amount_paid, (string)($data['currency'] ?? 'NGN'), $reference);
         }
-        ReferralController::reward_referral($this->db, $biz_id);
-
-        $this->log_event($biz_id, 'charge.success', $reference, $amount_paid, 'success', 'Payment verified via callback', $data);
-
-        $amount_fmt = number_format($amount_paid / 100, 0);
-        $this->notify($biz_id, 'payment_received', 'Payment Confirmed',
-            "Payment of â¦{$amount_fmt} received successfully. Your subscription is active.",
-            '/settings?tab=billing');
 
         unset($_SESSION['paystack_reference'], $_SESSION['paystack_extra_seats']);
 
@@ -225,51 +228,52 @@ class PaystackController {
             exit;
         }
 
-        // NFELIA AUDIT FIX — C06 — Use paystack_reference (not event_reference) for idempotency — 2026-06-03
-        $reference = $event_data['reference']
-            ?? $event_data['subscription_code']
-            ?? ($event_type . '_' . ($event_data['id'] ?? time()));
-
-        $stmtCheck = $this->db->prepare(
-            "SELECT id FROM subscription_history WHERE paystack_reference = ?"
+        // 3. Each event is acted on once. Paystack resends until it gets a
+        // 200, sometimes two at a time, so the event is claimed (a unique
+        // row in subscription_history) before anything is done with it.
+        $reference = $this->event_key($event_type, $event_data, $raw_body);
+        $claimed = $this->claim(
+            $biz_id,
+            $event_type,
+            $reference,
+            isset($event_data['amount']) ? (int)$event_data['amount'] : null,
+            $event_data['status'] ?? $event_type,
+            $event_data['gateway_response'] ?? $event_type,
+            $event_data
         );
-        $stmtCheck->execute([$reference]);
-        if ($stmtCheck->fetch()) {
+        if (!$claimed) {
             http_response_code(200);
             echo json_encode(['status' => 'ok', 'message' => 'Already processed']);
             exit;
         }
 
-        // 3. Process event
-        switch ($event_type) {
-            case 'charge.success':
-                $this->handle_charge_success($biz_id, $event_data);
-                break;
-            case 'subscription.create':
-                $this->handle_subscription_create($biz_id, $event_data);
-                break;
-            case 'subscription.disable':
-            case 'subscription.not_renew':
-                $this->handle_subscription_disable($biz_id, $event_data);
-                break;
-            case 'invoice.payment_failed':
-                $this->handle_payment_failed($biz_id, $event_data);
-                break;
-            default:
-                // Unknown event — log only
-                break;
+        // 4. Process event
+        try {
+            switch ($event_type) {
+                case 'charge.success':
+                    $this->handle_charge_success($biz_id, $event_data);
+                    break;
+                case 'subscription.create':
+                    $this->handle_subscription_create($biz_id, $event_data);
+                    break;
+                case 'subscription.disable':
+                case 'subscription.not_renew':
+                    $this->handle_subscription_disable($biz_id, $event_data);
+                    break;
+                case 'invoice.payment_failed':
+                    $this->handle_payment_failed($biz_id, $event_data, $reference);
+                    break;
+                default:
+                    // Unknown event: recorded above, nothing to do
+                    break;
+            }
+        } catch (\Throwable $e) {
+            // Let go of the claim and answer 500: Paystack sends it again.
+            $this->unclaim($reference);
+            error_log('[Nfelia] Paystack webhook ' . $event_type . ' failed: ' . $e->getMessage());
+            http_response_code(500);
+            exit;
         }
-
-        // 4. Log the event
-        $this->log_event(
-            $biz_id,
-            $event_type,
-            $reference,
-            $event_data['amount'] ?? null,
-            $event_data['status'] ?? $event_type,
-            $event_data['gateway_response'] ?? $event_type,
-            $event_data
-        );
 
         http_response_code(200);
         echo json_encode(['status' => 'ok']);
@@ -317,12 +321,13 @@ class PaystackController {
             WHERE business_id = ?
         ")->execute([$reason ?: null, $biz_id]);
 
-        $this->log_event($biz_id, 'subscription.cancelled', 'cancel_' . time(), null, 'cancelled', 'Cancelled by owner: ' . ($reason ?: 'No reason given'), []);
-        $this->notify($biz_id, 'subscription_failed', 'Subscription Cancelled',
-            'Your subscription has been cancelled. Access continues until the end of your billing period.',
-            '/settings?tab=billing');
+        $this->claim($biz_id, 'subscription.cancelled', 'cancel_' . $biz_id . '_' . time(), null, 'cancelled', 'Cancelled by owner: ' . ($reason ?: 'No reason given'), []);
 
-        flash('success', 'Subscription cancelled. You retain access until the end of your current billing period.');
+        // They keep what they paid for (subscription_open() in functions.php).
+        $until = $sub['current_period_end'] ?: $sub['trial_ends_at'];
+        notify('billing.cancelled', $biz_id, ['access_until' => $until], ['dedupe' => 'cancel:' . date('Y-m-d H:i')]);
+
+        flash('success', 'Subscription cancelled.' . ($until ? ' You keep full access until ' . date('j M Y', strtotime($until)) . '.' : ''));
         redirect('settings?tab=billing');
     }
 
@@ -350,9 +355,16 @@ class PaystackController {
             ReferralController::reward_referral($this->db, $biz_id);
         }
 
-        $amount_ngn = number_format($amount_paid / 100, 0);
-        $this->notify($biz_id, 'payment_received', 'Payment Confirmed',
-            "â¦{$amount_ngn} payment received successfully.", '/settings?tab=billing');
+        $this->tell_paid($biz_id, $amount_paid, (string)($data['currency'] ?? 'NGN'), (string)($data['reference'] ?? ''));
+    }
+
+    /** The owner hears the payment went through, and until when they're covered. */
+    private function tell_paid(int $biz_id, int $amount_kobo, string $currency, string $reference): void {
+        $symbols = ['NGN' => '₦', 'GHS' => 'GH₵', 'KES' => 'KSh ', 'ZAR' => 'R', 'USD' => '$'];
+        $amount  = ($symbols[strtoupper($currency)] ?? strtoupper($currency) . ' ') . number_format($amount_kobo / 100, $amount_kobo % 100 ? 2 : 0);
+        $sub     = $this->get_subscription($biz_id);
+        notify('billing.paid', $biz_id, ['amount_text' => $amount, 'period_end' => $sub['current_period_end'] ?? null],
+               ['dedupe' => $reference !== '' ? $reference : 'paid:' . date('Y-m-d H:i')]);
     }
 
     private function activate_subscription(int $biz_id, int $amount_kobo, int $extra_seats, ?string $auth_code, ?string $cust_code, ?string $reference, bool $is_mid_cycle = false): void {
@@ -421,17 +433,26 @@ class PaystackController {
     }
 
     private function handle_subscription_disable(int $biz_id, array $data): void {
-        $this->db->prepare("
-            UPDATE subscriptions SET status = 'cancelled', cancelled_at = NOW(), updated_at = NOW()
+        $sub  = $this->get_subscription($biz_id);
+        $stmt = $this->db->prepare("
+            UPDATE subscriptions SET status = 'cancelled', cancelled_at = COALESCE(cancelled_at, NOW()), updated_at = NOW()
             WHERE business_id = ? AND status != 'cancelled'
-        ")->execute([$biz_id]);
-
-        $this->notify($biz_id, 'subscription_failed', 'Subscription Ended',
-            'Your subscription has been disabled. Please resubscribe to continue using Nfelia.',
-            '/settings?tab=billing');
+        ");
+        $stmt->execute([$biz_id]);
+        if ($stmt->rowCount() !== 1) {
+            return;   // already cancelled here (the owner did it): they were told then
+        }
+        // Paid time left: they keep it. None: it has ended.
+        $until = $sub['current_period_end'] ?? null;
+        $key   = 'disabled:' . ($data['subscription_code'] ?? '') . ':' . $until;
+        if ($until && planner_today() <= substr($until, 0, 10)) {
+            notify('billing.cancelled', $biz_id, ['access_until' => $until], ['dedupe' => $key]);
+        } else {
+            notify('billing.ended', $biz_id, [], ['dedupe' => $key]);
+        }
     }
 
-    private function handle_payment_failed(int $biz_id, array $data): void {
+    private function handle_payment_failed(int $biz_id, array $data, string $reference): void {
         $sub = $this->get_subscription($biz_id);
 
         if ($sub && $sub['status'] === 'active') {
@@ -444,9 +465,7 @@ class PaystackController {
             ")->execute([$biz_id]);
         }
 
-        $this->notify($biz_id, 'subscription_failed', 'Payment Failed',
-            'Your subscription payment failed. Please update your billing within 3 days to avoid service interruption.',
-            '/settings?tab=billing');
+        notify('billing.failed', $biz_id, [], ['dedupe' => $reference]);
     }
 
     /* ══════════════════════════════════════════
@@ -487,7 +506,14 @@ class PaystackController {
         return null;
     }
 
-    private function log_event(int $biz_id, string $type, string $reference, ?int $amount, string $status, string $description, $data): void {
+    /**
+     * Record a payment event, and claim it: true the first time this
+     * reference is seen, false when it was already handled (a resent
+     * webhook, the callback after the webhook, a refreshed page). If the
+     * record can't be written for another reason the event is still handled,
+     * as it always was.
+     */
+    private function claim(int $biz_id, string $type, string $reference, ?int $amount, string $status, string $description, $data): bool {
         $sub = $this->get_subscription($biz_id);
         try {
             $this->db->prepare("
@@ -503,25 +529,40 @@ class PaystackController {
                 $status,
                 json_encode($data),
             ]);
+            return true;
         } catch (\PDOException $e) {
             if ($e->getCode() == 23000) {
-                // Duplicate reference — idempotency guard already handled
-            } else {
-                error_log('[Nfelia] DB Error in log_event: ' . $e->getMessage());
+                return false;
             }
+            error_log('[Nfelia] DB Error recording Paystack event: ' . $e->getMessage());
+            return true;
         }
     }
 
-    // NFELIA AUDIT FIX — C07 — Fixed column name: link -> action_url — 2026-06-03
-    private function notify(int $biz_id, string $type, string $title, string $message, string $link = ''): void {
-        try {
-            $this->db->prepare("
-                INSERT INTO notifications (business_id, type, title, message, action_url, created_at)
-                VALUES (?, ?, ?, ?, ?, NOW())
-            ")->execute([$biz_id, $type, $title, $message, $link ?: null]);
-        } catch (\Exception $e) {
-            error_log('[Nfelia] notify() failed: ' . $e->getMessage());
+    /** Let go of a claim when handling the event failed, so it can be tried again. */
+    private function unclaim(string $reference): void {
+        $this->db->prepare("DELETE FROM subscription_history WHERE paystack_reference = ?")->execute([$reference]);
+    }
+
+    /**
+     * The same key every time Paystack sends the same event, and a
+     * different one for different events: a payment's own reference, an
+     * invoice's code, the event and the subscription's code, or else the
+     * body itself (never the time, which made every resend look new).
+     */
+    private function event_key(string $type, array $d, string $raw_body): string {
+        if ($type === 'charge.success' && !empty($d['reference'])) {
+            $key = (string)$d['reference'];
+        } elseif (!empty($d['invoice_code'])) {
+            $key = $type . ':' . $d['invoice_code'];
+        } elseif (!empty($d['subscription_code'])) {
+            $key = $type . ':' . $d['subscription_code'];
+        } elseif (!empty($d['id'])) {
+            $key = $type . ':' . $d['id'];
+        } else {
+            $key = $type . ':' . hash('sha256', $raw_body);
         }
+        return substr($key, 0, 100);
     }
 
     /**

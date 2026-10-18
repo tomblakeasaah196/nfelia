@@ -121,7 +121,7 @@ jobs:
 
           fail=0
           for path in .git .github .gitignore .deployignore .cpanel.yml \
-                      .env .user.ini php.ini docs bin db README.md; do
+                      .env .user.ini php.ini docs bin db tests README.md; do
             if grep -qE "^\./${path//./\\.}(/|\$)" "$members"; then
               echo "::error file=.deployignore::'${path}' would be copied into the PUBLIC docroot — its .deployignore entry does not match under tar (patterns must not start or end with '/'; a root-only entry looks like './${path}')"
               fail=1

@@ -127,12 +127,15 @@ $flash = get_flash();
         {"not": {"selector_matches": "[data-no-prefetch], [download], [target=_blank]"}}
     ]}, "eagerness": "moderate"}]}
     </script>
+    <script defer src="<?= $asset('assets/js/push.js') ?>"></script>
+    <script defer src="<?= $asset('assets/js/bell.js') ?>"></script>
     <script defer src="<?= $asset('assets/vendor/alpine-3.14.3.min.js') ?>"></script>
     <script>
         window.Nfelia = {
             url: '<?= APP_URL ?>',
             csrf: '<?= $_SESSION['csrf_token'] ?? '' ?>',
             currency: '<?= e($currency) ?>',
+            push: { enabled: <?= push_enabled() ? 'true' : 'false' ?>, key: '<?= e(VAPID_PUBLIC_KEY) ?>' },
             lock: { after: <?= LOCK_AFTER_SECONDS ?>, left: <?= $locked_page ? 0 : lock_seconds_left() ?>, locked: <?= $locked_page ? 'true' : 'false' ?>, user: <?= (int)$user['id'] ?>, passkeys: <?= $passkey_count ?> }
         };
     </script>
@@ -207,53 +210,14 @@ $flash = get_flash();
                 </div>
             </div>
 
-            <!-- Notifications -->
-            <div class="relative" x-data="{
-                count: 0,
-                notifications: [],
-                loaded: false,
-                loading: false,
-
-                // Fetch initial unread count
-                init() {
-                    fetch(window.Nfelia.url + '/api/notifications?action=count', { headers: { 'X-Nfelia-Background': '1' } })
-                        .then(r => r.json())
-                        .then(d => { this.count = d.count || 0; })
-                        .catch(() => {});
-                },
-
-                // Lazy load the list only when opened
-                loadNotifications() {
-                    if (this.loaded) return;
-                    this.loading = true;
-                    fetch(window.Nfelia.url + '/api/notifications?action=list')
-                        .then(r => r.json())
-                        .then(d => {
-                            if (d.success) {
-                                this.notifications = d.notifications || [];
-                                this.loaded = true;
-                            }
-                        })
-                        .catch(() => {})
-                        .finally(() => { this.loading = false; });
-                },
-
-                // Hit your mark_read endpoint
-                markAllRead() {
-                    fetch(window.Nfelia.url + '/api/notifications?action=mark_read', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ csrf_token: window.Nfelia.csrf, id: 'all' })
-                    }).then(() => {
-                        this.count = 0;
-                        this.notifications.forEach(n => n.is_read = 1);
-                    }).catch(() => {});
-                }
-            }" @keydown.escape="notifOpen = false">
-                <button type="button" @click="notifOpen = !notifOpen; if (notifOpen) loadNotifications();" @click.away="notifOpen = false" :aria-expanded="notifOpen"
+            <!-- Notifications (assets/js/bell.js). Each row opens notifications/open/{id}:
+                 marked read, then the exact page. -->
+            <div class="relative" x-data="nfBell()" @keydown.escape="notifOpen = false">
+                <button type="button" @click="notifOpen = !notifOpen; if (notifOpen) load();" @click.away="notifOpen = false" :aria-expanded="notifOpen"
                         class="nf-icon-btn" aria-label="Notifications" data-tip="Notifications">
                     <?= nav_icon('bell') ?>
                     <span class="nf-count" x-show="count > 0" x-cloak x-text="count > 9 ? '9+' : count"></span>
+                    <span class="sr-only" x-text="count > 0 ? count + ' unread' : ''"></span>
                 </button>
                 <div x-show="notifOpen" x-cloak x-transition.opacity.duration.150ms class="nf-pop is-sheetlike" role="dialog" aria-label="Notifications">
                     <div class="nf-pop-h">
@@ -261,24 +225,26 @@ $flash = get_flash();
                         <button type="button" x-show="count > 0" @click="markAllRead()">Mark all read</button>
                         <a class="nf-icon-btn" href="<?= APP_URL ?>/more#notifications" aria-label="Notification settings" data-tip="Notification settings"><?= nav_icon('settings') ?></a>
                     </div>
-                    <div style="overflow-y:auto;max-height:22rem" class="no-scrollbar">
+                    <div style="overflow-y:auto;max-height:22rem;flex:1" class="no-scrollbar">
                         <p x-show="loading" style="padding:20px 16px;color:var(--ink-3);font-size:.875rem">Loading…</p>
+                        <p x-show="failed" x-cloak style="padding:20px 16px;color:var(--ink-2);font-size:.875rem">Couldn’t load your notifications. Check your connection and open the bell again.</p>
                         <div x-show="!loading && loaded && notifications.length === 0" x-cloak style="padding:28px 20px;text-align:center">
                             <p style="font-weight:600;margin:0 0 4px">You're up to date</p>
                             <p style="color:var(--ink-2);font-size:.875rem;margin:0">Payments, reminders and new orders show up here.</p>
                         </div>
                         <template x-for="notif in notifications" :key="notif.id">
-                            <a :href="notif.action_url ? (notif.action_url.startsWith('http') ? notif.action_url : window.Nfelia.url + '/' + notif.action_url) : '#'"
+                            <a :href="window.Nfelia.url + '/' + notif.url" @click="open(notif)"
                                class="nf-note" :class="notif.is_read == 1 ? '' : 'is-new'">
                                 <i></i>
                                 <span style="min-width:0">
                                     <b x-text="notif.title"></b>
                                     <p x-text="notif.message"></p>
-                                    <small x-text="notif.formatted_date"></small>
+                                    <small x-text="notif.ago"></small>
                                 </span>
                             </a>
                         </template>
                     </div>
+                    <a class="nf-pop-all" href="<?= APP_URL ?>/notifications">See all notifications</a>
                 </div>
             </div>
 

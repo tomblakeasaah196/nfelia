@@ -83,7 +83,9 @@ function planner() {
         init: function () {
             var self = this;
             var p = D.prefill;
-            if (p.plan || (p.invoice && !p.new)) {
+            if (p.task) {
+                this.openItem(p.task);
+            } else if (p.plan || (p.invoice && !p.new)) {
                 this.openPlan(p);
             } else if (p.new) {
                 this.openEditor({ kind: p.new, date: p.date || this.today, customer_id: p.customer });
@@ -92,7 +94,7 @@ function planner() {
             } else {
                 this.restoreDraft();
             }
-            if (p.plan || p.new || p.invoice || p.customer || p.date || p.reminders) {
+            if (p.task || p.plan || p.new || p.invoice || p.customer || p.date || p.reminders) {
                 history.replaceState(null, '', BASE + '/tasks' + (this.tab === 'calendar' ? '?tab=calendar' : ''));
             }
             if (this.tab === 'calendar') this.loadMonth();
