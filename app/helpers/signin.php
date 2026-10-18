@@ -70,6 +70,73 @@ function signin_start(array $user): void
     // The first app page after this offers a passkey and the home-screen
     // app (views/layouts/app.php, assets/js/lock.js and shell.js).
     $_SESSION['just_signed_in'] = true;
+
+    signin_note_device($user);
+}
+
+/** The cookie that tells this device apart, a year long. */
+const DEVICE_COOKIE = '__Host-nfelia_device';
+
+/**
+ * Remember this device for this person. A sign-in from one they have not
+ * used before is told to them (bell, phone and email: security alerts
+ * always go), unless it is the first device Nfelia has seen them on.
+ */
+function signin_note_device(array $user): void
+{
+    try {
+        $token = $_COOKIE[DEVICE_COOKIE] ?? '';
+        if (!preg_match('/^[a-f0-9]{48}$/', $token)) {
+            $token = bin2hex(random_bytes(24));
+            if (!headers_sent()) {
+                setcookie(DEVICE_COOKIE, $token, [
+                    'expires' => strtotime('+1 year'), 'path' => '/', 'secure' => true, 'httponly' => true, 'samesite' => 'Lax',
+                ]);
+            }
+        }
+        $db    = get_db();
+        $hash  = hash('sha256', $token);
+        $label = signin_device_label((string)($_SERVER['HTTP_USER_AGENT'] ?? ''));
+        $known = $db->prepare("SELECT COUNT(*) AS n, SUM(device_hash = ?) AS here FROM user_devices WHERE user_id = ?");
+        $known->execute([$hash, $user['id']]);
+        $seen = $known->fetch();
+        $db->prepare("INSERT INTO user_devices (user_id, device_hash, label) VALUES (?, ?, ?)
+                      ON DUPLICATE KEY UPDATE last_seen_at = NOW(), label = VALUES(label)")
+           ->execute([$user['id'], $hash, $label]);
+        if ((int)$seen['n'] > 0 && !(int)$seen['here']) {
+            notify('security.new_device', (int)$user['business_id'], [
+                'device' => $label, 'when' => planner_now()->format('j M, g:ia'),
+            ], ['users' => [(int)$user['id']], 'dedupe' => $hash]);
+        }
+    } catch (Throwable $e) {
+        error_log('Nfelia device note: ' . $e->getMessage());
+    }
+}
+
+/** "Chrome on Android", "Safari on iPhone": enough for someone to recognise it. */
+function signin_device_label(string $ua): string
+{
+    $os = match (true) {
+        (bool)preg_match('/iPhone/i', $ua)        => 'iPhone',
+        (bool)preg_match('/iPad/i', $ua)          => 'iPad',
+        (bool)preg_match('/Android/i', $ua)       => 'Android',
+        (bool)preg_match('/Windows/i', $ua)       => 'Windows',
+        (bool)preg_match('/Mac OS X|Macintosh/i', $ua) => 'Mac',
+        (bool)preg_match('/CrOS/i', $ua)          => 'Chromebook',
+        (bool)preg_match('/Linux/i', $ua)         => 'Linux',
+        default                                   => '',
+    };
+    $browser = match (true) {
+        (bool)preg_match('/Edg\//i', $ua)               => 'Edge',
+        (bool)preg_match('/OPR\/|Opera/i', $ua)         => 'Opera',
+        (bool)preg_match('/SamsungBrowser/i', $ua)       => 'Samsung Internet',
+        (bool)preg_match('/Firefox|FxiOS/i', $ua)        => 'Firefox',
+        (bool)preg_match('/Chrome|CriOS/i', $ua)         => 'Chrome',
+        (bool)preg_match('/Safari/i', $ua)               => 'Safari',
+        default                                          => '',
+    };
+    $label = trim($browser . ($browser && $os ? ' on ' : '') . $os);
+    return $label !== '' ? $label : 'A new device';
 }
 
 /**

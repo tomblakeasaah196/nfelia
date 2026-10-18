@@ -108,6 +108,8 @@ try {
             $need_open();
             $added = passkey_register($user, $in);
             $where = $added['name'] === 'This device' ? 'this device' : 'this ' . $added['name'];
+            notify('security.passkey_added', (int)auth_business_id(), ['device' => $added['name'] === 'This device' ? 'a device' : $added['name']],
+                   ['users' => [(int)$user['id']], 'dedupe' => (string)($added['id'] ?? time())]);
             json_response(['ok' => true, 'passkey' => $added, 'message' => 'Passkey added on ' . $where . '.']);
 
         case 'passkey-unlock':

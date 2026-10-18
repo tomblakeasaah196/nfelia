@@ -319,6 +319,10 @@ class SettingsController {
 
         $remove_avatar = isset($_POST['remove_avatar']);
 
+        $stmt = $this->db->prepare("SELECT email FROM users WHERE id = ?");
+        $stmt->execute([$user['id']]);
+        $old_email = (string)$stmt->fetchColumn();
+
         $sql    = "UPDATE users SET full_name = ?, email = ?";
         $params = [$full_name, $email];
 
@@ -333,6 +337,20 @@ class SettingsController {
         $params[] = $user['id'];
 
         $this->db->prepare($sql)->execute($params);
+
+        // A changed sign-in email: the new address, the person's phones and
+        // the OLD address all hear, so a stolen account is noticed.
+        if (strcasecmp($old_email, $email) !== 0) {
+            notify('security.email_changed', $this->biz_id, ['new_email' => $email], ['users' => [(int)$user['id']], 'dedupe' => (string)time()]);
+            notify_email(null, $old_email, $full_name, 'Your Nfelia sign-in email was changed', 'notification', [
+                'headline' => 'Your sign-in email was changed',
+                'message'  => 'Your Nfelia account now signs in with ' . $email . ' instead of this address. If you didn’t do this, contact Nfelia support straight away.',
+                'lines'    => ['New email' => $email, 'When' => planner_now()->format('j M Y, g:ia')],
+                'button'   => 'Contact support',
+                'open_url' => 'mailto:support@nfelia.com',
+                'always'   => true,
+            ], 'email-changed:' . $user['id'] . ':' . time(), 'security.email_changed_old');
+        }
 
         $_SESSION['user']['full_name'] = $full_name;
         $_SESSION['user']['email']     = $email;
@@ -382,6 +400,8 @@ class SettingsController {
             password_hash($new_pass, PASSWORD_BCRYPT, ['cost' => 12]),
             $user['id']
         ]);
+        // Told on every device and by email, in case it wasn't them.
+        notify('security.password_changed', $this->biz_id, [], ['users' => [(int)$user['id']], 'dedupe' => (string)time()]);
 
         flash('success', 'Password changed successfully.');
         redirect('settings?tab=profile');
