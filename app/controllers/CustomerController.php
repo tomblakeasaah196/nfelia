@@ -139,7 +139,7 @@ class CustomerController {
 
         $editing = true;
 
-        $title     = "Edit — " . e($customer['full_name']);
+        $title     = "Edit — " . $customer['full_name'];
         $view_file = BASE_PATH . '/views/customers/form.php';
         require_once BASE_PATH . '/views/layouts/app.php';
     }
@@ -240,7 +240,7 @@ class CustomerController {
         $wa_number = preg_replace('/[^0-9]/', '', $wa_number);
         if (str_starts_with($wa_number, '0')) $wa_number = '234' . substr($wa_number, 1);
 
-        $title     = e($customer['full_name']);
+        $title     = $customer['full_name'];
         $view_file = BASE_PATH . '/views/customers/view.php';
         require_once BASE_PATH . '/views/layouts/app.php';
     }

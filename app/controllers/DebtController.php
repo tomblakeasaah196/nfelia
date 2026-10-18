@@ -215,7 +215,7 @@ class DebtController {
             if (str_starts_with($wa_number, '0')) $wa_number = '234' . substr($wa_number, 1);
         }
 
-        $title     = "Debt — " . e($debt['description']);
+        $title     = "Debt — " . $debt['description'];
         $view_file = BASE_PATH . '/views/debts/view.php';
         require_once BASE_PATH . '/views/layouts/app.php';
     }
