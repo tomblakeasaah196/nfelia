@@ -378,8 +378,9 @@ function save_media(array $file, string $dest_dir, string $base_name): ?array {
         return null;
     }
 
-    // 2. Handle Videos & GIFs natively (Already compressed by the browser)
-    $video_mimes = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-msvideo', 'video/avi', 'image/gif'];
+    // 2. MP4 videos and GIFs, kept as they are. Other video types were saved
+    //    with an .mp4 name they didn't match, so they are refused (W18).
+    $video_mimes = ['video/mp4', 'image/gif'];
     if (in_array($mime, $video_mimes)) {
         $ext = ($mime === 'image/gif') ? 'gif' : 'mp4';
         $dest = $dest_dir . '/' . $base_name . '.' . $ext;

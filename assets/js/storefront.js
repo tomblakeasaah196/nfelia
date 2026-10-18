@@ -488,6 +488,13 @@
             .then(function (r) { return r.json().catch(function () { return { error: 'Something went wrong. Please try again.' }; }); })
             .then(function (json) {
                 if (!json.success) {
+                    // Items the shop no longer sells leave the bag, so the
+                    // shopper sees what they would really order (W8)
+                    if (json.unavailable && json.unavailable.length) {
+                        cart = cart.filter(function (l) { return json.unavailable.indexOf(Number(l.id)) === -1; });
+                        saveCart();
+                        renderCart();
+                    }
                     stepError('pay', json.error || 'Something went wrong. Please try again.');
                     return;
                 }
@@ -502,6 +509,12 @@
                 }
                 cart = [];
                 saveCart();
+                // The next order in this visit starts clean: no old payment
+                // screenshot or note goes with it (W10)
+                var proofInput = $('input[name="payment_proof"]', bag);
+                if (proofInput) { proofInput.value = ''; proofInput.dispatchEvent(new Event('change', { bubbles: true })); }
+                var noteInput = $('[name="customer_note"]', bag);
+                if (noteInput) { noteInput.value = ''; }
                 $('[data-done-number]', bag).textContent = json.order_number;
                 var track = $('[data-done-track]', bag);
                 track.hidden = !trackPath;

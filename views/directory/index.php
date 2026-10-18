@@ -19,7 +19,7 @@ foreach ($cats as $key => $cat) {
 $all = seo_live_shops(get_db(), true);
 $cities = [];
 foreach ($all as $shop) {
-    if ($shop['city_slug']) {
+    if ($shop['city_slug'] && sf_known_city($shop['city']) !== '') {   // listed cities only (W17)
         $cities[$shop['city_slug']] ??= ['name' => $shop['city'], 'count' => 0];
         $cities[$shop['city_slug']]['count']++;
     }

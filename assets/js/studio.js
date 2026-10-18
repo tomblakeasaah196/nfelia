@@ -257,6 +257,7 @@
     var saveTimer = null;
     var saving = null;
     var saveAgain = false;
+    var saveFailed = false;   // the last save didn't reach the server
     var previewWanted = false;
     var previewScroll = null;
 
@@ -271,6 +272,7 @@
         if (saving) { saveAgain = true; return saving; }
         saving = api(D.urls.save, { settings: state })
             .then(function (json) {
+                saveFailed = false;
                 unpublished = json.unpublished;
                 updatePublish();
                 if (!saveAgain) {
@@ -282,6 +284,7 @@
                 }
             })
             .catch(function (err) {
+                saveFailed = true;
                 say(err.status === 419 ? err.message : 'Couldn\'t save: ' + err.message, true);
             })
             .then(function () {
@@ -355,7 +358,12 @@
         publishBtn.disabled = true;
         publishBtn.setAttribute('aria-busy', 'true');
         say('Publishing…');
-        flush().then(function () {
+        // Publish only what was saved last: after a failed save, try once
+        // more, and publish nothing if it still fails (W4)
+        (saveFailed ? save() : flush()).then(function () {
+            if (saveFailed) {
+                throw new Error('Your latest changes didn\'t save, so nothing was published. Check your connection and try again.');
+            }
             return api(D.urls.publish, {});
         }).then(function (json) {
             unpublished = false;

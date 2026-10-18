@@ -674,6 +674,14 @@ class PublicController
     protected function send_quote_request(array $business): void
     {
         $business_id = (int) $business["id"];
+        /* The owner switched the quote form off: none come in (W13) */
+        $quote = sf_section(storefront_settings($business, "published"), "quote");
+        if (empty($quote["on"])) {
+            json_response(
+                ["error" => "This shop isn't taking quote requests here right now. You can reach it on WhatsApp."],
+                403,
+            );
+        }
         $name = trim($_POST["name"] ?? "");
         $phone = trim($_POST["phone"] ?? "");
         $email = trim($_POST["email"] ?? "");
@@ -889,6 +897,18 @@ class PublicController
                         "These items are no longer available. Reload the page to see what's in the shop now.",
                 ],
                 422,
+            );
+        }
+        /* Some items went since the page loaded: say so, and let the bag drop
+           them, rather than placing a smaller order than the shopper saw (W8) */
+        if (count($order_items) !== count($lines)) {
+            json_response(
+                [
+                    "error" =>
+                        "Some items in your bag are no longer available. We've taken them out: check your bag and place the order again.",
+                    "unavailable" => array_values(array_unique(array_diff(array_column($lines, "product_id"), array_keys($catalogue)))),
+                ],
+                409,
             );
         }
         $this->public_form_guard("order", $business_id, $customer_email);

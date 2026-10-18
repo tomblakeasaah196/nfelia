@@ -359,7 +359,13 @@ class PurgeController
             // Files go only once the records are gone for good
             foreach (array_unique($files_to_unlink) as $rel_path) {
                 $full_path = BASE_PATH . "/" . ltrim($rel_path, "/");
-                if (is_file($full_path) && @unlink($full_path)) {
+                if (!is_file($full_path)) {
+                    continue;
+                }
+                if (str_starts_with(ltrim($rel_path, "/"), "uploads/")) {
+                    storefront_forget_image($rel_path);   // photos take their resized copies with them (W5)
+                    $unlinked_files++;
+                } elseif (@unlink($full_path)) {
                     $unlinked_files++;
                 }
             }

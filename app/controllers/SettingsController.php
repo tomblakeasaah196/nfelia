@@ -244,7 +244,16 @@ class SettingsController {
         $sql .= " WHERE id = ?";
         $params[] = $this->biz_id;
 
+        $stmtOld = $this->db->prepare("SELECT logo_path FROM businesses WHERE id = ?");
+        $stmtOld->execute([$this->biz_id]);
+        $old_logo = (string)$stmtOld->fetchColumn();
+
         $this->db->prepare($sql)->execute($params);
+
+        // A replaced or removed logo, and its copies, stop being public (W5)
+        if (($logo_path || $remove_logo) && $old_logo !== '' && $old_logo !== $logo_path) {
+            storefront_forget_image($old_logo);
+        }
 
         update_business_session($session_updates);
         storefront_purge((int)$this->biz_id);   // the shop shows the name, logo and contact details

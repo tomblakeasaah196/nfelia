@@ -752,9 +752,8 @@ class ProductController {
         $img = $stmt->fetch();
         if (!$img) { json_response(['error' => 'Image not found'], 404); }
 
-        // Delete file from disk
-        $full_path = BASE_PATH . '/' . $img['image_path'];
-        if (file_exists($full_path)) @unlink($full_path);
+        // Delete the file and its resized copies, which are cached for a year (W5)
+        storefront_forget_image($img['image_path']);
 
         // Delete DB record
         $this->db->prepare("DELETE FROM product_images WHERE id = ? AND business_id = ?")->execute([$image_id, $this->biz_id]);

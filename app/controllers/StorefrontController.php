@@ -44,10 +44,17 @@ class StorefrontController extends PublicController
         $method   = $_SERVER['REQUEST_METHOD'] ?? 'GET';
         errors_context_set(['source' => 'shop', 'business_id' => $business ? (int)$business['id'] : null]);
 
-        // An old name on hold sends people to the shop's new address
-        if (!$business && $valid && ($holder = shop_name_holder($label)) && (int)$holder['landing_enabled']) {
-            $this->moved($holder, $path, $method);
-            return;
+        // An old name on hold sends people to the shop's new address. A
+        // shopper's own order, review and booking links keep working on it
+        // even while the shop page is switched off, as on the new name (W12).
+        if (!$business && $valid && ($holder = shop_name_holder($label))) {
+            if ((int)$holder['landing_enabled']) {
+                $this->moved($holder, $path, $method);
+                return;
+            }
+            if (preg_match('#^(order|review|booking)/[a-f0-9]{32}#', $path)) {
+                $business = $holder;
+            }
         }
 
         if ($business && preg_match('#^booking/([a-f0-9]{32})(/calendar\.ics)?$#', $path, $m) && in_array($method, ['GET', 'HEAD'], true)) {
@@ -273,11 +280,13 @@ class StorefrontController extends PublicController
 
     private function publish_review(array $business, array $review, int $rating, string $comment): void
     {
+        // Where it came from, so the team can tell a shop reviewing itself (W14)
         $stmt = $this->db->prepare("
-            UPDATE reviews SET rating = ?, comment = ?, status = 'published', submitted_at = NOW()
+            UPDATE reviews SET rating = ?, comment = ?, status = 'published', submitted_at = NOW(), ip = ?, user_agent = ?
             WHERE id = ? AND status = 'invited'
         ");
-        $stmt->execute([$rating, $comment !== '' ? $comment : null, (int)$review['id']]);
+        $stmt->execute([$rating, $comment !== '' ? $comment : null, client_ip(),
+                        mb_substr((string)($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 255) ?: null, (int)$review['id']]);
         if ($stmt->rowCount() !== 1) {
             return;   // posted twice at once: the first one counts
         }

@@ -7,7 +7,7 @@
  */
 $logo     = (string)($business['logo_path'] ?? '');
 $logo_ok  = $logo !== '' && is_file(BASE_PATH . '/' . $logo) && str_starts_with($logo, 'uploads/');
-$address  = sf_short_address($business);
+$address  = !empty($contact['show_address']) ? sf_short_address($business) : '';   // hidden means hidden (W3)
 $bag_icon = match ($settings['look']) { 'harvest' => 'basket', 'market' => 'list', default => 'bag' };
 $bag_name = $settings['look'] === 'market' ? 'Your order' : 'Your bag';
 $sub_line = in_array($settings['look'], ['buka', 'harvest', 'desk'], true) ? $address : '';

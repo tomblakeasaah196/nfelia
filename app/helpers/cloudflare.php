@@ -20,6 +20,24 @@
  * purging is switched off or Cloudflare said no.
  */
 function cloudflare_purge_hosts(array $hosts): bool {
+    $hosts = array_values(array_unique(array_filter(
+        array_map('strtolower', $hosts),
+        fn($host) => (bool)preg_match('/^[a-z0-9-]+(\.[a-z0-9-]+)+$/', $host)
+    )));
+    return cloudflare_purge('hosts', $hosts);
+}
+
+/**
+ * Purge these exact addresses (a deleted photo and its resized copies,
+ * which are cached for a year). Returns false when purging is off or failed.
+ */
+function cloudflare_purge_files(array $urls): bool {
+    $urls = array_values(array_unique(array_filter($urls, fn($u) => (bool)preg_match('#^https?://#', (string)$u))));
+    return cloudflare_purge('files', $urls);
+}
+
+/** One purge call per 30 items: Cloudflare's limit for hosts and for files. */
+function cloudflare_purge(string $what, array $items): bool {
     $token = trim((string)($_ENV['CLOUDFLARE_API_TOKEN'] ?? ''));
     $zone  = trim((string)($_ENV['CLOUDFLARE_ZONE_ID'] ?? ''));
     if ($token === '' && $zone === '') {
@@ -29,20 +47,16 @@ function cloudflare_purge_hosts(array $hosts): bool {
         error_log('[Nfelia] Cloudflare purge skipped: set both CLOUDFLARE_API_TOKEN and CLOUDFLARE_ZONE_ID (a 32-character zone ID).');
         return false;
     }
-    $hosts = array_values(array_unique(array_filter(
-        array_map('strtolower', $hosts),
-        fn($host) => (bool)preg_match('/^[a-z0-9-]+(\.[a-z0-9-]+)+$/', $host)
-    )));
-    if (!$hosts || !function_exists('curl_init')) {
+    if (!$items || !function_exists('curl_init')) {
         return false;
     }
 
     $ok = true;
-    foreach (array_chunk($hosts, 30) as $chunk) {   // Cloudflare takes 30 hosts per call
+    foreach (array_chunk($items, 30) as $chunk) {   // Cloudflare takes 30 hosts or files per call
         $ch = curl_init('https://api.cloudflare.com/client/v4/zones/' . $zone . '/purge_cache');
         curl_setopt_array($ch, [
             CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => json_encode(['hosts' => $chunk]),
+            CURLOPT_POSTFIELDS     => json_encode([$what => $chunk]),
             CURLOPT_HTTPHEADER     => ['Authorization: Bearer ' . $token, 'Content-Type: application/json'],
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_CONNECTTIMEOUT => 2,

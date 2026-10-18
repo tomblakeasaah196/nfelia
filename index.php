@@ -56,6 +56,7 @@ set_exception_handler(function ($e) {
     while (ob_get_level()) { ob_end_clean(); }
 
     http_response_code(500);
+    header('Cache-Control: no-store', true);   // an error is never cached (W11)
     if ($GLOBALS['nf_error_ref']) header('X-Nfelia-Error: ' . $GLOBALS['nf_error_ref']);
     if (is_ajax() || str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json')) {
         header('Content-Type: application/json');

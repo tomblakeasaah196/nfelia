@@ -79,7 +79,7 @@ $text_html = $hero_section['text'] !== '' ? sf_paragraphs($hero_section['text'],
     case 'spec': ?>
     <div class="sf-wrap sf-hero__grid">
         <div class="sf-hero__body">
-            <?php $address = sf_short_address($business); if ($address !== '' || $badge !== ''): ?>
+            <?php $address = !empty($contact['show_address']) ? sf_short_address($business) : ''; if ($address !== '' || $badge !== ''): ?>
                 <p class="sf-hero__meta">
                     <?php if ($address !== ''): ?><span><?= sf_icon('pin', 16) ?><?= e($address) ?></span><?php endif; ?>
                     <?php if ($badge !== ''): ?><span class="sf-hero__flag"><?= e($badge) ?></span><?php endif; ?>

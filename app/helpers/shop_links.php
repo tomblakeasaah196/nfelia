@@ -62,12 +62,23 @@ const SHOP_REVIEW_WORDS = [
     'careline', 'password', 'crypto', 'forex', 'verified',
     // Nfelia itself ("nfelia-support")
     'nfelia',
+    // Account bait, rare inside ordinary words ("bvnupdate", "mtnbonus") (W16)
+    'bvn', 'mtn', 'login', 'signin', 'verify',
 ];
 
 const SHOP_REVIEW_PARTS = [
     'gtb', 'fbn', 'uba', 'alat', 'visa', 'verve', 'bank', 'mtn', 'glo', 'ntel', 'cbn', 'firs', 'npf',
     'army', 'navy', 'inec', 'ncc', 'gov', 'govt', 'customs', 'apple', 'loan', 'loans', 'grant',
     'refund', 'bonus', 'reward', 'bvn', 'nin', 'otp', 'wallet', 'investment',
+    // Account and payment words ("secure-login", "account-update") (W16)
+    'secure', 'security', 'account', 'accounts', 'update', 'auth', 'admin', 'support', 'helpdesk',
+    'billing', 'payment', 'payments', 'checkout', 'signup', 'verification',
+];
+
+/** Letters people swap for lookalikes ("nfe1ia", "g00gle", "rnoniepoint") (W16). */
+const SHOP_LOOKALIKES = [
+    ['0' => 'o', '1' => 'l', '3' => 'e', '4' => 'a', '5' => 's', '7' => 't', '8' => 'b', 'rn' => 'm', 'vv' => 'w'],
+    ['0' => 'o', '1' => 'i', '3' => 'e', '4' => 'a', '5' => 's', '7' => 't', '8' => 'b', 'rn' => 'm', 'vv' => 'w'],
 ];
 
 /**
@@ -170,13 +181,18 @@ function shop_name_normalise(string $raw): string {
  * Whether a name looks like a bank, telco, government body or official account.
  */
 function shop_name_needs_review(string $name): bool {
-    $compact = str_replace('-', '', $name);
-    foreach (SHOP_REVIEW_WORDS as $word) {
-        if (str_contains($compact, $word)) {
-            return true;
+    $compact  = str_replace('-', '', $name);
+    $variants = array_unique([$compact, ...array_map(fn($map) => strtr($compact, $map), SHOP_LOOKALIKES)]);
+    foreach ($variants as $variant) {
+        foreach (SHOP_REVIEW_WORDS as $word) {
+            if (str_contains($variant, $word)) {
+                return true;
+            }
         }
     }
-    return (bool)array_intersect(explode('-', $name), SHOP_REVIEW_PARTS);
+    $parts = explode('-', $name);
+    $folded = array_merge($parts, ...array_map(fn($map) => array_map(fn($p) => strtr($p, $map), $parts), SHOP_LOOKALIKES));
+    return (bool)array_intersect($folded, SHOP_REVIEW_PARTS);
 }
 
 /**

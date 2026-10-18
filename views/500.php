@@ -7,6 +7,11 @@
  * thing that broke may be the rest of the site.
  */
 http_response_code(500);
+// Never kept by Cloudflare or the browser, even on a shop page that had
+// already said it could be (W11)
+if (!headers_sent()) {
+    header('Cache-Control: no-store', true);
+}
 $ref  = isset($GLOBALS['nf_error_ref']) && is_string($GLOBALS['nf_error_ref']) && preg_match('/^E[A-Z0-9]{7}$/', $GLOBALS['nf_error_ref']) ? $GLOBALS['nf_error_ref'] : null;
 $home = defined('APP_URL') ? APP_URL : '/';
 $mail = 'mailto:support@nfelia.com?subject=' . rawurlencode('Something went wrong' . ($ref ? ' (' . $ref . ')' : ''));

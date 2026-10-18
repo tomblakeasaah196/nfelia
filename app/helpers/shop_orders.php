@@ -19,7 +19,9 @@ function shop_order_token(): string {
  * links existed get a token the first time someone asks for one.
  */
 function shop_order_url(PDO $db, array $order, array $business): ?string {
-    if (empty($business['subdomain']) || ($business['subdomain_status'] ?? 'active') !== 'active') {
+    // A shop with a live link has tracking links, also while a new name it
+    // asked for is being checked (W7)
+    if (empty($business['subdomain'])) {
         return null;
     }
     $token = (string)($order['public_token'] ?? '');
@@ -110,6 +112,15 @@ function shop_order_steps(array $order, string $shop_name): array {
         $steps[] = [
             'label'  => $confirmed ? 'Confirmed with you' : 'Waiting to be confirmed',
             'detail' => $confirmed ? '' : 'Send it to ' . $shop_name . ' on WhatsApp if you haven\'t yet, so they can confirm it with you.',
+            'state'  => $confirmed ? 'done' : 'now',
+            'time'   => $confirmed ? ($order['reviewed_at'] ?? null) : null,
+        ];
+    } elseif (($order['payment_method'] ?? 'none') === 'none') {
+        // No transfer was made (the shop has no bank account on its page):
+        // nothing to check, only to confirm (W15)
+        $steps[] = [
+            'label'  => $confirmed ? 'Confirmed' : 'Waiting to be confirmed',
+            'detail' => $confirmed ? '' : $shop_name . ' will contact you on the number you gave.',
             'state'  => $confirmed ? 'done' : 'now',
             'time'   => $confirmed ? ($order['reviewed_at'] ?? null) : null,
         ];
