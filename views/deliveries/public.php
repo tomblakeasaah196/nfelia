@@ -22,7 +22,7 @@ $status_color = $statuses[$delivery['status']]['color'] ?? 'bg-gray-100 text-gra
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= e($delivery['doc_number']) ?> — <?= e($business['business_name']) ?></title>
+    <title><?= e($delivery['doc_number']) ?> — <?= e($business['name']) ?></title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=<?= urlencode($font) ?>:wght@400;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
@@ -51,7 +51,7 @@ $status_color = $statuses[$delivery['status']]['color'] ?? 'bg-gray-100 text-gra
                 <?php if ($logo_url): ?>
                     <img src="<?= e($logo_url) ?>" alt="Logo" class="h-8 w-8 object-contain rounded">
                 <?php endif; ?>
-                <span class="text-sm font-bold brand-primary"><?= e($business['business_name']) ?></span>
+                <span class="text-sm font-bold brand-primary"><?= e($business['name']) ?></span>
             </div>
             <div class="flex items-center gap-2">
                 <button onclick="window.print()" class="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">Print</button>
@@ -71,7 +71,7 @@ $status_color = $statuses[$delivery['status']]['color'] ?? 'bg-gray-100 text-gra
                         <?php if ($logo_url): ?>
                             <img src="<?= e($logo_url) ?>" alt="Logo" class="h-12 w-12 object-contain rounded-lg bg-white/10 p-1 mb-3">
                         <?php endif; ?>
-                        <h1 class="text-2xl font-extrabold tracking-tight"><?= e($business['business_name']) ?></h1>
+                        <h1 class="text-2xl font-extrabold tracking-tight"><?= e($business['name']) ?></h1>
                         <?php if (!empty($business['address'])): ?>
                             <p class="text-xs opacity-70 mt-1"><?= e($business['address']) ?></p>
                         <?php endif; ?>
@@ -119,7 +119,7 @@ $status_color = $statuses[$delivery['status']]['color'] ?? 'bg-gray-100 text-gra
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div>
                         <div class="text-[9px] font-bold uppercase tracking-widest text-gray-400 mb-2">From (Sender)</div>
-                        <div class="text-sm font-bold brand-primary"><?= e($business['business_name']) ?></div>
+                        <div class="text-sm font-bold brand-primary"><?= e($business['name']) ?></div>
                         <?php if ($delivery['pickup_address']): ?>
                             <p class="text-xs text-gray-600 mt-1 leading-relaxed"><?= nl2br(e($delivery['pickup_address'])) ?></p>
                         <?php endif; ?>
@@ -266,7 +266,7 @@ $status_color = $statuses[$delivery['status']]['color'] ?? 'bg-gray-100 text-gra
 
             <!-- Footer -->
             <div class="bg-gray-50 border-t border-gray-200 px-8 py-4 text-center">
-                <p class="text-[10px] text-gray-400">This is a computer-generated document from <strong><?= e($business['business_name']) ?></strong> via Nfelia.</p>
+                <p class="text-[10px] text-gray-400">This is a computer-generated document from <strong><?= e($business['name']) ?></strong> via Nfelia.</p>
             </div>
         </div>
     </div>

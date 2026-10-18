@@ -26,10 +26,3 @@ function doc_url(string $token): string {
 function signoff_url(string $signoff_token): string {
     return APP_URL . '/sign/' . $signoff_token;
 }
-
-/**
- * Build the public business profile URL
- */
-function biz_url(string $slug): string {
-    return APP_URL . '/biz/' . $slug;
-}

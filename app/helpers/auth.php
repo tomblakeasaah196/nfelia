@@ -59,14 +59,16 @@ function update_business_session(array $fields): void {
 function logout_user(): void {
     $_SESSION = [];
     session_destroy();
-    if (isset($_COOKIE['nfelia_remember'])) {
-        setcookie('nfelia_remember', '', [
-            'expires'  => time() - 3600,
-            'path'     => '/',
-            'secure'   => true,
-            'httponly' => true,
-            'samesite' => 'Lax'
-        ]);
+    foreach ([REMEMBER_COOKIE, 'nfelia_remember'] as $cookie) {
+        if (isset($_COOKIE[$cookie])) {
+            setcookie($cookie, '', [
+                'expires'  => time() - 3600,
+                'path'     => '/',
+                'secure'   => true,
+                'httponly' => true,
+                'samesite' => 'Lax'
+            ]);
+        }
     }
 }
 

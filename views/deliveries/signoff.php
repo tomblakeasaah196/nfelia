@@ -43,7 +43,7 @@ $already_signed = ($delivery['status'] === 'signed_off' && $delivery['signoff_na
             <?php if ($logo_url): ?>
                 <img src="<?= e($logo_url) ?>" alt="Logo" class="h-12 w-12 object-contain rounded-xl mx-auto mb-2 shadow-sm">
             <?php endif; ?>
-            <h1 class="text-lg font-extrabold brand-primary"><?= e($business['business_name']) ?></h1>
+            <h1 class="text-lg font-extrabold brand-primary"><?= e($business['name']) ?></h1>
             <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Delivery Confirmation</p>
         </div>
 
@@ -187,6 +187,10 @@ $already_signed = ($delivery['status'] === 'signed_off' && $delivery['signoff_na
                     <svg class="w-10 h-10 text-green-500 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                     <p class="text-sm font-bold text-green-700">Receipt Confirmed!</p>
                     <p class="text-[10px] text-green-500 mt-1">Thank you. The sender has been notified.</p>
+                    <a x-show="reviewUrl" x-cloak :href="reviewUrl"
+                       class="mt-4 inline-flex items-center justify-center w-full py-3 rounded-xl text-sm font-bold text-white bg-brand-primary hover:opacity-90">
+                        Rate your order
+                    </a>
                 </div>
 
                 <!-- Submit Button -->
@@ -218,6 +222,7 @@ $already_signed = ($delivery['status'] === 'signed_off' && $delivery['signoff_na
             submitting: false,
             success: false,
             errorMsg: '',
+            reviewUrl: '',
 
             // Canvas state
             canvas: null,
@@ -307,6 +312,7 @@ $already_signed = ($delivery['status'] === 'signed_off' && $delivery['signoff_na
 
                     if (data.success) {
                         this.success = true;
+                        this.reviewUrl = data.review_url || '';
                     } else {
                         this.errorMsg = data.error || 'Something went wrong. Please try again.';
                     }

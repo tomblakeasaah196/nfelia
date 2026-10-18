@@ -26,6 +26,9 @@ function nav_icon(string $name): string
         'debt'      => '<path d="M12 3v18M17 7.5a4 4 0 0 0-4-2.5h-2a3 3 0 0 0 0 6h2a3 3 0 0 1 0 6h-2a4 4 0 0 1-4-2.5"/>',
         'report'    => '<path d="M4 20h16M7 16v-4M12 16V6M17 16v-7"/>',
         'orders'    => '<path d="M6 7h12l-1 13H7L6 7Z"/><path d="M9 7a3 3 0 0 1 6 0"/>',
+        'bookings'  => '<rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4M8 14h3M8 17h6"/>',
+        'news'      => '<path d="M5 4h10.5L19 7.5V20H5Z"/><path d="M8 9h5M8 12.5h8M8 16h8"/>',
+        'studio'    => '<path d="M4 20h16M6 16l9.5-9.5a2.1 2.1 0 0 1 3 3L9 19H6Z"/><path d="m13.5 8.5 2 2"/>',
         'globe'     => '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9S14.5 18.4 12 21M12 3C9.5 5.6 8.2 8.6 8.2 12s1.3 6.4 3.8 9"/>',
         'gift'      => '<rect x="3.5" y="8" width="17" height="4" rx="1"/><path d="M5 12v8h14v-8M12 8v12M12 8c-1.5-4-6-4-6-1.5S10 8 12 8Zm0 0c1.5-4 6-4 6-1.5S14 8 12 8Z"/>',
         'trash'     => '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
@@ -87,7 +90,9 @@ function nav_groups(string $role, string $business_type, int $business_id): arra
         ],
         'Storefront' => [
             ['Orders', 'orders', 'orders', $all],
-            ['Landing page', 'landing-page/settings', 'globe', $boss],
+            ['Bookings', 'bookings', 'bookings', $all],
+            ['News and offers', 'posts', 'news', $boss],
+            ['Shop Studio', 'landing-page', 'studio', $boss],
             ['Referrals', 'referrals', 'gift', $all],
         ],
         'Data' => [

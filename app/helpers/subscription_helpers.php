@@ -329,7 +329,7 @@ function get_nav_items(): array {
         ['page' => 'quotations',    'label' => 'Quotations',      'icon' => 'quotations',    'always' => true],
         ['page' => 'deliveries',    'label' => 'Deliveries',      'icon' => 'deliveries',    'always' => true],
         ['page' => 'reports',       'label' => 'Profit & Loss',   'icon' => 'reports',       'always' => false],
-        ['page' => 'landing-page',  'label' => 'Landing Page',    'icon' => 'landing',       'always' => false],
+        ['page' => 'landing-page',  'label' => 'Shop Studio',     'icon' => 'landing',       'always' => false],
         ['page' => 'settings',      'label' => 'Settings',        'icon' => 'settings',      'always' => true],
     ];
 

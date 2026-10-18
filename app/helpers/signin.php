@@ -90,7 +90,8 @@ function signin_remember(array $user): void
     ]);
     $_SESSION['remember_id'] = (int)$db->lastInsertId();
 
-    setcookie('nfelia_remember', $token, [
+    // The __Host- name keeps shop subdomains from setting or overwriting it
+    setcookie(REMEMBER_COOKIE, $token, [
         'expires'  => strtotime('+30 days'),
         'path'     => '/',
         'secure'   => true,

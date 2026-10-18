@@ -4,7 +4,7 @@
  * Restricted to business_id = 1 (founder account).
  * Route prefix: /admin/*
  *
- * Tabs: Dashboard, Businesses, Feedback, Referrals, Support, Financials
+ * Tabs: Dashboard, Businesses, Feedback, Referrals, Support, Shop names, Financials
  */
 class AdminController {
 
@@ -201,7 +201,26 @@ class AdminController {
                 return;
         }
 
+        // Whether the shop is open follows the subscription
+        storefront_purge($biz_id);
         json_response(['success' => true, 'message' => ucfirst($action) . ' completed.']);
+    }
+
+    /* ══════════════════════════════════════════
+     *  "SHOP BY NFELIA" ADD-ON — POST
+     *  The paid add-on takes the line off a shop's footer.
+     * ══════════════════════════════════════════ */
+    public function shop_credit() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { redirect('admin/businesses'); }
+        csrf_verify();
+
+        $biz_id = (int)($_POST['business_id'] ?? 0);
+        $hide   = ($_POST['hide'] ?? '') === '1' ? 1 : 0;
+        $this->db->prepare("UPDATE businesses SET hide_nfelia_credit = ? WHERE id = ?")->execute([$hide, $biz_id]);
+        storefront_purge($biz_id);
+
+        flash('success', $hide ? 'That shop no longer shows "Shop by Nfelia".' : 'That shop shows "Shop by Nfelia" again.');
+        redirect('admin/businesses');
     }
 
     /* ══════════════════════════════════════════
@@ -450,9 +469,177 @@ class AdminController {
         redirect('admin/support');
     }
 
+    /* ══════════════════════════════════════════
+     *  SHOP NAMES — names waiting for approval
+     *  Names that look like a bank, telco, government body or an official
+     *  account wait here (see shop_name_needs_review in shop_links.php).
+     * ══════════════════════════════════════════ */
+    /**
+     * Reviews shoppers posted on shops, newest first. The founder can hide
+     * one that breaks the rules (abuse, someone's phone number, spam) and
+     * show it again; nobody can edit what a shopper wrote.
+     */
+    public function reviews() {
+        $filter = in_array($_GET['show'] ?? '', ['hidden', 'low'], true) ? $_GET['show'] : 'all';
+        $where  = match ($filter) {
+            'hidden' => "r.status = 'hidden'",
+            'low'    => "r.status IN ('published', 'hidden') AND r.rating <= 2",
+            default  => "r.status IN ('published', 'hidden')",
+        };
+        $stmt = $this->db->query("
+            SELECT r.id, r.rating, r.comment, r.status, r.customer_name, r.submitted_at, r.hidden_at,
+                   o.order_number, b.id AS business_id, b.name AS business_name, b.subdomain
+            FROM reviews r
+            JOIN orders o ON o.id = r.order_id
+            JOIN businesses b ON b.id = r.business_id
+            WHERE {$where}
+            ORDER BY r.submitted_at DESC, r.id DESC
+            LIMIT 200
+        ");
+        $reviews = $stmt->fetchAll();
+        $review_filter = $filter;
+
+        $tab       = 'reviews';
+        $title     = 'Admin — Reviews';
+        $view_file = BASE_PATH . '/views/admin/index.php';
+        require_once BASE_PATH . '/views/layouts/app.php';
+    }
+
+    public function review_visibility() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { redirect('admin/reviews'); }
+        csrf_verify();
+
+        $review_id = (int)($_POST['review_id'] ?? 0);
+        $hide      = ($_POST['hide'] ?? '') === '1';
+        $stmt = $this->db->prepare("SELECT business_id FROM reviews WHERE id = ? AND status IN ('published', 'hidden')");
+        $stmt->execute([$review_id]);
+        $biz_id = (int)$stmt->fetchColumn();
+        if ($biz_id) {
+            $this->db->prepare("UPDATE reviews SET status = ?, hidden_at = ? WHERE id = ?")
+                     ->execute([$hide ? 'hidden' : 'published', $hide ? date('Y-m-d H:i:s') : null, $review_id]);
+            storefront_purge($biz_id);
+            flash('success', $hide ? 'That review is hidden from the shop.' : 'That review shows on the shop again.');
+        }
+        redirect('admin/reviews');
+    }
+
+    public function shop_names() {
+        $stmt = $this->db->query("
+            SELECT b.id, b.name, b.category, b.email, b.phone, b.created_at,
+                   b.subdomain, b.subdomain_requested, b.subdomain_requested_at
+            FROM businesses b
+            WHERE b.subdomain_status = 'pending' AND b.subdomain_requested IS NOT NULL
+            ORDER BY b.subdomain_requested_at ASC
+        ");
+        $pending_names = $stmt->fetchAll();
+
+        $tab       = 'shop_names';
+        $title     = 'Admin — Shop names';
+        $view_file = BASE_PATH . '/views/admin/index.php';
+        require_once BASE_PATH . '/views/layouts/app.php';
+    }
+
+    /* ══════════════════════════════════════════
+     *  APPROVE OR TURN DOWN A SHOP NAME — POST
+     * ══════════════════════════════════════════ */
+    public function review_shop_name() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { redirect('admin/shop-names'); }
+        csrf_verify();
+
+        $biz_id   = (int)($_POST['business_id'] ?? 0);
+        $name     = (string)($_POST['name'] ?? '');
+        $decision = $_POST['decision'] ?? '';
+
+        $stmt = $this->db->prepare("SELECT id, name, subdomain, subdomain_requested, subdomain_status FROM businesses WHERE id = ?");
+        $stmt->execute([$biz_id]);
+        $biz = $stmt->fetch();
+
+        // The owner may have picked another name since this page loaded
+        if (!$biz || $biz['subdomain_status'] !== 'pending' || $biz['subdomain_requested'] !== $name
+            || !in_array($decision, ['approve', 'reject'], true)) {
+            flash('warning', 'That request changed since the page loaded. This is the current list.');
+            redirect('admin/shop-names');
+        }
+
+        $host      = $name . '.' . shop_base_host();
+        $is_rename = $biz['subdomain'] !== null;
+
+        if ($decision === 'reject') {
+            // A shop with a live link keeps it; one without goes back to setup
+            $this->db->prepare("
+                UPDATE businesses
+                SET subdomain_requested = NULL, subdomain_status = ?, subdomain_requested_at = NULL,
+                    subdomain_reviewed_at = NOW(), subdomain_reviewed_by = ?
+                WHERE id = ? AND subdomain_status = 'pending' AND subdomain_requested = ?
+            ")->execute([$is_rename ? 'active' : 'rejected', auth_user()['id'], $biz_id, $name]);
+
+            if ($is_rename) {
+                shop_notify($biz_id, 'Your shop link stays the same', "We couldn't approve {$host}. Your shop keeps its current link.", 'landing-page');
+            } else {
+                shop_notify($biz_id, 'Please choose another shop name', "We couldn't approve {$host}. Choose another name to open your shop.", 'shop-setup');
+            }
+
+            flash('success', $host . ' was turned down. ' . $biz['name'] . ' has been told.');
+            redirect('admin/shop-names');
+        }
+
+        // The rules may have changed since the request, so check once more
+        $check = shop_name_check($name, $biz_id);
+        if (!in_array($check['state'], ['ok', 'review'], true)) {
+            flash('error', $host . ' can\'t be used: ' . $check['message']);
+            redirect('admin/shop-names');
+        }
+
+        try {
+            $this->db->beginTransaction();
+            $this->db->prepare("
+                UPDATE businesses
+                SET subdomain = ?, subdomain_renames = subdomain_renames + ?,
+                    subdomain_requested = NULL, subdomain_status = 'active', subdomain_requested_at = NULL,
+                    subdomain_reviewed_at = NOW(), subdomain_reviewed_by = ?
+                WHERE id = ? AND subdomain_status = 'pending' AND subdomain_requested = ?
+            ")->execute([$name, $is_rename ? 1 : 0, auth_user()['id'], $biz_id, $name]);
+            // The old name keeps sending people to the shop for 90 days
+            if ($is_rename) {
+                shop_name_hold($biz_id, $biz['subdomain']);
+            }
+            shop_name_release($biz_id, $name);
+            $this->db->commit();
+        } catch (PDOException $e) {
+            if ($this->db->inTransaction()) { $this->db->rollBack(); }
+            if ($e->getCode() !== '23000') { throw $e; }
+            flash('error', 'Another shop already has ' . $host . '.');
+            redirect('admin/shop-names');
+        }
+        storefront_purge($biz_id, $is_rename ? [$biz['subdomain']] : []);
+
+        if ($is_rename) {
+            shop_notify($biz_id, 'Your new shop link is live', "{$host} is approved. Your old link sends people to it for the next 90 days, so update it wherever you've shared it.", 'landing-page');
+        } else {
+            shop_notify($biz_id, 'Your shop link is live', "{$host} is approved. Share it with your customers.", 'landing-page');
+        }
+
+        flash('success', $host . ' is live for ' . $biz['name'] . '.');
+        redirect('admin/shop-names');
+    }
+
     /* ── Internal helpers ─────────────────────── */
 
+    /**
+     * notifications.type is an ENUM: a type it doesn't list (support_reply,
+     * subscription_suspended…) made the insert fail and the owner was never
+     * told. Those go in as 'general'.
+     */
+    private const NOTIFICATION_TYPES = [
+        'low_stock', 'invoice_overdue', 'payment_received', 'delivery_signed', 'subscription_renewal',
+        'subscription_failed', 'trial_ending', 'feedback_request', 'general', 'momo_submitted', 'momo_approved',
+        'momo_rejected', 'subscription_activated', 'subscription_cancelled',
+    ];
+
     private function admin_notify(int $biz_id, string $type, string $message): void {
+        if (!in_array($type, self::NOTIFICATION_TYPES, true)) {
+            $type = 'general';
+        }
         try {
             $stmt = $this->db->prepare("
                 INSERT INTO notifications (business_id, type, title, message, created_at)

@@ -9,6 +9,26 @@ ini_set('session.cookie_secure', 1);   // Forces cookies over HTTPS only
 ini_set('session.use_strict_mode', 1); // Prevents session fixation
 // -----------------------------------------
 
+// Shops live on name.nfelia.com. A page on a subdomain may set cookies for
+// the whole of nfelia.com, so the session cookie carries the __Host- prefix:
+// browsers then accept it only from nfelia.com itself, over HTTPS, with no
+// Domain attribute, and nothing on a shop subdomain can set or replace it.
+// Renaming the cookie signs everyone out once; "keep me signed in" restores
+// those who ticked it.
+session_name('__Host-nfelia_session');
+session_set_cookie_params([
+    'lifetime' => 0,
+    'path'     => '/',
+    'secure'   => true,
+    'httponly' => true,
+    'samesite' => 'Lax',
+]);
+
+// "Keep me signed in" carries the same prefix for the same reason. The old
+// cookie, nfelia_remember, is never read again (a shop subdomain could have
+// planted one) and is cleared when a browser still sends it.
+define('REMEMBER_COOKIE', '__Host-nfelia_remember');
+
 define('APP_NAME',    $_ENV['APP_NAME']    ?? 'Nfelia');
 define('APP_URL',     rtrim($_ENV['APP_URL'] ?? 'https://nfelia.com', '/'));
 define('APP_ENV',     $_ENV['APP_ENV']     ?? 'production');
@@ -82,5 +102,15 @@ define('FONT_PAIRINGS', [
     'bold_display' => [
         'heading' => 'Syne',
         'body'    => 'Outfit',
+    ],
+    // These two are offered in Settings (SettingsController::FONT_OPTIONS) and
+    // were missing here, so choosing them quietly showed Inter + DM Sans.
+    'classic_tech' => [
+        'heading' => 'Roboto Mono',
+        'body'    => 'Roboto',
+    ],
+    'elegant_serif' => [
+        'heading' => 'Playfair Display',
+        'body'    => 'Lato',
     ],
 ]);

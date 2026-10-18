@@ -1,9 +1,25 @@
 <?php
 /**
- * Nfelia — Landing Page Manager
- * Lets the business owner configure their public profile page.
+ * Nfelia — Shop Studio (route /landing-page, which used to be the Landing
+ * Page screen)
  *
- * NFELIA UPDATE — Hero background media upload (image + GIF + video → MP4) — 2026-06-05
+ * Owners change their shop's look, colours, fonts and sections, with a live
+ * preview of the draft. Nothing reaches shoppers until Publish: the draft is
+ * businesses.storefront_draft, what shoppers see is storefront_published,
+ * and every publish is kept in storefront_versions (the last ten) so an
+ * older one can be brought back into the draft.
+ *
+ * GET  /landing-page                   the Studio (views/studio/index.php)
+ * GET  /landing-page/preview           the draft, drawn as the shop (private)
+ * POST /landing-page/save-draft        JSON {settings} → the cleaned draft
+ * POST /landing-page/publish           draft → shoppers, keeps a version
+ * GET  /landing-page/versions          the last ten publishes (JSON)
+ * POST /landing-page/restore-version   a version → the draft
+ * POST /landing-page/upload-image      a hero photo or video for the draft
+ * POST /landing-page/visibility        switch the whole shop on or off
+ *
+ * Every POST checks the CSRF token, sent as the X-CSRF-Token header or a
+ * csrf_token field. The shop link itself is changed through ShopSetupController.
  */
 class LandingPageController {
 
@@ -13,227 +29,307 @@ class LandingPageController {
     public function __construct() {
         if (!is_logged_in()) { redirect('login'); }
         $this->db     = get_db();
-        $this->biz_id = auth_business_id();
+        $this->biz_id = (int)auth_business_id();
+
+        // The same people who see Shop Studio in the menu
+        $role = strtolower(auth_user()['role'] ?? 'staff');
+        if (!in_array($role, ['owner', 'admin'], true)) {
+            if ($_SERVER['REQUEST_METHOD'] === 'POST' || str_contains((string)($_SERVER['HTTP_ACCEPT'] ?? ''), 'application/json')) {
+                json_response(['error' => 'Only the owner or an admin can change the shop.'], 403);
+            }
+            flash('error', 'Only the owner or an admin can change the shop.');
+            redirect('dashboard');
+        }
     }
 
     /* ──────────────────────────────────────────
-     *  SETTINGS — GET & POST
+     *  THE STUDIO — GET /landing-page
      * ────────────────────────────────────────── */
     public function settings() {
-        $user     = auth_user();
-        $business = auth_business();
+        $business = $this->business();
+        update_business_session($business);
 
-        // Refresh business from DB to avoid stale session keys
-        $stmtBiz = $this->db->prepare("SELECT * FROM businesses WHERE id = ?");
-        $stmtBiz->execute([$this->biz_id]);
-        $business = $stmtBiz->fetch();
-        update_business_session((array)$business);
+        $draft     = storefront_settings($business, 'draft');
+        $published = $business['storefront_published'] ? storefront_settings($business, 'published') : null;
 
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            csrf_verify();
-            return $this->save_settings();
-        }
-
-        // All active products for the picker
-        $stmtP = $this->db->prepare("
+        $stmt = $this->db->prepare("
             SELECT id, name, sell_price, is_service, image_path, category
             FROM products
             WHERE business_id = ? AND deleted_at IS NULL AND is_active = 1
             ORDER BY name ASC
-        ");
-        $stmtP->execute([$this->biz_id]);
-        $all_products = $stmtP->fetchAll();
+            LIMIT " . (int)MAX_PRODUCTS);
+        $stmt->execute([$this->biz_id]);
+        $products = $stmt->fetchAll();
 
-        // Current featured IDs
-        $featured_ids = json_decode($business['featured_product_ids'] ?? '[]', true) ?: [];
+        $public_url   = $business['subdomain'] ? shop_url($business['subdomain']) : null;
+        $shop_host    = $public_url ? $business['subdomain'] . '.' . shop_base_host() : null;
+        $pending_name = $business['subdomain_status'] === 'pending' ? $business['subdomain_requested'] : null;
+        $can_rename   = $public_url && (int)$business['subdomain_renames'] < 1 && !$pending_name && is_owner();
+        $unpublished  = $published === null || $published != $draft;
+        $theme        = storefront_resolve($draft);
 
-        // Public URL
-        $public_url = $business['slug'] ? APP_URL . '/biz/' . $business['slug'] : null;
-
-        $title     = "Landing Page";
-        $view_file = BASE_PATH . '/views/landing/settings.php';
-        require_once BASE_PATH . '/views/layouts/app.php';
+        header('Cache-Control: private, no-store');
+        require BASE_PATH . '/views/studio/index.php';
     }
 
     /* ──────────────────────────────────────────
-     *  AJAX — Hero media upload
-     *  POST /landing-page/upload-hero
-     *  Accepts: image/jpeg, image/png, image/webp, image/gif,
-     *           video/mp4, video/quicktime, video/webm
-     *  Returns: JSON { success, path, type, url }
+     *  PREVIEW — GET /landing-page/preview
+     *  The draft as shoppers would see it. Never cached, never indexed, and
+     *  it can't place orders (storefront.js knows from $mode).
      * ────────────────────────────────────────── */
-    public function upload_hero(): void {
-        header('Content-Type: application/json');
+    public function preview() {
+        $business = $this->business();
+        header('Cache-Control: private, no-store');
+        header('X-Robots-Tag: noindex, nofollow');
+        storefront_render($business, storefront_settings($business, 'draft'), 'preview');
+    }
 
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            http_response_code(405);
-            echo json_encode(['error' => 'POST only']);
-            exit;
+    /* ──────────────────────────────────────────
+     *  SAVE THE DRAFT — POST /landing-page/save-draft
+     *  Body: {"settings": {...}} as JSON. Answers with the settings as they
+     *  were stored (cleaned, colours checked) and the colours the preview
+     *  should show.
+     * ────────────────────────────────────────── */
+    public function save_draft() {
+        $this->require_post();
+        $raw = file_get_contents('php://input') ?: '';
+        if (strlen($raw) > STOREFRONT_MAX_SETTINGS_BYTES) {
+            json_response(['error' => 'That is more than a shop page can hold. Shorten some of the text and try again.'], 413);
+        }
+        $body = json_decode($raw, true);
+        if (!is_array($body) || !is_array($body['settings'] ?? null)) {
+            json_response(['error' => 'Nothing to save.'], 422);
         }
 
-        // Verify CSRF
-        $token = $_POST['csrf_token'] ?? '';
-        if (!hash_equals($_SESSION['csrf_token'] ?? '', $token)) {
-            http_response_code(419);
-            echo json_encode(['error' => 'CSRF mismatch']);
-            exit;
+        $business = $this->business();
+        $settings = storefront_normalise($body['settings'], $business);
+        $settings = $this->keep_own_products($settings);
+        $this->db->prepare("UPDATE businesses SET storefront_draft = ? WHERE id = ?")
+                 ->execute([json_encode($settings, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), $this->biz_id]);
+
+        json_response([
+            'ok'          => true,
+            'settings'    => $settings,
+            'theme'       => $this->theme_for($settings),
+            'unpublished' => $this->draft_differs($business, $settings),
+        ]);
+    }
+
+    /* ──────────────────────────────────────────
+     *  PUBLISH — POST /landing-page/publish
+     *  The draft goes live, is kept as a version (the last ten stay), and
+     *  Cloudflare is told to drop its copy of the shop.
+     * ────────────────────────────────────────── */
+    public function publish() {
+        $this->require_post();
+        $business = $this->business();
+        $settings = $this->keep_own_products(storefront_settings($business, 'draft'));
+        $json     = json_encode($settings, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+        $this->db->beginTransaction();
+        try {
+            // The directory listing and city are copied out, so the directory
+            // (nfelia.com/shops) can filter shops without reading their settings
+            $this->db->prepare("
+                UPDATE businesses
+                SET storefront_draft = ?, storefront_published = ?, storefront_published_at = NOW(), storefront_look = ?,
+                    directory_opt_in = ?, city = ?, city_slug = ?
+                WHERE id = ?
+            ")->execute([$json, $json, $settings['look'], (int)$settings['seo']['directory'],
+                         $settings['seo']['city'] !== '' ? $settings['seo']['city'] : null,
+                         $settings['seo']['city'] !== '' ? sf_city_slug($settings['seo']['city']) : null, $this->biz_id]);
+            $this->db->prepare("INSERT INTO storefront_versions (business_id, settings, published_by) VALUES (?, ?, ?)")
+                     ->execute([$this->biz_id, $json, (int)auth_user()['id']]);
+            // Keep the ten newest
+            $this->db->prepare("
+                DELETE FROM storefront_versions
+                WHERE business_id = ? AND id NOT IN (
+                    SELECT id FROM (
+                        SELECT id FROM storefront_versions WHERE business_id = ? ORDER BY id DESC LIMIT 10
+                    ) AS newest
+                )
+            ")->execute([$this->biz_id, $this->biz_id]);
+            $this->db->commit();
+        } catch (PDOException $e) {
+            $this->db->rollBack();
+            error_log('[Nfelia] Shop Studio publish failed: ' . $e->getMessage());
+            json_response(['error' => 'We couldn\'t publish just now. Your draft is safe; try again in a moment.'], 500);
         }
 
-        if (empty($_FILES['hero_media']) || $_FILES['hero_media']['error'] !== UPLOAD_ERR_OK) {
-            $err = $_FILES['hero_media']['error'] ?? 'no file';
-            echo json_encode(['error' => 'Upload failed: ' . $err]);
-            exit;
+        update_business_session(['storefront_look' => $settings['look']]);
+        storefront_purge($this->biz_id);
+
+        json_response([
+            'ok'           => true,
+            'published_at' => date('c'),
+            'versions'     => $this->version_list(),
+            'live'         => $business['subdomain'] !== null && (int)$business['landing_enabled'] === 1,
+        ]);
+    }
+
+    /* ──────────────────────────────────────────
+     *  VERSIONS — GET /landing-page/versions
+     * ────────────────────────────────────────── */
+    public function versions() {
+        header('Cache-Control: private, no-store');
+        json_response(['versions' => $this->version_list()]);
+    }
+
+    /* ──────────────────────────────────────────
+     *  BRING A VERSION BACK — POST /landing-page/restore-version
+     *  It becomes the draft; shoppers see it only after Publish.
+     * ────────────────────────────────────────── */
+    public function restore_version() {
+        $this->require_post();
+        $id = (int)($this->input()['id'] ?? 0);
+        $stmt = $this->db->prepare("SELECT settings FROM storefront_versions WHERE id = ? AND business_id = ?");
+        $stmt->execute([$id, $this->biz_id]);
+        $json = $stmt->fetchColumn();
+        if ($json === false) {
+            json_response(['error' => 'That version is no longer kept. Only the last ten are.'], 404);
         }
 
-        $file = $_FILES['hero_media'];
+        $business = $this->business();
+        $settings = $this->keep_own_products(storefront_normalise(json_decode((string)$json, true) ?: [], $business));
+        $this->db->prepare("UPDATE businesses SET storefront_draft = ? WHERE id = ?")
+                 ->execute([json_encode($settings, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), $this->biz_id]);
 
-        // Size guard — 50MB max for video
+        json_response([
+            'ok'          => true,
+            'settings'    => $settings,
+            'theme'       => $this->theme_for($settings),
+            'unpublished' => $this->draft_differs($business, $settings),
+        ]);
+    }
+
+    /* ──────────────────────────────────────────
+     *  HERO PHOTO OR VIDEO — POST /landing-page/upload-image
+     *  Saved for the draft only: the live shop keeps its photo until the
+     *  owner publishes. Photos are resized to 1920px; videos up to 50MB are
+     *  kept as they are (the old screen compressed them in the browser).
+     * ────────────────────────────────────────── */
+    public function upload_image() {
+        $this->require_post();
+        $file = $_FILES['media'] ?? null;
+        if (!$file || ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+            $too_big = in_array($file['error'] ?? 0, [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true);
+            json_response(['error' => $too_big ? 'That file is too big. Try a photo under 10MB.' : 'The upload didn\'t arrive. Try again.'], 422);
+        }
         if ($file['size'] > 50 * 1024 * 1024) {
-            echo json_encode(['error' => 'File too large. Maximum 50MB.']);
-            exit;
+            json_response(['error' => 'That file is too big. Videos can be up to 50MB.'], 422);
         }
 
-        $dest_dir  = BASE_PATH . '/uploads/heroes/' . $this->biz_id;
-        $base_name = 'hero_' . time();
-
-        $result = save_media($file, $dest_dir, $base_name);
-
+        $dir    = BASE_PATH . '/uploads/storefront/' . $this->biz_id;
+        $result = save_media($file, $dir, 'hero_' . time() . '_' . bin2hex(random_bytes(3)));
         if (!$result) {
-            echo json_encode(['error' => 'Processing failed. Check the file format and try again.']);
-            exit;
+            json_response(['error' => 'Use a JPG, PNG or WebP photo, or an MP4 video.'], 422);
         }
-
-        // Make path relative (strip BASE_PATH prefix)
-        $relative_path = ltrim(str_replace(BASE_PATH, '', $result['path']), '/');
-
-        // Persist to DB + session immediately
-        $this->db->prepare("UPDATE businesses SET hero_image_path = ? WHERE id = ?")
-                  ->execute([$relative_path, $this->biz_id]);
-        update_business_session(['hero_image_path' => $relative_path]);
-
-        echo json_encode([
-            'success' => true,
-            'path'    => $relative_path,
-            'type'    => $result['type'],             // 'image' or 'video'
-            'url'     => APP_URL . '/' . $relative_path,
-        ]);
-        exit;
+        $rel = ltrim(str_replace(BASE_PATH, '', $result['path']), '/');
+        json_response(['ok' => true, 'path' => $rel, 'url' => sf_media_url($rel), 'type' => $result['type']]);
     }
 
     /* ──────────────────────────────────────────
-     *  AJAX — Remove hero media
-     *  POST /landing-page/remove-hero
+     *  SHOP ON OR OFF — POST /landing-page/visibility
      * ────────────────────────────────────────── */
-    public function remove_hero(): void {
-        header('Content-Type: application/json');
-
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            http_response_code(405); echo json_encode(['error' => 'POST only']); exit;
-        }
-
-        $token = $_POST['csrf_token'] ?? '';
-        if (!hash_equals($_SESSION['csrf_token'] ?? '', $token)) {
-            http_response_code(419); echo json_encode(['error' => 'CSRF mismatch']); exit;
-        }
-
-        $this->db->prepare("UPDATE businesses SET hero_image_path = NULL WHERE id = ?")
-                  ->execute([$this->biz_id]);
-        update_business_session(['hero_image_path' => null]);
-
-        echo json_encode(['success' => true]);
-        exit;
-    }
-
-    /* ──────────────────────────────────────────
-     *  SAVE SETTINGS — POST
-     * ────────────────────────────────────────── */
-    private function save_settings(): void {
-        $landing_enabled = isset($_POST['landing_enabled']) ? 1 : 0;
-        $about_text      = trim($_POST['about_text'] ?? '');
-        $youtube_url     = trim($_POST['youtube_url'] ?? '');
-        $social_ig       = trim($_POST['social_instagram'] ?? '');
-        $social_fb       = trim($_POST['social_facebook'] ?? '');
-        $social_tt       = trim($_POST['social_tiktok'] ?? '');
-        $social_tw       = trim($_POST['social_twitter'] ?? '');
-        $featured_ids    = $_POST['featured_products'] ?? [];
-        $delivery_info   = trim($_POST['delivery_info'] ?? '');
-
-        // RFQ fields — checkboxes → JSON
-        $rfq_keys   = ['quantity_range', 'budget', 'timeline', 'delivery_location', 'company_name'];
-        $rfq_fields = [];
-        foreach ($rfq_keys as $k) {
-            if (isset($_POST['rfq_' . $k])) $rfq_fields[$k] = true;
-        }
-        $rfq_json = !empty($rfq_fields) ? json_encode($rfq_fields) : null;
-
-        // Sanitize YouTube URL — extract video ID
-        if ($youtube_url !== '' && !$this->is_valid_youtube($youtube_url)) {
-            $youtube_url = '';
-        }
-
-        // Sanitize featured IDs — array of ints
-        $featured_ids  = array_values(array_filter(array_map('intval', $featured_ids)));
-        $featured_json = !empty($featured_ids) ? json_encode($featured_ids) : null;
-
-        // Generate slug if not set
-        $business = auth_business();
-        $slug = $business['slug'];
-        if (!$slug && $landing_enabled) {
-            $slug = $this->generate_slug($business['name'] ?? $business['business_name'] ?? 'business');
-        }
-
-        $this->db->prepare("
-            UPDATE businesses SET
-                landing_enabled = ?,
-                slug = ?,
-                about_text = ?,
-                youtube_url = ?,
-                social_instagram = ?,
-                social_facebook = ?,
-                social_tiktok = ?,
-                social_twitter = ?,
-                featured_product_ids = ?,
-                delivery_info = ?,
-                rfq_fields = ?
-            WHERE id = ?
-        ")->execute([
-            $landing_enabled,
-            $slug,
-            $about_text ?: null,
-            $youtube_url ?: null,
-            $social_ig ?: null,
-            $social_fb ?: null,
-            $social_tt ?: null,
-            $social_tw ?: null,
-            $featured_json,
-            $delivery_info ?: null,
-            $rfq_json,
-            $this->biz_id,
-        ]);
-
-        flash('success', 'Landing page updated.');
-        redirect('landing-page');
+    public function visibility() {
+        $this->require_post();
+        $on = sf_bool($this->input()['on'] ?? false) ? 1 : 0;
+        $this->db->prepare("UPDATE businesses SET landing_enabled = ? WHERE id = ?")->execute([$on, $this->biz_id]);
+        update_business_session(['landing_enabled' => $on]);
+        storefront_purge($this->biz_id);
+        json_response(['ok' => true, 'on' => (bool)$on]);
     }
 
     /* ── Helpers ── */
 
-    private function is_valid_youtube(string $url): bool {
-        return (bool)preg_match('/^(https?:\/\/)?(www\.)?(youtube\.com\/(watch\?v=|embed\/|shorts\/)|youtu\.be\/)[\w\-]+/', $url);
+    private function business(): array {
+        $stmt = $this->db->prepare("SELECT * FROM businesses WHERE id = ?");
+        $stmt->execute([$this->biz_id]);
+        return $stmt->fetch();
     }
 
-    private function generate_slug(string $name): string {
-        $slug = strtolower(trim($name));
-        $slug = preg_replace('/[^a-z0-9]+/', '-', $slug);
-        $slug = trim($slug, '-');
-
-        $base = $slug;
-        $i = 1;
-        while (true) {
-            $stmt = $this->db->prepare("SELECT id FROM businesses WHERE slug = ? AND id != ?");
-            $stmt->execute([$slug, $this->biz_id]);
-            if (!$stmt->fetch()) break;
-            $slug = $base . '-' . $i++;
+    /**
+     * POST only, with the session's CSRF token in the X-CSRF-Token header or
+     * a csrf_token field. Answers 419 otherwise, which Studio reads as
+     * "reload the page".
+     */
+    private function require_post(): void {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            json_response(['error' => 'POST only.'], 405);
         }
-        return $slug;
+        $token = (string)($_SERVER['HTTP_X_CSRF_TOKEN'] ?? ($_POST['csrf_token'] ?? ''));
+        if ($token === '' || !hash_equals($_SESSION['csrf_token'] ?? '', $token)) {
+            json_response(['error' => 'Your session ran out. Reload the page to carry on; your draft is saved.'], 419);
+        }
+    }
+
+    /**
+     * Fields from a JSON body or an ordinary form post.
+     */
+    private function input(): array {
+        $json = json_decode(file_get_contents('php://input') ?: '', true);
+        return is_array($json) ? $json : $_POST;
+    }
+
+    /**
+     * Product lists may only name this shop's own products.
+     */
+    private function keep_own_products(array $settings): array {
+        $stmt = $this->db->prepare("SELECT id FROM products WHERE business_id = ? AND deleted_at IS NULL");
+        $stmt->execute([$this->biz_id]);
+        $own = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+        foreach ($settings['sections'] as &$section) {
+            foreach (['products', 'only'] as $key) {
+                if (isset($section[$key])) {
+                    $section[$key] = array_values(array_intersect($section[$key], $own));
+                }
+            }
+        }
+        unset($section);
+        return $settings;
+    }
+
+    private function draft_differs(array $business, array $draft): bool {
+        return !$business['storefront_published'] || storefront_settings($business, 'published') != $draft;
+    }
+
+    /**
+     * What Studio needs to repaint its preview: the custom properties, dark
+     * or light, and the font pair with its stylesheet.
+     */
+    private function theme_for(array $settings): array {
+        $theme = storefront_resolve($settings);
+        return [
+            'vars'      => $theme['vars'],
+            'dark'      => $theme['palette']['dark'],
+            'pair'      => $theme['pair'],
+            'fonts_url' => $theme['fonts_url'],
+            'accent'    => $theme['palette']['accent'],
+        ];
+    }
+
+    private function version_list(): array {
+        $stmt = $this->db->prepare("
+            SELECT v.id, v.published_at, v.settings, u.full_name
+            FROM storefront_versions v
+            LEFT JOIN users u ON u.id = v.published_by
+            WHERE v.business_id = ?
+            ORDER BY v.id DESC
+            LIMIT 10
+        ");
+        $stmt->execute([$this->biz_id]);
+        $looks = storefront_looks();
+        $list  = [];
+        foreach ($stmt->fetchAll() as $row) {
+            $settings = json_decode((string)$row['settings'], true) ?: [];
+            $list[] = [
+                'id'           => (int)$row['id'],
+                'published_at' => $row['published_at'],
+                'when'         => date('j M Y, g:ia', strtotime($row['published_at'])),
+                'look'         => $looks[$settings['look'] ?? '']['name'] ?? 'Unknown look',
+                'by'           => (string)($row['full_name'] ?? ''),
+            ];
+        }
+        return $list;
     }
 }

@@ -21,15 +21,18 @@ require_once __DIR__ . '/app/helpers/token.php';
 require_once __DIR__ . '/app/helpers/mail.php';
 require_once __DIR__ . '/app/helpers/webpush.php';
 require_once __DIR__ . '/app/helpers/planner.php';
+require_once __DIR__ . '/app/helpers/shop_links.php';
+require_once __DIR__ . '/app/helpers/storefront.php';
+require_once __DIR__ . '/app/helpers/cloudflare.php';
+require_once __DIR__ . '/app/helpers/shop_orders.php';
+require_once __DIR__ . '/app/helpers/bookings.php';
+require_once __DIR__ . '/app/helpers/seo.php';
 require_once __DIR__ . '/app/helpers/theme.php';
 require_once __DIR__ . '/app/helpers/nav.php';
 require_once __DIR__ . '/app/helpers/signin.php';
 require_once __DIR__ . '/app/helpers/passkeys.php';
 require_once __DIR__ . '/app/helpers/notify.php';
 require_once __DIR__ . '/app/helpers/screens.php';
- 
-// Start session
-session_start();
 
 // --- GLOBAL EXCEPTION & FATAL ERROR HANDLER ---
 // Start output buffering so we can erase half-loaded pages if a crash happens
@@ -58,14 +61,56 @@ register_shutdown_function(function () {
         exit;
     }
 });
- 
+
+// --- PHOTO COPIES ---
+// Shops ask for WebP copies of their photos at a few widths. The first
+// request for each copy lands here (the file isn't there yet) and makes it;
+// from then on the web server sends the file itself.
+if (str_starts_with(trim($_GET['url'] ?? '', '/'), 'uploads/cache/')) {
+    storefront_serve_variant(trim($_GET['url'], '/'));
+}
+
+// --- SHOP LINKS ---
+// name.nfelia.com is a shop. It is served before any session starts, so
+// shoppers never get a cookie and their pages stay cacheable.
+$shop_label = shop_label_from_host($_SERVER['HTTP_HOST'] ?? '');
+if ($shop_label !== null) {
+    require_once __DIR__ . '/app/controllers/PublicController.php';
+    require_once __DIR__ . '/app/controllers/StorefrontController.php';
+    (new StorefrontController())->handle($shop_label, trim($_GET['url'] ?? '', '/'));
+    exit;
+}
+
+// --- BEING FOUND ---
+// robots.txt, the sitemaps and the shop directory are the same for everyone:
+// no session, no cookie, cacheable.
+$seo_path = trim($_GET['url'] ?? '', '/');
+if (in_array($seo_path, ['robots.txt', 'sitemap.xml', 'sitemap-pages.xml'], true)) {
+    header('Cache-Control: public, max-age=3600, s-maxage=3600');
+    if ($seo_path === 'robots.txt') {
+        header('Content-Type: text/plain; charset=utf-8');
+        echo main_robots();
+    } else {
+        header('Content-Type: application/xml; charset=utf-8');
+        echo $seo_path === 'sitemap.xml' ? main_sitemap_index(get_db()) : main_pages_sitemap(get_db());
+    }
+    exit;
+}
+if (preg_match('#^shops(?:/([a-z0-9-]{1,60}))?(?:/([a-z0-9-]{1,60}))?$#', $seo_path, $m)) {
+    require __DIR__ . '/views/directory/index.php';
+    exit;
+}
+
+// Start session
+session_start();
+
 // Parse the URL
 $url = trim($_GET['url'] ?? '', '/');
 $segments = $url ? explode('/', $url) : [];
 
 // Visitors get the landing page at /. Signed-in users, and anyone holding a
 // "keep me signed in" cookie, carry on to the dashboard below.
-if ($url === '' && !is_logged_in() && !isset($_COOKIE['nfelia_remember'])) {
+if ($url === '' && !is_logged_in() && !isset($_COOKIE[REMEMBER_COOKIE])) {
     if (empty($_SESSION['csrf_token'])) {
         csrf_regenerate();   // the feedback form on the page posts with it
     }
@@ -196,7 +241,9 @@ function dispatch_public(string $controller, string $action, ?string $param): vo
     // Automatically translates hyphenated URLs to snake_case methods
     $method = str_replace('-', '_', $action);
 
-    if (method_exists($ctrl, $method)) {
+    // is_callable, not method_exists: a private or protected helper must
+    // never be reachable from a URL (calling one would fatal with a 500).
+    if (is_callable([$ctrl, $method])) {
         $ctrl->$method($param);
     } else {
         $ctrl->index($param);
@@ -223,6 +270,8 @@ function dispatch_app(string $controller, string $action, ?string $param): void 
         // Management & Settings
         'reports'         => 'ReportController',  // profit_loss + profit_loss_pdf
         'orders'          => 'OrderController',
+        'bookings'        => 'BookingController',
+        'posts'           => 'PostController',
         'purge'           => 'PurgeController',
         'landing-page'    => 'LandingPageController',
         'settings'        => 'SettingsController',
@@ -237,6 +286,7 @@ function dispatch_app(string $controller, string $action, ?string $param): void 
         'momo'            => 'MoMoController',  // Phase 4: Mobile Money
         'deed'            => 'DeedController', // Deed of Acquisition
         'onboarding'      => 'OnboardingController',
+        'shop-setup'      => 'ShopSetupController',
         'logout'          => 'AuthController',
         
         // Support Links
@@ -273,7 +323,7 @@ function dispatch_app(string $controller, string $action, ?string $param): void 
     $method = str_replace('-', '_', $action);
     $method = $method ?: 'index';
  
-    if (method_exists($ctrl, $method)) {
+    if (is_callable([$ctrl, $method])) {
         $ctrl->$method($param);
     } else {
         not_found();

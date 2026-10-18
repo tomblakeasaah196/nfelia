@@ -7,10 +7,22 @@
  * NFELIA AUDIT FIX — C03 — Fixed remember-me session restore missing fields — 2026-06-03
  */
 
+// The remember-me cookie before it carried the __Host- prefix is never
+// trusted again (see REMEMBER_COOKIE in config/app.php); clear it
+if (isset($_COOKIE['nfelia_remember'])) {
+    setcookie('nfelia_remember', '', [
+        'expires'  => time() - 3600,
+        'path'     => '/',
+        'secure'   => true,
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
+}
+
 if (!is_logged_in()) {
-    if (isset($_COOKIE['nfelia_remember'])) {
+    if (isset($_COOKIE[REMEMBER_COOKIE])) {
         $db    = get_db();
-        $token = $_COOKIE['nfelia_remember'];
+        $token = $_COOKIE[REMEMBER_COOKIE];
         $stmt  = $db->prepare("
             SELECT s.*, s.id as remember_row_id, TIMESTAMPDIFF(SECOND, s.last_active_at, NOW()) as idle_seconds,
                    u.id as user_id, u.full_name, u.email, u.role, u.avatar_path,
@@ -67,7 +79,7 @@ if (!is_logged_in()) {
             }
         } else {
             // Expired or invalid cookie — clear it
-            setcookie('nfelia_remember', '', [
+            setcookie(REMEMBER_COOKIE, '', [
                 'expires'  => time() - 3600,
                 'path'     => '/',
                 'secure'   => true,
@@ -115,4 +127,13 @@ lock_touch();
 $business = auth_business();
 if (!$business['onboarding_complete'] && !in_array($controller ?? '', ['onboarding', 'logout'])) {
     redirect('onboarding/step' . ($business['onboarding_step'] ?? 1));
+}
+
+// Owners choose their shop link and look before carrying on (see
+// ShopSetupController). Staff are never sent. Billing, settings and support
+// stay open, so a locked-out owner can still pay or ask for help.
+$shop_setup_exempt = ['shop-setup', 'onboarding', 'logout', 'settings', 'account', 'billing', 'momo', 'countries',
+                      'resend-verification', 'contact-support', 'support', 'user-guide', 'admin'];
+if (is_owner() && !in_array($controller ?? '', $shop_setup_exempt, true) && shop_setup_needed()) {
+    redirect('shop-setup');
 }

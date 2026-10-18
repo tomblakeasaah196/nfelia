@@ -14,6 +14,12 @@ class ProductController {
         }
         $this->db     = get_db();
         $this->biz_id = auth_business_id();
+
+        // Any change to products changes the shop page: once this request
+        // is answered, Cloudflare drops its copy of the shop (cloudflare.php)
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            storefront_purge((int)$this->biz_id);
+        }
     }
 
     /* ──────────────────────────────────────────
@@ -202,6 +208,9 @@ class ProductController {
             // Handle variant groups
             $this->save_variant_groups($product_id);
 
+            // How people book it, if they do
+            $this->save_booking_fields($product_id);
+
             // Log initial stock as stock_in movement (only for physical products)
             if (!$is_service && $stock_qty > 0) {
                 $this->log_movement($product_id, 'stock_in', $stock_qty, 0, $stock_qty, $cost_price, 'Initial stock on product creation');
@@ -290,6 +299,9 @@ class ProductController {
 
             // Handle variant groups
             $this->save_variant_groups((int)$id);
+
+            // How people book it, if they do
+            $this->save_booking_fields((int)$id);
 
             flash('success', "{$name} updated.");
             redirect('products/view/' . $id);
@@ -846,6 +858,30 @@ class ProductController {
     }
 
     /* ── Variant Group Helpers ── */
+
+    /**
+     * Booking fields from the form: how it is booked, how long, how many a
+     * day, and the deposit. Anything unknown means "people buy it".
+     */
+    private function save_booking_fields(int $product_id): void {
+        $mode = in_array($_POST['booking_mode'] ?? 'none', BOOKING_MODES, true) ? $_POST['booking_mode'] : 'none';
+        $type = in_array($_POST['deposit_type'] ?? 'none', ['none', 'percent', 'fixed'], true) ? $_POST['deposit_type'] : 'none';
+        $value = max(0, (float)($_POST['deposit_value'] ?? 0));
+        if ($type === 'percent') {
+            $value = min(100, $value);
+        }
+        $this->db->prepare("
+            UPDATE products SET booking_mode = ?, booking_minutes = ?, booking_capacity = ?, deposit_type = ?, deposit_value = ?
+            WHERE id = ? AND business_id = ?
+        ")->execute([
+            $mode,
+            $mode === 'slot' ? max(15, min(720, (int)($_POST['booking_minutes'] ?? 60))) : null,
+            max(1, min(20, (int)($_POST['booking_capacity'] ?? 1))),
+            $mode === 'none' || $value <= 0 ? 'none' : $type,
+            $mode === 'none' || $type === 'none' || $value <= 0 ? null : $value,
+            $product_id, $this->biz_id,
+        ]);
+    }
 
     private function save_variant_groups(int $product_id): void {
         $group_names = $_POST['variant_group_name'] ?? [];

@@ -229,6 +229,7 @@ class SettingsController {
         $this->db->prepare($sql)->execute($params);
 
         update_business_session($session_updates);
+        storefront_purge((int)$this->biz_id);   // the shop shows the name, logo and contact details
 
         flash('success', 'Business profile updated.');
         redirect('settings?tab=business');
@@ -626,6 +627,7 @@ SVG;
         $this->db->prepare("UPDATE businesses SET logo_path = ? WHERE id = ?")
                   ->execute([$relative_path, $this->biz_id]);
         update_business_session(['logo_path' => $relative_path]);
+        storefront_purge((int)$this->biz_id);
 
         flash('success', 'Auto-logo generated from your business initials.');
         redirect('settings?tab=business');
