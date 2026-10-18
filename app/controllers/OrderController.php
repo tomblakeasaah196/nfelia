@@ -252,6 +252,9 @@ class OrderController
                 ->prepare("UPDATE invoices SET deliver_mode = ?, deliver_by = ?, deliver_show = ?, delivered_at = ? WHERE id = ? AND business_id = ?")
                 ->execute([$delivery["deliver_mode"], $delivery["deliver_by"], $delivery["deliver_show"], $delivery["delivered_at"], $invoice_id, $this->biz_id]);
 
+            // 2b. The goods leave the shelf, as when an invoice is sent
+            $this->deduct_stock_for_invoice($invoice_id, $order["order_number"]);
+
             // 3. If payment proof exists, create receipt (mark invoice paid)
             $receipt_id = null;
             if (!empty($order["payment_proof_path"])) {
@@ -495,6 +498,68 @@ class OrderController
         }
 
         return $invoice_id;
+    }
+
+    /**
+     * Take the invoice's goods off stock, as sending an invoice does
+     * (InvoiceController::send). It reads the invoice's own lines, the same
+     * ones cancelling the invoice reads to put stock back, so the two always
+     * match. Services have no stock and are skipped.
+     */
+    private function deduct_stock_for_invoice(int $invoice_id, string $order_number): void
+    {
+        $stmtDoc = $this->db->prepare("SELECT doc_number FROM invoices WHERE id = ? AND business_id = ?");
+        $stmtDoc->execute([$invoice_id, $this->biz_id]);
+        $doc_number = (string) $stmtDoc->fetchColumn();
+
+        $stmtItems = $this->db->prepare("
+            SELECT ii.product_id, ii.quantity, ii.unit_price
+            FROM invoice_items ii
+            JOIN products p ON p.id = ii.product_id AND p.business_id = ?
+            WHERE ii.invoice_id = ? AND p.is_service = 0
+        ");
+        $stmtItems->execute([$this->biz_id, $invoice_id]);
+        $items = $stmtItems->fetchAll();
+        if (!$items) {
+            return;
+        }
+
+        $this->db->beginTransaction();
+        try {
+            foreach ($items as $item) {
+                // Lock the row so two sales at once can't both read the old count
+                $stmtQty = $this->db->prepare("SELECT stock_qty FROM products WHERE id = ? AND business_id = ? FOR UPDATE");
+                $stmtQty->execute([$item["product_id"], $this->biz_id]);
+                $qty_before = (float) $stmtQty->fetchColumn();
+                $deduct = (float) $item["quantity"];
+                $qty_after = $qty_before - $deduct;
+
+                $this->db
+                    ->prepare("UPDATE products SET stock_qty = ? WHERE id = ? AND business_id = ?")
+                    ->execute([$qty_after, $item["product_id"], $this->biz_id]);
+
+                $this->db
+                    ->prepare("
+                    INSERT INTO stock_movements (business_id, product_id, user_id, type, quantity, stock_before, stock_after, unit_cost, reference_type, reference_id, note, movement_date)
+                    VALUES (?, ?, ?, 'sale', ?, ?, ?, ?, 'invoice', ?, ?, CURDATE())
+                ")
+                    ->execute([
+                        $this->biz_id,
+                        $item["product_id"],
+                        $this->get_current_user_id(),
+                        $deduct,
+                        $qty_before,
+                        $qty_after,
+                        $item["unit_price"],
+                        $invoice_id,
+                        "Stock deducted for invoice {$doc_number} (shop order {$order_number})",
+                    ]);
+            }
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
     }
 
     private function create_receipt_from_order(
