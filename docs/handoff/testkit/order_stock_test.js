@@ -1,5 +1,6 @@
 // Approving a website order takes its goods off stock, like sending an
-// invoice does, and cancelling that invoice puts them back once. Services
+// invoice does, and cancelling that invoice (after refunding a paid one)
+// puts them back once. Services
 // have no stock and are left alone. Reseeds the local database first
 // (seed.php, planner_seed.sql.txt, landing_seed.php), so run it only there.
 // Needs the local server with APP_URL=http://localhost:8000.
@@ -58,12 +59,28 @@ const stock = (id) => Number(sql(`SELECT stock_qty FROM products WHERE id = ${id
   check('the service is left alone', stock(6) === service, `${service} -> ${stock(6)}`);
   check('only goods get a stock history line', sql(`SELECT COUNT(*) FROM stock_movements WHERE reference_type = 'invoice' AND reference_id = ${inv104}`) === '1');
 
-  // Cancelling the invoice puts the wig back, once.
-  await page.goto(`${APP}/invoices/view/${inv103}`);
-  // The button sits in the invoice's "More" sheet; submit its form as the button would.
-  await Promise.all([page.waitForNavigation(), page.evaluate((id) => document.querySelector(`form[action$="/invoices/cancel/${id}"]`).submit(), inv103)]);
+  // The order was paid, so its invoice can't be cancelled until the money
+  // is refunded (Tom's decision, audit M14).
+  const cancel = async (id) => {
+    await page.goto(`${APP}/invoices/view/${id}`);
+    // The button sits in the invoice's "More" sheet; submit its form as the button would.
+    await Promise.all([page.waitForNavigation(), page.evaluate((id) => document.querySelector(`form[action$="/invoices/cancel/${id}"]`).submit(), id)]);
+  };
+  await cancel(inv103);
+  check('a paid invoice is not cancelled before a refund', sql(`SELECT status FROM invoices WHERE id = ${inv103}`) === 'paid' && stock(3) === wig - 1,
+        `${sql(`SELECT status FROM invoices WHERE id = ${inv103}`)} stock ${stock(3)}`);
+  const paid = sql(`SELECT amount_paid FROM invoices WHERE id = ${inv103}`);
+  await page.evaluate(async ([url, amount]) => {
+    const token = document.querySelector('input[name=csrf_token]').value;
+    await fetch(url, { method: 'POST', body: new URLSearchParams({ csrf_token: token, amount, refund_date: new Date().toISOString().slice(0, 10), method: 'bank_transfer', note: 'Out of stock' }) });
+  }, [`${APP}/invoices/record_refund/${inv103}`, paid]);
+  check('the refund takes the money off the invoice', Number(sql(`SELECT amount_paid FROM invoices WHERE id = ${inv103}`)) === 0);
+
+  // Cancelling the invoice puts the wig back, once, and cancels its order.
+  await cancel(inv103);
   check('cancelling the invoice puts the wig back once', stock(3) === wig, `${wig} -> ${stock(3)}`);
   check('the invoice is cancelled', sql(`SELECT status FROM invoices WHERE id = ${inv103}`) === 'cancelled');
+  check('its order is cancelled too', sql(`SELECT status FROM orders WHERE id = 103`) === 'cancelled');
 
   // Approving twice is refused, so nothing comes off twice.
   const before = stock(2);

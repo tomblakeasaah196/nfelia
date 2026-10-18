@@ -292,7 +292,11 @@ require '${ROOT}/app/helpers/billing.php'; ${code}`);
   await ivie.locator('button:has-text("Pay for the seats")').click();
   await until(() => sql('SELECT extra_seats FROM subscriptions WHERE business_id = 1') === '2');
   check('D20 seats can be added to the month already paid', sql('SELECT extra_seats FROM subscriptions WHERE business_id = 1') === '2');
-  await ivie.goto(APP + '/settings?tab=billing');
+  // The payment's redirect back to Billing may still be landing: let it
+  for (let i = 0; i < 3; i++) {
+    try { await ivie.goto(APP + '/settings?tab=billing'); break; }
+    catch (e) { if (!/interrupted/.test(e.message) || i === 2) throw e; await ivie.waitForLoadState('load'); }
+  }
   await ivie.locator('button:has-text("Cancel Subscription")').click();
   await ivie.locator('button:has-text("Confirm Cancellation")').click();
   await until(() => sql('SELECT status FROM subscriptions WHERE business_id = 1') === 'cancelled');
