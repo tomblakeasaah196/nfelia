@@ -317,15 +317,22 @@ Test each of these URLs in your browser after deployment:
 
 ---
 
-## PART 9 — CRON JOB (Optional but Recommended)
+## PART 9 — CRON JOB (Required)
 
-Set up a daily cron to send trial expiry warnings to users.
+One cron line, every five minutes, runs everything Nfelia does on a timer:
+Tasks reminders, the morning plan, low-stock alerts, quotes turning Expired
+after their date, and the bell note three days before a free trial ends.
 
-In cPanel → **Cron Jobs**, add:
+In cPanel → **Cron Jobs**, choose "Once Per Five Minutes" and add:
 ```
-0 8 * * * php /home/smartqaq/public_html/nfelia.lpc.cm/cron/check_trials.php
+*/5 * * * * /usr/local/bin/ea-php83 /home/smartqaq/public_html/nfelia.com/cron/planner.php >/dev/null 2>&1
 ```
-This runs at 8am daily and sends email notifications 3 days before trial expiry.
+Or in cPanel → **Terminal** (keeps any other cron jobs, replaces an older planner line):
+```
+( crontab -l 2>/dev/null | grep -v 'nfelia.com/cron/planner.php'; echo '*/5 * * * * /usr/local/bin/ea-php83 /home/smartqaq/public_html/nfelia.com/cron/planner.php >/dev/null 2>&1' ) | crontab -
+```
+Run it once by hand to check: `/usr/local/bin/ea-php83 /home/smartqaq/public_html/nfelia.com/cron/planner.php`
+prints one `[planner]` line with its counts. `cron/check_trials.php` no longer needs a line of its own.
 
 ---
 

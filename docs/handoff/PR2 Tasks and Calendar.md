@@ -151,7 +151,8 @@ If a plugin can't be loaded, apply these hard rules anyway (they're what the pre
   Production has it. Locally load `testkit/local_proc.sql.txt`. dompdf needs `composer install` in the copy.
 - Timezones: the **server PHP clock is +02:00, the DB session is +01:00**. In planner code use
   `planner_now()/planner_today()` (Africa/Lagos) or SQL `NOW()`/`CURDATE()`, never bare `date()`.
-- `notifications.type` is an ENUM: use `'general'` (don't ALTER it; prod may hold values the dump lacks).
+- `notifications.type` was an ENUM until migration `20261018180000` made it `VARCHAR(50)`: any name now
+  saves. Before that, a name missing from the list failed silently (the trial warning, the referral reward).
 - `cron/` **is web-reachable** (it's deployed into the docroot). Any new cron script must start with
   `if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }`. Never load `subscription_helpers.php`
   in web code (it redeclares `is_owner()`).
@@ -164,7 +165,7 @@ If a plugin can't be loaded, apply these hard rules anyway (they're what the pre
 
 Create **`cron/planner.php`** (CLI only), meant to run **every 5 minutes**:
 ```
-*/5 * * * * /usr/local/bin/php /home/smartqaq/public_html/nfelia.com/cron/planner.php >/dev/null 2>&1
+*/5 * * * * /usr/local/bin/ea-php83 /home/smartqaq/public_html/nfelia.com/cron/planner.php >/dev/null 2>&1
 ```
 It loads `config/database.php`, `config/app.php`, `config/mail.php`, `app/helpers/functions.php`,
 `auth.php` (for `after_response`, if needed), `mail.php`, `webpush.php`, `planner.php`. Use a lock

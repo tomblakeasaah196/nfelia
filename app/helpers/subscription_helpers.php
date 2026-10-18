@@ -343,9 +343,9 @@ function get_nav_items(): array {
 
 
 /**
- * Internal: create subscription notification.
+ * Internal: create subscription notification. False when it could not be saved.
  */
-function _subscription_notify(PDO $db, int $biz_id, string $type, string $message, string $link_page = ''): void {
+function _subscription_notify(PDO $db, int $biz_id, string $type, string $message, string $link_page = ''): bool {
     try {
         $stmt = $db->prepare("
             INSERT INTO notifications (business_id, type, title, message, action_url, created_at) -- NFELIA AUDIT FIX C07 2026-06-03
@@ -364,22 +364,27 @@ function _subscription_notify(PDO $db, int $biz_id, string $type, string $messag
         $title = $title_map[$type] ?? 'Subscription Update';
         $link  = $link_page ? APP_URL . '/' . $link_page : null;
         $stmt->execute([$biz_id, $type, $title, $message, $link]);
+        return true;
     } catch (Exception $e) {
         error_log("Nfelia subscription notification failed: " . $e->getMessage());
+        return false;
     }
 }
 
 
 /**
- * Cron helper: check all businesses for expiring trials.
- * Call daily via cron: php cron/check_trials.php
+ * A bell note for each business whose free trial ends within three days, at
+ * most one every three days. cron/planner.php runs it on every pass;
+ * cron/check_trials.php runs it by hand. Returns how many notes it saved.
  */
-function check_expiring_trials(): void {
+function check_expiring_trials(): int {
     $db = get_db();
 
-    // Notify at 3 days before trial end
+    // trial_ends_at is a date, so this finds trials ending tomorrow up to three
+    // days from today. Days left by calendar date, on the database's clock
+    // (Lagos time).
     $stmt = $db->prepare("
-        SELECT s.business_id, s.trial_ends_at
+        SELECT s.business_id, DATEDIFF(s.trial_ends_at, NOW()) AS days_left
         FROM subscriptions s
         WHERE s.status = 'trial'
           AND s.trial_ends_at BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 3 DAY)
@@ -390,11 +395,15 @@ function check_expiring_trials(): void {
           )
     ");
     $stmt->execute();
-    $expiring = $stmt->fetchAll();
 
-    foreach ($expiring as $row) {
-        $days = (new DateTime())->diff(new DateTime($row['trial_ends_at']))->days + 1;
-        $msg  = "Your free trial ends in {$days} day" . ($days !== 1 ? 's' : '') . ". Subscribe to keep your business running on Nfelia.";
-        _subscription_notify($db, $row['business_id'], 'trial_expiring_soon', $msg, 'settings?tab=billing');
+    $sent = 0;
+    foreach ($stmt->fetchAll() as $row) {
+        $days = (int)$row['days_left'];
+        $when = $days === 0 ? 'today' : ($days === 1 ? 'tomorrow' : "in {$days} days");
+        $msg  = "Your free trial ends {$when}. Subscribe to keep your business running on Nfelia.";
+        if (_subscription_notify($db, (int)$row['business_id'], 'trial_expiring_soon', $msg, 'settings?tab=billing')) {
+            $sent++;
+        }
     }
+    return $sent;
 }

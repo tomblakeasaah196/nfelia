@@ -92,6 +92,7 @@ Rules that matter:
 | Who buzzes, and when | `app/helpers/notify.php`: `notify_money_in()` (owner and admins, never whoever recorded it), `notify_quiet()` |
 | Money in | invoice payments (`InvoiceController::record_payment`), receipts for sales on the spot (`ReceiptController`), new shop orders (`PublicController::cart_checkout`), orders approved with proof of payment (`OrderController::approve`) |
 | Reminders, morning plan, low stock | `cron/planner.php` (low stock once a day from 9am, for people who turned it on; it opens `products?stock=restock`, low or out) |
+| Quotes past their date, trials about to end | also `cron/planner.php`, on every run: the one cron line the server needs (`docs/DEPLOYMENT_GUIDE.md` part 9). Tested by `testkit/expiry_test.php APPDIR BASEURL` |
 | Share PDF | `views/partials/share_pdf.php` on the invoice, receipt and quote pages; `assets/js/phone.js` |
 | Pick from phone contacts | `data-pick-contact` buttons on New customer and the receipt form's new client box; `assets/js/phone.js` |
 
