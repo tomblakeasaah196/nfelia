@@ -45,8 +45,8 @@ $labels = ['pending' => 'To confirm', 'confirmed' => 'Confirmed', 'declined' => 
         <?php if ($booking['payment_proof_path']): ?>
         <div class="bg-brand-white border border-brand-sand rounded-xl p-5 shadow-sm">
             <p class="text-sm font-bold text-brand-plum mb-3">Proof of the deposit</p>
-            <a href="<?= APP_URL . '/' . e($booking['payment_proof_path']) ?>" target="_blank" rel="noopener">
-                <img src="<?= APP_URL . '/' . e($booking['payment_proof_path']) ?>" alt="Proof of payment from <?= e($booking['customer_name']) ?>" class="max-h-96 rounded-lg border border-brand-sand">
+            <a href="<?= APP_URL . '/bookings/proof/' . (int)$booking['id'] ?>" target="_blank" rel="noopener">
+                <img src="<?= APP_URL . '/bookings/proof/' . (int)$booking['id'] ?>" alt="Proof of payment from <?= e($booking['customer_name']) ?>" class="max-h-96 rounded-lg border border-brand-sand">
             </a>
             <p class="text-xs text-brand-plum/50 mt-2">Check your bank app for the money before you confirm. A screenshot alone isn't proof.</p>
         </div>

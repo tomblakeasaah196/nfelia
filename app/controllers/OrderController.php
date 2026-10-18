@@ -115,6 +115,18 @@ class OrderController
     /* ──────────────────────────────────────────
      *  VIEW — single order detail
      *──────────────────────────────────────────*/
+    /* ──────────────────────────────────────────
+     *  PROOF — the shopper's payment screenshot (private file)
+     *──────────────────────────────────────────*/
+    public function proof($id = null)
+    {
+        $stmt = $this->db->prepare(
+            "SELECT payment_proof_path FROM orders WHERE id = ? AND business_id = ?",
+        );
+        $stmt->execute([(int) $id, $this->biz_id]);
+        send_private_file($stmt->fetchColumn() ?: null);
+    }
+
     public function view($id = null)
     {
         $user = auth_user();
@@ -598,7 +610,7 @@ class OrderController
                 $doc_number,
                 $order["total"],
                 $method,
-                "Auto-receipt from order {$order["order_number"]}. Proof: {$order["payment_proof_path"]}",
+                "Auto-receipt from order {$order["order_number"]}. Payment proof sent with the order.",
                 $token,
             ]);
         $receipt_id = (int) $this->db->lastInsertId();

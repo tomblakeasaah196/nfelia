@@ -77,7 +77,7 @@ $already_signed = ($delivery['status'] === 'signed_off' && $delivery['signoff_na
                 <div>
                     <div class="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-2">Signature</div>
                     <div class="bg-gray-50 rounded-xl border border-gray-200 p-4 text-center">
-                        <img src="<?= APP_URL . '/' . e($delivery['signoff_signature_path']) ?>" alt="Signature" class="max-h-24 mx-auto">
+                        <img src="<?= APP_URL . '/sign/' . e($delivery['signoff_token']) . '?signature=1' ?>" alt="Signature" class="max-h-24 mx-auto">
                     </div>
                 </div>
                 <?php endif; ?>

@@ -1,65 +1,63 @@
 <?php
 /**
  * Nfelia — Subscription Middleware
- * Blocks access for suspended/expired accounts.
- * Allows grace period: 3 days after billing failure.
+ * Sends a business whose trial or paid month (and its grace days) is over to
+ * Billing. billing_access() in app/helpers/billing.php decides, the same
+ * answer that closes the shop and stops reminders.
  *
  * NFELIA AUDIT FIX — C03 — Redirect target fixed from account/billing to settings?tab=billing — 2026-06-03
- * NFELIA Phase 4   — Added pending_verification as passthrough status — 2026-06-03
  */
 
-// Routes that bypass subscription checks entirely
-$exempt_routes = ['settings', 'account', 'logout', 'billing', 'momo', 'countries'];
+// Routes that bypass subscription checks entirely: paying, settings, finishing
+// sign-up (an expired trial must not bounce between onboarding and billing)
+// and asking for help.
+$exempt_routes = ['settings', 'account', 'logout', 'billing', 'momo', 'countries', 'onboarding',
+                  'support', 'contact-support', 'user-guide'];
 
-if (!in_array($controller ?? '', $exempt_routes)) {
+// Nfelia's own business (the founder panel lives there) never locks.
+if (!in_array($controller ?? '', $exempt_routes) && auth_business_id() !== FOUNDER_BUSINESS_ID) {
     $db   = get_db();
-    $stmt = $db->prepare("SELECT status, trial_ends_at, current_period_end, grace_ends_at FROM subscriptions WHERE business_id = ?");
+    // SELECT *, not a column list: during a deploy the code arrives a minute
+    // before the migration that adds expiry_exempt, and a missing column
+    // must not stop every page
+    $stmt = $db->prepare("SELECT * FROM subscriptions WHERE business_id = ?");
     $stmt->execute([auth_business_id()]);
-    $sub  = $stmt->fetch();
+    $sub  = $stmt->fetch() ?: null;
 
-    if ($sub) {
-        $today = new DateTime();
+    // A Mobile Money receipt waiting for the founder unlocks nothing (Tom's
+    // decision), but the owner is told it has arrived.
+    $stmt = $db->prepare("SELECT COUNT(*) FROM subscription_payments WHERE business_id = ? AND status = 'pending_verification'");
+    $stmt->execute([auth_business_id()]);
+    $waiting = (int)$stmt->fetchColumn() > 0;
 
-        switch ($sub['status']) {
+    unset($_SESSION['billing_warning']);
+    switch (billing_access($sub)) {
+        case 'locked':
+            if (!is_owner()) {
+                flash('warning', 'Nfelia is paused for this business until the owner pays for the month.');
+            } elseif ($waiting) {
+                flash('warning', 'We have your Mobile Money payment and are checking it now. Nfelia opens again as soon as it is approved.');
+            } elseif (($sub['status'] ?? '') === 'trial') {
+                flash('warning', 'Your free trial has ended. Pay for a month to carry on.');
+            } elseif (($sub['status'] ?? '') === 'suspended') {
+                flash('error', 'Your account is suspended. Pay for a month to open it again, or contact support.');
+            } else {
+                flash('warning', 'Your paid month has ended. Pay for the next month to open Nfelia and your website again.');
+            }
+            redirect('settings?tab=billing');
 
-            case 'trial':
-                if ($sub['trial_ends_at'] && $today > new DateTime($sub['trial_ends_at'])) {
-                    flash('warning', 'Your free trial has ended. Subscribe to continue.');
-                    redirect('settings?tab=billing');
-                }
-                break;
+        case 'grace':
+            $until = ($sub['status'] ?? '') === 'past_due' && !empty($sub['grace_ends_at'])
+                ? substr($sub['grace_ends_at'], 0, 10)
+                : billing_add_days((string)$sub['current_period_end'], BILLING_GRACE_DAYS);
+            $_SESSION['billing_warning'] = $waiting
+                ? 'We are checking your Mobile Money payment.'
+                : 'Your paid month has ended. Pay by ' . date('j M', strtotime($until)) . ' to keep Nfelia and your website open.';
+            break;
 
-            case 'past_due':
-                $grace_end = $sub['grace_ends_at']
-                    ? new DateTime($sub['grace_ends_at'])
-                    : (new DateTime($sub['current_period_end']))->modify('+3 days');
-
-                if ($today > $grace_end) {
-                    flash('error', 'Your payment failed and the grace period has ended. Please update billing.');
-                    redirect('settings?tab=billing');
-                }
-                // Show warning banner within grace period
-                $_SESSION['billing_warning'] = 'Payment failed. Access restricted in ' .
-                    max(0, (int)$today->diff($grace_end)->days) . ' day(s). Please update billing.';
-                break;
-
-            case 'pending_verification':
-                // User has submitted MoMo receipt — allow full access for up to 3 days
-                // Admin reviews and either approves (→ active) or rejects (→ trial/past_due)
-                $_SESSION['billing_warning'] = 'Your payment is under review. We\'ll notify you within 24 hours.';
-                break;
-
-            case 'suspended':
-                flash('error', 'Your account is suspended. Please update your billing to restore access.');
-                redirect('settings?tab=billing');
-                break;
-
-            case 'cancelled':
-                flash('warning', 'Your subscription is cancelled. Resubscribe to continue.');
-                redirect('settings?tab=billing');
-                break;
-
-            // 'active' falls through with no action
-        }
+        default:
+            if ($waiting) {
+                $_SESSION['billing_warning'] = 'We are checking your Mobile Money payment. We will tell you as soon as it is approved.';
+            }
     }
 }

@@ -39,6 +39,7 @@ $price_line = $item['price'] > 0 ? sf_money($item['price'], $currency) . ($night
         </div>
 
         <form class="sf-form sf-bookform" data-bookform novalidate>
+            <input type="text" name="website" class="sf-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
             <fieldset class="sf-book__step">
                 <legend class="sf-book__legend"><span aria-hidden="true">1</span><?= $nights ? 'Your dates' : 'Pick a day' ?></legend>
                 <?php if ($nights): ?>

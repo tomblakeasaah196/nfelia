@@ -13,7 +13,7 @@ const SHOP_NAME_MIN = 3;
 const SHOP_NAME_MAX = 30;
 
 // Requests for lookalike names land in the founder account's notifications
-// and wait in Admin → Shop names (see AdminController::FOUNDER_BUSINESS_ID).
+// and wait in Admin → Shop names (see FOUNDER_BUSINESS_ID in app/helpers/auth.php).
 const SHOP_REVIEWER_BUSINESS_ID = 1;
 
 /**
@@ -294,40 +294,26 @@ function shop_find_by_name(string $name): ?array {
 /**
  * Whether a shop is open to everyone, open but kept out of search engines, or
  * closed, from its row in subscriptions (null when it has none):
- *   'live'     paying, so indexed normally
- *   'unlisted' on trial, or a first payment still being checked: anyone with
- *              the link can shop, but search engines are told to skip it
- *   'closed'   trial over, grace period over, suspended or cancelled
- * The moments match subscription_check.php, which locks the owner out of the
- * app at the same points.
+ *   'live'     paying (or in the few days' grace after a paid month), so
+ *              indexed normally
+ *   'unlisted' on trial: anyone with the link can shop, but search engines
+ *              are told to skip it
+ *   'closed'   trial over, grace over, or suspended
+ * billing_access() (app/helpers/billing.php) decides, the same answer that
+ * locks the owner out of the app, so both close on the same day.
  */
 function shop_visibility(?array $subscription): string {
     if (!$subscription) {
         return 'unlisted';
     }
-    $now = new DateTime();
-    switch ($subscription['status']) {
-        case 'active':
+    require_once __DIR__ . '/billing.php';
+    switch (billing_access($subscription)) {
+        case 'paid':
+        case 'grace':
             return 'live';
-
         case 'trial':
-            return ($subscription['trial_ends_at'] && $now > new DateTime($subscription['trial_ends_at']))
-                ? 'closed' : 'unlisted';
-
-        case 'pending_verification':
-            return !empty($subscription['last_payment_date']) ? 'live' : 'unlisted';
-
-        case 'past_due':
-            if ($subscription['grace_ends_at']) {
-                $grace_end = new DateTime($subscription['grace_ends_at']);
-            } elseif ($subscription['current_period_end']) {
-                $grace_end = (new DateTime($subscription['current_period_end']))->modify('+3 days');
-            } else {
-                return 'closed';
-            }
-            return $now > $grace_end ? 'closed' : 'live';
-
-        default: // suspended, cancelled
+            return 'unlisted';
+        default:
             return 'closed';
     }
 }

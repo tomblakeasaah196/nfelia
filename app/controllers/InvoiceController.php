@@ -184,8 +184,8 @@ class InvoiceController {
         if (!$invoice) { not_found(); return; }
 
         // Customer
-        $stmtCust = $this->db->prepare("SELECT * FROM customers WHERE id = ?");
-        $stmtCust->execute([$invoice['customer_id']]);
+        $stmtCust = $this->db->prepare("SELECT * FROM customers WHERE id = ? AND business_id = ?");
+        $stmtCust->execute([$invoice['customer_id'], $this->biz_id]);
         $customer = $stmtCust->fetch();
 
         // Items
@@ -330,8 +330,8 @@ class InvoiceController {
                 UPDATE customers SET
                     total_invoiced = total_invoiced + ?,
                     outstanding_balance = outstanding_balance + ?
-                WHERE id = ?
-            ")->execute([$invoice['total'], $invoice['total'], $invoice['customer_id']]);
+                WHERE id = ? AND business_id = ?
+            ")->execute([$invoice['total'], $invoice['total'], $invoice['customer_id'], $this->biz_id]);
 
             $this->db->commit();
             flash('success', $invoice['doc_number'] . ' marked as sent. Stock deducted.');
@@ -414,8 +414,8 @@ class InvoiceController {
                 UPDATE customers SET
                     total_received = total_received + ?,
                     outstanding_balance = GREATEST(0, outstanding_balance - ?)
-                WHERE id = ?
-            ")->execute([$amount, $amount, $invoice['customer_id']]);
+                WHERE id = ? AND business_id = ?
+            ")->execute([$amount, $amount, $invoice['customer_id'], $this->biz_id]);
 
             // If overdue, update/clear the debt record
             if ($invoice['status'] === 'overdue' || $new_balance <= 0) {
@@ -437,8 +437,8 @@ class InvoiceController {
             $this->db->commit();
 
             // The owner's and admins' phones buzz (app/helpers/notify.php).
-            $stmtWho = $this->db->prepare("SELECT full_name FROM customers WHERE id = ?");
-            $stmtWho->execute([$invoice['customer_id']]);
+            $stmtWho = $this->db->prepare("SELECT full_name FROM customers WHERE id = ? AND business_id = ?");
+            $stmtWho->execute([$invoice['customer_id'], $this->biz_id]);
             $payer = trim((string)$stmtWho->fetchColumn());
             notify_money_in(
                 $this->biz_id, (int)$user['id'],
@@ -528,12 +528,13 @@ class InvoiceController {
                         total_invoiced = GREATEST(0, total_invoiced - ?),
                         total_received = GREATEST(0, total_received - ?),
                         outstanding_balance = GREATEST(0, outstanding_balance - ?)
-                    WHERE id = ?
+                    WHERE id = ? AND business_id = ?
                 ")->execute([
                     $invoice['total'],
                     $invoice['amount_paid'],
                     $invoice['balance_due'],
-                    $invoice['customer_id']
+                    $invoice['customer_id'],
+                    $this->biz_id
                 ]);
             }
 
@@ -564,8 +565,8 @@ class InvoiceController {
         $invoice = $this->find_invoice($id);
         if (!$invoice) { not_found(); return; }
 
-        $stmtCust = $this->db->prepare("SELECT * FROM customers WHERE id = ?");
-        $stmtCust->execute([$invoice['customer_id']]);
+        $stmtCust = $this->db->prepare("SELECT * FROM customers WHERE id = ? AND business_id = ?");
+        $stmtCust->execute([$invoice['customer_id'], $this->biz_id]);
         $customer = $stmtCust->fetch();
 
         $business = auth_business();
@@ -738,7 +739,12 @@ class InvoiceController {
 
         // Validate
         $errors = [];
-        if ($customer_id <= 0) $errors[] = 'Please select a client.';
+        if ($customer_id <= 0 || !owned_by_business($this->db, 'customers', $customer_id, $this->biz_id)) {
+            $errors[] = 'Please select a client.';
+        }
+        if ($bank_id && !owned_by_business($this->db, 'bank_accounts', $bank_id, $this->biz_id)) {
+            $errors[] = 'Please pick one of your bank accounts.';
+        }
         if (empty($item_descs) || count(array_filter($item_descs, 'trim')) === 0) {
             $errors[] = 'At least one line item is required.';
         }
@@ -770,6 +776,7 @@ class InvoiceController {
             $price     = max(0, (float)($item_prices[$i] ?? 0));
             $disc_pct  = max(0, min(100, (float)($item_discounts[$i] ?? 0)));
             $prod_id   = (int)($item_products[$i] ?? 0) ?: null;
+            if ($prod_id && !owned_by_business($this->db, 'products', $prod_id, $this->biz_id)) $prod_id = null;
 
             $line_total = $qty * $price;
             $disc_amt   = round($line_total * $disc_pct / 100, 2);

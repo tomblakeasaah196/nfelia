@@ -119,6 +119,19 @@ class SettingsController {
             $country_pricing = CountryController::get_country_for_business($this->db, $this->biz_id);
         }
 
+        // Paying: prices, who a month can cover, when it would run, and any
+        // Mobile Money receipt still being checked
+        $prices = $team = $waiting_payment = null;
+        $access = billing_access($subscription);
+        [$next_start, $next_end] = billing_next_period($subscription);
+        if ($tab === 'billing') {
+            $prices = billing_prices($this->db, $this->biz_id);
+            $team   = billing_team($this->db, $this->biz_id);
+            $stmt   = $this->db->prepare("SELECT * FROM subscription_payments WHERE business_id = ? AND status = 'pending_verification' ORDER BY id DESC LIMIT 1");
+            $stmt->execute([$this->biz_id]);
+            $waiting_payment = $stmt->fetch() ?: null;
+        }
+
         // Fallback pricing if no country is set
         if ($tab === 'billing' && !$country_pricing) {
             $country_pricing = [
@@ -430,11 +443,11 @@ class SettingsController {
             return;
         }
 
-        $stmt = $this->db->prepare("SELECT id, business_id FROM users WHERE email = ? AND is_active = 1");
+        $stmt = $this->db->prepare("SELECT id, business_id, is_active, role FROM users WHERE email = ?");
         $stmt->execute([$email]);
         $existing = $stmt->fetch();
 
-        if ($existing) {
+        if ($existing && ((int)$existing['is_active'] || $existing['role'] === 'owner')) {
             if ((int)$existing['business_id'] === $this->biz_id) {
                 flash('error', 'This email is already part of your team.');
             } else {
@@ -444,16 +457,31 @@ class SettingsController {
             return;
         }
 
+        $role = in_array($_POST['staff_role'] ?? '', ['admin', 'staff']) ? $_POST['staff_role'] : 'staff';
         $this->db->beginTransaction();
         try {
-            $this->db->prepare("
-                INSERT INTO users (business_id, full_name, email, password_hash, role, created_at)
-                VALUES (?, ?, ?, ?, ?, NOW())
-            ")->execute([
-                $this->biz_id, $full_name, $email,
-                password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]),
-                in_array($_POST['staff_role'] ?? '', ['admin', 'staff']) ? $_POST['staff_role'] : 'staff'
-            ]);
+            if ($existing && (int)$existing['business_id'] === $this->biz_id) {
+                // Someone who was removed comes back: same login, new password
+                $this->db->prepare("
+                    UPDATE users SET full_name = ?, password_hash = ?, role = ?, is_active = 1
+                    WHERE id = ? AND business_id = ?
+                ")->execute([
+                    $full_name, password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]), $role,
+                    (int)$existing['id'], $this->biz_id,
+                ]);
+            } else {
+                if ($existing) {
+                    free_removed_email($this->db, (int)$existing['id']);   // removed from another business
+                }
+                $this->db->prepare("
+                    INSERT INTO users (business_id, full_name, email, password_hash, role, created_at)
+                    VALUES (?, ?, ?, ?, ?, NOW())
+                ")->execute([
+                    $this->biz_id, $full_name, $email,
+                    password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]),
+                    $role
+                ]);
+            }
 
             $this->db->prepare("
                 INSERT INTO notifications (business_id, type, title, message, action_url, created_at)
@@ -642,6 +670,11 @@ SVG;
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             http_response_code(405);
             echo json_encode(['error' => 'POST only']); exit;
+        }
+
+        if (!hash_equals((string)($_SESSION['csrf_token'] ?? ''), (string)($_POST['csrf_token'] ?? ''))) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Security session expired. Reload the page and try again.']); exit;
         }
 
         $user = auth_user();

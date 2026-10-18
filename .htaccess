@@ -21,6 +21,13 @@ RewriteRule ^app/ - [F,L]
 RewriteRule ^views/ - [F,L]
 RewriteRule ^storage/ - [F,L]
 
+# Customers' signatures and payment screenshots saved before they moved to
+# storage/private/. They are sent only by the pages that check who is asking
+# (send_private_file in app/helpers/functions.php).
+RewriteRule ^uploads/(delivery_signoffs|order_proofs|booking_proofs)/ - [F,L]
+# Nothing under uploads/ ever runs as a script
+RewriteRule ^uploads/.*\.(php[0-9]?|phtml|phar|pl|py|cgi|shtml)$ - [F,L,NC]
+
 # --- Block file types that must never be served, whatever their name ---
 # A 2026-07 database dump sat at the docroot root and was publicly
 # downloadable for three months, because the front-controller rule below

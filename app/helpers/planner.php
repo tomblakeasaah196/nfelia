@@ -817,20 +817,15 @@ function planner_reminder_when(array $it, string $today): string {
  */
 function planner_business_can_use(array $b, DateTimeImmutable $now): bool {
     if (empty($b['is_active'])) return false;
-    switch ($b['sub_status'] ?? null) {
-        case 'suspended':
-        case 'cancelled':
-            return false;
-        case 'trial':
-            return empty($b['trial_ends_at']) || $now <= new DateTimeImmutable($b['trial_ends_at'], planner_tz());
-        case 'past_due':
-            $grace = $b['grace_ends_at']
-                ? new DateTimeImmutable($b['grace_ends_at'], planner_tz())
-                : (new DateTimeImmutable($b['current_period_end'] ?? 'now', planner_tz()))->modify('+3 days');
-            return $now <= $grace;
-        default:
-            return true;
-    }
+    if (empty($b['sub_status'])) return true;
+    require_once __DIR__ . '/billing.php';
+    return billing_access([
+        'status'             => $b['sub_status'],
+        'trial_ends_at'      => $b['trial_ends_at'] ?? null,
+        'current_period_end' => $b['current_period_end'] ?? null,
+        'grace_ends_at'      => $b['grace_ends_at'] ?? null,
+        'expiry_exempt'      => $b['expiry_exempt'] ?? 0,
+    ], $now->format('Y-m-d')) !== 'locked';
 }
 
 /** White or ink text, whichever reads better on a business's own colour. */

@@ -21,6 +21,7 @@ const BOOKING_DAYS = ['mon' => 'Monday', 'tue' => 'Tuesday', 'wed' => 'Wednesday
                       'fri' => 'Friday', 'sat' => 'Saturday', 'sun' => 'Sunday'];
 const BOOKING_MODES = ['none', 'slot', 'nights', 'day'];
 const BOOKING_HOLDING = ['pending', 'confirmed'];   // statuses that take up a time
+const BOOKING_HOLD_HOURS = 24;   // an unconfirmed request holds its time this long (Tom, October 2026)
 const BOOKING_MAX_NIGHTS = 30;
 
 /* ──────────────────────────────────────────
@@ -166,6 +167,45 @@ function booking_weekday(string $date): string {
 }
 
 /**
+ * SQL for "this booking takes up its time": confirmed, or a request the owner
+ * hasn't answered yet that is less than BOOKING_HOLD_HOURS old. Older
+ * requests stop blocking the calendar, so nobody can fill a shop's diary with
+ * requests that are never meant.
+ */
+function booking_holding_sql(string $alias = ''): string {
+    $a = $alias !== '' ? $alias . '.' : '';
+    return "({$a}status = 'confirmed' OR ({$a}status = 'pending' AND {$a}created_at > NOW() - INTERVAL " . BOOKING_HOLD_HOURS . " HOUR))";
+}
+
+/**
+ * Does a booking's time clash with the shop's other bookings and
+ * appointments? Asked before confirming a request that no longer holds its
+ * time, in case someone else has taken it since.
+ */
+function booking_clashes(PDO $db, array $booking): bool {
+    $id = (int)$booking['id'];
+    if ($booking['kind'] === 'nights') {
+        return (bool)booking_taken_nights($db, (int)$booking['product_id'], substr($booking['starts_at'], 0, 10),
+            planner_add_days(substr($booking['ends_at'], 0, 10), -1), $id);
+    }
+    if ($booking['kind'] === 'day') {
+        $date = substr($booking['starts_at'], 0, 10);
+        $stmt = $db->prepare("SELECT booking_capacity FROM products WHERE id = ?");
+        $stmt->execute([(int)$booking['product_id']]);
+        return (booking_day_counts($db, (int)$booking['product_id'], $date, $date, $id)[$date] ?? 0) >= max(1, (int)$stmt->fetchColumn());
+    }
+    $tz    = planner_tz();
+    $start = new DateTimeImmutable($booking['starts_at'], $tz);
+    $end   = new DateTimeImmutable($booking['ends_at'], $tz);
+    foreach (booking_busy_slots($db, (int)$booking['business_id'], $booking['starts_at'], $booking['ends_at'], $id) as [$s, $e]) {
+        if ($s < $end && $e > $start) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
  * Time-slot bookings and the owner's timed appointments between two
  * moments, as [start, end] DateTimeImmutable pairs. Appointments that came
  * from a booking are counted once, as the booking.
@@ -175,7 +215,7 @@ function booking_busy_slots(PDO $db, int $business_id, string $from, string $to,
     $out = [];
     $stmt = $db->prepare("
         SELECT starts_at, ends_at FROM bookings
-        WHERE business_id = ? AND kind = 'slot' AND status IN ('pending', 'confirmed')
+        WHERE business_id = ? AND kind = 'slot' AND " . booking_holding_sql() . "
           AND starts_at < ? AND ends_at > ? AND id <> ?
     ");
     $stmt->execute([$business_id, $to, $from, (int)$except]);
@@ -245,7 +285,7 @@ function booking_slots(PDO $db, array $business, array $info, string $date, ?arr
 function booking_taken_nights(PDO $db, int $product_id, string $from, string $to, ?int $except = null): array {
     $stmt = $db->prepare("
         SELECT starts_at, ends_at FROM bookings
-        WHERE product_id = ? AND kind = 'nights' AND status IN ('pending', 'confirmed')
+        WHERE product_id = ? AND kind = 'nights' AND " . booking_holding_sql() . "
           AND starts_at < ? AND ends_at > ? AND id <> ?
     ");
     $stmt->execute([$product_id, $to . ' 23:59:59', $from . ' 00:00:00', (int)$except]);
@@ -266,7 +306,7 @@ function booking_taken_nights(PDO $db, int $product_id, string $from, string $to
 function booking_day_counts(PDO $db, int $product_id, string $from, string $to, ?int $except = null): array {
     $stmt = $db->prepare("
         SELECT DATE(starts_at) AS d, COUNT(*) AS n FROM bookings
-        WHERE product_id = ? AND kind = 'day' AND status IN ('pending', 'confirmed')
+        WHERE product_id = ? AND kind = 'day' AND " . booking_holding_sql() . "
           AND starts_at BETWEEN ? AND ? AND id <> ?
         GROUP BY DATE(starts_at)
     ");

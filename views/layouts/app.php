@@ -188,7 +188,8 @@ $flash = get_flash();
         </div>
 
         <div class="nf-ab-actions">
-            <!-- Phase 3: Country / Currency Selector Widget -->
+            <!-- Phase 3: Country / Currency Selector Widget (the owner's to change) -->
+            <?php if (is_owner()): ?>
             <div class="relative hidden lg:block" x-data="{ countryOpen: false }" @click.away="countryOpen = false" @keydown.escape="countryOpen = false">
                 <button type="button" @click="countryOpen = !countryOpen" :aria-expanded="countryOpen" class="nf-icon-btn" aria-label="Country and currency" data-tip="Country and currency">
                     <span style="font-size:1.25rem;line-height:1"><?= e($selected_country['flag_emoji'] ?? '🌐') ?></span>
@@ -206,6 +207,7 @@ $flash = get_flash();
                     <?php endforeach; ?>
                 </div>
             </div>
+            <?php endif; ?>
 
             <!-- Notifications -->
             <div class="relative" x-data="{

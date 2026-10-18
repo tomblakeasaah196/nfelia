@@ -24,6 +24,7 @@ class PostController
         }
         $this->db = get_db();
         $this->biz_id = (int)auth_business_id();
+        require_boss('post news and offers');
     }
 
     public function index()

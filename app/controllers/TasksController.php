@@ -419,7 +419,7 @@ class TasksController {
         $auth     = (string)($in['keys']['auth'] ?? '');
 
         if (!push_enabled()) json_response(['error' => 'Phone notifications are not switched on for Nfelia yet.'], 409);
-        if (!preg_match('#^https://[^\s]{10,2000}$#', $endpoint)
+        if (!preg_match('#^https://[^\s]{10,2000}$#', $endpoint) || !push_endpoint_allowed($endpoint)
             || strlen(b64url_decode($p256dh)) !== 65 || strlen(b64url_decode($auth)) !== 16) {
             json_response(['error' => 'This browser sent an unusable subscription. Try again.'], 422);
         }
@@ -431,6 +431,19 @@ class TasksController {
                 p256dh = VALUES(p256dh), auth = VALUES(auth), user_agent = VALUES(user_agent), failures = 0
         ")->execute([$this->biz_id, $user['id'], $endpoint, hash('sha256', $endpoint), $p256dh, $auth,
                      mb_substr((string)($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 255)]);
+
+        // At most PUSH_MAX_DEVICES phones each: the oldest go first
+        $this->db->prepare("
+            DELETE FROM push_subscriptions WHERE user_id = ? AND id NOT IN (
+                SELECT id FROM (SELECT id FROM push_subscriptions WHERE user_id = ? ORDER BY id DESC LIMIT " . PUSH_MAX_DEVICES . ") newest
+            )
+        ")->execute([$user['id'], $user['id']]);
+
+        // Remember which subscription this browser has, so signing out here
+        // stops this person's notifications on this phone (AuthController::logout)
+        setcookie(PUSH_COOKIE, hash('sha256', $endpoint), [
+            'expires' => time() + 365 * 86400, 'path' => '/', 'secure' => true, 'httponly' => true, 'samesite' => 'Lax',
+        ]);
 
         json_response(['success' => true, 'message' => 'Notifications are on for this phone.']);
     }
@@ -444,6 +457,9 @@ class TasksController {
 
     public function push_test() {
         $this->json_in();
+        if (!throttle_allows('push_test', (string)auth_user()['id'], 5, 60)) {
+            json_response(['error' => 'That is enough tests for now. Try again in an hour.'], 429);
+        }
         $sent = push_to_user($this->db, (int)auth_user()['id'], [
             'title' => 'Notifications work',
             'body'  => 'This is how Nfelia will remind you about deliveries, appointments and money due.',

@@ -106,6 +106,14 @@ if (empty($_SESSION['csrf_token'])) {
     csrf_regenerate();
 }
 
+// A team member who was removed (or switched off when a payment covered
+// fewer staff) is signed out on their next page, not hours later.
+if (!auth_still_member()) {
+    session_start();
+    flash('error', 'You no longer have access to this business. Ask the owner if this is a mistake.');
+    redirect('login');
+}
+
 // The lock (app/helpers/signin.php): after LOCK_AFTER_SECONDS unused, pages
 // show the lock over an empty outline of the app, and requests from scripts
 // get 401 "locked", until the person unlocks. Signing out always works.

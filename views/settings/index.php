@@ -16,8 +16,22 @@ $avatar_url = !empty($user['avatar_path']) ? APP_URL . '/' . $user['avatar_path'
 $sub_status = $subscription['status'] ?? 'trial';
 $trial_days_left = 0;
 if ($sub_status === 'trial' && !empty($subscription['trial_ends_at'])) {
-    $trial_days_left = max(0, (int)((strtotime($subscription['trial_ends_at']) - time()) / 86400));
+    $trial_days_left = max(0, (int)round((strtotime(substr($subscription['trial_ends_at'], 0, 10)) - strtotime(date('Y-m-d'))) / 86400));
 }
+// What the plan card says, from billing_access() (app/helpers/billing.php)
+$access     = $access ?? 'paid';
+$period_end = !empty($subscription['current_period_end']) ? substr($subscription['current_period_end'], 0, 10) : null;
+$pay_by     = $sub_status === 'past_due' && !empty($subscription['grace_ends_at'])
+    ? substr($subscription['grace_ends_at'], 0, 10)
+    : ($period_end ? billing_add_days($period_end, BILLING_GRACE_DAYS) : null);
+[$plan_badge, $plan_tone] = match (true) {
+    $access === 'trial'                                => ['Free trial', 'blue'],
+    $access === 'paid' && $sub_status === 'cancelled'  => ['Cancelled', 'amber'],
+    $access === 'paid'                                 => ['Paid', 'green'],
+    $access === 'grace'                                => ['Grace days', 'amber'],
+    $sub_status === 'suspended'                        => ['Suspended', 'red'],
+    default                                            => ['Locked', 'red'],
+};
 $max_seats = ($subscription['user_seats'] ?? 1) + ($subscription['extra_seats'] ?? 0);
 $current_staff_count = count($staff);
 ?>
@@ -585,11 +599,10 @@ async function updateRole(memberId, newRole, selectEl) {
 
     <!-- Current Plan -->
     <div class="bg-brand-white border-2 rounded-xl p-6 shadow-sm
-        <?php if ($sub_status === 'active'): ?>border-green-200 bg-green-50/30
-        <?php elseif ($sub_status === 'trial'): ?>border-blue-200 bg-blue-50/30
-        <?php elseif ($sub_status === 'past_due'): ?>border-amber-200 bg-amber-50/30
-        <?php elseif ($sub_status === 'suspended'): ?>border-red-200 bg-red-50/30
-        <?php else: ?>border-brand-sand<?php endif; ?>">
+        <?php if ($plan_tone === 'green'): ?>border-green-200 bg-green-50/30
+        <?php elseif ($plan_tone === 'blue'): ?>border-blue-200 bg-blue-50/30
+        <?php elseif ($plan_tone === 'amber'): ?>border-amber-200 bg-amber-50/30
+        <?php else: ?>border-red-200 bg-red-50/30<?php endif; ?>">
 
         <div class="flex items-start justify-between mb-4">
             <div>
@@ -600,141 +613,181 @@ async function updateRole(memberId, newRole, selectEl) {
                 <?php endif; ?>
             </div>
             <span class="text-[9px] font-bold uppercase tracking-wider px-3 py-1 rounded-full
-                <?php if ($sub_status === 'active'): ?>bg-green-100 text-green-700
-                <?php elseif ($sub_status === 'trial'): ?>bg-blue-100 text-blue-700
-                <?php elseif ($sub_status === 'past_due'): ?>bg-amber-100 text-amber-700
-                <?php elseif ($sub_status === 'suspended'): ?>bg-red-100 text-red-700
-                <?php else: ?>bg-gray-100 text-gray-700<?php endif; ?>">
-                <?= ucfirst(str_replace('_', ' ', $sub_status)) ?>
+                <?php if ($plan_tone === 'green'): ?>bg-green-100 text-green-700
+                <?php elseif ($plan_tone === 'blue'): ?>bg-blue-100 text-blue-700
+                <?php elseif ($plan_tone === 'amber'): ?>bg-amber-100 text-amber-700
+                <?php else: ?>bg-red-100 text-red-700<?php endif; ?>">
+                <?= e($plan_badge) ?>
             </span>
         </div>
 
-        <?php if ($sub_status === 'trial'): ?>
+        <?php if ($access === 'trial'): ?>
             <div class="text-xs text-blue-700 bg-blue-100 rounded-lg px-4 py-3">
-                <strong><?= $trial_days_left ?> day<?= $trial_days_left !== 1 ? 's' : '' ?> left</strong> on your free trial.
-                Full access to all features — no card required until trial ends.
+                <?php if ($trial_days_left === 0): ?>
+                    <strong>Your free trial ends today.</strong>
+                <?php else: ?>
+                    <strong><?= $trial_days_left ?> day<?= $trial_days_left !== 1 ? 's' : '' ?> left</strong> on your free trial.
+                <?php endif; ?>
+                Full access to everything. Pay for a month whenever you are ready.
             </div>
-        <?php elseif ($sub_status === 'active'): ?>
-            <div class="text-xs text-green-700">
-                Next billing: <strong><?= $subscription['current_period_end'] ? fmt_date($subscription['current_period_end'], 'd/m/Y, H:i') : '—' ?></strong>
-                &middot; <?= $max_seats ?> seat<?= $max_seats > 1 ? 's' : '' ?>
-            </div>
-        <?php elseif ($sub_status === 'past_due'): ?>
+        <?php elseif ($access === 'paid' && $sub_status === 'cancelled'): ?>
             <div class="text-xs text-amber-700 bg-amber-100 rounded-lg px-4 py-3">
-                <strong>Payment failed.</strong> Please update your payment method.
-                Grace period ends: <strong><?= $subscription['grace_ends_at'] ? fmt_date($subscription['grace_ends_at'], 'd/m/Y, H:i') : '—' ?></strong>
+                <strong>Cancelled.</strong> Nfelia and your website stay open until <strong><?= fmt_date($period_end, 'j M Y') ?></strong>.
             </div>
-        <?php elseif ($sub_status === 'suspended'): ?>
+        <?php elseif ($access === 'paid'): ?>
+            <div class="text-xs text-green-700">
+                <?php if ($period_end && empty($subscription['expiry_exempt'])): ?>
+                    Paid until <strong><?= fmt_date($period_end, 'j M Y') ?></strong> &middot;
+                <?php endif; ?>
+                <?= $max_seats ?> seat<?= $max_seats > 1 ? 's' : '' ?>
+            </div>
+        <?php elseif ($access === 'grace'): ?>
+            <div class="text-xs text-amber-700 bg-amber-100 rounded-lg px-4 py-3">
+                <strong>Your paid month has ended.</strong> Pay by <strong><?= fmt_date($pay_by, 'j M Y') ?></strong> to keep Nfelia and your website open.
+            </div>
+        <?php else: ?>
             <div class="text-xs text-red-700 bg-red-100 rounded-lg px-4 py-3">
-                <strong>Account suspended.</strong> Your subscription has expired. Subscribe to restore full access.
+                <strong><?= $sub_status === 'trial' ? 'Your free trial has ended.' : ($sub_status === 'suspended' ? 'Your account is suspended.' : 'Your paid month has ended.') ?></strong>
+                Pay for a month below to open Nfelia and your website again.
             </div>
         <?php endif; ?>
     </div>
 
-    <!-- Subscribe / Renew / Upgrade Button -->
-    <?php if (in_array($sub_status, ['trial', 'active', 'past_due', 'suspended', 'cancelled'])): ?>
-    <div class="bg-brand-white border border-brand-sand rounded-xl p-6 shadow-sm" x-data="subscribeForm()">
-        <h2 class="font-heading font-bold text-sm text-brand-plum mb-4 uppercase tracking-wider">
-            <?= $sub_status === 'active' ? 'Upgrade & Add Seats' : ($sub_status === 'trial' ? 'Activate Subscription' : 'Renew Subscription') ?>
-        </h2>
+    <!-- Paying: a month (with the staff it covers), or more seats now -->
+    <?php
+    $sym        = $prices['symbol'] ?? $country_pricing['currency_symbol'];
+    $month_cost = (float)($prices['monthly'] ?? $country_pricing['monthly_price']);
+    $seat_cost  = (float)($prices['seat'] ?? $country_pricing['extra_seat_price']);
+    $team       = $team ?? [];
+    $room       = max(0, MAX_SEATS - 1 - (int)($subscription['extra_seats'] ?? 0));
+    $running    = $period_end && $period_end >= date('Y-m-d') && in_array($sub_status, ['active', 'cancelled'], true);
+    ?>
+    <?php if (!empty($waiting_payment)): ?>
+    <div class="bg-blue-50 border border-blue-200 rounded-xl p-5 shadow-sm text-xs text-blue-800 leading-relaxed" role="status">
+        <strong>We are checking your Mobile Money payment</strong> of <?= e($sym) ?><?= number_format((float)$waiting_payment['amount'], 0) ?>,
+        sent on <?= fmt_date($waiting_payment['submitted_at'], 'j M Y, H:i') ?>.
+        Nfelia opens the month as soon as it is approved, and we will tell you here and by email.
+    </div>
+    <?php elseif (($prices['method'] ?? 'paystack') === 'manual'): ?>
+    <div class="bg-brand-white border border-brand-sand rounded-xl p-6 shadow-sm">
+        <h2 class="font-heading font-bold text-sm text-brand-plum mb-3 uppercase tracking-wider">How to pay</h2>
+        <div class="text-xs text-brand-plum/80 leading-relaxed">
+            <?php if (!empty($prices['country']['payment_instructions'])): ?>
+                <?= nl2br(e($prices['country']['payment_instructions'])) ?>
+            <?php else: ?>
+                Payment for <?= e($prices['country']['name'] ?? 'your country') ?> is arranged with our team. Message us and we will set up your month.
+            <?php endif; ?>
+        </div>
+        <div class="mt-4 flex gap-4">
+            <a href="mailto:support@nfelia.com" class="text-brand-burgundy font-bold hover:underline tracking-widest uppercase text-[10px]">Email support</a>
+            <a href="https://wa.me/2348169789106" target="_blank" rel="noopener" class="text-brand-burgundy font-bold hover:underline tracking-widest uppercase text-[10px]">WhatsApp us</a>
+        </div>
+    </div>
+    <?php else: ?>
+    <div class="bg-brand-white border border-brand-sand rounded-xl p-6 shadow-sm" x-data="payMonth()">
+        <h2 class="font-heading font-bold text-sm text-brand-plum mb-1 uppercase tracking-wider">Pay for a month</h2>
+        <p class="text-xs text-brand-plum/60 mb-4">
+            <?= $running ? 'Your next month starts when this one ends' : 'Your month starts today' ?>:
+            <?= fmt_date($next_start, 'j M') ?> to <?= fmt_date($next_end, 'j M Y') ?>.
+        </p>
+
+        <?php if ($team): ?>
+        <fieldset class="mb-4">
+            <div class="flex items-center justify-between mb-2">
+                <legend class="text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest">Who does this month cover?</legend>
+                <button type="button" @click="covered = <?= e(json_encode(array_map('intval', array_column($team, 'id')))) ?>" class="text-[10px] font-bold text-brand-burgundy uppercase tracking-widest hover:underline">All</button>
+            </div>
+            <p class="text-[10px] text-brand-plum/50 mb-2">You are always covered. Anyone you leave unticked is switched off when the payment goes through.</p>
+            <div class="space-y-1.5">
+                <?php foreach ($team as $member): ?>
+                <label class="flex items-center gap-3 px-3 py-2 rounded-lg border border-brand-sand bg-brand-cream/40 cursor-pointer">
+                    <input type="checkbox" value="<?= (int)$member['id'] ?>" x-model.number="covered" class="w-4 h-4">
+                    <span class="text-xs font-semibold text-brand-plum grow"><?= e($member['full_name']) ?></span>
+                    <span class="text-[10px] text-brand-plum/50"><?= e(ucfirst($member['role'])) ?></span>
+                </label>
+                <?php endforeach; ?>
+            </div>
+        </fieldset>
+        <?php endif; ?>
 
         <div class="mb-4">
-            <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-2">Extra User Seats (<?= e($country_pricing['currency_symbol']) ?><?= number_format($country_pricing['extra_seat_price'], 0) ?> each)</label>
+            <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-2">Staff seats (<?= e($sym) ?><?= number_format($seat_cost, 0) ?> each)</label>
             <div class="flex items-center gap-3">
-                <button type="button" @click="seats = Math.max(minExtra, seats - 1)" class="w-8 h-8 rounded-lg bg-brand-cream border border-brand-sand flex items-center justify-center hover:border-brand-gold">−</button>
-                <span class="data-text text-lg font-extrabold text-brand-plum w-8 text-center" x-text="seats"></span>
-                
-                <button type="button" x-show="seats < 4" @click="seats = Math.min(4, seats + 1)" class="w-8 h-8 rounded-lg bg-brand-cream border border-brand-sand flex items-center justify-center hover:border-brand-gold">+</button>
-                
-                <span class="text-xs text-brand-plum/50" x-text="'Total: ' + (1 + seats) + ' seat(s)'"></span>
+                <button type="button" @click="spare = Math.max(0, spare - 1)" aria-label="One seat fewer" class="w-8 h-8 rounded-lg bg-brand-cream border border-brand-sand flex items-center justify-center hover:border-brand-gold">−</button>
+                <span class="data-text text-lg font-extrabold text-brand-plum w-8 text-center" x-text="totalSeats()"></span>
+                <button type="button" @click="spare = Math.max(0, Math.min(<?= MAX_SEATS - 1 ?> - covered.length, spare + 1))" aria-label="One seat more" class="w-8 h-8 rounded-lg bg-brand-cream border border-brand-sand flex items-center justify-center hover:border-brand-gold">+</button>
+                <span class="text-xs text-brand-plum/50" x-text="totalSeats() === 0 ? 'Just you' : (1 + totalSeats()) + ' people in all, with you'"></span>
             </div>
-            
-            <div x-show="seats >= 4" x-cloak class="mt-4 px-4 py-3 bg-brand-burgundy/10 border border-brand-burgundy/20 rounded-lg text-xs text-brand-plum font-medium leading-relaxed">
-                <strong>Enterprise Limit Reached:</strong> Standard workspaces are limited to 5 total users (You + 4 of your staff). Do you need more capacity? <br><br>
-                Click here to request a custom built enterprise infrastructure just for you:<br>
-                <div class="mt-2 flex gap-4">
-                    <a href="mailto:support@nfelia.com" class="text-brand-burgundy font-bold hover:underline tracking-widest uppercase text-[10px]">✉ Email Support</a>
-                    <a href="https://wa.me/2348169789106" target="_blank" class="text-brand-burgundy font-bold hover:underline tracking-widest uppercase text-[10px]">💬 WhatsApp Us</a>
-                </div>
-            </div>
-
-            <?php if ($sub_status === 'active'): ?>
-                <div x-show="seats < 4 && (seats - savedSeats) > 0" x-cloak class="mt-3 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-[10px] text-blue-800 font-medium leading-relaxed">
-                    <strong>Mid-Cycle Upgrade:</strong> You will only be charged for the <strong x-text="seats - savedSeats"></strong> new seat(s) today. Your normal billing cycle remains unchanged.
-                </div>
-            <?php endif; ?>
+            <p class="text-[10px] text-brand-plum/40 mt-2">One for each person ticked; add spare seats for new staff. Up to <?= MAX_SEATS ?> people (you and <?= MAX_SEATS - 1 ?> staff). Need more? Email support@nfelia.com.</p>
         </div>
 
         <div class="flex items-center justify-between mb-4 p-3 bg-brand-cream rounded-lg">
-            <span class="text-xs font-semibold text-brand-plum">Total Due Today</span>
-            <span class="font-heading font-extrabold text-lg text-brand-plum" x-text="calculateTotal()"></span>
+            <span class="text-xs font-semibold text-brand-plum">Total for the month</span>
+            <span class="font-heading font-extrabold text-lg text-brand-plum" x-text="money(<?= $month_cost ?> + totalSeats() * <?= $seat_cost ?>)"></span>
         </div>
 
-        <button type="button" @click="subscribe()" :disabled="loading || (isMidCycle && seats === savedSeats)"
+        <button type="button" @click="pay({ kind: 'month', extra_seats: totalSeats(), covered: covered })" :disabled="loading"
                 class="w-full btn-primary text-white py-3.5 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-sm hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-            <span x-show="!loading"><?= $sub_status === 'trial' ? 'Subscribe Now' : 'Upgrade Plan' ?></span>
+            <span x-show="!loading">Pay for the month</span>
             <span x-show="loading" x-cloak>Processing...</span>
         </button>
         <p class="text-[9px] text-brand-plum/30 text-center mt-2">Secure, encrypted payment. Your details are never stored on our servers.</p>
-
-        <div x-show="errorMsg" x-cloak class="mt-3 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-xs text-red-600 font-mono" x-text="errorMsg"></div>
+        <div x-show="errorMsg" x-cloak class="mt-3 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-xs text-red-600" x-text="errorMsg"></div>
     </div>
+
+    <?php if ($access === 'paid' && $sub_status === 'active' && $room > 0): ?>
+    <div class="bg-brand-white border border-brand-sand rounded-xl p-6 shadow-sm" x-data="payMonth()">
+        <h2 class="font-heading font-bold text-sm text-brand-plum mb-1 uppercase tracking-wider">Add seats now</h2>
+        <p class="text-xs text-brand-plum/60 mb-4">For new staff this month<?= $period_end ? ', until ' . fmt_date($period_end, 'j M') : '' ?>. Next month you choose again.</p>
+        <div class="flex items-center gap-3 mb-4">
+            <button type="button" @click="add = Math.max(1, add - 1)" aria-label="One seat fewer" class="w-8 h-8 rounded-lg bg-brand-cream border border-brand-sand flex items-center justify-center hover:border-brand-gold">−</button>
+            <span class="data-text text-lg font-extrabold text-brand-plum w-8 text-center" x-text="add"></span>
+            <button type="button" @click="add = Math.min(<?= $room ?>, add + 1)" aria-label="One seat more" class="w-8 h-8 rounded-lg bg-brand-cream border border-brand-sand flex items-center justify-center hover:border-brand-gold">+</button>
+            <span class="text-xs text-brand-plum/50" x-text="money(add * <?= $seat_cost ?>)"></span>
+        </div>
+        <button type="button" @click="pay({ kind: 'seats', add_seats: add })" :disabled="loading"
+                class="w-full bg-brand-cream border border-brand-sand text-brand-plum py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:border-brand-gold transition-all disabled:opacity-50">
+            <span x-show="!loading">Pay for the seats</span>
+            <span x-show="loading" x-cloak>Processing...</span>
+        </button>
+        <div x-show="errorMsg" x-cloak class="mt-3 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-xs text-red-600" x-text="errorMsg"></div>
+    </div>
+    <?php endif; ?>
+    <?php endif; ?>
 
     <?php /* NFELIA AUDIT FIX H07 2026-06-03: Paystack JS removed — payment via authorization_url redirect */ ?>
     <script>
-    function subscribeForm() {
-        <?php 
-            $db_seats = get_db();
-            $stmt_seats = $db_seats->prepare("SELECT COUNT(*) FROM users WHERE business_id = ? AND is_active = 1");
-            $stmt_seats->execute([auth_business_id()]);
-            $active_staff = (int)$stmt_seats->fetchColumn();
-            
-            $min_extra = max(0, $active_staff - 1); 
-        ?>
+    function payMonth() {
         return {
-            minExtra: <?= $min_extra ?>,
-            savedSeats: <?= (int)($subscription['extra_seats'] ?? 0) ?>,
-            seats: Math.max(<?= $min_extra ?>, <?= (int)($subscription['extra_seats'] ?? 0) ?>),
-            isMidCycle: '<?= $sub_status ?>' === 'active',
+            covered: <?= json_encode(array_map('intval', array_column($team, 'id'))) ?>,
+            spare: 0,
+            add: 1,
             loading: false,
             errorMsg: '',
+            totalSeats() { return Math.min(<?= MAX_SEATS - 1 ?>, this.covered.length + this.spare); },
+            money(n) { return <?= json_encode($sym) ?> + Math.round(n).toLocaleString(); },
 
-            // Calculates the dynamic amount shown to the user on the screen
-            calculateTotal() {
-                if (this.isMidCycle) {
-                    const added = this.seats - this.savedSeats;
-                    return '<?= e($country_pricing['currency_symbol']) ?>' + (Math.max(0, added) * <?= (int)$country_pricing['extra_seat_price'] ?>).toLocaleString();
-                }
-                return '<?= e($country_pricing['currency_symbol']) ?>' + (<?= (int)$country_pricing['monthly_price'] ?> + this.seats * <?= (int)$country_pricing['extra_seat_price'] ?>).toLocaleString();
-            },
-
-            async subscribe() {
+            async pay(fields) {
                 this.loading = true;
                 this.errorMsg = '';
-
                 try {
                     const formData = new FormData();
-                    formData.append('extra_seats', this.seats);
-                    formData.append('csrf_token', '<?= e($_SESSION['csrf_token'] ?? '') ?>');
-
-                    const res = await fetch('<?= APP_URL ?>/billing/initialize', { method: 'POST', body: formData });
-                    
-                    const rawText = await res.text();
-                    let data;
-                    try { data = JSON.parse(rawText); } 
-                    catch (e) {
-                        console.error("PHP Error Output:", rawText);
-                        this.errorMsg = "Server exception. Check console.";
-                        return;
+                    for (const [k, v] of Object.entries(fields)) {
+                        if (Array.isArray(v)) v.forEach((x) => formData.append(k + '[]', x));
+                        else formData.append(k, v);
                     }
-
+                    formData.append('csrf_token', <?= json_encode($_SESSION['csrf_token'] ?? '') ?>);
+                    const res = await fetch('<?= APP_URL ?>/billing/initialize', { method: 'POST', body: formData });
+                    let data;
+                    try { data = await res.json(); }
+                    catch (e) { this.errorMsg = 'Something went wrong. Please try again.'; return; }
                     if (data.success && data.authorization_url) {
                         window.location.href = data.authorization_url;
                     } else {
-                        this.errorMsg = data.error || 'Failed to initialize payment.';
+                        this.errorMsg = data.error || 'Failed to start the payment.';
                     }
                 } catch (err) {
-                    this.errorMsg = 'Network request failed. Check connection.';
+                    this.errorMsg = 'Network request failed. Check your connection.';
                 } finally {
                     this.loading = false;
                 }
@@ -742,7 +795,6 @@ async function updateRole(memberId, newRole, selectEl) {
         };
     }
     </script>
-    <?php endif; ?>
 
     <!-- Plan Features -->
     <div class="bg-brand-white border border-brand-sand rounded-xl p-5 shadow-sm">

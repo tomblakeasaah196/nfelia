@@ -21,6 +21,7 @@ $extras = array_filter([
                 <?= sf_paragraphs($quote_text, 'sf-quote__text') ?>
             </div>
             <form class="sf-form" action="/quote-request" method="post" data-quote-form novalidate>
+                <input type="text" name="website" class="sf-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
                 <div class="sf-form__row">
                     <label class="sf-field">
                         <span class="sf-field__label">Your name</span>

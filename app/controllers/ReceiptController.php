@@ -204,16 +204,16 @@ class ReceiptController {
         // Customer
         $customer = null;
         if ($receipt['customer_id']) {
-            $stmtCust = $this->db->prepare("SELECT * FROM customers WHERE id = ?");
-            $stmtCust->execute([$receipt['customer_id']]);
+            $stmtCust = $this->db->prepare("SELECT * FROM customers WHERE id = ? AND business_id = ?");
+            $stmtCust->execute([$receipt['customer_id'], $this->biz_id]);
             $customer = $stmtCust->fetch();
         }
 
         // Linked invoice
         $invoice = null;
         if ($receipt['invoice_id']) {
-            $stmtInv = $this->db->prepare("SELECT id, doc_number, total, amount_paid, balance_due, status FROM invoices WHERE id = ?");
-            $stmtInv->execute([$receipt['invoice_id']]);
+            $stmtInv = $this->db->prepare("SELECT id, doc_number, total, amount_paid, balance_due, status FROM invoices WHERE id = ? AND business_id = ?");
+            $stmtInv->execute([$receipt['invoice_id'], $this->biz_id]);
             $invoice = $stmtInv->fetch();
         }
 
@@ -346,6 +346,9 @@ class ReceiptController {
 
         // Validate
         $errors = [];
+        if ($customer_id && !owned_by_business($this->db, 'customers', $customer_id, $this->biz_id)) {
+            $errors[] = 'Please select one of your clients.';
+        }
         if (empty($item_descs) || count(array_filter($item_descs, 'trim')) === 0) {
             $errors[] = 'At least one line item is required.';
         }
@@ -372,6 +375,7 @@ class ReceiptController {
             $qty     = max(0.01, (float)($item_qtys[$i] ?? 1));
             $price   = max(0, (float)($item_prices[$i] ?? 0));
             $prod_id = (int)($item_products[$i] ?? 0) ?: null;
+            if ($prod_id && !owned_by_business($this->db, 'products', $prod_id, $this->biz_id)) $prod_id = null;
             $sub     = round($qty * $price, 2);
 
             $total += $sub;
@@ -449,16 +453,16 @@ class ReceiptController {
             // Update customer financials if customer selected
             if ($customer_id) {
                 $this->db->prepare("
-                    UPDATE customers SET total_received = total_received + ? WHERE id = ?
-                ")->execute([$total, $customer_id]);
+                    UPDATE customers SET total_received = total_received + ? WHERE id = ? AND business_id = ?
+                ")->execute([$total, $customer_id, $this->biz_id]);
             }
 
             // A sale paid on the spot is money in: the bell, and the owner's
             // and admins' phones (app/helpers/notify.php).
             $payer = '';
             if ($customer_id) {
-                $stmtWho = $this->db->prepare("SELECT full_name FROM customers WHERE id = ?");
-                $stmtWho->execute([$customer_id]);
+                $stmtWho = $this->db->prepare("SELECT full_name FROM customers WHERE id = ? AND business_id = ?");
+                $stmtWho->execute([$customer_id, $this->biz_id]);
                 $payer = trim((string)$stmtWho->fetchColumn());
             }
             $money_title = notify_money_text((float)$total) . ' received';
