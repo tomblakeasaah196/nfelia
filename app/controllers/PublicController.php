@@ -354,6 +354,22 @@ class PublicController
         if (isset($_GET["signature"]) && $_SERVER["REQUEST_METHOD"] === "GET") {
             send_private_file($delivery["signoff_signature_path"]);
         }
+        /* A cancelled or failed delivery can't be signed for (S11) */
+        if ($delivery["status"] === "failed") {
+            if ($_SERVER["REQUEST_METHOD"] === "POST") {
+                header("Content-Type: application/json");
+                echo json_encode([
+                    "success" => false,
+                    "error" => "This delivery was cancelled, so it can't be signed for.",
+                ]);
+                return;
+            }
+            $this->notice([
+                "title" => "This delivery was cancelled",
+                "body" => "There is nothing to sign for. Ask the business if you think this is a mistake.",
+            ]);
+            return;
+        }
         $business = $this->get_business($delivery["business_id"]);
         $stmtItems = $this->db->prepare(
             " SELECT di.*, p.name AS product_name FROM delivery_items di LEFT JOIN products p ON p.id = di.product_id WHERE di.delivery_id = ? ",
@@ -444,16 +460,25 @@ class PublicController
             return;
         } /* Update delivery record */
         $signoff_ip = client_ip();
-        $this->db
-            ->prepare(
-                " UPDATE deliveries SET status = 'signed_off', signoff_name = ?, signoff_signature_path = ?, signoff_timestamp = NOW(), signoff_ip = ?, actual_delivery = COALESCE(actual_delivery, NOW()) WHERE id = ? ",
-            )
-            ->execute([
-                $signoff_name,
-                $relative_path,
-                $signoff_ip,
-                $delivery["id"],
-            ]); /* Create notification for business owner */
+        /* Only a delivery still on its way can be signed, once: a second tap,
+           or a delivery cancelled meanwhile, changes nothing (S11) */
+        $stmtSign = $this->db->prepare(
+            " UPDATE deliveries SET status = 'signed_off', signoff_name = ?, signoff_signature_path = ?, signoff_timestamp = NOW(), signoff_ip = ?, actual_delivery = COALESCE(actual_delivery, NOW()) WHERE id = ? AND deleted_at IS NULL AND status IN ('pending_dispatch','dispatched','in_transit','delivered') ",
+        );
+        $stmtSign->execute([
+            mb_substr($signoff_name, 0, 100),
+            $relative_path,
+            $signoff_ip,
+            $delivery["id"],
+        ]);
+        if ($stmtSign->rowCount() !== 1) {
+            @unlink($filepath);
+            echo json_encode([
+                "success" => false,
+                "error" => "This delivery has already been signed off or was cancelled.",
+            ]);
+            return;
+        } /* Create notification for business owner */
         try {
             $this->db
                 ->prepare(
@@ -814,15 +839,22 @@ class PublicController
         }
         if (empty($lines)) {
             json_response(["error" => "Cart is empty."], 422);
-        } /* The real name and price of every product, from this shop only */
+        } /* The real name and price of every product, from this shop only:
+             what its page sells (S10). Bookable services are booked, not
+             bought, and a shop that lists only some products sells only
+             those. */
         $product_ids = array_values(array_unique(array_column($lines, "product_id")));
         $placeholders = implode(",", array_fill(0, count($product_ids), "?"));
         $stmtProducts = $this->db->prepare(
-            "SELECT id, name, sell_price FROM products WHERE business_id = ? AND deleted_at IS NULL AND is_active = 1 AND id IN ({$placeholders})",
+            "SELECT id, name, sell_price FROM products WHERE business_id = ? AND deleted_at IS NULL AND is_active = 1 AND booking_mode = 'none' AND id IN ({$placeholders})",
         );
         $stmtProducts->execute(array_merge([$business_id], $product_ids));
+        $only = sf_section(storefront_settings($business, "published"), "catalogue")["only"] ?? [];
         $catalogue = [];
         foreach ($stmtProducts->fetchAll() as $product) {
+            if ($only && !in_array((int) $product["id"], $only, true)) {
+                continue;
+            }
             $catalogue[(int) $product["id"]] = $product;
         }
         $subtotal = 0;

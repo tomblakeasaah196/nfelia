@@ -31,6 +31,9 @@ $labels = ['pending' => 'To confirm', 'confirmed' => 'Confirmed', 'declined' => 
             <dl class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm pt-2 border-t border-brand-sand/60">
                 <dt class="text-brand-plum/50">Total</dt><dd class="font-bold text-brand-plum text-right"><?= e(sf_money((float)$booking['total'], $currency)) ?></dd>
                 <dt class="text-brand-plum/50">Deposit</dt><dd class="font-bold text-brand-plum text-right"><?= $booking['deposit_due'] > 0 ? e(sf_money((float)$booking['deposit_due'], $currency)) : 'None' ?></dd>
+                <?php if (!empty($deposit_receipt)): ?>
+                <dt class="text-brand-plum/50">Deposit receipt</dt><dd class="text-right"><a href="<?= APP_URL ?>/receipts/view/<?= (int)$deposit_receipt['id'] ?>" class="font-bold text-brand-plum underline"><?= e($deposit_receipt['doc_number']) ?></a></dd>
+                <?php endif; ?>
                 <dt class="text-brand-plum/50">To pay on the day</dt><dd class="font-bold text-brand-plum text-right"><?= e(sf_money($balance, $currency)) ?></dd>
                 <dt class="text-brand-plum/50">How they paid</dt><dd class="text-brand-plum text-right"><?= $booking['channel'] === 'whatsapp' ? 'Arranging on WhatsApp' : ($booking['payment_method'] === 'bank_transfer' ? 'Bank transfer' : 'To arrange') ?></dd>
             </dl>
@@ -54,8 +57,14 @@ $labels = ['pending' => 'To confirm', 'confirmed' => 'Confirmed', 'declined' => 
 
         <?php if ($status === 'pending'): ?>
         <div class="bg-brand-white border border-brand-sand rounded-xl p-5 shadow-sm space-y-4">
-            <form method="POST" action="<?= APP_URL ?>/bookings/confirm/<?= (int)$booking['id'] ?>">
+            <form method="POST" action="<?= APP_URL ?>/bookings/confirm/<?= (int)$booking['id'] ?>" class="space-y-3">
                 <?= csrf_field() ?>
+                <?php if ($booking['deposit_due'] > 0): ?>
+                <label class="flex items-start gap-3 text-sm text-brand-plum">
+                    <input type="checkbox" name="deposit_received" value="1" class="mt-0.5 w-5 h-5 rounded border-brand-sand" <?= $booking['payment_proof_path'] ? 'checked' : '' ?>>
+                    <span>I have the <?= e(sf_money((float)$booking['deposit_due'], $currency)) ?> deposit <span class="block text-xs text-brand-plum/50">We make a receipt for it, so it shows in your money in.</span></span>
+                </label>
+                <?php endif; ?>
                 <button type="submit" class="w-full h-12 btn-primary text-white text-sm font-bold rounded-xl">Confirm and add to my calendar</button>
             </form>
             <form method="POST" action="<?= APP_URL ?>/bookings/decline/<?= (int)$booking['id'] ?>" class="space-y-2">

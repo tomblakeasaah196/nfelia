@@ -138,6 +138,14 @@ class DeliveryController {
             $stmt->execute([$invoice_id, $this->biz_id]);
             $pre_invoice = $stmt->fetch();
 
+            // One live delivery per invoice (S3): open the one it has
+            $live = $pre_invoice ? $this->live_delivery_for((int)$pre_invoice['id']) : null;
+            if ($live) {
+                flash('info', $pre_invoice['doc_number'] . ' already has delivery ' . $live['doc_number'] . '.');
+                redirect('deliveries/view/' . $live['id']);
+                return;
+            }
+
             if ($pre_invoice) {
                 $stmtItems = $this->db->prepare("
                     SELECT ii.description, ii.quantity, p.name AS product_name, p.id AS product_id
@@ -197,6 +205,7 @@ class DeliveryController {
         $pre_invoice_items = [];
         $pre_customer = null;
         $providers = self::PROVIDERS;
+        $delivery['invoice_doc_number'] = $this->invoice_doc_number((int)($delivery['invoice_id'] ?? 0));
 
         $title     = "Edit — " . e($delivery['doc_number']);
         $view_file = BASE_PATH . '/views/deliveries/form.php';
@@ -241,23 +250,8 @@ class DeliveryController {
             $invoice = $stmt->fetch();
         }
 
-        // NFELIA AUDIT FIX M05 — WhatsApp formatting is now country-code-aware — 2026-06-03
-        $wa_number = '';
-        if ($delivery['recipient_phone']) {
-            $raw = preg_replace('/[^0-9+]/', '', $delivery['recipient_phone']);
-            if (str_starts_with($raw, '+')) {
-                // Already has international prefix — strip the +
-                $wa_number = ltrim($raw, '+');
-            } elseif (str_starts_with($raw, '00')) {
-                // 00-prefixed international number
-                $wa_number = substr($raw, 2);
-            } elseif (str_starts_with($raw, '0')) {
-                // Local Nigerian number — prefix with 234
-                $wa_number = '234' . substr($raw, 1);
-            } else {
-                $wa_number = $raw;
-            }
-        }
+        // A local number takes the business's own country code (M23)
+        $wa_number = wa_digits($delivery['recipient_phone'], auth_business());
 
         $statuses  = self::STATUSES;
         $providers = self::PROVIDERS;
@@ -311,13 +305,33 @@ class DeliveryController {
             $updates[] = "actual_delivery = NOW()";
         }
 
+        // Trying again needs an invoice that is still live and has no other delivery
+        if ($delivery['status'] === 'failed' && $delivery['invoice_id']) {
+            $stmt = $this->db->prepare("SELECT status FROM invoices WHERE id = ? AND business_id = ?");
+            $stmt->execute([$delivery['invoice_id'], $this->biz_id]);
+            $live = $this->live_delivery_for((int)$delivery['invoice_id'], (int)$id);
+            if ($stmt->fetchColumn() === 'cancelled' || $live) {
+                flash('error', $live ? 'That invoice already has delivery ' . $live['doc_number'] . '.' : 'Its invoice was cancelled, so this delivery can\'t go out again.');
+                redirect('deliveries/view/' . $id);
+                return;
+            }
+        }
+
         $updates[] = "1=1"; // placeholder for trailing comma safety
         $params[]  = $id;
         $params[]  = $this->biz_id;
+        $params[]  = $delivery['status'];
 
+        // Only from the state it was read in: a double tap, or a sign-off
+        // meanwhile, changes nothing
         $set_sql = implode(', ', $updates);
-        $this->db->prepare("UPDATE deliveries SET {$set_sql} WHERE id = ? AND business_id = ?")
-                  ->execute($params);
+        $stmt = $this->db->prepare("UPDATE deliveries SET {$set_sql} WHERE id = ? AND business_id = ? AND status = ? AND deleted_at IS NULL");
+        $stmt->execute($params);
+        if ($stmt->rowCount() !== 1) {
+            flash('error', 'This delivery changed meanwhile. Please check it and try again.');
+            redirect('deliveries/view/' . $id);
+            return;
+        }
 
         flash('success', 'Status updated to ' . self::STATUSES[$new_status]['label'] . '.');
         redirect('deliveries/view/' . $id);
@@ -366,7 +380,7 @@ class DeliveryController {
                    c.phone AS customer_phone, c.address AS customer_address
             FROM invoices i
             LEFT JOIN customers c ON c.id = i.customer_id
-            WHERE i.business_id = ? AND i.deleted_at IS NULL
+            WHERE i.business_id = ? AND i.status <> 'cancelled'
               AND (i.doc_number LIKE ? OR c.full_name LIKE ?)
             ORDER BY i.created_at DESC LIMIT 10
         ");
@@ -447,6 +461,14 @@ class DeliveryController {
             $errors[] = 'Please pick one of your invoices.';
             $invoice_id = null;
         }
+        if ($invoice_id) {
+            $live = $this->live_delivery_for($invoice_id, (int)$id);
+            if ($live) {
+                $errors[] = 'That invoice already has delivery ' . $live['doc_number'] . '.';
+            } elseif ($this->invoice_status($invoice_id) === 'cancelled') {
+                $errors[] = 'That invoice was cancelled.';
+            }
+        }
         if ($customer_id && !owned_by_business($this->db, 'customers', $customer_id, $this->biz_id)) {
             $errors[] = 'Please pick one of your clients.';
             $customer_id = null;
@@ -460,9 +482,22 @@ class DeliveryController {
 
         if (!empty($errors)) {
             flash('error', implode(' ', $errors));
-            $delivery = $_POST;
+            // Keep what was typed (D1): an edit keeps its own id and number
             $editing  = $id !== null;
+            $delivery = array_merge($editing ? ($this->find_delivery($id) ?: []) : [], $_POST);
+            $delivery['invoice_id'] = $invoice_id;
+            $delivery['customer_id'] = $customer_id;
+            $delivery['invoice_doc_number'] = $this->invoice_doc_number((int)$invoice_id);
             $items    = [];
+            foreach ($item_descriptions as $i => $desc) {
+                $items[] = [
+                    'description' => (string)$desc,
+                    'quantity'    => (float)($item_quantities[$i] ?? 1),
+                    'unit'        => (string)($item_units[$i] ?? ''),
+                    'product_id'  => (int)($item_product_ids[$i] ?? 0),
+                    'notes'       => (string)($item_notes[$i] ?? ''),
+                ];
+            }
             $pre_invoice = null; $pre_invoice_items = []; $pre_customer = null;
             $user     = auth_user();
             $business = auth_business();
@@ -476,6 +511,14 @@ class DeliveryController {
         // Wrap everything in a transaction to prevent partial saves / duplicates
         $this->db->beginTransaction();
         try {
+            if ($invoice_id) {
+                // Lock the invoice so two saves at once can't both add a delivery
+                $this->db->prepare("SELECT id FROM invoices WHERE id = ? AND business_id = ? FOR UPDATE")->execute([$invoice_id, $this->biz_id]);
+                $live = $this->live_delivery_for($invoice_id, (int)$id);
+                if ($live) {
+                    throw new DomainException('That invoice already has delivery ' . $live['doc_number'] . '.');
+                }
+            }
             if ($id) {
                 // Delete old items
                 $this->db->prepare("DELETE FROM delivery_items WHERE delivery_id = ?")->execute([$id]);
@@ -540,6 +583,11 @@ class DeliveryController {
 
             $this->db->commit();
             flash('success', ($doc_number ?? 'Delivery') . ' saved.');
+        } catch (DomainException $ex) {
+            $this->db->rollBack();
+            flash('error', $ex->getMessage());
+            redirect($id ? 'deliveries/view/' . $id : 'deliveries');
+            return;
         } catch (\Exception $ex) {
             $this->db->rollBack();
             error_log('[Nfelia] DeliveryController::save failed: ' . $ex->getMessage());
@@ -554,6 +602,30 @@ class DeliveryController {
     /* ══════════════════════════════════════════
      *  PRIVATE HELPERS
      * ══════════════════════════════════════════ */
+
+    /** The invoice's delivery that is not deleted or failed, other than $except. */
+    private function live_delivery_for(int $invoice_id, int $except = 0): ?array {
+        $stmt = $this->db->prepare("
+            SELECT id, doc_number FROM deliveries
+            WHERE invoice_id = ? AND business_id = ? AND id <> ? AND deleted_at IS NULL AND status <> 'failed'
+            ORDER BY id DESC LIMIT 1
+        ");
+        $stmt->execute([$invoice_id, $this->biz_id, $except]);
+        return $stmt->fetch() ?: null;
+    }
+
+    private function invoice_status(int $invoice_id): ?string {
+        $stmt = $this->db->prepare("SELECT status FROM invoices WHERE id = ? AND business_id = ?");
+        $stmt->execute([$invoice_id, $this->biz_id]);
+        return $stmt->fetchColumn() ?: null;
+    }
+
+    private function invoice_doc_number(int $invoice_id): string {
+        if (!$invoice_id) return '';
+        $stmt = $this->db->prepare("SELECT doc_number FROM invoices WHERE id = ? AND business_id = ?");
+        $stmt->execute([$invoice_id, $this->biz_id]);
+        return (string)($stmt->fetchColumn() ?: '');
+    }
 
     private function find_delivery($id): ?array {
         if (!$id) return null;

@@ -117,27 +117,34 @@ class ReceiptController {
         $payment = $stmtPay->fetch();
 
         if (!$payment) { not_found(); return; }
-
-        // Check if receipt already exists for this payment
-        $stmtExist = $this->db->prepare("SELECT id FROM receipts WHERE payment_id = ? AND business_id = ?");
-        $stmtExist->execute([$payment_id, $this->biz_id]);
-        $existing = $stmtExist->fetch();
-
-        if ($existing) {
-            flash('info', 'Receipt already exists for this payment.');
-            redirect('receipts/view/' . $existing['id']);
-            return;
+        if ((float)$payment['amount'] <= 0) {
+            flash('error', 'A refund doesn\'t get a receipt.');
+            redirect('invoices/view/' . $payment['invoice_id']);
         }
 
-        // Generate receipt
+        // Generate receipt, once: the payment row is locked first, so a
+        // double tap waits and then finds the receipt the first one made
         $this->db->beginTransaction();
         try {
-            $this->db->prepare("CALL generate_doc_number(?, 'REC', @rec_num)")->execute([$this->biz_id]);
-            $doc_number = $this->db->query("SELECT @rec_num")->fetchColumn();
+            $this->db->prepare("SELECT id FROM payments WHERE id = ? AND business_id = ? FOR UPDATE")->execute([(int)$payment_id, $this->biz_id]);
+            $stmtExist = $this->db->prepare("SELECT id FROM receipts WHERE payment_id = ? AND business_id = ?");
+            $stmtExist->execute([$payment_id, $this->biz_id]);
+            $existing = $stmtExist->fetch();
+            if ($existing) {
+                $this->db->rollBack();
+                flash('info', 'Receipt already exists for this payment.');
+                redirect('receipts/view/' . $existing['id']);
+                return;
+            }
+
+            $doc_number = generate_doc_number($this->db, $this->biz_id, 'REC');
             $token = generate_token();
 
-            // Balance remaining after this payment
-            $balance_remaining = max(0, (float)$payment['balance_due']);
+            // Balance left on the invoice right after this payment (not now:
+            // later payments are not this receipt's business)
+            $stmtPaid = $this->db->prepare("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE invoice_id = ? AND business_id = ? AND id <= ?");
+            $stmtPaid->execute([$payment['invoice_id'], $this->biz_id, (int)$payment_id]);
+            $balance_remaining = max(0, round((float)$payment['invoice_total'] - (float)$stmtPaid->fetchColumn(), 2));
 
             $this->db->prepare("
                 INSERT INTO receipts (business_id, invoice_id, payment_id, customer_id, user_id, doc_number, issue_date, amount, balance_remaining, method, note, token)
@@ -257,12 +264,28 @@ class ReceiptController {
         $receipt = $this->find_receipt($id);
         if (!$receipt) { not_found(); return; }
 
-        // Delete items if standalone
-        if (!$receipt['invoice_id']) {
-            $this->db->prepare("DELETE FROM receipt_items WHERE receipt_id = ?")->execute([$id]);
+        // A receipt for an invoice payment is only its paperwork: the payment
+        // stays on the invoice (and in the books). A direct sale's receipt is
+        // the sale itself, so its stock goes back and its money comes off.
+        $this->db->beginTransaction();
+        try {
+            if (!$receipt['invoice_id']) {
+                stock_settle($this->db, $this->biz_id, 'receipt', (int)$id, [], 'receipt ' . $receipt['doc_number'] . ' deleted');
+                $this->db->prepare("DELETE FROM receipt_items WHERE receipt_id = ?")->execute([$id]);
+            }
+            // Orders, bookings and deeds that showed this receipt stop linking to it
+            foreach (['orders', 'bookings', 'deeds'] as $table) {
+                $this->db->prepare("UPDATE {$table} SET receipt_id = NULL WHERE receipt_id = ? AND business_id = ?")->execute([$id, $this->biz_id]);
+            }
+            $this->db->prepare("DELETE FROM receipts WHERE id = ? AND business_id = ?")->execute([$id, $this->biz_id]);
+            customer_refresh_totals($this->db, $this->biz_id, $receipt['customer_id'] ? (int)$receipt['customer_id'] : null);
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+            error_log('Receipt delete error: ' . $e->getMessage());
+            flash('error', 'Could not delete ' . $receipt['doc_number'] . '. Please try again.');
+            redirect('receipts/view/' . (int)$id);
         }
-
-        $this->db->prepare("DELETE FROM receipts WHERE id = ? AND business_id = ?")->execute([$id, $this->biz_id]);
 
         flash('success', $receipt['doc_number'] . ' deleted.');
         redirect('receipts');
@@ -376,9 +399,9 @@ class ReceiptController {
             $price   = max(0, (float)($item_prices[$i] ?? 0));
             $prod_id = (int)($item_products[$i] ?? 0) ?: null;
             if ($prod_id && !owned_by_business($this->db, 'products', $prod_id, $this->biz_id)) $prod_id = null;
-            $sub     = round($qty * $price, 2);
+            $sub     = money2($qty * $price);
 
-            $total += $sub;
+            $total = money2($total + $sub);
             $line_items[] = [
                 'product_id'  => $prod_id,
                 'description' => $desc,
@@ -391,8 +414,7 @@ class ReceiptController {
 
         $this->db->beginTransaction();
         try {
-            $this->db->prepare("CALL generate_doc_number(?, 'REC', @rec_num)")->execute([$this->biz_id]);
-            $doc_number = $this->db->query("SELECT @rec_num")->fetchColumn();
+            $doc_number = generate_doc_number($this->db, $this->biz_id, 'REC');
             $token = generate_token();
 
             $this->db->prepare("
@@ -423,39 +445,16 @@ class ReceiptController {
                 ]);
             }
 
-            // Deduct stock for non-service items (direct sale)
+            // The goods leave the shelf (a direct sale); rows are locked as they move
+            $sold = [];
             foreach ($line_items as $li) {
-                if (!$li['product_id']) continue;
-
-                $stmtProd = $this->db->prepare("SELECT stock_qty, is_service FROM products WHERE id = ? AND business_id = ?");
-                $stmtProd->execute([$li['product_id'], $this->biz_id]);
-                $prod = $stmtProd->fetch();
-
-                if (!$prod || $prod['is_service']) continue;
-
-                $qty_before = (float)$prod['stock_qty'];
-                $qty_after  = $qty_before - $li['quantity'];
-
-                $this->db->prepare("UPDATE products SET stock_qty = ? WHERE id = ? AND business_id = ?")
-                          ->execute([$qty_after, $li['product_id'], $this->biz_id]);
-
-                $this->db->prepare("
-                    INSERT INTO stock_movements (business_id, product_id, user_id, type, quantity, stock_before, stock_after, unit_cost, reference_type, reference_id, note, movement_date)
-                    VALUES (?, ?, ?, 'sale', ?, ?, ?, ?, 'receipt', ?, ?, CURDATE())
-                ")->execute([
-                    $this->biz_id, $li['product_id'], $user['id'],
-                    $li['quantity'], $qty_before, $qty_after,
-                    $li['unit_price'], $receipt_id,
-                    'Direct sale — receipt ' . $doc_number
-                ]);
+                if ($li['product_id']) {
+                    $sold[$li['product_id']] = ($sold[$li['product_id']] ?? 0) - $li['quantity'];
+                }
             }
+            stock_settle($this->db, $this->biz_id, 'receipt', $receipt_id, $sold, 'direct sale, receipt ' . $doc_number);
 
-            // Update customer financials if customer selected
-            if ($customer_id) {
-                $this->db->prepare("
-                    UPDATE customers SET total_received = total_received + ? WHERE id = ? AND business_id = ?
-                ")->execute([$total, $customer_id, $this->biz_id]);
-            }
+            customer_refresh_totals($this->db, $this->biz_id, $customer_id);
 
             // A sale paid on the spot is money in: the bell, and the owner's
             // and admins' phones (app/helpers/notify.php).

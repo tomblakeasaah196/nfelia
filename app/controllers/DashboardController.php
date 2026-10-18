@@ -36,15 +36,9 @@ class DashboardController {
         $stmt = $this->db->prepare("SELECT * FROM v_dashboard_summary WHERE business_id = ?");
         $stmt->execute([$this->biz_id]);
         $summary = $stmt->fetch() ?: ['total_outstanding' => 0, 'total_expenses_this_month' => 0];
-        // Money in: invoice payments, and receipts for sales paid on the spot
-        // (a receipt for an invoice payment is already counted as the payment).
-        $stmtIn = $this->db->prepare("
-            SELECT (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE business_id = ? AND payment_date >= ?)
-                 + (SELECT COALESCE(SUM(amount), 0) FROM receipts WHERE business_id = ? AND invoice_id IS NULL AND issue_date >= ?)
-        ");
-        $stmtIn->execute([$this->biz_id, $month, $this->biz_id, $month]);
+        // Money in this month: the same basis as the profit and loss (money_in)
         $money = [
-            'in'    => (float)$stmtIn->fetchColumn(),
+            'in'    => money_in($this->db, $this->biz_id, $month, date('Y-m-t', strtotime($month))),
             'owed'  => (float)($summary['total_outstanding'] ?? 0),
             'spent' => (float)($summary['total_expenses_this_month'] ?? 0),
         ];

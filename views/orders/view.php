@@ -61,6 +61,9 @@ $can_advance = in_array($order['status'], ['approved', 'processing']);
                         <?php if ($item['item_note']): ?>
                             <div class="text-[10px] text-brand-plum/30 mt-0.5 italic">"<?= e($item['item_note']) ?>"</div>
                         <?php endif; ?>
+                        <?php if (in_array($order['status'], ['pending', 'pending_verification'], true) && isset($item['stock_qty']) && !$item['is_service'] && (float)$item['quantity'] > (float)$item['stock_qty']): ?>
+                            <div class="text-[11px] font-semibold text-red-700 mt-1"><?= (float)$item['stock_qty'] <= 0 ? 'Out of stock' : 'Only ' . (float)$item['stock_qty'] . ' ' . e($item['unit'] ?: '') . ' in stock' ?></div>
+                        <?php endif; ?>
                     </div>
                     <div class="text-right flex-shrink-0">
                         <div class="data-text text-xs font-bold accent-primary"><?= money((float)$item['line_total'], $currency) ?></div>

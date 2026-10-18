@@ -7,7 +7,7 @@
  *   $user, $business, $currency, $month, $year, $month_label,
  *   $revenue, $expenses_total, $gross_profit,
  *   $expense_categories, $pending_revenue, $pending_count,
- *   $debts_receivable, $debts_receivable_count,
+ *   $debts_receivable, $debts_receivable_count, $collectable_extra,
  *   $debts_payable, $debts_payable_count,
  *   $trend (array of 6 months), $invoices_issued,
  *   $available_months
@@ -184,7 +184,7 @@ $cat_labels = [
             </div>
             <?php if ($pending_revenue > 0 || $debts_receivable > 0): ?>
                 <p class="text-[10px] text-brand-plum/50 mt-3 leading-relaxed border-t border-brand-sand/50 pt-3">
-                    If you collect everything, that's an extra <strong class="text-green-600"><?= $currency ?><?= number_format($pending_revenue + $debts_receivable, 0) ?></strong> coming in.
+                    If you collect everything, that's an extra <strong class="text-green-600"><?= $currency ?><?= number_format($pending_revenue + $collectable_extra, 0) ?></strong> coming in.
                 </p>
             <?php endif; ?>
         </div>

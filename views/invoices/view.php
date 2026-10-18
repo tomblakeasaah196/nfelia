@@ -185,10 +185,15 @@ if ($quotation) {
         <?php foreach ($payments as $pay): ?>
             <div class="nf-item">
                 <span class="nf-item-main">
-                    <b class="is-in"><?= planner_money((float)$pay['amount'], $currency) ?></b>
+                    <?php if ((float)$pay['amount'] < 0): ?>
+                        <b>Refund <?= planner_money(-(float)$pay['amount'], $currency) ?></b>
+                    <?php else: ?>
+                        <b class="is-in"><?= planner_money((float)$pay['amount'], $currency) ?></b>
+                    <?php endif; ?>
                     <small><?= e(screen_date($pay['payment_date'])) ?> · <?= e(screen_method($pay['method'])) ?><?= $pay['reference'] ? ' · ' . e($pay['reference']) : '' ?></small>
                 </span>
-                <?php if ($pay['receipt_id']): ?>
+                <?php if ((float)$pay['amount'] < 0): ?>
+                <?php elseif ($pay['receipt_id']): ?>
                     <a class="nf-link" href="<?= APP_URL ?>/receipts/view/<?= (int)$pay['receipt_id'] ?>" data-prefetch><?= e($pay['receipt_number']) ?></a>
                 <?php else: ?>
                     <a class="nf-link" href="<?= APP_URL ?>/receipts/from_payment/<?= (int)$pay['id'] ?>" data-no-prefetch>Make a receipt</a>
@@ -419,6 +424,44 @@ if ($quotation) {
 
 <!-- ===== RECORD PAYMENT ===== -->
 <?php if ($can_pay): ?>
+<?php if ($invoice['status'] !== 'cancelled' && (float)$invoice['amount_paid'] > 0): ?>
+<!-- ===== REFUND (money given back; needed before a paid invoice can be cancelled) ===== -->
+<dialog class="nf-sheet" id="nf-refund" aria-labelledby="nf-refund-h">
+    <div class="nf-grab"></div>
+    <div class="nf-sheet-h">
+        <h2 id="nf-refund-h">Record a refund</h2>
+        <button type="button" class="nf-icon-btn" data-close aria-label="Close"><?= nav_icon('close') ?></button>
+    </div>
+    <form method="POST" action="<?= APP_URL ?>/invoices/record_refund/<?= (int)$invoice['id'] ?>" class="nf-form">
+        <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
+        <p class="nf-help"><?= planner_money((float)$invoice['amount_paid'], $currency) ?> has been paid on <?= e($invoice['doc_number']) ?>. Record what you gave back.</p>
+        <label>Amount given back
+            <span class="nf-amount"><span><?= e($currency) ?></span>
+                <input type="number" name="amount" step="0.01" min="0.01" max="<?= (float)$invoice['amount_paid'] ?>" inputmode="decimal" required>
+            </span>
+        </label>
+        <div class="nf-two">
+            <label>Date <input type="date" name="refund_date" value="<?= date('Y-m-d') ?>"></label>
+            <label>How you paid it back
+                <select name="method">
+                    <option value="cash">Cash</option>
+                    <option value="bank_transfer">Bank transfer</option>
+                    <option value="pos">POS</option>
+                    <option value="mobile_money">Mobile money</option>
+                    <option value="other">Other</option>
+                </select>
+            </label>
+        </div>
+        <label>Note <small>Optional</small>
+            <input type="text" name="note" maxlength="500" autocomplete="off">
+        </label>
+        <div class="nf-actions nf-actions-flush">
+            <button type="submit" class="nf-btn nf-btn-primary">Record the refund</button>
+        </div>
+    </form>
+</dialog>
+<?php endif; ?>
+
 <dialog class="nf-sheet" id="nf-pay" aria-labelledby="nf-pay-h">
     <div class="nf-grab"></div>
     <div class="nf-sheet-h">
@@ -486,6 +529,9 @@ if ($quotation) {
         <?php endif; ?>
         <a class="nf-row" href="<?= e($public_url) ?>?format=pdf" download="<?= e(preg_replace('/[^A-Za-z0-9._-]+/', '-', $invoice['doc_number'])) ?>.pdf"><span class="nf-tile-ic"><?= nav_icon('download') ?></span>Download PDF</a>
         <a class="nf-row" href="<?= e($public_url) ?>" target="_blank" rel="noopener"><span class="nf-tile-ic"><?= nav_icon('open') ?></span>Open the customer's page</a>
+        <?php if ($invoice['status'] !== 'cancelled' && (float)$invoice['amount_paid'] > 0): ?>
+            <button type="button" class="nf-row" data-open="nf-refund"><span class="nf-tile-ic"><?= nav_icon('money') ?></span>Record a refund</button>
+        <?php endif; ?>
         <?php if ($live): ?>
             <form method="POST" action="<?= APP_URL ?>/invoices/cancel/<?= (int)$invoice['id'] ?>"
                   onsubmit="return confirm('Cancel <?= e($invoice['doc_number']) ?>? Its stock goes back on your shelves, and what is owed on it is cleared.');">

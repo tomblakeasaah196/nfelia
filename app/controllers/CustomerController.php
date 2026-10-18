@@ -237,8 +237,7 @@ class CustomerController {
 
         // WhatsApp number
         $wa_number = $customer['whatsapp'] ?: $customer['phone'] ?: '';
-        $wa_number = preg_replace('/[^0-9]/', '', $wa_number);
-        if (str_starts_with($wa_number, '0')) $wa_number = '234' . substr($wa_number, 1);
+        $wa_number = wa_digits($wa_number, auth_business());
 
         $title     = $customer['full_name'];
         $view_file = BASE_PATH . '/views/customers/view.php';
@@ -322,8 +321,9 @@ class CustomerController {
 
         if (!empty($errors)) {
             flash('error', implode(' ', $errors));
-            $customer = $_POST;
+            // Keep what was typed; an edit keeps its own id (D1)
             $editing  = $id !== null;
+            $customer = array_merge($editing ? ($this->find_customer($id) ?: []) : [], $_POST);
             $user     = auth_user();
             $business = auth_business();
             $title    = $editing ? "Edit Customer" : "New Customer";

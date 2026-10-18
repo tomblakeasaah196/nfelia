@@ -148,10 +148,15 @@ class OrderController
         }
 
         // Order items
+        // With what is in stock now: the shop doesn't show stock, so the
+        // owner sees it here before approving (S10)
         $stmtI = $this->db->prepare(
-            "SELECT * FROM order_items WHERE order_id = ? ORDER BY id ASC",
+            "SELECT oi.*, p.stock_qty, p.is_service, p.unit
+             FROM order_items oi
+             LEFT JOIN products p ON p.id = oi.product_id AND p.business_id = ? AND p.deleted_at IS NULL
+             WHERE oi.order_id = ? ORDER BY oi.id ASC",
         );
-        $stmtI->execute([(int) $order["id"]]);
+        $stmtI->execute([$this->biz_id, (int) $order["id"]]);
         $items = $stmtI->fetchAll();
 
         // Linked documents
@@ -242,18 +247,27 @@ class OrderController
         $stmtI->execute([(int) $order["id"]]);
         $items = $stmtI->fetchAll();
 
-        // Safety reset if any persistent PDO pool left a stale transaction open
+        // One transaction for everything approving does. It starts by claiming
+        // the order (a double tap or a retry finds it already approved), so
+        // nothing is ever made twice.
         if ($this->db->inTransaction()) {
             $this->db->rollBack();
         }
-
+        $this->db->beginTransaction();
         try {
-            // NOTE: No outer beginTransaction() here because generate_doc_number() inside helpers.php manages its own internal PDO transaction!
+            $stmtClaim = $this->db->prepare("
+                UPDATE orders SET status = 'approved', reviewed_by = ?, reviewed_at = NOW()
+                WHERE id = ? AND business_id = ? AND status IN ('pending','pending_verification')
+            ");
+            $stmtClaim->execute([$this->get_current_user_id(), (int) $order["id"], $this->biz_id]);
+            if ($stmtClaim->rowCount() !== 1) {
+                throw new \DomainException("This order has already been dealt with.");
+            }
 
-            // 1. Match or create customer
+            // 1. The order's own customer (or one matched by phone, or a new one)
             $customer_id = $this->match_or_create_customer($order);
 
-            // 2. Create invoice
+            // 2. Create invoice (sent: the goods are going out)
             $invoice_id = $this->create_invoice_from_order(
                 $order,
                 $items,
@@ -265,9 +279,11 @@ class OrderController
                 ->execute([$delivery["deliver_mode"], $delivery["deliver_by"], $delivery["deliver_show"], $delivery["delivered_at"], $invoice_id, $this->biz_id]);
 
             // 2b. The goods leave the shelf, as when an invoice is sent
-            $this->deduct_stock_for_invoice($invoice_id, $order["order_number"]);
+            stock_settle($this->db, $this->biz_id, "invoice", $invoice_id, invoice_stock_target($this->db, $this->biz_id, $invoice_id),
+                         "shop order " . $order["order_number"]);
 
-            // 3. If payment proof exists, create receipt (mark invoice paid)
+            // 3. Paid with proof: a payment on the invoice (so Home and the
+            //    profit and loss count it) and its receipt
             $receipt_id = null;
             if (!empty($order["payment_proof_path"])) {
                 $receipt_id = $this->create_receipt_from_order(
@@ -276,6 +292,7 @@ class OrderController
                     $customer_id,
                 );
             }
+            customer_refresh_totals($this->db, $this->biz_id, $customer_id);
 
             // 4. If fulfillment is delivery, create delivery note
             $delivery_id = null;
@@ -289,19 +306,12 @@ class OrderController
             }
 
             // 5. Update order
-            $stmtU = $this->db->prepare("
-                UPDATE orders SET status = 'approved', customer_id = ?, invoice_id = ?, receipt_id = ?, delivery_id = ?,
-                    reviewed_by = ?, reviewed_at = NOW()
-                WHERE id = ?
-            ");
-            $stmtU->execute([
-                $customer_id,
-                $invoice_id,
-                $receipt_id,
-                $delivery_id,
-                $this->get_current_user_id(),
-                (int) $order["id"],
-            ]);
+            $this->db->prepare("
+                UPDATE orders SET customer_id = ?, invoice_id = ?, receipt_id = ?, delivery_id = ?
+                WHERE id = ? AND business_id = ?
+            ")->execute([$customer_id, $invoice_id, $receipt_id, $delivery_id, (int) $order["id"], $this->biz_id]);
+
+            $this->db->commit();
 
             // Paid with proof: that is money in, for the bell and the owner's
             // and admins' phones (app/helpers/notify.php).
@@ -321,7 +331,7 @@ class OrderController
                 $this->db->rollBack();
             }
             error_log("Order approve error: " . $e->getMessage());
-            flash("error", "Error approving order: " . $e->getMessage());
+            flash("error", $e instanceof \DomainException ? $e->getMessage() : "Error approving order: " . $e->getMessage());
         }
 
         redirect("orders/view/{$id}");
@@ -375,26 +385,49 @@ class OrderController
             "processing" => ["fulfilled", "cancelled"],
         ];
 
-        $stmt = $this->db->prepare(
-            "SELECT status FROM orders WHERE id = ? AND business_id = ?",
-        );
-        $stmt->execute([(int) $id, $this->biz_id]);
-        $order = $stmt->fetch();
+        // One transaction: cancelling the order cancels its invoice too, which
+        // puts the stock back and closes the delivery (S4). An invoice with
+        // money on it needs a refund first, as on the invoice itself.
+        $this->db->beginTransaction();
+        try {
+            $stmt = $this->db->prepare(
+                "SELECT status, invoice_id FROM orders WHERE id = ? AND business_id = ? FOR UPDATE",
+            );
+            $stmt->execute([(int) $id, $this->biz_id]);
+            $order = $stmt->fetch();
 
-        if (
-            !$order ||
-            !isset($allowed_transitions[$order["status"]]) ||
-            !in_array($new_status, $allowed_transitions[$order["status"]])
-        ) {
-            flash("error", "Invalid status transition.");
+            if (
+                !$order ||
+                !isset($allowed_transitions[$order["status"]]) ||
+                !in_array($new_status, $allowed_transitions[$order["status"]])
+            ) {
+                throw new DomainException("Invalid status transition.");
+            }
+
+            $this->db
+                ->prepare(
+                    "UPDATE orders SET status = ? WHERE id = ? AND business_id = ? AND status = ?",
+                )
+                ->execute([$new_status, (int) $id, $this->biz_id, $order["status"]]);
+
+            if ($new_status === "cancelled" && !empty($order["invoice_id"])) {
+                $problem = invoice_cancel($this->db, $this->biz_id, (int) $order["invoice_id"],
+                                          (string) (auth_business()["currency_symbol"] ?? "₦"));
+                if ($problem !== "" && $problem !== "Invoice is already cancelled.") {
+                    throw new DomainException($problem);
+                }
+            }
+            $this->db->commit();
+        } catch (DomainException $e) {
+            $this->db->rollBack();
+            flash("error", $e->getMessage());
+            redirect("orders/view/{$id}");
+        } catch (Throwable $e) {
+            $this->db->rollBack();
+            error_log("Order status error: " . $e->getMessage());
+            flash("error", "Could not update the order. Please try again.");
             redirect("orders/view/{$id}");
         }
-
-        $this->db
-            ->prepare(
-                "UPDATE orders SET status = ? WHERE id = ? AND business_id = ?",
-            )
-            ->execute([$new_status, (int) $id, $this->biz_id]);
         // A fulfilled order can be reviewed: the link shows on the order and
         // on the shopper's tracking page
         if ($new_status === "fulfilled") {
@@ -417,9 +450,17 @@ class OrderController
 
     private function match_or_create_customer(array $order): int
     {
+        // The customer the order was placed as, if they are still here
+        if (!empty($order["customer_id"])) {
+            $stmt = $this->db->prepare("SELECT id FROM customers WHERE id = ? AND business_id = ? AND deleted_at IS NULL");
+            $stmt->execute([(int) $order["customer_id"], $this->biz_id]);
+            if ($stmt->fetchColumn()) {
+                return (int) $order["customer_id"];
+            }
+        }
         // Try matching by phone
         $stmt = $this->db->prepare(
-            "SELECT id FROM customers WHERE business_id = ? AND phone = ? LIMIT 1",
+            "SELECT id FROM customers WHERE business_id = ? AND phone = ? AND deleted_at IS NULL LIMIT 1",
         );
         $stmt->execute([$this->biz_id, $order["customer_phone"]]);
         $existing = $stmt->fetchColumn();
@@ -455,13 +496,10 @@ class OrderController
     ): int {
         $doc_number = generate_doc_number($this->db, $this->biz_id, "INV");
         $token = bin2hex(random_bytes(16));
-        $balance = !empty($order["payment_proof_path"])
-            ? 0
-            : (float) $order["total"];
-        $paid = !empty($order["payment_proof_path"])
-            ? (float) $order["total"]
-            : 0;
-        $inv_status = !empty($order["payment_proof_path"]) ? "paid" : "sent";
+        // Sent and unpaid; a paid order's payment is recorded on it next
+        $balance = (float) $order["total"];
+        $paid = 0;
+        $inv_status = "sent";
 
         $this->db
             ->prepare(
@@ -518,69 +556,11 @@ class OrderController
      * ones cancelling the invoice reads to put stock back, so the two always
      * match. Services have no stock and are skipped.
      */
-    private function deduct_stock_for_invoice(int $invoice_id, string $order_number): void
-    {
-        $stmtDoc = $this->db->prepare("SELECT doc_number FROM invoices WHERE id = ? AND business_id = ?");
-        $stmtDoc->execute([$invoice_id, $this->biz_id]);
-        $doc_number = (string) $stmtDoc->fetchColumn();
-
-        $stmtItems = $this->db->prepare("
-            SELECT ii.product_id, ii.quantity, ii.unit_price
-            FROM invoice_items ii
-            JOIN products p ON p.id = ii.product_id AND p.business_id = ?
-            WHERE ii.invoice_id = ? AND p.is_service = 0
-        ");
-        $stmtItems->execute([$this->biz_id, $invoice_id]);
-        $items = $stmtItems->fetchAll();
-        if (!$items) {
-            return;
-        }
-
-        $this->db->beginTransaction();
-        try {
-            foreach ($items as $item) {
-                // Lock the row so two sales at once can't both read the old count
-                $stmtQty = $this->db->prepare("SELECT stock_qty FROM products WHERE id = ? AND business_id = ? FOR UPDATE");
-                $stmtQty->execute([$item["product_id"], $this->biz_id]);
-                $qty_before = (float) $stmtQty->fetchColumn();
-                $deduct = (float) $item["quantity"];
-                $qty_after = $qty_before - $deduct;
-
-                $this->db
-                    ->prepare("UPDATE products SET stock_qty = ? WHERE id = ? AND business_id = ?")
-                    ->execute([$qty_after, $item["product_id"], $this->biz_id]);
-
-                $this->db
-                    ->prepare("
-                    INSERT INTO stock_movements (business_id, product_id, user_id, type, quantity, stock_before, stock_after, unit_cost, reference_type, reference_id, note, movement_date)
-                    VALUES (?, ?, ?, 'sale', ?, ?, ?, ?, 'invoice', ?, ?, CURDATE())
-                ")
-                    ->execute([
-                        $this->biz_id,
-                        $item["product_id"],
-                        $this->get_current_user_id(),
-                        $deduct,
-                        $qty_before,
-                        $qty_after,
-                        $item["unit_price"],
-                        $invoice_id,
-                        "Stock deducted for invoice {$doc_number} (shop order {$order_number})",
-                    ]);
-            }
-            $this->db->commit();
-        } catch (\Throwable $e) {
-            $this->db->rollBack();
-            throw $e;
-        }
-    }
-
     private function create_receipt_from_order(
         array $order,
         int $invoice_id,
         int $customer_id,
     ): int {
-        $doc_number = generate_doc_number($this->db, $this->biz_id, "REC");
-
         $method = $order["payment_method"] ?? "bank_transfer";
         $valid_methods = [
             "cash",
@@ -594,18 +574,25 @@ class OrderController
             $method = "other";
         }
 
+        // The payment, on the invoice (it becomes paid)
+        $paid = invoice_record_payment($this->db, $this->biz_id, $invoice_id, (float) $order["total"], date("Y-m-d"), $method,
+                                       null, "Shop order {$order["order_number"]}, proof sent with the order.",
+                                       (int) $this->get_current_user_id(), (string) (auth_business()["currency_symbol"] ?? "₦"));
+
+        $doc_number = generate_doc_number($this->db, $this->biz_id, "REC");
         $token = bin2hex(random_bytes(16));
         $this->db
             ->prepare(
                 "
-            INSERT INTO receipts (business_id, customer_id, invoice_id, user_id, doc_number, issue_date, amount, balance_remaining, method, note, token, created_at)
-            VALUES (?, ?, ?, ?, ?, CURDATE(), ?, 0, ?, ?, ?, NOW())
+            INSERT INTO receipts (business_id, customer_id, invoice_id, payment_id, user_id, doc_number, issue_date, amount, balance_remaining, method, note, token, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, CURDATE(), ?, 0, ?, ?, ?, NOW())
         ",
             )
             ->execute([
                 $this->biz_id,
                 $customer_id,
                 $invoice_id,
+                $paid["payment_id"],
                 $this->get_current_user_id(),
                 $doc_number,
                 $order["total"],
@@ -613,16 +600,7 @@ class OrderController
                 "Auto-receipt from order {$order["order_number"]}. Payment proof sent with the order.",
                 $token,
             ]);
-        $receipt_id = (int) $this->db->lastInsertId();
-
-        // Mark invoice as paid
-        $this->db
-            ->prepare(
-                "UPDATE invoices SET status = 'paid', amount_paid = total, balance_due = 0 WHERE id = ?",
-            )
-            ->execute([$invoice_id]);
-
-        return $receipt_id;
+        return (int) $this->db->lastInsertId();
     }
 
     private function create_delivery_from_order(

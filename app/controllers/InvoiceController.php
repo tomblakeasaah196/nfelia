@@ -286,52 +286,21 @@ class InvoiceController {
             return;
         }
 
-        $user = auth_user();
-
         $this->db->beginTransaction();
         try {
-            // Update status
-            $this->db->prepare("UPDATE invoices SET status = 'sent' WHERE id = ?")->execute([$id]);
-
-            // Deduct stock for non-service items
-            $stmtItems = $this->db->prepare("
-                SELECT ii.*, p.is_service, p.stock_qty
-                FROM invoice_items ii
-                LEFT JOIN products p ON p.id = ii.product_id
-                WHERE ii.invoice_id = ?
-            ");
-            $stmtItems->execute([$id]);
-
-            foreach ($stmtItems->fetchAll() as $item) {
-                if (!$item['product_id'] || $item['is_service']) continue;
-
-                $qty_before = (float)$item['stock_qty'];
-                $deduct     = (float)$item['quantity'];
-                $qty_after  = $qty_before - $deduct;
-
-                // Update product stock
-                $this->db->prepare("UPDATE products SET stock_qty = ? WHERE id = ? AND business_id = ?")
-                          ->execute([$qty_after, $item['product_id'], $this->biz_id]);
-
-                // Log stock movement
-                $this->db->prepare("
-                    INSERT INTO stock_movements (business_id, product_id, user_id, type, quantity, stock_before, stock_after, unit_cost, reference_type, reference_id, note, movement_date)
-                    VALUES (?, ?, ?, 'sale', ?, ?, ?, ?, 'invoice', ?, ?, CURDATE())
-                ")->execute([
-                    $this->biz_id, $item['product_id'], $user['id'],
-                    $deduct, $qty_before, $qty_after,
-                    $item['unit_price'], $id,
-                    'Stock deducted for invoice ' . $invoice['doc_number']
-                ]);
+            // Claim it: a double tap finds it already sent, and moves nothing twice
+            $stmtClaim = $this->db->prepare("UPDATE invoices SET status = 'sent' WHERE id = ? AND business_id = ? AND status = 'draft'");
+            $stmtClaim->execute([$id, $this->biz_id]);
+            if ($stmtClaim->rowCount() !== 1) {
+                $this->db->rollBack();
+                flash('error', 'This invoice has already been sent.');
+                redirect('invoices/view/' . $id);
             }
 
-            // Update customer's total_invoiced
-            $this->db->prepare("
-                UPDATE customers SET
-                    total_invoiced = total_invoiced + ?,
-                    outstanding_balance = outstanding_balance + ?
-                WHERE id = ? AND business_id = ?
-            ")->execute([$invoice['total'], $invoice['total'], $invoice['customer_id'], $this->biz_id]);
+            // The goods leave the shelf (services have no stock)
+            stock_settle($this->db, $this->biz_id, 'invoice', (int)$id, invoice_stock_target($this->db, $this->biz_id, (int)$id),
+                         'invoice ' . $invoice['doc_number']);
+            customer_refresh_totals($this->db, $this->biz_id, (int)$invoice['customer_id']);
 
             $this->db->commit();
             flash('success', $invoice['doc_number'] . ' marked as sent. Stock deducted.');
@@ -372,55 +341,21 @@ class InvoiceController {
         $reference    = trim($_POST['reference'] ?? '');
         $note         = trim($_POST['note'] ?? '');
 
-        // Validate
         $valid_methods = ['cash','bank_transfer','pos','mobile_money','cheque','other'];
-        if ($amount <= 0) {
-            $err = 'Payment amount must be greater than zero.';
-            if (is_ajax()) { json_response(['error' => $err], 422); }
-            flash('error', $err); redirect('invoices/view/' . $id); return;
-        }
-        if ($amount > (float)$invoice['balance_due']) {
-            $err = 'Payment exceeds the remaining balance of ' . money((float)$invoice['balance_due'], $invoice['currency_symbol'] ?? '₦') . '.';
-            if (is_ajax()) { json_response(['error' => $err], 422); }
-            flash('error', $err); redirect('invoices/view/' . $id); return;
-        }
         if (!in_array($method, $valid_methods)) $method = 'cash';
+        $symbol = auth_business()['currency_symbol'] ?? '₦';
 
         $this->db->beginTransaction();
         try {
-            // Insert payment
-            $stmtPay = $this->db->prepare("
-                INSERT INTO payments (business_id, invoice_id, user_id, amount, payment_date, method, reference, note)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ");
-            $stmtPay->execute([
-                $this->biz_id, $id, $user['id'],
-                $amount, $payment_date, $method,
-                $reference ?: null, $note ?: null
-            ]);
-            $payment_id = (int)$this->db->lastInsertId();
-
-            // Update invoice totals
-            $new_paid    = (float)$invoice['amount_paid'] + $amount;
-            $new_balance = (float)$invoice['total'] - $new_paid;
-            $new_status  = $new_balance <= 0 ? 'paid' : 'partially_paid';
-
-            $this->db->prepare("
-                UPDATE invoices SET amount_paid = ?, balance_due = ?, status = ? WHERE id = ?
-            ")->execute([$new_paid, max(0, $new_balance), $new_status, $id]);
-
-            // Update customer financials
-            $this->db->prepare("
-                UPDATE customers SET
-                    total_received = total_received + ?,
-                    outstanding_balance = GREATEST(0, outstanding_balance - ?)
-                WHERE id = ? AND business_id = ?
-            ")->execute([$amount, $amount, $invoice['customer_id'], $this->biz_id]);
-
-            // If overdue, update/clear the debt record
-            if ($invoice['status'] === 'overdue' || $new_balance <= 0) {
-                $this->update_debt_on_payment($id, $amount, $new_balance);
-            }
+            // Locks the invoice, checks what is still owed, and keeps its debt
+            // and the client's figures in step (app/helpers/invoices.php)
+            $paid = invoice_record_payment($this->db, $this->biz_id, (int)$id, $amount, $payment_date, $method,
+                                           $reference, $note, (int)$user['id'], $symbol);
+            $payment_id  = $paid['payment_id'];
+            $new_paid    = $paid['new_paid'];
+            $new_balance = $paid['new_balance'];
+            $new_status  = $paid['new_status'];
+            $amount      = money2($amount);
 
             // Create notification for business owner
             $this->db->prepare("
@@ -429,8 +364,8 @@ class InvoiceController {
             ")->execute([
                 $this->biz_id, $user['id'],
                 'Payment received — ' . $invoice['doc_number'],
-                money($amount, '₦') . ' received via ' . str_replace('_', ' ', $method) . '. ' .
-                    ($new_balance <= 0 ? 'Invoice fully paid!' : 'Balance remaining: ' . money($new_balance, '₦')),
+                money($amount, $symbol) . ' received via ' . str_replace('_', ' ', $method) . '. ' .
+                    ($new_balance <= 0 ? 'Invoice fully paid!' : 'Balance remaining: ' . money($new_balance, $symbol)),
                 APP_URL . '/invoices/view/' . $id
             ]);
 
@@ -463,12 +398,45 @@ class InvoiceController {
             if (is_ajax()) { json_response($result); }
             redirect('invoices/view/' . $id);
 
-        } catch (\Throwable $e) {
+        } catch (\DomainException $e) {
             $this->db->rollBack();
+            if (is_ajax()) { json_response(['error' => $e->getMessage()], 422); }
+            flash('error', $e->getMessage());
+            redirect('invoices/view/' . $id);
+        } catch (\Throwable $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             if (is_ajax()) { json_response(['error' => 'Failed: ' . $e->getMessage()], 500); }
             flash('error', 'Payment failed: ' . $e->getMessage());
             redirect('invoices/view/' . $id);
         }
+    }
+
+    /* ──────────────────────────────────────────
+     *  REFUND — money given back, recorded as a minus payment
+     * ────────────────────────────────────────── */
+    public function record_refund($id = null) {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { redirect('invoices'); return; }
+        csrf_verify();
+        $invoice = $this->find_invoice($id);
+        if (!$invoice) { not_found(); return; }
+
+        $method = trim($_POST['method'] ?? 'cash');
+        if (!in_array($method, ['cash','bank_transfer','pos','mobile_money','cheque','other'], true)) $method = 'cash';
+        $symbol = auth_business()['currency_symbol'] ?? '₦';
+        $this->db->beginTransaction();
+        try {
+            $refund = invoice_record_refund($this->db, $this->biz_id, (int)$id, (float)($_POST['amount'] ?? 0),
+                                            trim($_POST['refund_date'] ?? '') ?: date('Y-m-d'), $method,
+                                            mb_substr(trim($_POST['note'] ?? ''), 0, 500), (int)auth_user()['id'], $symbol);
+            $this->db->commit();
+            flash('success', 'Refund of ' . money(money2((float)$_POST['amount']), $symbol) . ' recorded on ' . $invoice['doc_number'] . '.');
+        } catch (\DomainException $e) {
+            $this->db->rollBack();
+            flash('error', $e->getMessage());
+        }
+        redirect('invoices/view/' . $id);
     }
 
     /* ──────────────────────────────────────────
@@ -487,72 +455,24 @@ class InvoiceController {
             return;
         }
 
-        $user = auth_user();
-
         $this->db->beginTransaction();
         try {
-            // Restore stock if invoice was sent (stock was deducted)
-            if (in_array($invoice['status'], ['sent', 'partially_paid', 'paid', 'overdue'])) {
-                $stmtItems = $this->db->prepare("
-                    SELECT ii.*, p.is_service, p.stock_qty
-                    FROM invoice_items ii
-                    LEFT JOIN products p ON p.id = ii.product_id
-                    WHERE ii.invoice_id = ?
-                ");
-                $stmtItems->execute([$id]);
-
-                foreach ($stmtItems->fetchAll() as $item) {
-                    if (!$item['product_id'] || $item['is_service']) continue;
-
-                    $qty_before = (float)$item['stock_qty'];
-                    $restore    = (float)$item['quantity'];
-                    $qty_after  = $qty_before + $restore;
-
-                    $this->db->prepare("UPDATE products SET stock_qty = ? WHERE id = ? AND business_id = ?")
-                              ->execute([$qty_after, $item['product_id'], $this->biz_id]);
-
-                    $this->db->prepare("
-                        INSERT INTO stock_movements (business_id, product_id, user_id, type, quantity, stock_before, stock_after, unit_cost, reference_type, reference_id, note, movement_date)
-                        VALUES (?, ?, ?, 'return', ?, ?, ?, ?, 'invoice', ?, ?, CURDATE())
-                    ")->execute([
-                        $this->biz_id, $item['product_id'], $user['id'],
-                        $restore, $qty_before, $qty_after,
-                        $item['unit_price'], $id,
-                        'Stock restored — invoice ' . $invoice['doc_number'] . ' cancelled'
-                    ]);
-                }
-
-                // Reverse customer financials
-                $this->db->prepare("
-                    UPDATE customers SET
-                        total_invoiced = GREATEST(0, total_invoiced - ?),
-                        total_received = GREATEST(0, total_received - ?),
-                        outstanding_balance = GREATEST(0, outstanding_balance - ?)
-                    WHERE id = ? AND business_id = ?
-                ")->execute([
-                    $invoice['total'],
-                    $invoice['amount_paid'],
-                    $invoice['balance_due'],
-                    $invoice['customer_id'],
-                    $this->biz_id
-                ]);
+            // Once, with nothing paid on it; puts back exactly the stock it
+            // took off and closes its order and delivery (app/helpers/invoices.php)
+            $problem = invoice_cancel($this->db, $this->biz_id, (int)$id, auth_business()['currency_symbol'] ?? '₦');
+            if ($problem !== '') {
+                $this->db->rollBack();
+                flash('error', $problem);
+                redirect('invoices/view/' . $id);
             }
-
-            // Mark cancelled
-            $this->db->prepare("UPDATE invoices SET status = 'cancelled' WHERE id = ?")->execute([$id]);
-
-            // Clear any debt records
-            $this->db->prepare("
-                UPDATE debts SET status = 'written_off', note = CONCAT(COALESCE(note,''), ' [Invoice cancelled]')
-                WHERE invoice_id = ? AND business_id = ? AND status IN ('active','settling')
-            ")->execute([$id, $this->biz_id]);
-
             $this->db->commit();
             flash('success', $invoice['doc_number'] . ' cancelled. Stock restored.');
             redirect('invoices/view/' . $id);
 
         } catch (\Throwable $e) {
-            $this->db->rollBack();
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             flash('error', 'Cancellation failed: ' . $e->getMessage());
             redirect('invoices/view/' . $id);
         }
@@ -573,8 +493,7 @@ class InvoiceController {
         $currency = $business['currency_symbol'] ?? '₦';
 
         $wa_number = $customer['whatsapp'] ?: $customer['phone'] ?: '';
-        $wa_number = preg_replace('/[^0-9]/', '', $wa_number);
-        if (str_starts_with($wa_number, '0')) $wa_number = '234' . substr($wa_number, 1);
+        $wa_number = wa_digits($wa_number, auth_business());
 
         $days_overdue = '';
         if ($invoice['due_date']) {
@@ -754,8 +673,10 @@ class InvoiceController {
 
         if (!empty($errors)) {
             flash('error', implode(' ', $errors));
-            $invoice   = $_POST;
-            $items     = [];
+            // What was typed, over the saved invoice (so an edit keeps its id
+            // and posts back to itself), with its lines as typed
+            $invoice   = array_merge($id ? ($this->find_invoice($id) ?? []) : [], $_POST);
+            $items     = posted_lines($_POST);
             $editing   = $id !== null;
             $customers = $this->get_customers();
             $banks     = $this->get_bank_accounts();
@@ -778,11 +699,11 @@ class InvoiceController {
             $prod_id   = (int)($item_products[$i] ?? 0) ?: null;
             if ($prod_id && !owned_by_business($this->db, 'products', $prod_id, $this->biz_id)) $prod_id = null;
 
-            $line_total = $qty * $price;
-            $disc_amt   = round($line_total * $disc_pct / 100, 2);
-            $line_sub   = $line_total - $disc_amt;
+            $line_total = money2($qty * $price);
+            $disc_amt   = money2($line_total * $disc_pct / 100);
+            $line_sub   = money2($line_total - $disc_amt);
 
-            $subtotal += $line_sub;
+            $subtotal = money2($subtotal + $line_sub);
             $line_items[] = [
                 'product_id'       => $prod_id,
                 'description'      => $desc,
@@ -795,21 +716,24 @@ class InvoiceController {
             ];
         }
 
-        $subtotal_after_discount = $subtotal - $discount_amount;
-        $tax_amount = round($subtotal_after_discount * $tax_rate / 100, 2);
-        $total      = $subtotal_after_discount + $tax_amount;
+        // A discount can't be more than the lines, and tax is 0 to 100%
+        $discount_amount         = money2(max(0, min($subtotal, $discount_amount)));
+        $tax_rate                = max(0, min(100, $tax_rate));
+        $subtotal_after_discount = money2($subtotal - $discount_amount);
+        $tax_amount = money2($subtotal_after_discount * $tax_rate / 100);
+        $total      = money2($subtotal_after_discount + $tax_amount);
 
         $this->db->beginTransaction();
         try {
-            $stock_before = null;
+            $locked = null;
             if ($id) {
-                // A sent invoice's goods are already off the shelf (send(), or
-                // approving a shop order): note them, to move only the difference.
-                $stmtLock = $this->db->prepare("SELECT status, doc_number FROM invoices WHERE id = ? AND business_id = ? FOR UPDATE");
+                // Lock it while it changes; a sent invoice's goods are already
+                // off the shelf, so its stock moves by the difference below
+                $stmtLock = $this->db->prepare("SELECT status, doc_number, customer_id FROM invoices WHERE id = ? AND business_id = ? FOR UPDATE");
                 $stmtLock->execute([$id, $this->biz_id]);
                 $locked = $stmtLock->fetch();
-                if ($locked && $locked['status'] === 'sent') {
-                    $stock_before = $this->stock_lines($id);
+                if (!$locked || !in_array($locked['status'], ['draft', 'sent'], true)) {
+                    throw new \DomainException('This invoice can no longer be edited.');
                 }
 
                 $this->db->prepare("
@@ -832,8 +756,7 @@ class InvoiceController {
 
                 $this->db->prepare("DELETE FROM invoice_items WHERE invoice_id = ?")->execute([$id]);
             } else {
-                $this->db->prepare("CALL generate_doc_number(?, 'INV', @inv_num)")->execute([$this->biz_id]);
-                $doc_number = $this->db->query("SELECT @inv_num")->fetchColumn();
+                $doc_number = generate_doc_number($this->db, $this->biz_id, 'INV');
                 $token = generate_token();
 
                 $this->db->prepare("
@@ -862,17 +785,30 @@ class InvoiceController {
                 ]);
             }
 
-            $restocked = $stock_before !== null
-                && $this->move_stock_by_difference($id, $locked['doc_number'], $stock_before, $this->stock_lines($id));
+            $restocked = false;
+            if ($locked && $locked['status'] === 'sent') {
+                // Stock moves by exactly the difference from what it moved
+                // before (app/helpers/stock.php), and a delivery nobody has
+                // signed for yet lists the new lines
+                $restocked = stock_settle($this->db, $this->biz_id, 'invoice', $id, invoice_stock_target($this->db, $this->biz_id, $id),
+                                          'invoice ' . $locked['doc_number'] . ' edited');
+                $this->refresh_open_deliveries($id);
+            }
+            customer_refresh_totals($this->db, $this->biz_id, $customer_id);
+            if ($locked && (int)$locked['customer_id'] !== $customer_id) {
+                customer_refresh_totals($this->db, $this->biz_id, (int)$locked['customer_id']);
+            }
 
             $this->db->commit();
             flash('success', $restocked ? 'Invoice saved. Stock updated to match.' : 'Invoice saved.');
             redirect('invoices/view/' . $id);
 
         } catch (\Throwable $e) {
-            $this->db->rollBack();
-            flash('error', 'Save failed: ' . $e->getMessage());
-            redirect('invoices');
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            flash('error', $e instanceof \DomainException ? $e->getMessage() : 'Save failed: ' . $e->getMessage());
+            redirect($id ? 'invoices/view/' . $id : 'invoices');
         }
     }
 
@@ -881,58 +817,20 @@ class InvoiceController {
      * ══════════════════════════════════════════ */
 
     /**
-     * The goods on an invoice's lines, by product: quantity and price.
-     * Services have no stock and are left out.
+     * Deliveries of this invoice that nobody has signed for yet list its lines
+     * as they are now, so the customer signs for what they get.
      */
-    private function stock_lines(int $invoice_id): array {
-        $stmt = $this->db->prepare("
-            SELECT ii.product_id, SUM(ii.quantity) AS qty, MAX(ii.unit_price) AS unit_price
-            FROM invoice_items ii
-            JOIN products p ON p.id = ii.product_id AND p.business_id = ?
-            WHERE ii.invoice_id = ? AND p.is_service = 0
-            GROUP BY ii.product_id
-        ");
-        $stmt->execute([$this->biz_id, $invoice_id]);
-        $lines = [];
-        foreach ($stmt->fetchAll() as $row) {
-            $lines[(int)$row['product_id']] = ['qty' => (float)$row['qty'], 'unit_price' => (float)$row['unit_price']];
-        }
-        return $lines;
-    }
-
-    /**
-     * After a sent invoice is edited, move stock by the difference only:
-     * more of an item comes off, less (or a removed line) goes back. Then
-     * cancelling it later still restores exactly what is on it. True when
-     * any stock moved. Runs inside save_invoice()'s transaction.
-     */
-    private function move_stock_by_difference(int $invoice_id, string $doc_number, array $before, array $after): bool {
-        $user  = auth_user();
-        $moved = false;
-        foreach (array_unique(array_merge(array_keys($before), array_keys($after))) as $product_id) {
-            $change = ($after[$product_id]['qty'] ?? 0) - ($before[$product_id]['qty'] ?? 0);
-            if (abs($change) < 0.005) continue;
-
-            $stmtQty = $this->db->prepare("SELECT stock_qty FROM products WHERE id = ? AND business_id = ? FOR UPDATE");
-            $stmtQty->execute([$product_id, $this->biz_id]);
-            $qty_before = (float)$stmtQty->fetchColumn();
-            $qty_after  = $qty_before - $change;
-
-            $this->db->prepare("UPDATE products SET stock_qty = ? WHERE id = ? AND business_id = ?")
-                      ->execute([$qty_after, $product_id, $this->biz_id]);
-
+    private function refresh_open_deliveries(int $invoice_id): void {
+        $stmt = $this->db->prepare("SELECT id FROM deliveries WHERE invoice_id = ? AND business_id = ? AND deleted_at IS NULL
+                                    AND status IN ('pending_dispatch', 'dispatched', 'in_transit')");
+        $stmt->execute([$invoice_id, $this->biz_id]);
+        foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $delivery_id) {
+            $this->db->prepare("DELETE FROM delivery_items WHERE delivery_id = ?")->execute([$delivery_id]);
             $this->db->prepare("
-                INSERT INTO stock_movements (business_id, product_id, user_id, type, quantity, stock_before, stock_after, unit_cost, reference_type, reference_id, note, movement_date)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'invoice', ?, ?, CURDATE())
-            ")->execute([
-                $this->biz_id, $product_id, $user['id'],
-                $change > 0 ? 'sale' : 'return', abs($change), $qty_before, $qty_after,
-                ($after[$product_id] ?? $before[$product_id])['unit_price'], $invoice_id,
-                ($change > 0 ? 'Stock deducted' : 'Stock restored') . ' — invoice ' . $doc_number . ' edited'
-            ]);
-            $moved = true;
+                INSERT INTO delivery_items (delivery_id, product_id, description, quantity)
+                SELECT ?, product_id, description, quantity FROM invoice_items WHERE invoice_id = ? ORDER BY sort_order
+            ")->execute([$delivery_id, $invoice_id]);
         }
-        return $moved;
     }
 
     private function find_invoice($id): ?array {
@@ -965,14 +863,15 @@ class InvoiceController {
      * Called from index() on each page load.
      */
     private function create_overdue_debts_and_notifications(): void {
-        // Find overdue invoices without a debt record yet
+        // Overdue invoices that have never had a debt record: one written off
+        // or cleared stays that way, and never comes back as a second debt
         $stmt = $this->db->prepare("
             SELECT i.id, i.doc_number, i.customer_id, i.balance_due, i.due_date, i.user_id,
                    c.full_name as customer_name, c.phone as customer_phone
             FROM invoices i
-            LEFT JOIN customers c ON c.id = i.customer_id
-            WHERE i.business_id = ? AND i.status = 'overdue'
-              AND NOT EXISTS (SELECT 1 FROM debts d WHERE d.invoice_id = i.id AND d.business_id = i.business_id AND d.status IN ('active','settling'))
+            LEFT JOIN customers c ON c.id = i.customer_id AND c.business_id = i.business_id
+            WHERE i.business_id = ? AND i.status = 'overdue' AND i.balance_due > 0
+              AND NOT EXISTS (SELECT 1 FROM debts d WHERE d.invoice_id = i.id AND d.business_id = i.business_id)
         ");
         $stmt->execute([$this->biz_id]);
 
@@ -997,31 +896,9 @@ class InvoiceController {
             ")->execute([
                 $this->biz_id, $inv['user_id'],
                 'Invoice Overdue — ' . $inv['doc_number'],
-                $inv['customer_name'] . ' owes ' . money((float)$inv['balance_due'], '₦') . ' — ' . $days . ' day' . ($days > 1 ? 's' : '') . ' past due.',
+                $inv['customer_name'] . ' owes ' . money((float)$inv['balance_due'], auth_business()['currency_symbol'] ?? '₦') . ' — ' . $days . ' day' . ($days > 1 ? 's' : '') . ' past due.',
                 APP_URL . '/invoices/view/' . $inv['id']
             ]);
-        }
-    }
-
-    /**
-     * Update debt record when a payment is made on an overdue invoice.
-     */
-    private function update_debt_on_payment(int $invoice_id, float $amount, float $remaining_balance): void {
-        $stmtDebt = $this->db->prepare("
-            SELECT id, amount_settled FROM debts
-            WHERE invoice_id = ? AND business_id = ? AND status IN ('active','settling')
-            LIMIT 1
-        ");
-        $stmtDebt->execute([$invoice_id, $this->biz_id]);
-        $debt = $stmtDebt->fetch();
-
-        if ($debt) {
-            $new_settled = (float)$debt['amount_settled'] + $amount;
-            $new_status  = $remaining_balance <= 0 ? 'cleared' : 'settling';
-
-            $this->db->prepare("
-                UPDATE debts SET amount_settled = ?, balance = ?, status = ? WHERE id = ?
-            ")->execute([$new_settled, max(0, $remaining_balance), $new_status, $debt['id']]);
         }
     }
 }
