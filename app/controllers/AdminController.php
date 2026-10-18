@@ -9,7 +9,6 @@
 class AdminController {
 
     private $db;
-    private const FOUNDER_BUSINESS_ID = 1;
 
     public function __construct() {
         if (!is_logged_in()) { redirect('login'); }
@@ -18,7 +17,7 @@ class AdminController {
     }
 
     private function guard(): void {
-        if ((int)auth_business_id() !== self::FOUNDER_BUSINESS_ID) {
+        if (!is_platform_admin()) {
             flash('error', 'Access denied.'); // NFELIA AUDIT FIX L04 2026-06-03
             redirect('dashboard');
             exit;

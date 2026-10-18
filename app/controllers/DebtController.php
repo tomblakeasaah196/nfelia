@@ -19,6 +19,7 @@ class DebtController {
         if (!is_logged_in()) { redirect('login'); }
         $this->db     = get_db();
         $this->biz_id = auth_business_id();
+        require_boss('see the debts');
     }
 
     /* ──────────────────────────────────────────

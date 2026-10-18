@@ -17,7 +17,6 @@ class MoMoController {
 
     private $db;
     private $biz_id;
-    private const FOUNDER_BUSINESS_ID = 1;
 
     /**
      * Path for receipt storage — reads from MOMO_RECEIPT_DIR env var.
@@ -496,7 +495,7 @@ class MoMoController {
      * ══════════════════════════════════════════ */
 
     private function guard_admin(): void {
-        if ((int)$this->biz_id !== self::FOUNDER_BUSINESS_ID) {
+        if (!is_platform_admin()) {
             flash('error', 'Access denied.');
             redirect('dashboard');
             exit;

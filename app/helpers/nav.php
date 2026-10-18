@@ -99,7 +99,7 @@ function nav_groups(string $role, string $business_type, int $business_id): arra
             ['Purge data', 'purge', 'trash', ['owner']],
         ],
     ];
-    if ($business_id === 1) {
+    if ($business_id === FOUNDER_BUSINESS_ID && $role === 'owner') {
         $groups['Founder panel'] = [
             ['Admin panel', 'admin', 'shield', $all],
             ['Countries', 'countries', 'globe', $all],

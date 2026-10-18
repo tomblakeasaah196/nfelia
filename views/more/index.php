@@ -33,7 +33,9 @@ $tiles = array_values(array_filter($nav_groups['Your business'] ?? [], fn($i) =>
     <?php endif; ?>
     <button type="button" class="nf-row" data-open="nf-notify"><span class="nf-tile-ic"><?= nav_icon('bell') ?></span>Notifications<span class="end"><?= nav_icon('chevron') ?></span></button>
     <button type="button" class="nf-row" data-open="nf-appearance"><span class="nf-tile-ic"><?= nav_icon('textsize') ?></span>Text size and background<span class="end"><?= nav_icon('chevron') ?></span></button>
+    <?php if ($user_role === 'owner'): ?>
     <button type="button" class="nf-row" data-open="nf-country"><span class="nf-tile-ic"><?= nav_icon('globe') ?></span>Country and currency<span class="end"><?= e($selected_country['flag_emoji'] ?? '') ?> <?= e($selected_country['currency_symbol'] ?? '') ?><?= nav_icon('chevron') ?></span></button>
+    <?php endif; ?>
     <button type="button" class="nf-row" data-install-row hidden><span class="nf-tile-ic"><?= nav_icon('phone') ?></span>Install the app<span class="end"><?= nav_icon('chevron') ?></span></button>
     <a class="nf-row" href="<?= APP_URL ?>/user-guide"><span class="nf-tile-ic"><?= nav_icon('book') ?></span>User guide<span class="end"><?= nav_icon('chevron') ?></span></a>
     <a class="nf-row" href="<?= APP_URL ?>/contact-support"><span class="nf-tile-ic"><?= nav_icon('chat') ?></span>Contact support<span class="end"><?= nav_icon('chevron') ?></span></a>
@@ -65,6 +67,7 @@ $tiles = array_values(array_filter($nav_groups['Your business'] ?? [], fn($i) =>
     <div class="nf-sheet-body"><?php require BASE_PATH . '/views/partials/appearance.php'; ?></div>
 </dialog>
 
+<?php if ($user_role === 'owner'): ?>
 <dialog class="nf-sheet" id="nf-country" aria-labelledby="nf-country-h">
     <div class="nf-grab"></div>
     <div class="nf-sheet-h">
@@ -82,3 +85,4 @@ $tiles = array_values(array_filter($nav_groups['Your business'] ?? [], fn($i) =>
         </div>
     </div>
 </dialog>
+<?php endif; ?>

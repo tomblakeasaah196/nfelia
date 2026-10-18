@@ -13,7 +13,7 @@ const SHOP_NAME_MIN = 3;
 const SHOP_NAME_MAX = 30;
 
 // Requests for lookalike names land in the founder account's notifications
-// and wait in Admin → Shop names (see AdminController::FOUNDER_BUSINESS_ID).
+// and wait in Admin → Shop names (see FOUNDER_BUSINESS_ID in app/helpers/auth.php).
 const SHOP_REVIEWER_BUSINESS_ID = 1;
 
 /**

@@ -14,13 +14,12 @@
 class CountryController {
 
     private $db;
-    private const FOUNDER_BUSINESS_ID = 1;
 
     public function __construct() {
         if (!is_logged_in()) { redirect('login'); }
         $this->db = get_db();
         // Countries management is admin-only
-        if ((int)auth_business_id() !== self::FOUNDER_BUSINESS_ID) {
+        if (!is_platform_admin()) {
             flash('error', 'Access denied.');
             redirect('dashboard');
             exit;

@@ -644,6 +644,11 @@ SVG;
             echo json_encode(['error' => 'POST only']); exit;
         }
 
+        if (!hash_equals((string)($_SESSION['csrf_token'] ?? ''), (string)($_POST['csrf_token'] ?? ''))) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Security session expired. Reload the page and try again.']); exit;
+        }
+
         $user = auth_user();
         if (($user['role'] ?? 'staff') !== 'owner') {
             http_response_code(403);

@@ -23,6 +23,35 @@ function is_owner(): bool {
     return ($_SESSION['user']['role'] ?? '') === 'owner';
 }
 
+/** Owner or admin: who the menu shows the money pages and the shop to. */
+function is_boss(): bool {
+    return in_array($_SESSION['user']['role'] ?? '', ['owner', 'admin'], true);
+}
+
+/**
+ * The menu's rule, checked by the page itself, so typing the address doesn't
+ * get round it. Anyone else goes back to Home (scripts get a 403).
+ */
+function require_boss(string $what = 'open that page'): void {
+    if (is_boss()) {
+        return;
+    }
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' || is_ajax() || str_contains((string)($_SERVER['HTTP_ACCEPT'] ?? ''), 'application/json')) {
+        json_response(['error' => 'Only the owner or an admin can ' . $what . '.'], 403);
+    }
+    flash('error', 'Only the owner or an admin can ' . $what . '.');
+    redirect('dashboard');
+}
+
+/**
+ * Nfelia's own staff room (Admin, Countries, Mobile Money review): the owner
+ * of the founder's business only, not everyone working in it.
+ */
+const FOUNDER_BUSINESS_ID = 1;
+function is_platform_admin(): bool {
+    return auth_business_id() === FOUNDER_BUSINESS_ID && is_owner();
+}
+
 /**
  * Whether the signed-in business has verified its email. The session copy
  * can only say yes: until it does, the database is asked, because the link

@@ -502,10 +502,12 @@ class AuthController {
      * Handle Logout
      */
     public function logout() {
-        // CSRF Check for the POST logout submission
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            csrf_verify();
+        // Only the sign-out button (a POST with the CSRF token) signs out, so
+        // another site can't sign someone out with a link or an image.
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            redirect('dashboard');
         }
+        csrf_verify();
 
         // Delete the sessions table row if remember-me was active
         if (isset($_COOKIE[REMEMBER_COOKIE])) {

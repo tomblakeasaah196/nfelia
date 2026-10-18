@@ -61,9 +61,11 @@ $pay_status_badge = function($s) {
         <?php endif; ?>
 
         <!-- Quick Actions -->
+        <?php if (is_boss()): ?>
         <a href="<?= APP_URL ?>/expenses/create?supplier_id=<?= $supplier['id'] ?>" class="flex items-center gap-1.5 btn-primary text-white px-3 py-2 rounded-lg transition-all">
             <span class="text-[10px] font-bold uppercase tracking-widest">New Expense</span>
         </a>
+        <?php endif; ?>
     </div>
 </div>
 

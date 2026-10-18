@@ -84,14 +84,36 @@ class PublicController
             );
         }
         $action = $_POST["action"] ?? "";
-        $client_ip =
-            $_SERVER[
-                "REMOTE_ADDR"
-            ]; /* Vital for non-repudiation of signatures */
+        $client_ip = client_ip(); /* Vital for non-repudiation of signatures */
+        /* The client can answer a quote only while it is open: not once it is
+           accepted, declined, expired or turned into an invoice. */
+        $open = ["draft", "sent", "in_negotiation", "pending_signature"];
+        if (!in_array($quotation["status"], $open, true)) {
+            json_response(
+                [
+                    "success" => false,
+                    "error" => "This quotation has already been answered. Ask the business if anything needs to change.",
+                ],
+                409,
+            );
+        }
+        if (
+            !throttle_allows("quote_action_ip", $client_ip, 30, 60) ||
+            !throttle_allows("quote_action", (string) $quotation["id"], 20, 60)
+        ) {
+            json_response(
+                [
+                    "success" => false,
+                    "error" => "Too many messages for now. Please try again in an hour, or call the business.",
+                ],
+                429,
+            );
+        }
+        $guard = " AND status IN ('draft','sent','in_negotiation','pending_signature')";
         try {
             $db->beginTransaction();
             if ($action === "comment") {
-                $message = trim($_POST["message"] ?? "");
+                $message = mb_substr(trim($_POST["message"] ?? ""), 0, 2000);
                 if (!$message) {
                     throw new Exception("Message is required.");
                 } /* Log activity */
@@ -105,11 +127,13 @@ class PublicController
                     $quotation["status"],
                     $client_ip,
                 ]); /* Shift state */
-                $db->prepare(
-                    "UPDATE quotations SET status = 'in_negotiation' WHERE id = ?",
-                )->execute([
-                    $quotation["id"],
-                ]); /* NEW: Fire Notification to Business Owner */
+                $stmtState = $db->prepare(
+                    "UPDATE quotations SET status = 'in_negotiation' WHERE id = ?" . $guard,
+                );
+                $stmtState->execute([$quotation["id"]]);
+                if ($stmtState->rowCount() === 0 && $quotation["status"] !== "in_negotiation") {
+                    throw new Exception("This quotation has already been answered.");
+                } /* NEW: Fire Notification to Business Owner */
                 $db->prepare(
                     " INSERT INTO notifications (business_id, type, title, message, action_url, created_at) VALUES (?, 'general', ?, ?, ?, NOW()) ",
                 )->execute([
@@ -126,16 +150,28 @@ class PublicController
                     throw new Exception(
                         "Digital signature and name are legally required.",
                     );
+                }
+                if (
+                    !str_starts_with($signature, "data:image/png;base64,") ||
+                    strlen($signature) > 65000 ||
+                    mb_strlen($name) > 150
+                ) {
+                    throw new Exception(
+                        "That signature didn't come through. Please clear it and sign again.",
+                    );
                 } /* Stamp the quotation with signature data */
                 $stmtUpd = $db->prepare(
-                    " UPDATE quotations SET status = 'accepted', signature_data = ?, signed_by_name = ?, signed_at = NOW(), client_ip = ? WHERE id = ? ",
+                    " UPDATE quotations SET status = 'accepted', signature_data = ?, signed_by_name = ?, signed_at = NOW(), client_ip = ? WHERE id = ? " . $guard,
                 );
                 $stmtUpd->execute([
                     $signature,
                     $name,
                     $client_ip,
                     $quotation["id"],
-                ]); /* Log the signature event */
+                ]);
+                if ($stmtUpd->rowCount() === 0) {
+                    throw new Exception("This quotation has already been answered.");
+                } /* Log the signature event */
                 $stmtLog = $db->prepare(
                     " INSERT INTO quotation_activities (business_id, quotation_id, actor_type, action, message, old_status, new_status) VALUES (?, ?, 'client', 'signed', 'Client signed and legally accepted the proposal.', ?, 'accepted') ",
                 );
@@ -155,10 +191,14 @@ class PublicController
                     "/quotations/view/" . $quotation["id"],
                 ]);
             } elseif ($action === "decline") {
-                $reason = trim($_POST["reason"] ?? "");
-                $db->prepare(
-                    "UPDATE quotations SET status = 'declined' WHERE id = ?",
-                )->execute([$quotation["id"]]);
+                $reason = mb_substr(trim($_POST["reason"] ?? ""), 0, 2000);
+                $stmtState = $db->prepare(
+                    "UPDATE quotations SET status = 'declined' WHERE id = ?" . $guard,
+                );
+                $stmtState->execute([$quotation["id"]]);
+                if ($stmtState->rowCount() === 0) {
+                    throw new Exception("This quotation has already been answered.");
+                }
                 $stmtLog = $db->prepare(
                     " INSERT INTO quotation_activities (business_id, quotation_id, actor_type, action, message, old_status, new_status, meta_data) VALUES (?, ?, 'client', 'declined', ?, ?, 'declined', JSON_OBJECT('ip', ?)) ",
                 );
@@ -175,7 +215,9 @@ class PublicController
             $db->commit();
             json_response(["success" => true]);
         } catch (Exception $e) {
-            $db->rollBack();
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
             json_response(
                 ["success" => false, "error" => $e->getMessage()],
                 400,
