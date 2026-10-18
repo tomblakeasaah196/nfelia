@@ -241,11 +241,14 @@ def order(items, **extra):
 s, r = order([{"product_id": 1, "quantity": 2, "unit_price": 1, "product_name": "Free"},
               {"product_id": 3, "quantity": 1}, {"product_id": 4, "quantity": 1}, {"product_id": 999, "quantity": 1},
               {"product_id": "x"}, "junk"])
-check("tampered cart still orders", s == 200 and r.get("success"), (s, r))
+# Items the shop doesn't sell are named back, not quietly dropped (audit W8)
+check("a cart with hidden, foreign or unknown products is refused, naming them", s == 409 and r.get("unavailable") == [3, 4, 999], (s, r))
+s, r = order([{"product_id": 1, "quantity": 2, "unit_price": 1, "product_name": "Free"}, {"product_id": "x"}, "junk"])
+check("the same cart without them orders", s == 200 and r.get("success"), (s, r))
 check("total comes from the catalogue", r.get("total") in (50000, 50000.0), r)
 order_row = sql("SELECT o.id, o.currency_code, o.subtotal FROM orders o WHERE o.business_id = 2 ORDER BY o.id DESC LIMIT 1")[0]
 items = sql(f"SELECT product_id, product_name, unit_price, quantity, line_total FROM order_items WHERE order_id = {order_row[0]}")
-check("hidden, foreign and unknown products are dropped", len(items) == 1 and items[0][0] == "1", items)
+check("only the real product is on the order", len(items) == 1 and items[0][0] == "1", items)
 check("name and price are the real ones", items and items[0][1] == "Adire kaftan" and items[0][2] == "25000.00", items)
 check("order currency is NGN", order_row[1] == "NGN", order_row)
 
