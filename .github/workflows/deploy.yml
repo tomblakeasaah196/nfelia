@@ -148,9 +148,103 @@ jobs:
           fi
           exit $fail
 
+  notifications:
+    name: Notifications, every one end to end
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        # The same server as production (README: MariaDB 10.11).
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: nfelia_test
+          MARIADB_USER: nf
+          MARIADB_PASSWORD: nf_ci_pass
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s --health-timeout=5s --health-retries=30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql, curl, openssl, mbstring, gd, intl
+          coverage: none
+
+      - name: Tools the tests use (faketime for the cron's clock, the mysql client)
+        run: sudo apt-get update -q && sudo apt-get install -yq faketime mariadb-client
+
+      - name: Composer install
+        run: composer install --no-dev --no-interaction --no-progress
+
+      - name: A throwaway .env for the test copy
+        run: |
+          set -euo pipefail
+          {
+            echo "APP_NAME=Nfelia"
+            echo "APP_ENV=testing"
+            echo "APP_DEBUG=true"
+            # A name, not an IP: passkeys need one (ui_test.js).
+            echo "APP_URL=http://localhost:8099"
+            echo "DB_HOST=127.0.0.1"
+            echo "DB_PORT=3306"
+            echo "DB_NAME=nfelia_test"
+            echo "DB_USER=nf"
+            echo "DB_PASS=nf_ci_pass"
+            echo "MAIL_HOST=127.0.0.1"
+            echo "MAIL_PORT=2525"
+            echo "MAIL_ENCRYPTION=tls"
+            echo "MAIL_USERNAME=sink"
+            echo "MAIL_PASSWORD=sink"
+            echo "MAIL_FROM_ADDRESS=no-reply@nfelia.test"
+            echo "PAYSTACK_SECRET_KEY=sk_test_ci_only"
+            php bin/vapid-keys.php
+          } > .env
+
+      - name: Database (schema, migrations, procedure)
+        run: bash tests/notifications/setup.sh
+
+      - name: Serve the app
+        run: |
+          php -S 127.0.0.1:8099 -t . tests/notifications/router.php > "$RUNNER_TEMP/app.log" 2>&1 &
+          for i in $(seq 50); do curl -sf -o /dev/null http://localhost:8099/login && exit 0; sleep 0.2; done
+          echo "::error::the app did not start"; cat "$RUNNER_TEMP/app.log"; exit 1
+
+      - name: Engine, every trigger over HTTP, the cron, the service worker
+        run: bash tests/notifications/run.sh engine flows cron sw
+
+      - name: Browser for the UI checks
+        id: browser
+        continue-on-error: true
+        run: |
+          npm install --no-save --no-audit --no-fund playwright@1.56.1
+          npx playwright install --with-deps chromium
+
+      # The browser checks report but never hold up a deploy on their own:
+      # the suites above cover every notification without a browser.
+      - name: Bell, notifications page, settings, passkey (browser)
+        if: steps.browser.outcome == 'success'
+        continue-on-error: true
+        env:
+          NF_UI_OUT: ${{ runner.temp }}/notification-screens
+        run: bash tests/notifications/run.sh ui
+
+      - name: Keep the screenshots and the app's log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: notification-tests
+          path: |
+            ${{ runner.temp }}/notification-screens
+            ${{ runner.temp }}/app.log
+          if-no-files-found: ignore
+
   deploy:
     name: Deploy via webhook
-    needs: [checks]
+    needs: [checks, notifications]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: production
