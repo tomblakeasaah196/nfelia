@@ -92,6 +92,81 @@
         dlg.addEventListener('click', function (e) { if (e.target === dlg) dlg.close(); });
     });
 
+    // Sheets behind the "Sound familiar?" cards. Each card is a link to
+    // #<id> and each sheet is a <dialog> with that id, so the address opens
+    // it (nfelia.com/#bookings can be shared) and Back closes it, like an app.
+    var sheets = {};
+    document.querySelectorAll('dialog.see-sheet').forEach(function (d) { sheets[d.id] = d; });
+    if (Object.keys(sheets).length && typeof HTMLDialogElement === 'function') {
+        var current = null;
+        var fromCard = false;   // opened by a tap here, so there is a page to go Back to
+        var sync = function () {
+            var want = sheets[decodeURIComponent(location.hash.slice(1))] || null;
+            if (current && current !== want && current.open) current.close();
+            if (want && !want.open) {
+                current = want;
+                want.showModal();
+                document.documentElement.classList.add('has-sheet');
+            }
+        };
+        document.querySelectorAll('[data-see]').forEach(function (card) {
+            card.addEventListener('click', function () { fromCard = true; });
+        });
+        Object.keys(sheets).forEach(function (id) {
+            var d = sheets[id];
+            d.addEventListener('close', function () {
+                document.documentElement.classList.remove('has-sheet');
+                if (current === d) current = null;
+                var tapped = fromCard;
+                fromCard = false;
+                // Closed with ✕, Escape or the backdrop: take its address off.
+                if (location.hash === '#' + id) {
+                    if (tapped) history.back();
+                    else history.replaceState(null, '', location.pathname + location.search);
+                }
+                var card = document.querySelector('[data-see="' + id + '"]');
+                if (card) card.focus({ preventScroll: true });
+            });
+            d.querySelectorAll('[data-see-close]').forEach(function (a) {
+                a.addEventListener('click', function (e) { e.preventDefault(); d.close(); });
+            });
+            d.addEventListener('click', function (e) { if (e.target === d) d.close(); });
+        });
+        window.addEventListener('hashchange', sync);
+        sync();
+    }
+
+    // The website's address types itself in once, when the phone comes into
+    // view; its two tags follow. Shown whole for reduced motion or no observer.
+    var siteVisual = document.querySelector('[data-site-visual]');
+    if (siteVisual) {
+        var url = siteVisual.querySelector('[data-type-url]');
+        var still = !('IntersectionObserver' in window)
+            || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+        if (still || !url) {
+            siteVisual.classList.add('is-typed');
+        } else {
+            var full = url.textContent;
+            url.setAttribute('aria-label', full);
+            var typer = new IntersectionObserver(function (entries) {
+                if (!entries[0].isIntersecting) return;
+                typer.disconnect();
+                var n = 0;
+                url.textContent = '';
+                url.classList.add('is-typing');
+                var step = setInterval(function () {
+                    url.textContent = full.slice(0, ++n);
+                    if (n >= full.length) {
+                        clearInterval(step);
+                        url.classList.remove('is-typing');
+                        siteVisual.classList.add('is-typed');
+                    }
+                }, 55);
+            }, { threshold: 0.5 });
+            typer.observe(siteVisual);
+        }
+    }
+
     // Get the app: Nfelia installs from the browser. Android offers one tap,
     // iPhone takes three in Share, other phones use the browser menu, and a
     // computer is pointed to the phone.

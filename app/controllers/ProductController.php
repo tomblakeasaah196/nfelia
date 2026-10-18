@@ -268,7 +268,7 @@ class ProductController {
                 $product   = array_merge($product, $_POST);
                 $editing   = true;
                 $categories_list = $this->get_categories();
-                $title     = "Edit — " . e($product['name']);
+                $title     = "Edit — " . $product['name'];
                 $view_file = BASE_PATH . '/views/products/form.php';
                 require_once BASE_PATH . '/views/layouts/app.php';
                 return;
@@ -312,7 +312,7 @@ class ProductController {
         $categories_list = $this->get_categories();
         $product_images = $this->get_product_images((int)$id);
         $variant_groups = $this->get_variant_groups((int)$id);
-        $title     = "Edit — " . e($product['name']);
+        $title     = "Edit — " . $product['name'];
         $view_file = BASE_PATH . '/views/products/form.php';
         require_once BASE_PATH . '/views/layouts/app.php';
     }
@@ -367,7 +367,7 @@ class ProductController {
             : 0;
         $stock_value = (float)$product['stock_qty'] * (float)$product['cost_price'];
 
-        $title     = e($product['name']);
+        $title     = $product['name'];
         $view_file = BASE_PATH . '/views/products/view.php';
         require_once BASE_PATH . '/views/layouts/app.php';
     }

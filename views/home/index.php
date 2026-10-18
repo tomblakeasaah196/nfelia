@@ -5,6 +5,10 @@
  * Written for Nigerian market traders, Instagram/WhatsApp sellers and
  * service businesses: short lines, their words, real app screens.
  * Shown at / to visitors who are not signed in.
+ *
+ * "Sound familiar?" is a grid of cards, one problem each. A card links to
+ * #its-id and opens a sheet with two real screens (home.js), so a feature
+ * can be shared as nfelia.com/#bookings and Back closes it like an app.
  */
 
 require_once BASE_PATH . '/views/home/_icons.php';
@@ -31,6 +35,124 @@ $naira       = fn(int $n) => '₦' . number_format($n);
 $img      = APP_URL . '/assets/img/home';
 $hero_img = is_file(BASE_PATH . '/assets/img/home/hero-1024.webp');
 
+// Someone who tapped "Shop by Nfelia" at the foot of a tenant's website
+// arrives with ?from=<its name>. Greet them with that business's name, but
+// only for a real, live shop; a failed lookup just skips the greeting.
+$from_shop = null;
+$from      = strtolower(trim((string)($_GET['from'] ?? '')));
+if ($from !== '' && preg_match('/^[a-z0-9-]{3,30}$/', $from)) {
+    try {
+        $from_shop = shop_find_by_name($from)['name'] ?? null;
+    } catch (Throwable $e) {
+        $from_shop = null;
+    }
+}
+
+// One card per problem. The sheet behind it shows two real screens
+// (assets/img/home/see/<shot>-1.webp and -2.webp, 540 × 1169).
+$cards = [
+    'owed' => [
+        'icon'  => 'naira', 'site' => false, 'shot' => 'owed',
+        'pain'  => '“I go pay you next week.”',
+        'fix'   => 'Nfelia tracks it and reminds them',
+        'title' => 'Get your money back',
+        'lead'  => 'See who owes you, how much and who is late. Send a polite WhatsApp reminder in one tap.',
+        'ticks' => ['The balance updates the moment you record a payment', 'The reminder says the balance and how many days late', 'Overdue money shows on your Home every morning'],
+        'shots' => [['Sales screen: ₦185,000 owed to you on 5 unpaid invoices, 2 overdue', 'Who owes you'],
+                    ['A balance of ₦60,000, 6 days overdue, with a green Send reminder button', 'One-tap reminder']],
+    ],
+    'price-list' => [
+        'icon'  => 'globe', 'site' => true, 'shot' => 'website',
+        'pain'  => '“Send me your price list.”',
+        'fix'   => 'Your website shows every price',
+        'title' => 'Your own website, with every price',
+        'lead'  => 'One link for your bio and your WhatsApp status, like ivieluxe.nfelia.com. Customers see what you sell, add it to their bag and order.',
+        'ticks' => ['10 designs made for Nigerian businesses', 'Customers pay into your own account. No commission', 'Every order lands in Nfelia, with the customer saved'],
+        'shots' => [['Ivie Luxe Hair\'s website: bundles and wigs with photos, prices and Add buttons', 'Your prices, always current'],
+                    ['Checkout on Ivie\'s website: pay ₦65,000 by bank transfer to Ivie Luxe Hair\'s Moniepoint account', 'Paid into your account']],
+    ],
+    'payments' => [
+        'icon'  => 'chat', 'site' => false, 'shot' => 'paid',
+        'pain'  => '“Who paid? Send the screenshot again.”',
+        'fix'   => 'Every payment saved, with its proof',
+        'title' => 'Know who paid, without scrolling chats',
+        'lead'  => 'The transfer screenshot comes in with the order. Check it, approve, and the invoice and receipt are made for you.',
+        'ticks' => ['Every receipt in one list', 'Money-in alerts on your phone', 'Send a receipt the moment you are paid'],
+        'shots' => [['An order waiting for a payment check, with the customer\'s transfer screenshot attached', 'Proof comes with the order'],
+                    ['Receipts: ₦962,000 received this month, each payment listed by customer', 'Every receipt, in one list']],
+    ],
+    'tracking' => [
+        'icon'  => 'pin', 'site' => true, 'shot' => 'track',
+        'pain'  => '“Where is my order?”',
+        'fix'   => 'A tracking link answers for you',
+        'title' => 'Customers check their order themselves',
+        'lead'  => 'Every order gets its own tracking link: received, paid, on its way, delivered. No more answering the same question all day.',
+        'ticks' => ['Sent with the order on WhatsApp and by email', 'After delivery, they can leave a review', 'Reviews come only from real orders, so people trust them'],
+        'shots' => [['Tracking page for order IVL-ORD-018: received, payment confirmed, being prepared, on its way', 'On its way'],
+                    ['A collected order with the customer\'s five-star review', 'Collected, with a review']],
+    ],
+    'profit' => [
+        'icon'  => 'chart', 'site' => false, 'shot' => 'profit',
+        'pain'  => 'Busy all month, but where is the profit?',
+        'fix'   => 'Nfelia works out your profit',
+        'title' => 'Know your real profit',
+        'lead'  => 'Write down what you spend. Nfelia puts money in against money out, in plain words.',
+        'ticks' => ['Money in, money spent and what is left, on your Home', 'Profit for any month', 'Download it as a PDF for your bank'],
+        'shots' => [['Home: ₦962,000 came in this month, ₦695,500 spent, ₦266,500 left, and what needs you today', 'Your month at a glance'],
+                    ['Profit and loss for October: ₦962,000 in, ₦695,500 out, ₦266,500 profit', 'Profit, worked out']],
+    ],
+    'bookings' => [
+        'icon'  => 'calendar', 'site' => true, 'shot' => 'book',
+        'pain'  => '“Can I book for Saturday?”',
+        'fix'   => 'They pick a time and pay the deposit',
+        'title' => 'Bookings with deposits',
+        'lead'  => 'For hair, nails, fittings, events and shortlets. Customers pick a free time on your website and pay the deposit by transfer.',
+        'ticks' => ['Only free times show, so no double booking', 'Confirm in one tap and it goes on your calendar', 'They get a page with the time and what is left to pay'],
+        'shots' => [['Booking a wig install on Ivie\'s website: ₦25,000, 2 hours, 50% deposit, with a calendar of free days', 'They pick a free time'],
+                    ['A booking request for Saturday at 10am, with Confirm and add to my calendar', 'You confirm in one tap']],
+    ],
+    'stock' => [
+        'icon'  => 'box', 'site' => false, 'shot' => 'stock',
+        'pain'  => 'Stock that doesn\'t add up',
+        'fix'   => 'Stock that counts itself',
+        'title' => 'Know what you have left',
+        'lead'  => 'Send an invoice and the items come off your stock. See what is running low before customers ask.',
+        'ticks' => ['A warning before a product runs out', 'What your stock is worth, at cost', 'Add many products at once from a list'],
+        'shots' => [['Stock running low: a frontal wig with 2 left, a closure with 1 left, a hair care kit with 3 left', 'Running low'],
+                    ['A wig\'s page: price, cost, 37.9% margin and 2 left in stock', 'Price, margin and stock']],
+    ],
+    'invoices' => [
+        'icon'  => 'invoice', 'site' => false, 'shot' => 'invoice',
+        'pain'  => 'Big client wants a proper invoice',
+        'fix'   => 'Invoices with your logo, in a minute',
+        'title' => 'Look like a big company',
+        'lead'  => 'Quotes, invoices and receipts with your logo and colours. Your customer opens them from a WhatsApp link, on any phone.',
+        'ticks' => ['Turn a quote into an invoice in one tap', 'Deposit paid and balance due, clearly shown', 'A PAID stamp when they finish paying'],
+        'shots' => [['Kemi Events & Décor\'s invoice as the client sees it: deposit paid and balance due', 'Deposit and balance'],
+                    ['Ivie Luxe Hair\'s invoice marked as fully paid', 'Paid in full']],
+    ],
+    'delivery' => [
+        'icon'  => 'truck', 'site' => false, 'shot' => 'delivery',
+        'pain'  => 'Delivery wahala',
+        'fix'   => 'Proof they signed for it',
+        'title' => 'Proof of delivery',
+        'lead'  => 'The rider says delivered. The customer says no. Now your customer signs on the phone when the goods arrive.',
+        'ticks' => ['A delivery note with what was sent and who took it', 'Signed with their name and a finger', 'Once they sign, they are asked for a review'],
+        'shots' => [['Delivery note IVL-DEL-041: what was sent, to whom, and the rider', 'What was sent'],
+                    ['The customer types her name and signs with a finger to confirm she received it', 'Signed on the phone']],
+    ],
+    'tasks' => [
+        'icon'  => 'clock', 'site' => false, 'shot' => 'tasks',
+        'pain'  => '“Was that delivery today or tomorrow?”',
+        'fix'   => 'Nfelia reminds you before it\'s late',
+        'title' => 'Never miss a delivery date',
+        'lead'  => 'Deliveries, fittings and money due, on one list every morning. A countdown shows what is due and what is late.',
+        'ticks' => ['Reminders on your phone and by email', 'Ready-made plans for sewing jobs and events', 'Give a task to anyone on your team'],
+        'shots' => [['Tasks: a job with 2 days left, payments and a delivery that are late, and deliveries due today', 'Today, and what is late'],
+                    ['Calendar for October with appointments, deliveries and money due marked on each day', 'Your month']],
+    ],
+];
+
 $flash = get_flash();
 ?>
 <!DOCTYPE html>
@@ -38,15 +160,15 @@ $flash = get_flash();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nfelia: invoices, debts and stock for Nigerian businesses</title>
-    <meta name="description" content="Know who owes you, what you sold and what you made. Send proper invoices and receipts on WhatsApp. Free for 14 days, then <?= $naira($plan_price) ?> a month.">
+    <title>Nfelia: your own website, invoices, debts and stock for Nigerian businesses</title>
+    <meta name="description" content="Your own website at yourname.nfelia.com, plus invoices, receipts, debts and stock. All on your phone. Free for 14 days, then <?= $naira($plan_price) ?> a month.">
     <link rel="canonical" href="<?= APP_URL ?>/">
     <meta name="theme-color" content="#8B004A">
 
     <meta property="og:type" content="website">
     <meta property="og:url" content="<?= APP_URL ?>/">
     <meta property="og:title" content="Nfelia: the thread that holds your business together">
-    <meta property="og:description" content="Know who owes you, what you sold and what you made. Free for 14 days.">
+    <meta property="og:description" content="Know who owes you, what you sold and made. Oh, and your own website comes free.">
     <meta property="og:image" content="<?= APP_URL ?>/assets/img/nfelia-og-banner.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
@@ -59,7 +181,7 @@ $flash = get_flash();
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700&family=Caveat:wght@600&family=Plus+Jakarta+Sans:wght@400;600&display=swap">
-    <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/home.css?v=4">
+    <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/home.css?v=5">
     <?php if ($hero_img): ?>
     <link rel="preload" as="image" imagesrcset="<?= $img ?>/hero-640.webp 640w, <?= $img ?>/hero-1024.webp 1024w" imagesizes="(min-width: 960px) 492px, 92vw" fetchpriority="high">
     <?php endif; ?>
@@ -72,7 +194,7 @@ $flash = get_flash();
         'name' => 'Nfelia',
         'applicationCategory' => 'BusinessApplication',
         'operatingSystem' => 'Web, Android, iOS',
-        'description' => 'Invoices, receipts, debts, stock and profit tracking for small businesses in Nigeria.',
+        'description' => 'Your own website, plus invoices, receipts, debts, stock and profit tracking for small businesses in Nigeria.',
         'offers' => ['@type' => 'Offer', 'price' => (string)$plan_price, 'priceCurrency' => 'NGN'],
         'publisher' => ['@type' => 'Organization', 'name' => 'JBS Praxis'],
     ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>
@@ -88,6 +210,7 @@ $flash = get_flash();
             <span>NFELIA</span>
         </a>
         <nav class="nav-links" aria-label="Page sections">
+            <a href="#website">Your website</a>
             <a href="#how">How it works</a>
             <a href="#pricing">Pricing</a>
             <a href="#questions">Questions</a>
@@ -104,6 +227,15 @@ $flash = get_flash();
 <div class="flash <?= $flash['type'] === 'error' ? 'is-error' : '' ?>" role="status"><p><?= e($flash['message']) ?></p></div>
 <?php endif; ?>
 
+<?php if ($from_shop !== null): ?>
+<div class="from-shop">
+    <div class="wrap">
+        <p><strong>Like <?= e($from_shop) ?>’s website?</strong> Get one like it for your business, free for 14 days.</p>
+        <a class="btn btn-primary btn-sm" href="<?= APP_URL ?>/register">Start free</a>
+    </div>
+</div>
+<?php endif; ?>
+
 <main id="main">
 
 <!-- Hero: one promise, two actions -->
@@ -111,7 +243,7 @@ $flash = get_flash();
     <div class="wrap">
         <div>
             <h1>The thread that holds your business together.</h1>
-            <p class="hero-lead">Know who owes you, what you sold and what you made. All on your phone.</p>
+            <p class="hero-lead">Know who owes you, what you sold and made. Oh, and your own website comes free.</p>
             <div class="hero-actions">
                 <a class="btn btn-primary" href="<?= APP_URL ?>/register">Start free for 14 days</a>
                 <a class="btn btn-outline" href="<?= e($wa_link($wa_messages[3][2])) ?>" target="_blank" rel="noopener"><?= nf_icon('whatsapp') ?>Chat on WhatsApp</a>
@@ -154,14 +286,59 @@ $flash = get_flash();
     <line x1="0" y1="9" x2="1200" y2="9" stroke="#B69F5E" stroke-width="2" stroke-dasharray="3 12" transform="translate(0 -5)"/>
 </svg>
 
-<!-- Pains -->
-<section class="section pains" aria-labelledby="pains-title">
-    <div class="wrap">
-        <div class="section-head" data-reveal>
-            <h2 id="pains-title">Sound familiar?</h2>
-            <p>Running a business from an exercise book and WhatsApp chats is hard work.</p>
+<!-- Your own website: what customers see, joined to everything else -->
+<section class="section site" id="website" aria-labelledby="site-title">
+    <div class="wrap site-grid">
+        <div class="section-head site-head" data-reveal>
+            <h2 id="site-title">Customers order on your website. Nfelia does the rest.</h2>
+            <p>Your own address, like ivieluxe.nfelia.com. Every order, booking and price request lands in Nfelia, with the customer saved. No more copying from DMs.</p>
         </div>
-        <div class="pains-grid">
+
+        <div class="site-visual" data-site-visual>
+            <div class="phone phone-browser">
+                <div class="browser-bar">
+                    <span class="browser-url"><?= nf_icon('lock') ?><span data-type-url>ivieluxe.nfelia.com</span></span>
+                </div>
+                <img src="<?= $img ?>/site-ivieluxe.webp" width="600" height="1298" loading="lazy" alt="Ivie Luxe Hair's website at ivieluxe.nfelia.com: “Luxury hair, honest prices.”, a Shop now button, a photo of Ivie, and her bundles and wigs with prices">
+            </div>
+            <div class="tag tag-order" aria-hidden="true">
+                <span class="tag-icon"><?= nf_icon('bag') ?></span>
+                <span><strong>New website order</strong>₦145,000 · Kemi Bello</span>
+            </div>
+            <div class="tag tag-saved" aria-hidden="true">
+                <span class="tag-icon"><?= nf_icon('user-plus') ?></span>
+                <span><strong>Customer saved</strong>Added to your clients</span>
+            </div>
+        </div>
+
+        <div class="site-details">
+            <h3 class="site-thread-title">When someone orders, Nfelia</h3>
+            <ol class="site-thread" data-reveal-group>
+                <li>Saves the customer to your clients</li>
+                <li>Sends them a tracking link</li>
+                <li>Makes the invoice and receipt when you approve</li>
+                <li>Gets the delivery signed for</li>
+                <li>Asks them for a review</li>
+            </ol>
+            <ul class="site-points" data-reveal-group>
+                <li><?= nf_icon('palette') ?><div><strong>Your name, your look</strong><span>10 designs made for Nigerian businesses. Change it from your phone.</span></div></li>
+                <li><?= nf_icon('naira') ?><div><strong>Paid straight to you</strong><span>Customers pay into your own account. No commission.</span></div></li>
+                <li><?= nf_icon('check-circle') ?><div><strong>Customers trust you</strong><span>A tracking link for every order. Reviews only from real orders.</span></div></li>
+                <li><?= nf_icon('search') ?><div><strong>Found on Google</strong><span>Once you subscribe, Google can show it. Join the Nfelia shop list too.</span></div></li>
+            </ul>
+            <a class="btn btn-primary" href="<?= APP_URL ?>/register">Get your website</a>
+        </div>
+    </div>
+</section>
+
+<!-- Sound familiar? Each card opens a sheet with the fix (home.js) -->
+<section class="section see" id="see" aria-labelledby="see-title">
+    <div class="wrap see-grid">
+        <div class="see-side">
+            <div class="section-head" data-reveal>
+                <h2 id="see-title">Sound familiar?</h2>
+                <p>Tap one to see how Nfelia fixes it.</p>
+            </div>
             <div class="ledger" aria-hidden="true" data-reveal>
                 <p class="title">Who owes me</p>
                 <p>Mama Bisi: 15,000 <span class="red">(next week)</span></p>
@@ -172,142 +349,23 @@ $flash = get_flash();
                 <p>Transfer screenshot???</p>
                 <span class="ring"></span>
             </div>
-            <ul class="pain-list" data-reveal-group>
-                <li>
-                    <span class="pain-icon"><?= nf_icon('naira') ?></span>
-                    <div><h3>“I go pay you next week.”</h3><p>Three months later, you are still waiting, and too shy to keep asking.</p></div>
-                </li>
-                <li>
-                    <span class="pain-icon"><?= nf_icon('chart') ?></span>
-                    <div><h3>Busy all month, but where is the profit?</h3><p>Shop money and house money mix, and month end shows nothing.</p></div>
-                </li>
-                <li>
-                    <span class="pain-icon"><?= nf_icon('box') ?></span>
-                    <div><h3>Stock that doesn't add up</h3><p>Goods go missing and nobody knows how many were sold.</p></div>
-                </li>
-                <li>
-                    <span class="pain-icon"><?= nf_icon('chat') ?></span>
-                    <div><h3>“Who paid? Send the screenshot again.”</h3><p>Orders, payments and balances buried in WhatsApp and Instagram chats.</p></div>
-                </li>
-                <li>
-                    <span class="pain-icon"><?= nf_icon('invoice') ?></span>
-                    <div><h3>Big client wants a proper invoice</h3><p>You send a text message, and the job goes to someone who looks bigger.</p></div>
-                </li>
-                <li>
-                    <span class="pain-icon"><?= nf_icon('truck') ?></span>
-                    <div><h3>Delivery wahala</h3><p>The rider says delivered. The customer says no. No proof either way.</p></div>
-                </li>
-            </ul>
         </div>
-    </div>
-</section>
-
-<!-- Fixes: the real app screens -->
-<section class="section fixes" aria-labelledby="fixes-title">
-    <div class="wrap">
-        <div class="section-head center" data-reveal>
-            <h2 id="fixes-title">Nfelia puts it all in one place</h2>
-            <p>Your sales, debts, stock and receipts, connected. Here is what it looks like.</p>
-        </div>
-
-        <ol class="fix-list">
-            <li class="fix" data-reveal>
-                <div class="fix-media">
-                    <div class="phone"><img src="<?= $img ?>/debt-view-phone.webp" width="780" height="1688" loading="lazy" alt="A customer's unpaid balance: 5 days overdue, with a green Send reminder button for WhatsApp"></div>
-                </div>
-                <div class="fix-copy">
-                    <h3>Get your money back</h3>
-                    <p>See who owes you, how much, and who is late. Send a polite WhatsApp reminder in one tap.</p>
-                    <ul class="ticks">
-                        <li><?= nf_icon('check') ?>Balance updates as soon as you record a payment</li>
-                        <li><?= nf_icon('check') ?>The message says the balance and how many days late</li>
-                    </ul>
-                </div>
+        <ul class="see-cards" data-reveal-group>
+            <?php foreach ($cards as $id => $c): ?>
+            <li>
+                <a class="see-card" href="#<?= $id ?>" data-see="<?= $id ?>" aria-haspopup="dialog">
+                    <span class="see-top">
+                        <span class="see-icon"><?= nf_icon($c['icon']) ?></span>
+                        <?php if ($c['site']): ?><span class="see-chip">Your website</span><?php endif; ?>
+                    </span>
+                    <h3><?= e($c['pain']) ?></h3>
+                    <span class="see-fix"><?= e($c['fix']) ?><?= nf_icon('arrow') ?></span>
+                </a>
             </li>
-            <li class="fix" data-reveal>
-                <div class="fix-media">
-                    <div class="phone"><img src="<?= $img ?>/invoice-phone.webp" width="780" height="1688" loading="lazy" alt="An invoice from Kemi Events as the client sees it, with deposit paid and balance due"></div>
-                </div>
-                <div class="fix-copy">
-                    <h3>Look like a big company</h3>
-                    <p>Invoices and receipts with your logo and colours. Your customer opens them from a WhatsApp link, on any phone.</p>
-                    <ul class="ticks">
-                        <li><?= nf_icon('check') ?>Deposit paid and balance due, clearly shown</li>
-                        <li><?= nf_icon('check') ?>PAID stamp when they finish paying</li>
-                    </ul>
-                </div>
-            </li>
-            <li class="fix" data-reveal>
-                <div class="fix-media">
-                    <div class="phone"><img src="<?= $img ?>/shop-phone.webp" width="780" height="1688" loading="lazy" alt="Ivie's online shop: wigs and bundles with prices, ready to add to cart or order on WhatsApp"></div>
-                </div>
-                <div class="fix-copy">
-                    <h3>Turn your Instagram into a shop</h3>
-                    <p>One link for your bio and your WhatsApp status. Customers see your products and prices, then order from the cart or chat you on WhatsApp.</p>
-                    <ul class="ticks">
-                        <li><?= nf_icon('check') ?>Orders land in Nfelia, not lost in your DMs</li>
-                        <li><?= nf_icon('check') ?>Customers pay into your own bank account</li>
-                    </ul>
-                </div>
-            </li>
-            <li class="fix" data-reveal>
-                <div class="fix-media">
-                    <div class="phone"><img src="<?= $img ?>/tasks-phone.webp" width="780" height="1688" loading="lazy" alt="Ivie's tasks: an order to deliver in 2 days, a payment 5 days late, a delivery 1 day late, a delivery due today and a 2pm wig install"></div>
-                </div>
-                <div class="fix-copy">
-                    <h3>Never miss a delivery date</h3>
-                    <p>Deliveries, fittings and money due, on one list every morning. A countdown shows what is due and what is late, so no customer is left waiting.</p>
-                    <ul class="ticks">
-                        <li><?= nf_icon('check') ?>Reminders on your phone and by email</li>
-                        <li><?= nf_icon('check') ?>Ready-made plans for sewing jobs and events</li>
-                    </ul>
-                </div>
-            </li>
-            <li class="fix" data-reveal>
-                <div class="fix-media">
-                    <div class="laptop">
-                        <div class="laptop-screen"><img src="<?= $img ?>/dashboard-laptop.webp" width="1440" height="900" loading="lazy" alt="Dashboard: today's sales, money owed to you and products running low"></div>
-                        <div class="laptop-base"></div>
-                    </div>
-                </div>
-                <div class="fix-copy">
-                    <h3>Know your business at a glance</h3>
-                    <p>Today's sales, money owed to you and stock running low. One screen, every morning.</p>
-                    <ul class="ticks">
-                        <li><?= nf_icon('check') ?>Stock goes down by itself when you sell</li>
-                        <li><?= nf_icon('check') ?>A warning before a product runs out</li>
-                    </ul>
-                </div>
-            </li>
-            <li class="fix" data-reveal>
-                <div class="fix-media">
-                    <div class="laptop">
-                        <div class="laptop-screen"><img src="<?= $img ?>/profit-laptop.webp" width="1440" height="900" loading="lazy" alt="Profit report: money in, money out and profit for the month"></div>
-                        <div class="laptop-base"></div>
-                    </div>
-                </div>
-                <div class="fix-copy">
-                    <h3>Know your real profit</h3>
-                    <p>Write down what you spend, and see money in against money out. No big grammar.</p>
-                    <ul class="ticks">
-                        <li><?= nf_icon('check') ?>Profit for any month, in plain words</li>
-                        <li><?= nf_icon('check') ?>Download it as a PDF for your bank</li>
-                    </ul>
-                </div>
-            </li>
-        </ol>
-
-        <ul class="extras" data-reveal-group>
-            <li><?= nf_icon('quote') ?><div><strong>Quotes in seconds</strong><span>Turn a quote into an invoice in one tap.</span></div></li>
-            <li><?= nf_icon('pen') ?><div><strong>Proof of delivery</strong><span>Your customer signs on the phone when goods arrive.</span></div></li>
-            <li><?= nf_icon('receipt') ?><div><strong>Receipts</strong><span>Send a receipt the moment you are paid.</span></div></li>
-            <li><?= nf_icon('globe') ?><div><strong>An app, no app store</strong><span>Add it to your home screen straight from the browser.</span></div></li>
-            <li><?= nf_icon('users') ?><div><strong>Staff accounts</strong><span>Give each staff member their own login.</span></div></li>
-            <li><?= nf_icon('bell') ?><div><strong>Low-stock alerts</strong><span>Know what to restock before customers ask.</span></div></li>
-            <li><?= nf_icon('calendar') ?><div><strong>Appointments</strong><span>Book fittings and visits, and remind customers on WhatsApp.</span></div></li>
-            <li><?= nf_icon('check-circle') ?><div><strong>Tasks for your staff</strong><span>Give a job to anyone on your team. It shows on their own list.</span></div></li>
+            <?php endforeach; ?>
         </ul>
     </div>
+    <p class="see-note">Screens show Ivie Luxe Hair and Kemi Events &amp; Décor, example businesses.</p>
 </section>
 
 <!-- Example stories (clearly not reviews) -->
@@ -346,7 +404,7 @@ $flash = get_flash();
 
         <ul class="fits" data-reveal-group>
             <li><strong>Fashion designers</strong><span>Quote fabric and sewing, take a deposit, collect the balance at pickup.</span></li>
-            <li><strong>Salons and beauty</strong><span>A receipt for every client, and stock of the products you sell.</span></li>
+            <li><strong>Salons and beauty</strong><span>Clients book a time on your website and pay the deposit first.</span></li>
             <li><strong>Food and catering</strong><span>Party quotes, deposits, and what you spent on foodstuff.</span></li>
             <li><strong>Phones and gadgets</strong><span>Stock for every model, receipts with your logo, and who owes you.</span></li>
         </ul>
@@ -362,8 +420,8 @@ $flash = get_flash();
                 <p>If you can use WhatsApp, you can use Nfelia.</p>
             </div>
             <ol class="steps" data-reveal-group>
-                <li><div><h3>Sign up free</h3><p>Your name, your business name and an email. About two minutes.</p></div></li>
-                <li><div><h3>Add your products and customers</h3><p>All at once, or one by one as you sell.</p></div></li>
+                <li><div><h3>Sign up free</h3><p>Your name, your business name and an email. Then pick your website address.</p></div></li>
+                <li><div><h3>Add your products and customers</h3><p>All at once, or one by one as you sell. Your website fills up as you go.</p></div></li>
                 <li><div><h3>Send your first invoice</h3><p>Share it on WhatsApp and watch the money come in.</p></div></li>
             </ol>
         </div>
@@ -411,13 +469,15 @@ $flash = get_flash();
             <div class="price-includes">
                 <h3>Everything included</h3>
                 <ul class="ticks">
+                    <li><?= nf_icon('check') ?><span><strong>Your own website</strong> at yourname.nfelia.com</span></li>
+                    <li><?= nf_icon('check') ?>No commission: customers pay you directly</li>
                     <li><?= nf_icon('check') ?>Unlimited invoices, quotes and receipts</li>
                     <li><?= nf_icon('check') ?>Debt tracker with WhatsApp reminders</li>
+                    <li><?= nf_icon('check') ?>Bookings with deposits</li>
                     <li><?= nf_icon('check') ?>Stock tracking for up to <?= number_format(MAX_PRODUCTS) ?> products</li>
                     <li><?= nf_icon('check') ?>Monthly profit report</li>
                     <li><?= nf_icon('check') ?>Tasks and calendar with reminders</li>
                     <li><?= nf_icon('check') ?>Delivery notes your customer signs</li>
-                    <li><?= nf_icon('check') ?>Your own online shop link</li>
                     <li><?= nf_icon('check') ?>Free setup help on WhatsApp</li>
                 </ul>
                 <p class="price-extra">Need staff on it? <?= $naira($seat_price) ?> a month for each extra person.</p>
@@ -434,6 +494,18 @@ $flash = get_flash();
         </div>
         <div class="faq-list" data-reveal>
             <details>
+                <summary>Is the website really free? Is it a real website?</summary>
+                <p>Yes. It comes with Nfelia at no extra cost: no designer, no setup fee. It lives at yourname.nfelia.com (like ivieluxe.nfelia.com), in one of 10 designs made for Nigerian businesses, and you change the words, colours and photos from your phone. A .com address of your own is not part of Nfelia for now.</p>
+            </details>
+            <details>
+                <summary>Do you take a cut of my sales?</summary>
+                <p>No. Customers pay into your own bank account by transfer, and the money is yours. Nfelia takes no commission; you only pay the monthly price.</p>
+            </details>
+            <details>
+                <summary>Will people find my website on Google?</summary>
+                <p>Yes, once you subscribe. During the free trial your website works for anyone with the link, but we keep it off Google until your first payment. You can also list it in the Nfelia shop directory, by city and by what you sell.</p>
+            </details>
+            <details>
                 <summary>Do I need a laptop or a lot of data?</summary>
                 <p>No laptop needed. Nfelia opens in the browser on any smartphone, and you can add it to your home screen so it opens like an app, with no app store download. It needs a little data, like WhatsApp does, and pages you have already opened still open when the network drops. Use a laptop too if you like; your records are the same on both.</p>
             </details>
@@ -443,7 +515,7 @@ $flash = get_flash();
             </details>
             <details>
                 <summary>What happens after the 14 days?</summary>
-                <p>You decide. Pay <?= $naira($plan_price) ?> a month to keep creating invoices and receipts. If you stop, nothing is deleted: your records stay safe.</p>
+                <p>You decide. Pay <?= $naira($plan_price) ?> a month to keep creating invoices and receipts and to keep your website open. If you stop, nothing is deleted: your records stay safe, and your website shows a “closed for now” page with your WhatsApp button until you come back.</p>
             </details>
             <details>
                 <summary>How do I pay?</summary>
@@ -494,7 +566,7 @@ $flash = get_flash();
                     <img src="<?= APP_URL ?>/assets/img/nfelia-mark-email.png" alt="" width="55" height="40">
                     <span>NFELIA</span>
                 </a>
-                <p class="footer-about">Invoices, debts, stock and profit for small businesses in Nigeria.</p>
+                <p class="footer-about">Your own website, plus invoices, debts, stock and profit, for small businesses in Nigeria.</p>
             </div>
             <div>
                 <h3>Nfelia</h3>
@@ -547,6 +619,41 @@ $flash = get_flash();
 
 <?php require BASE_PATH . '/views/home/_dialogs.php'; ?>
 
+<!-- The fix behind each card. A bottom sheet on phones, a window on wider
+     screens. Without JavaScript, :target shows it and its close link
+     goes back to the cards. -->
+<?php foreach ($cards as $id => $c): ?>
+<dialog class="see-sheet" id="<?= $id ?>" aria-labelledby="<?= $id ?>-title">
+    <div class="see-sheet-head">
+        <div>
+            <p class="see-pain"><?= e($c['pain']) ?></p>
+            <h2 id="<?= $id ?>-title"><?= e($c['title']) ?></h2>
+        </div>
+        <a class="sheet-close" href="#see" data-see-close aria-label="Close" data-tip="Close" data-tip-below><?= nf_icon('close') ?></a>
+    </div>
+    <div class="see-sheet-body">
+        <div class="see-screens">
+            <?php foreach ($c['shots'] as $i => [$alt, $caption]): ?>
+            <figure class="see-screen">
+                <div class="phone"><img src="<?= $img ?>/see/<?= $c['shot'] ?>-<?= $i + 1 ?>.webp" width="540" height="1169" loading="lazy" decoding="async" alt="<?= e($alt) ?>"></div>
+                <figcaption><?= e($caption) ?></figcaption>
+            </figure>
+            <?php endforeach; ?>
+        </div>
+        <div class="see-copy">
+            <p class="see-lead"><?= e($c['lead']) ?></p>
+            <ul class="ticks">
+                <?php foreach ($c['ticks'] as $tick): ?>
+                <li><?= nf_icon('check') ?><?= e($tick) ?></li>
+                <?php endforeach; ?>
+            </ul>
+            <a class="btn btn-primary" href="<?= APP_URL ?>/register">Start free for 14 days</a>
+            <p class="see-small">Screens from example businesses.</p>
+        </div>
+    </div>
+</dialog>
+<?php endforeach; ?>
+
 <!-- Get the app: home.js shows the right way to install for this phone. -->
 <dialog class="sheet sheet-small" id="get-app" aria-labelledby="get-app-title">
     <div class="sheet-head">
@@ -575,6 +682,6 @@ $flash = get_flash();
     </div>
 </dialog>
 
-<script src="<?= APP_URL ?>/assets/js/home.js?v=5" defer></script>
+<script src="<?= APP_URL ?>/assets/js/home.js?v=6" defer></script>
 </body>
 </html>
