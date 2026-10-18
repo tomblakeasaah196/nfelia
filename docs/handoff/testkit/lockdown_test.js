@@ -21,6 +21,7 @@ const KIT = __dirname;
 const ROOT = path.resolve(KIT, '../../..');
 const APP = 'http://localhost:8000';
 const SHOP = 'http://ivieluxe.localhost:8000';
+const OPS = 'http://ops.localhost:8000';   // Nfelia Ops: payments to check, countries, the old founder panel
 const SECRET = 'sk_test_local';
 const MOCK = path.join(require('os').tmpdir(), 'paystack_mock');
 const results = [];
@@ -52,6 +53,8 @@ require '${ROOT}/app/helpers/billing.php'; ${code}`);
        INSERT INTO users (business_id, role, full_name, email, password_hash, is_email_verified, is_active) VALUES
          (1, 'staff', 'Tunde Bello', 'tunde@demo.nfelia', '${hash}', 1, 1), (1, 'staff', 'Amaka Obi', 'amaka@demo.nfelia', '${hash}', 1, 1);
        UPDATE subscriptions SET extra_seats = 2 WHERE business_id = 1;
+       DELETE FROM ops_staff WHERE email = 'tolu@ops.nfelia';
+       INSERT INTO ops_staff (full_name, email, password_hash, role) VALUES ('Tolu Ops', 'tolu@ops.nfelia', '${hash}', 'admin');
        INSERT INTO products (business_id, name, sell_price, cost_price, stock_qty, is_service) VALUES (2, 'Gold chiavari chair hire', 2500, 1000, 200, 0)`);
   const kemiProduct = sql("SELECT id FROM products WHERE business_id = 2 LIMIT 1");
   const kemiInvoice = sql("SELECT id FROM invoices WHERE business_id = 2 LIMIT 1");
@@ -188,9 +191,10 @@ require '${ROOT}/app/helpers/billing.php'; ${code}`);
     await staff.goto(APP + page);
     check('C1 staff are sent back to Home from ' + page, staff.url().endsWith('/dashboard'), staff.url());
   }
+  // The founder's pages moved to Nfelia Ops: the business app never shows them
   for (const page of ['/admin', '/countries', '/momo/review']) {
     await staff.goto(APP + page);
-    check('C2 staff of the founder\'s business are sent back to Home from ' + page, staff.url().endsWith('/dashboard'), staff.url());
+    check('C2 the old founder page ' + page + ' doesn\'t open in the business app', !staff.url().startsWith(APP + page), staff.url());
   }
   await staff.goto(APP + '/dashboard');
   check('C3 the founder panel isn\'t in a staff member\'s menu', !(await staff.content()).includes('Founder panel'));
@@ -316,20 +320,37 @@ require '${ROOT}/app/helpers/billing.php'; ${code}`);
   r = await post(kemi, APP + '/momo/submit', { kind: 'month', seats: '0', covered: '', reference_number: 'MP261018.1234.A001' }, { receipt: { w: 400, h: 700 } });
   check('D23 a receipt waiting to be checked unlocks and adds nothing', sql('SELECT status, current_period_end, extra_seats FROM subscriptions WHERE business_id = 2') === kemiSub
     && sql("SELECT COUNT(*) FROM subscription_payments WHERE business_id = 2 AND status = 'pending_verification'") === '1');
-  check('D24 the founder is told at once, marked urgent', sql("SELECT COUNT(*) FROM notifications WHERE business_id = 1 AND type = 'momo_submitted' AND title LIKE 'Urgent:%'") === '1');
+  const payId = sql('SELECT id FROM subscription_payments WHERE business_id = 2');
+  check('D24 the Nfelia team is told at once, in Ops', sql(`SELECT COUNT(*) FROM ops_alerts a JOIN ops_staff s ON s.id = a.staff_id
+        WHERE s.email = 'tolu@ops.nfelia' AND a.kind = 'payment' AND a.dedupe_key = 'payment:${payId}'`) === '1');
   r = await post(kemi, APP + '/momo/submit', { kind: 'month', seats: '0', covered: '', reference_number: 'MP261018.1234.A002' }, { receipt: { w: 400, h: 700 } });
   check('D25 one receipt waits at a time', sql("SELECT COUNT(*) FROM subscription_payments WHERE business_id = 2") === '1');
-  const payId = sql('SELECT id FROM subscription_payments WHERE business_id = 2');
+  // Checking payments is done in Nfelia Ops now, not from any business
   const tundePage = await session('tunde@demo.nfelia');
   await tundePage.goto(APP + '/dashboard');
-  r = await post(tundePage, APP + '/momo/approve', { payment_id: payId });
-  check('D26 only the founder\'s owner can approve it', !/"success":true/.test(r.text) && sql(`SELECT status FROM subscription_payments WHERE id = ${payId}`) === 'pending_verification');
-  await ivie.goto(APP + '/momo/review');
-  r = await post(ivie, APP + '/momo/approve', { payment_id: payId });
+  // The old address now sends people elsewhere (to Ops, or Home), which a
+  // page's fetch can't follow across sites: that counts as refused too
+  const tryApprove = (page) => post(page, APP + '/momo/approve', { payment_id: payId }).catch((e) => ({ text: String(e) }));
+  r = await tryApprove(tundePage);
+  const rIvie = await tryApprove(ivie);
+  check('D26 nobody can approve it from the business app', !/"success":true/.test(r.text + rIvie.text) && sql(`SELECT status FROM subscription_payments WHERE id = ${payId}`) === 'pending_verification');
+  const ops = await session(null);
+  await ops.goto(OPS + '/signin');
+  await ops.fill('#email', 'tolu@ops.nfelia'); await ops.fill('#password', 'DemoPass1');
+  await Promise.all([ops.waitForNavigation(), ops.locator('form button[type=submit]').first().click()]);
+  await ops.goto(OPS + '/payments');
+  const approveInOps = () => ops.evaluate(async (url) => {
+    const fd = new FormData();
+    fd.append('csrf_token', document.querySelector('input[name=csrf_token]').value);
+    await fetch(url, { method: 'POST', body: fd, credentials: 'same-origin' });
+  }, `${OPS}/payments/${payId}/approve`);
+  await approveInOps();
   const kemiEnd2 = sql('SELECT current_period_end FROM subscriptions WHERE business_id = 2');
-  check('D27 approving it adds a month after the one already paid', /"success":true/.test(r.text) && kemiEnd2 === php(`echo billing_add_month('${kemiEnd}');`), r.text + ' ' + kemiEnd2);
-  r = await post(ivie, APP + '/momo/approve', { payment_id: payId });
-  check('D28 a receipt is approved once', !/"success":true/.test(r.text) && sql('SELECT current_period_end FROM subscriptions WHERE business_id = 2') === kemiEnd2);
+  check('D27 approving it in Ops adds a month after the one already paid', sql(`SELECT status FROM subscription_payments WHERE id = ${payId}`) === 'approved'
+        && kemiEnd2.slice(0, 10) === php(`echo billing_add_month('${kemiEnd}');`).slice(0, 10), kemiEnd2);
+  await ops.goto(OPS + '/payments');
+  await approveInOps();
+  check('D28 a receipt is approved once', sql('SELECT current_period_end FROM subscriptions WHERE business_id = 2') === kemiEnd2);
   await kemi.goto(APP + '/referrals');
   const code1 = sql('SELECT referral_code FROM businesses WHERE id = 2');
   await kemi.goto(APP + '/referrals');

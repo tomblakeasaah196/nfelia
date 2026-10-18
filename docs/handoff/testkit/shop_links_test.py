@@ -81,6 +81,25 @@ class Client:
         status, hdrs, _ = self.req("POST", "/login", {"csrf_token": token, "email": email, "password": "testpass123"})
         return status, hdrs.get("location", "")
 
+    def ops_login(self, email):
+        token = self.csrf("/signin")
+        status, hdrs, _ = self.req("POST", "/signin", {"csrf_token": token, "email": email, "password": "testpass123"})
+        return status, hdrs.get("location", "")
+
+
+# Shop names are checked by the Nfelia team in Nfelia Ops (ops.<host>), not
+# by the founder's business any more
+OPS = "ops." + MAIN
+sql("DELETE FROM ops_staff WHERE email = 'ops@nfelia.test'")
+sql("INSERT INTO ops_staff (full_name, email, password_hash, role) "
+    "SELECT 'Ops Admin', 'ops@nfelia.test', password_hash, 'admin' FROM users WHERE email = 'founder@nfelia.test'")
+ops_staff_id = sql("SELECT id FROM ops_staff WHERE email = 'ops@nfelia.test'")[0][0]
+
+
+def ops_decide(client, biz_id, name, decision):
+    token = client.csrf("/shop-names")
+    return client.req("POST", f"/shop-names/{biz_id}", {"csrf_token": token, "name": name, "decision": decision})
+
 
 def shop(label):
     return Client(f"{label}.nfelia.test:8000")
@@ -281,8 +300,8 @@ check("lookalike name waits for review", row == ["1", "kemi-promo", "pending", "
 s, h, t = kemi.req("GET", "/dashboard")
 check("a pending name counts as chosen", s == 200, (s, h.get("location")))
 check("dashboard says we're checking", "checking kemi-promo" in t, "")
-n = sql("SELECT title, action_url FROM notifications WHERE business_id = 1 ORDER BY id DESC LIMIT 1")
-check("founder is notified", n and n[0] == ["Shop name to review", "admin/shop-names"], n)
+n = sql(f"SELECT title, url FROM ops_alerts WHERE staff_id = {ops_staff_id} AND kind = 'shop_name' ORDER BY id DESC LIMIT 1")
+check("the Nfelia team is told in Ops", n and n[0][0] == "Shop name to check" and "shop-names" in n[0][1], n)
 s, h, t = shop("kemi-promo").req("GET", "/")
 check("pending name is not live", s == 404, s)
 r = name_check(bisi, "kemi-promo")
@@ -292,26 +311,27 @@ founder = Client()
 founder.login("founder@nfelia.test")
 s, h, t = founder.req("GET", "/dashboard")
 check("founder is also sent to setup", s == 302 and h.get("location", "").endswith("/shop-setup"), (s, h.get("location")))
-s, h, admin_html = founder.req("GET", "/admin/shop-names")
-check("admin queue lists the name", s == 200 and "kemi-promo.nfelia.test" in admin_html, (s, admin_html[:200]))
-token = re.search(r'name="csrf_token" value="([0-9a-f]+)"', admin_html).group(1)
-s, h, t = founder.req("POST", "/admin/review-shop-name", {"business_id": "4", "name": "kemi-promo", "decision": "approve"})
-check("approve without CSRF is refused", s == 302 and h.get("location", "").endswith("/login"), (s, h.get("location")))
-s, h, t = founder.req("POST", "/admin/review-shop-name", {"csrf_token": token, "business_id": "4", "name": "kemi-promo", "decision": "approve"})
-row = sql("SELECT subdomain, subdomain_requested IS NULL, subdomain_status, subdomain_renames, subdomain_reviewed_by FROM businesses WHERE id = 4")[0]
-check("approval makes the link live", row == ["kemi-promo", "1", "active", "0", "1"], row)
+ops = Client(OPS)
+ops.ops_login("ops@nfelia.test")
+s, h, admin_html = ops.req("GET", "/shop-names")
+check("the Ops queue lists the name", s == 200 and "kemi-promo.nfelia.test" in admin_html, (s, admin_html[:200]))
+s, h, t = ops.req("POST", "/shop-names/4", {"name": "kemi-promo", "decision": "approve"})
+check("approve without CSRF is refused", sql("SELECT subdomain_status FROM businesses WHERE id = 4")[0][0] == "pending", (s, h.get("location")))
+s, h, t = ops_decide(ops, 4, "kemi-promo", "approve")
+row = sql("SELECT subdomain, subdomain_requested IS NULL, subdomain_status, subdomain_renames FROM businesses WHERE id = 4")[0]
+check("approval makes the link live", row == ["kemi-promo", "1", "active", "0"], row)
 n = sql("SELECT title, action_url FROM notifications WHERE business_id = 4 ORDER BY id DESC LIMIT 1")
 check("owner is told it's live", n and n[0][0] == "Your shop link is live", n)
 s, h, t = shop("kemi-promo").req("GET", "/")
 check("approved paying shop is indexed", s == 200 and "x-robots-tag" not in h and '<meta name="robots" content="index, follow">' in t, (s, h.get("x-robots-tag")))
-s, h, t = founder.req("POST", "/admin/review-shop-name", {"csrf_token": token, "business_id": "4", "name": "kemi-promo", "decision": "approve"})
-check("a stale approval is handled", s == 302, s)
+s, h, t = ops_decide(ops, 4, "kemi-promo", "approve")
+check("a stale approval is handled", s in (302, 303) and sql("SELECT subdomain_renames FROM businesses WHERE id = 4")[0][0] == "0", s)
 
 # Founder's own first claim turned down, then back to setup
 token = founder.csrf("/shop-setup")
 founder.req("POST", "/shop-setup/save", {"csrf_token": token, "shop_name": "nfelia-official", "look": "desk"})
 check("founder's lookalike name pends", sql("SELECT subdomain_status FROM businesses WHERE id = 1")[0][0] == "pending", "")
-s, h, t = founder.req("POST", "/admin/review-shop-name", {"csrf_token": token, "business_id": "1", "name": "nfelia-official", "decision": "reject"})
+s, h, t = ops_decide(ops, 1, "nfelia-official", "reject")
 row = sql("SELECT subdomain IS NULL, subdomain_requested IS NULL, subdomain_status FROM businesses WHERE id = 1")[0]
 check("turned-down first claim is rejected", row == ["1", "1", "rejected"], row)
 s, h, t = founder.req("GET", "/dashboard")
@@ -352,14 +372,12 @@ row = sql("SELECT subdomain, subdomain_requested, subdomain_status FROM business
 check("rename to a lookalike waits, old link stays", row == ["kemi-promo", "kemi-giveaway", "pending"], row)
 s, h, t = shop("kemi-promo").req("GET", "/")
 check("current link keeps working while the rename waits", s == 200, s)
-token = founder.csrf("/admin/shop-names")
-founder.req("POST", "/admin/review-shop-name", {"csrf_token": token, "business_id": "4", "name": "kemi-giveaway", "decision": "reject"})
+ops_decide(ops, 4, "kemi-giveaway", "reject")
 row = sql("SELECT subdomain, subdomain_requested IS NULL, subdomain_status, subdomain_renames FROM businesses WHERE id = 4")[0]
 check("turned-down rename keeps the old link", row == ["kemi-promo", "1", "active", "0"], row)
 token = kemi.csrf("/landing-page")
 kemi.req("POST", "/shop-setup/rename", {"csrf_token": token, "shop_name": "kemi-giveaway"})
-token = founder.csrf("/admin/shop-names")
-founder.req("POST", "/admin/review-shop-name", {"csrf_token": token, "business_id": "4", "name": "kemi-giveaway", "decision": "approve"})
+ops_decide(ops, 4, "kemi-giveaway", "approve")
 row = sql("SELECT subdomain, subdomain_renames FROM businesses WHERE id = 4")[0]
 check("approved rename counts as the one rename", row == ["kemi-giveaway", "1"], row)
 

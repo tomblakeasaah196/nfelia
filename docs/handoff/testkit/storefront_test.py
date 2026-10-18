@@ -111,6 +111,25 @@ class Client:
             return s, {"raw": raw[:300].decode("utf-8", "replace")}
 
 
+# The founder's admin moved to Nfelia Ops (ops.<host>): an Ops person signs
+# in there with the same test password
+def ops_client():
+    sql("DELETE FROM ops_staff WHERE email = 'ops@nfelia.test'")
+    sql("INSERT INTO ops_staff (full_name, email, password_hash, role) "
+        "SELECT 'Ops Admin', 'ops@nfelia.test', password_hash, 'admin' FROM users WHERE email = 'founder@nfelia.test'")
+    c = Client("ops." + MAIN)
+    s, h, raw = c.req("GET", "/signin")
+    token = re.search(r'name="csrf_token" value="([0-9a-f]+)"', raw.decode("utf-8", "replace")).group(1)
+    c.req("POST", "/signin", {"csrf_token": token, "email": "ops@nfelia.test", "password": "testpass123"})
+    return c
+
+
+def ops_token(c, path):
+    s, h, raw = c.req("GET", path)
+    m = re.search(r'name="csrf_token" value="([0-9a-f]+)"', raw.decode("utf-8", "replace"))
+    return m.group(1) if m else ""
+
+
 def shop(label):
     return Client(f"{label}.nfelia.test:8000")
 
@@ -340,22 +359,23 @@ check("a held name is taken for other shops", json.loads(raw).get("state") == "t
 s, h, page = bisi.get("/landing-page")
 check("Studio says to contact support after the one rename", "Contact support" in page and "Change link" not in page, "")
 
-# ── Admin: the "Shop by Nfelia" add-on and notifications ──────────────
-founder = Client()
-founder.login("founder@nfelia.test")
-s, h, page = founder.get("/admin/businesses")
+# ── Nfelia Ops: the "Shop by Nfelia" add-on and suspending ────────────
+ops = ops_client()
+s, h, raw = ops.req("GET", "/clients/3")
+page = raw.decode("utf-8", "replace")
 token = re.search(r'name="csrf_token" value="([0-9a-f]+)"', page).group(1)
-check("admin lists the add-on", "Shop by Nfelia" in page, "")
-s, h, _ = founder.req("POST", "/admin/shop-credit", {"csrf_token": token, "business_id": "3", "hide": "1"})
+check("Ops shows the add-on", "Shop by Nfelia" in page, s)
+ops.req("POST", "/clients/3/credit", {"csrf_token": token, "hide": "1"})
 s, h, page = shop("mama-nkechi").get("/")
 check("the add-on hides Shop by Nfelia", "Shop by Nfelia" not in page, "")
 s, h, page = shop("kola-gadgets").get("/")
 check("other shops keep it", "Shop by Nfelia" in page, "")
-s, h, _ = founder.req("POST", "/admin/shop-credit", {"business_id": "3", "hide": "0"})
+ops.req("POST", "/clients/3/credit", {"hide": "0"})
 check("the add-on toggle needs CSRF", sql("SELECT hide_nfelia_credit FROM businesses WHERE id = 3")[0][0] == "1", "")
-s, h, raw = founder.req("POST", "/admin/manage-subscription", {"csrf_token": token, "business_id": "4", "action": "suspend"})
-n = sql("SELECT type, message FROM notifications WHERE business_id = 4 ORDER BY id DESC LIMIT 1")
-check("admin notices with an unknown type arrive as general", n and n[0][0] == "general" and "suspended" in n[0][1], n)
+ops.req("POST", "/clients/4/plan", {"csrf_token": ops_token(ops, "/clients/4"), "action": "suspend", "reason": "Kit check: suspended for testing"})
+n = sql("SELECT title FROM notifications WHERE business_id = 4 ORDER BY id DESC LIMIT 1")
+check("suspending from Ops tells the owner", sql("SELECT status FROM subscriptions WHERE business_id = 4")[0][0] == "suspended"
+      and n and n[0][0] == "Your account is on hold", n)
 
 # ── Remember me ───────────────────────────────────────────────────────
 c = Client()
