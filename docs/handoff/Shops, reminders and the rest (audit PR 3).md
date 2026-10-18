@@ -118,5 +118,8 @@ runs straight after the files land.
   `storefront_test.py` 148, `bookings_test.py` 77, `seo_test.py` 46, `selling_test.py` 134, and
   `ci_step_{2,3,4,5}.sh`.
 - `main`'s own suites pass as CI runs them (fresh database from the schema and every migration):
-  `tests/notifications` engine, flows, cron, sw, ui and `tests/ops` foundation, monitor, clients, sales, ui.
+  `tests/notifications` engine 91, flows 285, cron 62, sw 17, ui 20, and `tests/ops` foundation 101,
+  monitor 117, clients 103, sales 134, ui 47. (The first run caught the D10 route check sending old `/admin`
+  addresses to a 404 instead of on to Ops; `AdminController` answers those through `__call`, which the route
+  check now allows.)
 - The migration was applied to the local database twice (it is safe to run again).

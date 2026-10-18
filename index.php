@@ -230,11 +230,15 @@ if (in_array($controller, $public_routes)) {
 /**
  * Whether a URL may call this controller method: public, not static, not a
  * constructor or other magic method, and given every value it needs. Anything
- * else is a 404, never a crash (D10).
+ * else is a 404, never a crash (D10). A controller with __call answers any
+ * other name itself (AdminController sends old pages on to Ops).
  */
 function route_callable(object $ctrl, string $method, ?string $param): bool {
-    if ($method === '' || str_starts_with($method, '__') || !method_exists($ctrl, $method)) {
+    if ($method === '' || str_starts_with($method, '__')) {
         return false;
+    }
+    if (!method_exists($ctrl, $method)) {
+        return method_exists($ctrl, '__call');
     }
     $rm = new ReflectionMethod($ctrl, $method);
     return $rm->isPublic() && !$rm->isStatic() && ($param !== null || $rm->getNumberOfRequiredParameters() === 0);
