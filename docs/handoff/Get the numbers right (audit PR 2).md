@@ -115,4 +115,9 @@ do by hand.
 - After bringing in `main` (Nfelia Ops and the notifications engine), its own suites pass on the merged
   code, run as CI runs them (fresh database from the schema and every migration): `tests/notifications`
   engine 91, flows 285, cron 62, sw 17, ui 20, and `tests/ops` foundation 101, monitor 117, clients 103,
-  sales 134, ui 47.
+  sales 134, ui 47. Of the older local kits, `numbers_test.js`, `invoice_edit_stock_test.js`,
+  `order_stock_test.js`, `landing_test.js`, `seo_test.py` and `ci_step_{2,3,4,5}.sh` pass after the merge.
+  `lockdown_test.js`, `shop_links_test.py`, `storefront_test.py`, `bookings_test.py` and `selling_test.py`
+  now stop at checks of the founder's old in-app admin and alerts, which the Ops work moved to
+  ops.nfelia.com; they fail in exactly the same places on `main` without this PR, and `tests/ops` covers
+  those flows now. Bringing those kits up to date is for PR 3.
