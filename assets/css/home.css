@@ -435,6 +435,31 @@ dialog.sheet::backdrop { background: rgba(31, 10, 20, .55); }
 .sheet-body h3 { font: 600 1rem/1.4 var(--font-body); }
 .sheet-body p { color: var(--ink-2); }
 
+/* ---------- Get the app ---------- */
+[data-app][hidden] { display: none !important; }
+dialog.sheet-small { width: min(440px, calc(100vw - 32px)); }
+.get-app-intro { display: flex; align-items: center; gap: 16px; }
+.get-app-intro img { width: 64px; height: 64px; border-radius: 15px; flex: none; box-shadow: 0 6px 16px rgba(110, 0, 57, .18); }
+.get-app-intro p { margin: 0; }
+[data-app] .btn { width: 100%; }
+.app-steps { margin: 0; padding: 0; list-style: none; counter-reset: step; display: grid; gap: 12px; }
+.app-steps li { counter-increment: step; display: grid; grid-template-columns: 28px 1fr; gap: 12px; align-items: start; color: var(--ink-2); line-height: 1.5; }
+.app-steps li span { padding-top: 2px; }
+.app-steps li::before { content: counter(step); width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
+    background: var(--burgundy-tint); color: var(--burgundy); font: 600 .875rem/1 var(--font-body); }
+.app-steps svg { width: 18px; height: 18px; vertical-align: -3px; color: var(--burgundy); }
+.app-steps strong, [data-app] strong { color: var(--ink); }
+.nav-links .linkish { font-weight: 600; font-size: .875rem; color: var(--ink-2); padding: 12px 0; }
+.nav-links .linkish:hover { color: var(--burgundy); }
+
+/* ---------- Sign in with a passkey ---------- */
+.passkey-signin { display: grid; gap: 8px; margin-bottom: 12px; }
+.passkey-signin[hidden] { display: none; }
+.passkey-signin .btn { width: 100%; }
+.passkey-signin .btn svg { color: var(--burgundy); }
+.passkey-signin .field-error { margin: 0; font-size: .875rem; line-height: 1.4; color: var(--red); font-weight: 600; }
+.passkey-signin .field-error[hidden] { display: none; }
+
 /* ---------- Forms (feedback, sign in, sign up) ---------- */
 .field { display: grid; gap: 8px; }
 .field label { font-weight: 600; font-size: .875rem; }

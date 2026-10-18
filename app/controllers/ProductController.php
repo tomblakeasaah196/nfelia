@@ -69,6 +69,9 @@ class ProductController {
             case 'out':
                 $where[] = "p.is_service = 0 AND p.stock_qty <= 0";
                 break;
+            case 'restock':     // low or out: the low-stock alert opens this
+                $where[] = "p.is_service = 0 AND p.stock_qty <= p.low_stock_threshold";
+                break;
             case 'service':
                 $where[] = "p.is_service = 1";
                 break;
@@ -128,7 +131,7 @@ class ProductController {
         $stmtCats->execute([$this->biz_id]);
         $categories = $stmtCats->fetchAll(PDO::FETCH_COLUMN);
 
-        $title     = "Inventory";
+        $title     = ($business['business_type'] ?? '') === 'service' ? 'Services' : 'Stock';
         $view_file = BASE_PATH . '/views/products/index.php';
         require_once BASE_PATH . '/views/layouts/app.php';
     }

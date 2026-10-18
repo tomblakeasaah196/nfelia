@@ -1,0 +1,263 @@
+/* ---------- Screens: Home, Sales, invoice and receipt pages, Clients, Stock ----------
+   Built on the shell's tokens (shell.css). Text sizes: 1rem for what a row is
+   about, .875rem for what describes it, .8125rem for tags. Amounts use
+   tabular figures so columns of money line up. */
+:root {
+  --in: #00764A; --in-soft: #E5F4EC;
+  --owed: #B42318; --owed-soft: #FEECEA;
+  --warn: #8A4B00; --warn-soft: #FFF2D6;
+  --stitch: rgb(182 159 94 / .75);
+}
+
+/* A list page keeps to a width the eye can follow from name to amount. */
+.nf-page { max-width: 920px; }
+
+/* Page head: the large title, and the one action that belongs to the page. */
+.nf-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 4px 0 16px; }
+.nf-head .nf-large-title { margin: 0; min-width: 0; }
+.nf-head .nf-btn { flex: none; min-height: 44px; padding: 0 16px; }
+.nf-head p { margin: 4px 0 0; font: 400 .9375rem/1.4 var(--font-body); color: var(--ink-2); }
+
+/* Segments: Invoices, Receipts, Quotes. Links, so each has its own address. */
+.nf-segs { display: flex; gap: 4px; padding: 4px; margin: 0 0 16px; border-radius: 14px; background: rgb(31 10 20 / .05); }
+.nf-segs a { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 8px; border-radius: 10px;
+  font: 600 .9375rem/1 var(--font-body); color: var(--ink-2); text-decoration: none; }
+.nf-segs a:hover { color: var(--ink); }
+.nf-segs a[aria-current="page"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgb(31 10 20 / .12), 0 0 0 1px var(--line); }
+@media (min-width: 1024px) { .nf-segs { max-width: 440px; } }
+
+/* Money at a glance. */
+.nf-money { margin: 0 0 16px; padding: 16px; border-radius: 20px; background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); }
+.nf-money-k { margin: 0; font: 500 .875rem/1.3 var(--font-body); color: var(--ink-2); }
+.nf-money-v { margin: 4px 0 0; font: 600 2rem/1.1 var(--font-heading); letter-spacing: -.01em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.nf-money-v.is-in { color: var(--in); }
+.nf-money-v.is-owed { color: var(--owed); }
+.nf-money-sub { margin: 6px 0 0; font: 400 .875rem/1.45 var(--font-body); color: var(--ink-2); }
+.nf-money-sub a { color: inherit; text-underline-offset: 3px; }
+.nf-figs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; margin: 16px 0 0; padding: 14px 0 0; border-top: 1px solid var(--line); }
+.nf-figs div { min-width: 0; }
+.nf-figs dt { font: 500 .8125rem/1.3 var(--font-body); color: var(--ink-2); }
+.nf-figs dd { margin: 2px 0 0; font: 600 1.0625rem/1.3 var(--font-body); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.nf-figs .is-in { color: var(--in); }
+.nf-figs .is-owed { color: var(--owed); }
+
+/* The thread: what is paid is sewn in (solid), what is still owed is
+   stitched in gold. The brand's thread, put to work on money. */
+.nf-thread { position: relative; height: 8px; margin: 14px 0 8px; border-radius: 4px;
+  background: repeating-linear-gradient(90deg, var(--stitch) 0 7px, transparent 7px 12px); }
+.nf-thread > i { position: absolute; inset: 0 auto 0 0; width: var(--done, 0%); min-width: 8px; border-radius: 4px; background: var(--accent); }
+.nf-thread.is-empty > i { display: none; }
+.nf-thread-key { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; margin: 0; font: 500 .875rem/1.35 var(--font-body); color: var(--ink-2); }
+.nf-thread-key b { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.nf-thread-key a { display: inline-flex; align-items: center; min-height: 44px; margin: -12px 0; color: inherit; text-decoration: none; }
+.nf-thread-key a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.nf-thread-key .is-owed { color: var(--owed); }
+
+/* Search, filters, sort. */
+.nf-find { margin: 0 0 12px; }
+.nf-search { position: relative; display: block; }
+.nf-search svg { position: absolute; left: 14px; top: 50%; width: 20px; height: 20px; transform: translateY(-50%); color: var(--ink-3); pointer-events: none; }
+.nf-search input { width: 100%; min-height: 48px; padding: 0 16px 0 44px; border-radius: 14px; border: 0; background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line-2); font: 400 1rem/1.2 var(--font-body); color: var(--ink); -webkit-appearance: none; appearance: none; }
+.nf-search input::placeholder { color: var(--ink-3); opacity: 1; }
+.nf-search input:focus { outline: none; box-shadow: inset 0 0 0 2px var(--accent-text); }
+.nf-search input::-webkit-search-cancel-button { display: none; }
+.nf-chips { display: flex; gap: 8px; margin: 0 -16px 12px; padding: 0 16px 2px; overflow-x: auto; scrollbar-width: none; }
+.nf-chips::-webkit-scrollbar { display: none; }
+@media (min-width: 1024px) { .nf-chips { flex-wrap: wrap; margin-inline: 0; padding-inline: 0; overflow: visible; } }
+.nf-chips a { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 16px; border-radius: 999px;
+  background: var(--surface); box-shadow: inset 0 0 0 1px var(--line-2); color: var(--ink); text-decoration: none; font: 500 .9375rem/1 var(--font-body); white-space: nowrap; }
+.nf-chips a:hover { box-shadow: inset 0 0 0 1px rgb(31 10 20 / .28); }
+.nf-chips a[aria-current="true"] { background: var(--accent-soft); color: var(--accent-text); box-shadow: inset 0 0 0 1.5px var(--accent-text); font-weight: 600; }
+.nf-chips small { font: 600 .8125rem/1 var(--font-body); font-variant-numeric: tabular-nums; opacity: .75; }
+.nf-tools { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; margin: 0 0 10px; }
+.nf-tools p { margin: 0; font: 500 .875rem/1.3 var(--font-body); color: var(--ink-2); }
+.nf-tools .nf-pick { display: flex; gap: 8px; flex-wrap: wrap; }
+.nf-select { min-height: 44px; max-width: 100%; padding: 0 36px 0 12px; border-radius: 12px; border: 0; color: var(--ink); cursor: pointer;
+  background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235B4650' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 10px center / 18px;
+  box-shadow: inset 0 0 0 1px var(--line-2); font: 500 .875rem/1.25 var(--font-body); -webkit-appearance: none; appearance: none; }
+.nf-select:focus { outline: none; box-shadow: inset 0 0 0 2px var(--accent-text); }
+
+/* Rows: one thing each, what it is on the left, the money on the right. */
+.nf-items { background: var(--surface); border-radius: 18px; box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; }
+.nf-item { display: flex; align-items: center; gap: 12px; min-height: 68px; padding: 12px 16px; border-top: 1px solid var(--line); color: var(--ink); text-decoration: none; }
+.nf-items > .nf-item:first-child, .nf-items > :first-child > .nf-item { border-top: 0; }
+a.nf-item:hover { background: rgb(31 10 20 / .025); }
+a.nf-item:active { background: rgb(31 10 20 / .05); }
+.nf-item-main { flex: 1; min-width: 0; }
+.nf-item-main b { display: block; font: 600 1rem/1.3 var(--font-body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nf-item-main small { display: block; margin-top: 2px; font: 400 .875rem/1.35 var(--font-body); color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nf-item-end { flex: none; display: grid; justify-items: end; gap: 4px; max-width: 48%; text-align: right; }
+.nf-item-end b { font: 600 1rem/1.2 var(--font-body); font-variant-numeric: tabular-nums; }
+.nf-item-end small { font: 500 .8125rem/1.2 var(--font-body); color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.nf-item.is-wrap .nf-item-main b { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.nf-item .is-in { color: var(--in); }
+.nf-item .is-owed { color: var(--owed); }
+.nf-item.is-off { color: var(--ink-3); }
+.nf-item.is-off .nf-item-main b { color: var(--ink-2); }
+.nf-face { flex: none; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; overflow: hidden;
+  background: var(--accent-soft); color: var(--accent-text); font: 600 .9375rem/1 var(--font-heading); }
+.nf-face.is-square { border-radius: 12px; }
+.nf-face img { width: 100%; height: 100%; object-fit: cover; }
+.nf-face svg { width: 22px; height: 22px; }
+.nf-items + .nf-items { margin-top: 12px; }
+.nf-more-list { margin-top: 20px; }
+.nf-face.is-owed { background: var(--owed-soft); color: var(--owed); }
+.nf-face.is-warn { background: var(--warn-soft); color: var(--warn); }
+.nf-go { flex: none; display: grid; place-items: center; color: var(--ink-3); }
+.nf-go svg { width: 18px; height: 18px; }
+
+/* Tags: how a document or an item stands. Always with words, never colour alone. */
+.nf-tag { display: inline-flex; align-items: center; min-height: 24px; padding: 0 9px; border-radius: 999px; white-space: nowrap;
+  font: 600 .8125rem/1 var(--font-body); background: rgb(31 10 20 / .06); color: var(--ink-2); }
+.nf-tag.is-in { background: var(--in-soft); color: var(--in); }
+.nf-tag.is-owed { background: var(--owed-soft); color: var(--owed); }
+.nf-tag.is-warn { background: var(--warn-soft); color: var(--warn); }
+.nf-tag.is-accent { background: var(--accent-soft); color: var(--accent-text); }
+.nf-tag.is-line { background: none; box-shadow: inset 0 0 0 1px var(--line-2); }
+
+/* Older and newer pages of a list. */
+.nf-pager { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 16px 0 8px; }
+.nf-pager span { font: 500 .875rem/1.3 var(--font-body); color: var(--ink-2); text-align: center; }
+.nf-pager a, .nf-pager i { min-width: 96px; }
+.nf-pager a { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-height: 44px; padding: 0 14px; border-radius: 12px;
+  background: rgb(31 10 20 / .05); color: var(--ink); text-decoration: none; font: 600 .875rem/1 var(--font-body); }
+.nf-pager a svg { width: 18px; height: 18px; }
+.nf-pager a:hover { background: rgb(31 10 20 / .08); }
+
+/* Nothing here yet, or nothing matches. */
+.nf-empty { display: grid; justify-items: center; gap: 6px; padding: 36px 20px; text-align: center; border-radius: 20px; background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); }
+.nf-empty .nf-tile-ic { width: 56px; height: 56px; border-radius: 18px; margin-bottom: 6px; }
+.nf-empty .nf-tile-ic svg { width: 28px; height: 28px; }
+.nf-empty h2 { margin: 0; font: 600 1.125rem/1.3 var(--font-heading); }
+.nf-empty p { margin: 0; max-width: 34ch; font: 400 .9375rem/1.5 var(--font-body); color: var(--ink-2); }
+.nf-empty .nf-btn { margin-top: 12px; flex: none; }
+.nf-empty a.nf-link { margin-top: 6px; }
+.nf-link { display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; color: var(--accent-text); font: 600 .9375rem/1 var(--font-body); text-decoration: none; background: none; border: 0; cursor: pointer; }
+.nf-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* Cards and their headers. */
+.nf-card { margin: 0 0 16px; padding: 16px; border-radius: 20px; background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); }
+.nf-card.is-flush { padding: 0; overflow: hidden; }
+.nf-card-h { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; margin: 0 0 4px; }
+.nf-card.is-flush > .nf-card-h { margin: 0; padding: 6px 8px 0 16px; }
+.nf-card-h h2 { margin: 0; font: 600 1.0625rem/1.3 var(--font-heading); }
+.nf-card-h p { margin: 2px 0 0; font: 400 .875rem/1.4 var(--font-body); color: var(--ink-2); }
+.nf-card > p { margin: 0; font: 400 .9375rem/1.5 var(--font-body); color: var(--ink-2); }
+.nf-card .nf-items { border-radius: 0; box-shadow: none; background: none; }
+.nf-card.is-flush .nf-items { border-top: 1px solid var(--line); }
+.nf-card.is-warn { box-shadow: inset 0 0 0 1px #F2D49A; }
+.nf-card-note { margin: 0; padding: 2px 16px 12px; font: 400 .9375rem/1.5 var(--font-body); color: var(--ink-2); }
+
+/* Two columns from a laptop up. */
+.nf-cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 20px; }
+@media (min-width: 1024px) {
+  .nf-cols { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); align-items: start; }
+  .nf-cols.is-doc { grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); }
+}
+
+/* A document's page: who, how much, how it stands. */
+.nf-doc { margin: 0 0 12px; padding: 18px 16px 16px; border-radius: 24px; background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); }
+.nf-doc-who { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0; }
+.nf-doc-who a, .nf-doc-who span { min-width: 0; font: 600 1rem/1.3 var(--font-body); color: var(--ink); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nf-doc-who a { display: flex; align-items: center; min-height: 44px; margin: -12px 0; }
+.nf-doc-who a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.nf-doc-amt { margin: 8px 0 0; font: 600 2.25rem/1.05 var(--font-heading); letter-spacing: -.015em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.nf-doc-meta { margin: 8px 0 0; font: 400 .875rem/1.5 var(--font-body); color: var(--ink-2); }
+.nf-doc-meta a { color: var(--accent-text); font-weight: 600; text-decoration: none; }
+.nf-doc-meta .is-owed { color: var(--owed); font-weight: 600; }
+.nf-doc .nf-btn-primary { width: 100%; margin-top: 16px; }
+.nf-doc-amt.is-in { color: var(--in); }
+.nf-pre { margin: 0; white-space: pre-line; font: 400 .9375rem/1.55 var(--font-body); color: var(--ink); }
+
+/* What can be done with it: a row of tiles. Hidden ones leave no gap. */
+.nf-do { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; margin: 0 0 16px; }
+.nf-do > a, .nf-do > button { display: grid; justify-items: center; align-content: center; gap: 6px; min-height: 72px; padding: 8px 4px; border-radius: 16px; border: 0;
+  background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); color: var(--ink); font: 500 .8125rem/1.2 var(--font-body); text-decoration: none; text-align: center; cursor: pointer; }
+.nf-do > a:hover, .nf-do > button:hover { box-shadow: inset 0 0 0 1px var(--line-2); }
+.nf-do > :active { transform: scale(.97); }
+.nf-do svg { width: 22px; height: 22px; color: var(--accent-text); }
+.nf-do .is-wa svg { color: #128C4A; }
+.nf-do :disabled { opacity: .55; cursor: default; }
+
+/* Buttons that only these screens need. */
+.nf-btn-in { background: var(--in); color: #FFFFFF; }
+.nf-btn-in:hover { background: #00653F; }
+.nf-wide { display: flex; width: 100%; margin-top: 8px; }
+.nf-actions-flush { padding: 6px 0 0; }
+.nf-actions-flush .nf-btn { min-height: 52px; }
+
+/* Delivery card on the invoice page: what was promised, and the actions. */
+.nf-deliver { display: grid; gap: 12px; }
+.nf-deliver-txt { min-width: 0; }
+.nf-deliver-h { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; margin: 0; font: 600 1rem/1.35 var(--font-body); }
+.nf-deliver-h.is-in { color: var(--in); }
+.nf-deliver-sub { margin: 2px 0 0; font: 400 .875rem/1.45 var(--font-body); color: var(--ink-2); }
+.nf-deliver-do { display: flex; flex-wrap: wrap; gap: 8px; }
+.nf-deliver-do form { margin: 0; }
+.nf-deliver-do .nf-btn { min-height: 44px; padding: 0 16px; }
+.nf-deliver-form { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); display: grid; gap: 12px; justify-items: start; }
+.nf-deed-form { padding: 14px 0 0; }
+
+/* Label and value, for totals and details. */
+.nf-kv { margin: 0; }
+.nf-kv > div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+.nf-kv > div:first-child { border-top: 0; }
+.nf-kv dt { font: 400 .9375rem/1.35 var(--font-body); color: var(--ink-2); }
+.nf-kv dd { margin: 0; font: 600 .9375rem/1.35 var(--font-body); text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.nf-kv .is-big dt { color: var(--ink); font-weight: 600; }
+.nf-kv .is-big dd { font-size: 1.0625rem; }
+.nf-kv .is-in { color: var(--in); }
+.nf-kv .is-owed { color: var(--owed); }
+
+/* The document as the customer sees it, framed like a sheet of paper. */
+.nf-paper { margin: 0 0 16px; }
+.nf-paper > summary, .nf-paper-h { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; margin: 0 0 8px;
+  font: 600 1.0625rem/1.3 var(--font-heading); list-style: none; }
+.nf-paper > summary { cursor: pointer; }
+.nf-paper > summary::-webkit-details-marker { display: none; }
+.nf-paper > summary small { font: 600 .875rem/1 var(--font-body); color: var(--accent-text); }
+.nf-paper > summary svg { width: 20px; height: 20px; color: var(--ink-3); transition: transform 150ms var(--ease-out); }
+.nf-paper[open] > summary svg { transform: rotate(90deg); }
+.nf-paper .nf-sheet-doc { border-radius: 16px; overflow: hidden; box-shadow: 0 1px 2px rgb(31 10 20 / .06), inset 0 0 0 1px var(--line); background: #FFFFFF; }
+/* On a phone the document gives its width to the items, not its margins. */
+@media (max-width: 639px) { .nf-sheet-doc .p-8 { padding: 20px 14px; } }
+
+/* Sheets with forms in them (record payment). */
+.nf-form { display: grid; gap: 14px; padding: 4px 20px 0; }
+.nf-form label { display: grid; gap: 6px; font: 600 .875rem/1.3 var(--font-body); color: var(--ink); }
+.nf-form label small { font: 400 .8125rem/1.3 var(--font-body); color: var(--ink-3); }
+.nf-form input, .nf-form select, .nf-form textarea { width: 100%; min-height: 48px; padding: 0 14px; border-radius: 12px; border: 0; background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line-2); font: 400 1rem/1.3 var(--font-body); color: var(--ink); }
+.nf-form textarea { min-height: 72px; padding: 12px 14px; resize: vertical; }
+.nf-form input:focus, .nf-form select:focus, .nf-form textarea:focus { outline: none; box-shadow: inset 0 0 0 2px var(--accent-text); }
+.nf-form .nf-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.nf-form .nf-two > label, .nf-form input, .nf-form select { min-width: 0; }
+.nf-form .nf-amount { position: relative; }
+.nf-form .nf-amount span { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); font: 600 1.0625rem/1 var(--font-body); color: var(--ink-2); pointer-events: none; }
+.nf-form .nf-amount input { padding-left: 34px; font: 600 1.25rem/1.2 var(--font-body); font-variant-numeric: tabular-nums; }
+.nf-quick { display: flex; flex-wrap: wrap; gap: 8px; }
+.nf-quick button { min-height: 44px; padding: 0 14px; border-radius: 999px; border: 0; background: rgb(31 10 20 / .05); color: var(--ink); font: 600 .875rem/1 var(--font-body); cursor: pointer; }
+.nf-quick button:hover { background: rgb(31 10 20 / .08); }
+.nf-err { margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--owed-soft); color: var(--owed); font: 500 .875rem/1.4 var(--font-body); }
+
+/* Menu sheet: the less common actions on a document. */
+.nf-menu-sheet { padding: 4px 12px 0; }
+.nf-menu-sheet form { margin: 0; }
+.nf-menu-sheet .nf-row { border-radius: 12px; border-top: 0; min-height: 52px; padding: 0 8px; }
+.nf-menu-sheet .nf-row + .nf-row, .nf-menu-sheet form + .nf-row, .nf-menu-sheet .nf-row + form, .nf-menu-sheet form + form { margin-top: 2px; }
+
+/* Home. */
+.nf-hello { margin: 4px 0 16px; }
+.nf-hello .nf-large-title { margin: 0; }
+.nf-hello p { margin: 4px 0 0; font: 400 .9375rem/1.4 var(--font-body); color: var(--ink-2); }
+.nf-results { position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 30; max-height: min(60vh, 420px); overflow-y: auto;
+  border-radius: 16px; background: var(--surface); box-shadow: var(--shadow-2), inset 0 0 0 1px var(--line); }
+.nf-results .nf-item { min-height: 60px; }
+.nf-results p { margin: 0; padding: 18px 16px; font: 400 .9375rem/1.4 var(--font-body); color: var(--ink-2); }
+.nf-find.is-home { position: relative; margin-bottom: 16px; }
+.nf-today .nf-item-main small.is-late { color: var(--owed); font-weight: 600; }
+
+@media (prefers-reduced-motion: reduce) {
+  .nf-paper > summary svg { transition: none; }
+}

@@ -161,11 +161,11 @@ $current_staff_count = count($staff);
          
          get fontFamily() {
              const map = {
-                 'modern_sans': '\"Inter\", sans-serif',
-                 'corporate_serif': '\"EB Garamond\", serif',
-                 'bold_display': '\"Syne\", sans-serif',
-                 'classic_tech': '\"Roboto Mono\", monospace',
-                 'elegant_serif': '\"Playfair Display\", serif'
+                 'modern_sans': 'Inter, sans-serif',
+                 'corporate_serif': 'EB Garamond, serif',
+                 'bold_display': 'Syne, sans-serif',
+                 'classic_tech': 'Roboto Mono, monospace',
+                 'elegant_serif': 'Playfair Display, serif'
              };
              return map[this.font] || map['modern_sans'];
          }
@@ -401,6 +401,14 @@ $current_staff_count = count($staff);
             </div>
         </div>
     </form>
+
+    <!-- Appearance: this device only, applies at once -->
+    <section id="appearance" class="bg-brand-white border border-brand-sand rounded-xl p-5 shadow-sm">
+        <h2 class="font-heading font-bold text-sm text-brand-plum mb-4 uppercase tracking-wider">Appearance</h2>
+        <?php require BASE_PATH . '/views/partials/appearance.php'; ?>
+    </section>
+
+    <?php require BASE_PATH . '/views/partials/passkeys_card.php'; ?>
 
     <!-- Change Password -->
     <form method="POST" action="<?= APP_URL ?>/settings/change-password">

@@ -22,11 +22,11 @@ $flash = get_flash();
     <title>Start free: Nfelia</title>
     <meta name="description" content="Create your Nfelia account. Free for <?= (int)TRIAL_DAYS ?> days, no card needed.">
     <meta name="theme-color" content="#8B004A">
-    <link rel="icon" type="image/png" sizes="32x32" href="<?= APP_URL ?>/favicon-32x32.png">
+<?php require BASE_PATH . '/views/partials/pwa_head.php'; ?>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700&family=Plus+Jakarta+Sans:wght@400;600&display=swap">
-    <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/home.css?v=2">
+    <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/home.css?v=4">
 </head>
 <body class="auth-page">
     <header class="auth-top">
@@ -89,6 +89,6 @@ $flash = get_flash();
     <p class="auth-links"><a href="<?= APP_URL ?>/">Return to home</a></p>
 
     <?php require BASE_PATH . '/views/home/_dialogs.php'; ?>
-    <script src="<?= APP_URL ?>/assets/js/home.js?v=2" defer></script>
+    <script src="<?= APP_URL ?>/assets/js/home.js?v=5" defer></script>
 </body>
 </html>

@@ -948,6 +948,16 @@ class PublicController
                     }
                 });
             }
+            // A new shop order: the owner's and admins' phones buzz. Anyone
+            // can place one, so at most 20 buzzes an hour; the bell gets all.
+            if (throttle_allows("order_push", (string) $business_id, 20, 60)) {
+                notify_money_in(
+                    (int) $business_id, null,
+                    "New order: " . notify_money_text((float) $subtotal, $business),
+                    $customer_name . " ordered on your shop" . ($channel === "whatsapp" ? " through WhatsApp." : "."),
+                    "orders/view/" . $order_id,
+                );
+            }
             json_response([
                 "success" => true,
                 "order_number" => $order_number,

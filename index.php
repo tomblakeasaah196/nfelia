@@ -27,6 +27,12 @@ require_once __DIR__ . '/app/helpers/cloudflare.php';
 require_once __DIR__ . '/app/helpers/shop_orders.php';
 require_once __DIR__ . '/app/helpers/bookings.php';
 require_once __DIR__ . '/app/helpers/seo.php';
+require_once __DIR__ . '/app/helpers/theme.php';
+require_once __DIR__ . '/app/helpers/nav.php';
+require_once __DIR__ . '/app/helpers/signin.php';
+require_once __DIR__ . '/app/helpers/passkeys.php';
+require_once __DIR__ . '/app/helpers/notify.php';
+require_once __DIR__ . '/app/helpers/screens.php';
 
 // --- GLOBAL EXCEPTION & FATAL ERROR HANDLER ---
 // Start output buffering so we can erase half-loaded pages if a crash happens
@@ -259,6 +265,7 @@ function dispatch_app(string $controller, string $action, ?string $param): void 
         'expenses'        => 'ExpenseController',
         'feedback'        => 'FeedbackController',
         'tasks'           => 'TasksController',
+        'more'            => 'MoreController',
         
         // Management & Settings
         'reports'         => 'ReportController',  // profit_loss + profit_loss_pdf
@@ -325,7 +332,17 @@ function dispatch_app(string $controller, string $action, ?string $param): void 
  
 function dispatch_ajax(string $action, ?string $param): void {
     header('Content-Type: application/json');
-    
+
+    // Locked (app/helpers/signin.php): nothing answers until it is unlocked,
+    // except the sign-in and lock API itself and payment webhooks.
+    if (!in_array($action, ['auth', 'webhooks'], true) && is_logged_in()) {
+        if (lock_engaged()) {
+            header('X-Nfelia-Locked: 1');
+            json_response(['success' => false, 'locked' => true, 'message' => 'Nfelia is locked. Unlock it to carry on.'], 401);
+        }
+        lock_touch();
+    }
+
     // NFELIA Phase 3 — country selector AJAX
     if ($action === 'set-country') {
         require_once __DIR__ . '/api/ajax/set_country.php';
@@ -337,6 +354,7 @@ function dispatch_ajax(string $action, ?string $param): void {
         'customers'     => __DIR__ . '/api/ajax/customers.php',
         'invoices'      => __DIR__ . '/api/ajax/invoices.php',
         'notifications' => __DIR__ . '/api/ajax/notifications.php',
+        'auth'          => __DIR__ . '/api/ajax/auth.php',
         'webhooks'      => __DIR__ . '/api/webhooks/paystack.php',
     ];
     

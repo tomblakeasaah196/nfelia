@@ -214,6 +214,7 @@ class OnboardingController {
                 }
 
                 update_business_session($session_updates);
+                $_SESSION['just_signed_in'] = true; // offer the home-screen app on the first page
 
                 flash('success', 'Deployment complete. Welcome to your workspace.');
                 redirect('dashboard');

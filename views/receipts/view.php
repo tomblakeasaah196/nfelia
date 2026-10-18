@@ -1,14 +1,13 @@
 <?php
 /**
- * Nfelia — Receipt Detail View + Document Preview
- * Renders inside views/layouts/app.php
+ * A receipt: who paid, how much and how, with the document itself as the
+ * customer sees it. Renders inside views/layouts/app.php.
  *
  * Available from controller:
  *   $user, $business, $receipt, $customer, $invoice, $items,
  *   $payment, $public_url, $is_standalone
  */
 $currency = $business['currency_symbol'] ?? '₦';
-$font_map = FONT_PAIRINGS[$business['font_pairing'] ?? 'modern_sans'] ?? FONT_PAIRINGS['modern_sans'];
 
 // WhatsApp share
 $wa_number = $customer ? ($customer['whatsapp'] ?? $customer['phone'] ?? '') : '';
@@ -28,66 +27,78 @@ $wa_text = urlencode(
 $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
 ?>
 
-<!-- Breadcrumb + Actions -->
-<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-    <div class="flex items-center gap-3">
-        <a href="<?= APP_URL ?>/receipts" class="text-brand-plum/40 hover:text-brand-plum transition-colors">
-            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
-        </a>
-        <div>
-            <h1 class="font-heading font-extrabold text-xl text-brand-plum tracking-tight"><?= e($receipt['doc_number']) ?></h1>
-            <div class="flex items-center gap-2 mt-0.5">
-                <span class="data-text text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-green-100 text-green-700">
-                    <?= $is_standalone ? 'Direct Sale' : 'Invoice Payment' ?>
-                </span>
-                <?php if ($invoice): ?>
-                    <a href="<?= APP_URL ?>/invoices/view/<?= $invoice['id'] ?>" class="data-text text-[9px] font-bold text-blue-500 hover:text-blue-700">
-                        for <?= e($invoice['doc_number']) ?>
-                    </a>
-                <?php endif; ?>
-            </div>
-        </div>
-    </div>
+<div class="nf-cols is-doc">
+<div>
 
-    <div class="flex flex-wrap items-center gap-2">
-        <form method="POST" action="<?= APP_URL ?>/receipts/delete/<?= $receipt['id'] ?>" class="inline"
-              onsubmit="return confirm('Permanently delete this receipt?');">
-            <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
-            <button class="flex items-center gap-1.5 bg-brand-white border border-red-200 hover:border-red-400 text-red-600 px-3 py-2 rounded-lg transition-all">
-                <span class="text-[10px] font-bold uppercase tracking-widest">Delete</span>
-            </button>
-        </form>
-    </div>
-</div>
-
-<!-- Share Actions Bar -->
-<div class="bg-brand-white border border-brand-sand rounded-xl p-4 mb-6 shadow-sm flex flex-wrap items-center gap-3">
-    <button onclick="navigator.clipboard.writeText('<?= e($public_url) ?>'); this.querySelector('span').textContent = 'Copied!'; setTimeout(() => this.querySelector('span').textContent = 'Copy Link', 2000);"
-            class="flex items-center gap-1.5 bg-brand-cream border border-brand-sand hover:border-brand-gold px-3 py-2 rounded-lg transition-all">
-        <svg class="w-3.5 h-3.5 text-brand-plum/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
-        <span class="text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest">Copy Link</span>
-    </button>
-
-    <?php if ($wa_number): ?>
-    <a href="<?= $wa_link ?>" target="_blank" class="flex items-center gap-1.5 bg-green-500 text-white px-3 py-2 rounded-lg hover:bg-green-600 transition-all">
-        <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-        <span class="text-[10px] font-bold uppercase tracking-widest">WhatsApp</span>
-    </a>
+<!-- Who paid what -->
+<section class="nf-doc" aria-label="Receipt <?= e($receipt['doc_number']) ?>">
+    <p class="nf-doc-who">
+        <?php if ($customer): ?>
+            <a href="<?= APP_URL ?>/customers/view/<?= (int)$customer['id'] ?>" data-prefetch><?= e($customer['full_name']) ?></a>
+        <?php else: ?>
+            <span>Walk-in customer</span>
+        <?php endif; ?>
+        <span class="nf-tag <?= $is_standalone ? 'is-accent' : 'is-in' ?>"><?= $is_standalone ? 'Paid on the spot' : 'Invoice payment' ?></span>
+    </p>
+    <p class="nf-doc-amt is-in"><?= planner_money((float)$receipt['amount'], $currency) ?></p>
+    <p class="nf-doc-meta"><?= e($receipt['doc_number']) ?> · <?= e(screen_date($receipt['issue_date'])) ?> · <?= e(screen_method($receipt['method'])) ?></p>
+    <?php if ($invoice): ?>
+        <p class="nf-doc-meta">
+            For <a href="<?= APP_URL ?>/invoices/view/<?= (int)$invoice['id'] ?>" data-prefetch><?= e($invoice['doc_number']) ?></a>:
+            <?php if ((float)$invoice['balance_due'] > 0): ?>
+                <span class="is-owed"><?= planner_money((float)$invoice['balance_due'], $currency) ?></span> still to pay of <?= planner_money((float)$invoice['total'], $currency) ?>.
+            <?php else: ?>
+                paid in full.
+            <?php endif; ?>
+        </p>
     <?php endif; ?>
+</section>
 
-    <button onclick="downloadPDF()" class="flex items-center gap-1.5 bg-brand-cream border border-brand-sand hover:border-brand-gold px-3 py-2 rounded-lg transition-all">
-        <svg class="w-3.5 h-3.5 text-brand-plum/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-        <span class="text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest">Download PDF</span>
-    </button>
-
-    <a href="<?= e($public_url) ?>" target="_blank" class="flex items-center gap-1.5 bg-brand-cream border border-brand-sand hover:border-brand-gold px-3 py-2 rounded-lg transition-all">
-        <svg class="w-3.5 h-3.5 text-brand-plum/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
-        <span class="text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest">Public View</span>
-    </a>
+<!-- Share it -->
+<div class="nf-do">
+    <?php $share_pdf = ['url' => $public_url, 'name' => $receipt['doc_number'] . '.pdf', 'title' => 'Receipt ' . $receipt['doc_number'],
+                        'text' => 'Receipt ' . $receipt['doc_number'] . ' from ' . $business['name'] . ': ' . $public_url, 'tile' => true];
+          require BASE_PATH . '/views/partials/share_pdf.php'; ?>
+    <?php if ($wa_number): ?>
+        <a class="is-wa" href="<?= e($wa_link) ?>" target="_blank" rel="noopener"><?= nav_icon('whatsapp') ?><span>WhatsApp</span></a>
+    <?php endif; ?>
+    <button type="button" data-copy="<?= e($public_url) ?>"><?= nav_icon('copy') ?><span>Copy link</span></button>
+    <button type="button" data-open="nf-rec-more" aria-haspopup="dialog"><?= nav_icon('dots') ?><span>More</span></button>
 </div>
+
+<?php if ($is_standalone && !empty($items)): ?>
+<!-- What was bought -->
+<section class="nf-card is-flush" aria-labelledby="nf-rec-items-h">
+    <div class="nf-card-h"><h2 id="nf-rec-items-h">What was bought</h2></div>
+    <div class="nf-items">
+        <?php foreach ($items as $it): ?>
+            <div class="nf-item">
+                <span class="nf-item-main">
+                    <b><?= e($it['description']) ?></b>
+                    <small><?= rtrim(rtrim(number_format((float)$it['quantity'], 2), '0'), '.') ?> × <?= planner_money((float)$it['unit_price'], $currency) ?></small>
+                </span>
+                <span class="nf-item-end"><b><?= planner_money((float)$it['subtotal'], $currency) ?></b></span>
+            </div>
+        <?php endforeach; ?>
+    </div>
+</section>
+<?php endif; ?>
+
+<?php if (!empty($receipt['note'])): ?>
+<section class="nf-card" aria-labelledby="nf-rec-note-h">
+    <div class="nf-card-h"><h2 id="nf-rec-note-h">Note</h2></div>
+    <p class="nf-pre"><?= e($receipt['note']) ?></p>
+</section>
+<?php endif; ?>
+
+</div>
+<div>
 
 <!-- ===== DOCUMENT PREVIEW ===== -->
-<div id="receipt-document" class="bg-white border border-brand-sand rounded-xl shadow-sm overflow-hidden mb-8">
+<section class="nf-paper" aria-labelledby="nf-paper-h">
+    <h2 class="nf-paper-h" id="nf-paper-h">What your customer sees <a class="nf-link" href="<?= e($public_url) ?>" target="_blank" rel="noopener">Open</a></h2>
+    <div class="nf-sheet-doc">
+<div id="receipt-document" class="bg-white overflow-hidden">
 
     <div class="p-8 sm:p-10" style="border-top: 4px solid <?= e($business['primary_color'] ?? '#8B004A') ?>;">
 
@@ -223,17 +234,26 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
         <?php endif; ?>
     </div>
 </div>
+    </div>
+</section>
 
-<!-- html2pdf.js -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-<script>
-function downloadPDF() {
-    html2pdf().set({
-        margin: [0.3, 0.3, 0.3, 0.3],
-        filename: '<?= e($receipt['doc_number']) ?>.pdf',
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true },
-        jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
-    }).from(document.getElementById('receipt-document')).save();
-}
-</script>
+</div>
+</div>
+
+<!-- ===== MORE ===== -->
+<dialog class="nf-sheet" id="nf-rec-more" aria-labelledby="nf-rec-more-h">
+    <div class="nf-grab"></div>
+    <div class="nf-sheet-h">
+        <h2 id="nf-rec-more-h"><?= e($receipt['doc_number']) ?></h2>
+        <button type="button" class="nf-icon-btn" data-close aria-label="Close"><?= nav_icon('close') ?></button>
+    </div>
+    <div class="nf-menu-sheet">
+        <a class="nf-row" href="<?= e($public_url) ?>?format=pdf" download="<?= e(preg_replace('/[^A-Za-z0-9._-]+/', '-', $receipt['doc_number'])) ?>.pdf"><span class="nf-tile-ic"><?= nav_icon('download') ?></span>Download PDF</a>
+        <a class="nf-row" href="<?= e($public_url) ?>" target="_blank" rel="noopener"><span class="nf-tile-ic"><?= nav_icon('open') ?></span>Open the customer's page</a>
+        <form method="POST" action="<?= APP_URL ?>/receipts/delete/<?= (int)$receipt['id'] ?>"
+              onsubmit="return confirm('Delete receipt <?= e($receipt['doc_number']) ?>? <?= $invoice ? 'The payment stays recorded on ' . e($invoice['doc_number']) . '.' : 'The stock it took off your shelves is not put back.' ?>');">
+            <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
+            <button class="nf-row is-danger"><span class="nf-tile-ic"><?= nav_icon('trash') ?></span>Delete the receipt</button>
+        </form>
+    </div>
+</dialog>

@@ -49,9 +49,13 @@ class InvoiceController {
             $params[] = $like;
             $params[] = $like;
         }
-        if ($status !== '' && in_array($status, ['draft','sent','partially_paid','paid','overdue','cancelled'])) {
+        if ($status === 'unpaid') {
+            $where[] = "i.status IN ('sent','partially_paid','overdue')";
+        } elseif ($status !== '' && in_array($status, ['draft','sent','partially_paid','paid','overdue','cancelled'])) {
             $where[]  = "i.status = ?";
             $params[] = $status;
+        } else {
+            $status = '';
         }
 
         $where_sql = implode(' AND ', $where);
@@ -92,7 +96,10 @@ class InvoiceController {
                 SUM(CASE WHEN status = 'paid' THEN 1 ELSE 0 END)                  AS paid_count,
                 SUM(CASE WHEN status IN ('sent','partially_paid') THEN 1 ELSE 0 END) AS active_count,
                 SUM(CASE WHEN status = 'overdue' THEN 1 ELSE 0 END)               AS overdue_count,
-                SUM(CASE WHEN status = 'overdue' THEN balance_due ELSE 0 END)      AS overdue_value
+                SUM(CASE WHEN status = 'overdue' THEN balance_due ELSE 0 END)      AS overdue_value,
+                SUM(CASE WHEN status IN ('sent','partially_paid','overdue') THEN 1 ELSE 0 END)           AS unpaid_count,
+                COALESCE(SUM(CASE WHEN status IN ('sent','partially_paid','overdue') THEN balance_due END), 0) AS owed,
+                SUM(CASE WHEN status = 'draft' THEN 1 ELSE 0 END)                 AS draft_count
             FROM invoices WHERE business_id = ?
         ");
         $stmtS->execute([$this->biz_id]);
@@ -429,6 +436,18 @@ class InvoiceController {
 
             $this->db->commit();
 
+            // The owner's and admins' phones buzz (app/helpers/notify.php).
+            $stmtWho = $this->db->prepare("SELECT full_name FROM customers WHERE id = ?");
+            $stmtWho->execute([$invoice['customer_id']]);
+            $payer = trim((string)$stmtWho->fetchColumn());
+            notify_money_in(
+                $this->biz_id, (int)$user['id'],
+                notify_money_text($amount) . ' received',
+                ($payer !== '' ? $payer . ' paid ' : 'Payment on ') . $invoice['doc_number'] . '. '
+                    . ($new_balance <= 0 ? 'Fully paid.' : notify_money_text($new_balance) . ' left to pay.'),
+                'invoices/view/' . $id
+            );
+
             $result = [
                 'success'      => true,
                 'payment_id'   => $payment_id,
@@ -439,8 +458,9 @@ class InvoiceController {
                 'receipt_url'  => APP_URL . '/receipts/from_payment/' . $payment_id,
             ];
 
+            // The page reloads after an AJAX payment, so the message waits for it.
+            flash('success', planner_money($amount, auth_business()['currency_symbol'] ?? '₦') . ' recorded.' . ($new_balance <= 0 ? ' The invoice is fully paid.' : ''));
             if (is_ajax()) { json_response($result); }
-            flash('success', 'Payment of ' . money($amount, '₦') . ' recorded.' . ($new_balance <= 0 ? ' Invoice fully paid!' : ''));
             redirect('invoices/view/' . $id);
 
         } catch (\Throwable $e) {

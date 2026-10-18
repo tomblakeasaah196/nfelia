@@ -160,8 +160,8 @@ function account_token_consume(int $token_id): bool {
  * support it (LiteSpeed and PHP-FPM do). Sending SMTP mail takes a second or
  * more; doing it inline would let anyone tell from the response time whether
  * an address has an account. Elsewhere it still runs, just before the
- * response finishes. Call session_write_close() before redirecting, so the
- * next request is not held up waiting for the session lock.
+ * response finishes. The session is saved and released first, so the next
+ * page (usually the redirect) never waits for the job.
  */
 function after_response(callable $job): void {
     register_shutdown_function(function () use ($job) {
@@ -170,6 +170,9 @@ function after_response(callable $job): void {
             litespeed_finish_request();
         } elseif (function_exists('fastcgi_finish_request')) {
             fastcgi_finish_request();
+        }
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
         }
         $job();
     });

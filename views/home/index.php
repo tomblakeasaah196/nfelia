@@ -54,14 +54,12 @@ $flash = get_flash();
     <meta property="og:locale" content="en_NG">
     <meta name="twitter:card" content="summary_large_image">
 
-    <link rel="icon" type="image/png" sizes="32x32" href="<?= APP_URL ?>/favicon-32x32.png">
-    <link rel="apple-touch-icon" href="<?= APP_URL ?>/apple-touch-icon.png">
-    <link rel="manifest" href="<?= APP_URL ?>/site.webmanifest">
+<?php require BASE_PATH . '/views/partials/pwa_head.php'; ?>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700&family=Caveat:wght@600&family=Plus+Jakarta+Sans:wght@400;600&display=swap">
-    <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/home.css?v=2">
+    <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/home.css?v=4">
     <?php if ($hero_img): ?>
     <link rel="preload" as="image" imagesrcset="<?= $img ?>/hero-640.webp 640w, <?= $img ?>/hero-1024.webp 1024w" imagesizes="(min-width: 960px) 492px, 92vw" fetchpriority="high">
     <?php endif; ?>
@@ -93,6 +91,7 @@ $flash = get_flash();
             <a href="#how">How it works</a>
             <a href="#pricing">Pricing</a>
             <a href="#questions">Questions</a>
+            <button type="button" class="linkish" data-dialog="get-app">Get the app</button>
         </nav>
         <div class="header-actions">
             <a class="signin-link" href="<?= APP_URL ?>/login">Sign in</a>
@@ -302,7 +301,7 @@ $flash = get_flash();
             <li><?= nf_icon('quote') ?><div><strong>Quotes in seconds</strong><span>Turn a quote into an invoice in one tap.</span></div></li>
             <li><?= nf_icon('pen') ?><div><strong>Proof of delivery</strong><span>Your customer signs on the phone when goods arrive.</span></div></li>
             <li><?= nf_icon('receipt') ?><div><strong>Receipts</strong><span>Send a receipt the moment you are paid.</span></div></li>
-            <li><?= nf_icon('globe') ?><div><strong>Nothing to install</strong><span>Open it in the browser on any smartphone.</span></div></li>
+            <li><?= nf_icon('globe') ?><div><strong>An app, no app store</strong><span>Add it to your home screen straight from the browser.</span></div></li>
             <li><?= nf_icon('users') ?><div><strong>Staff accounts</strong><span>Give each staff member their own login.</span></div></li>
             <li><?= nf_icon('bell') ?><div><strong>Low-stock alerts</strong><span>Know what to restock before customers ask.</span></div></li>
             <li><?= nf_icon('calendar') ?><div><strong>Appointments</strong><span>Book fittings and visits, and remind customers on WhatsApp.</span></div></li>
@@ -436,7 +435,7 @@ $flash = get_flash();
         <div class="faq-list" data-reveal>
             <details>
                 <summary>Do I need a laptop or a lot of data?</summary>
-                <p>No laptop needed. Nfelia opens in the browser on any smartphone, with nothing to install. It needs a little data, like WhatsApp does. Use a laptop too if you like; your records are the same on both.</p>
+                <p>No laptop needed. Nfelia opens in the browser on any smartphone, and you can add it to your home screen so it opens like an app, with no app store download. It needs a little data, like WhatsApp does, and pages you have already opened still open when the network drops. Use a laptop too if you like; your records are the same on both.</p>
             </details>
             <details>
                 <summary>Will it remind me?</summary>
@@ -502,6 +501,7 @@ $flash = get_flash();
                 <ul>
                     <li><a href="<?= APP_URL ?>/register">Start free</a></li>
                     <li><a href="<?= APP_URL ?>/login">Sign in</a></li>
+                    <li><button type="button" class="linkish" data-dialog="get-app">Get the app</button></li>
                     <li><a href="#pricing">Pricing</a></li>
                     <li><button type="button" class="linkish" data-dialog="feedback">Send feedback</button></li>
                 </ul>
@@ -547,6 +547,34 @@ $flash = get_flash();
 
 <?php require BASE_PATH . '/views/home/_dialogs.php'; ?>
 
-<script src="<?= APP_URL ?>/assets/js/home.js?v=2" defer></script>
+<!-- Get the app: home.js shows the right way to install for this phone. -->
+<dialog class="sheet sheet-small" id="get-app" aria-labelledby="get-app-title">
+    <div class="sheet-head">
+        <h2 id="get-app-title">Get the Nfelia app</h2>
+        <button type="button" class="sheet-close" data-close aria-label="Close" data-tip="Close" data-tip-below><?= nf_icon('close') ?></button>
+    </div>
+    <div class="sheet-body">
+        <div class="get-app-intro">
+            <img src="<?= APP_URL ?>/android-chrome-192x192.png" alt="" width="64" height="64">
+            <p>Nfelia goes on your home screen straight from the browser. No app store, nothing big to download.</p>
+        </div>
+        <div data-app="prompt" hidden>
+            <button type="button" class="btn btn-primary" data-app-install>Install Nfelia</button>
+        </div>
+        <ol class="app-steps" data-app="ios" hidden>
+            <li><span>Tap <strong>Share</strong> <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-label="the share icon"><path d="M12 3v12M7.5 7.5 12 3l4.5 4.5M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/></svg> in your browser. In Safari it may be under <strong>•••</strong>.</span></li>
+            <li><span>Tap <strong>Add to Home Screen</strong>. Scroll down if you don’t see it.</span></li>
+            <li><span>Tap <strong>Add</strong>.</span></li>
+        </ol>
+        <ol class="app-steps" data-app="menu" hidden>
+            <li><span>Open your browser’s menu <strong>⋮</strong>.</span></li>
+            <li><span>Tap <strong>Install app</strong> or <strong>Add to Home screen</strong>.</span></li>
+        </ol>
+        <p data-app="desktop" hidden>Open <strong>nfelia.com</strong> on your phone’s browser, then tap <strong>Get the app</strong> there.</p>
+        <p data-app="installed" hidden>Nfelia is already on this device. Open it from your home screen.</p>
+    </div>
+</dialog>
+
+<script src="<?= APP_URL ?>/assets/js/home.js?v=5" defer></script>
 </body>
 </html>

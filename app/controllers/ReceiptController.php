@@ -44,6 +44,8 @@ class ReceiptController {
             $where[] = "r.invoice_id IS NOT NULL";
         } elseif ($type === 'standalone') {
             $where[] = "r.invoice_id IS NULL";
+        } else {
+            $type = '';
         }
 
         $where_sql = implode(' AND ', $where);
@@ -81,10 +83,13 @@ class ReceiptController {
                 COALESCE(SUM(amount), 0)                      AS total_value,
                 SUM(CASE WHEN invoice_id IS NOT NULL THEN 1 ELSE 0 END) AS invoice_count,
                 SUM(CASE WHEN invoice_id IS NULL THEN 1 ELSE 0 END)     AS standalone_count,
-                COALESCE(SUM(CASE WHEN invoice_id IS NULL THEN amount ELSE 0 END), 0) AS standalone_value
+                COALESCE(SUM(CASE WHEN invoice_id IS NULL THEN amount ELSE 0 END), 0) AS standalone_value,
+                COALESCE(SUM(CASE WHEN issue_date >= ? THEN amount ELSE 0 END), 0)     AS month_value,
+                SUM(CASE WHEN issue_date >= ? THEN 1 ELSE 0 END)                       AS month_count
             FROM receipts WHERE business_id = ?
         ");
-        $stmtS->execute([$this->biz_id]);
+        $month_start = substr(planner_today(), 0, 8) . '01';
+        $stmtS->execute([$month_start, $month_start, $this->biz_id]);
         $summary = $stmtS->fetch();
 
         $title     = "Receipts";
@@ -448,7 +453,25 @@ class ReceiptController {
                 ")->execute([$total, $customer_id]);
             }
 
+            // A sale paid on the spot is money in: the bell, and the owner's
+            // and admins' phones (app/helpers/notify.php).
+            $payer = '';
+            if ($customer_id) {
+                $stmtWho = $this->db->prepare("SELECT full_name FROM customers WHERE id = ?");
+                $stmtWho->execute([$customer_id]);
+                $payer = trim((string)$stmtWho->fetchColumn());
+            }
+            $money_title = notify_money_text((float)$total) . ' received';
+            $money_line  = 'Receipt ' . $doc_number . ($payer !== '' ? ' for ' . $payer : ', a sale on the spot') . '.';
+            $this->db->prepare("
+                INSERT INTO notifications (business_id, user_id, type, title, message, action_url)
+                VALUES (?, ?, 'payment_received', ?, ?, ?)
+            ")->execute([$this->biz_id, $user['id'], $money_title, $money_line, APP_URL . '/receipts/view/' . $receipt_id]);
+
             $this->db->commit();
+
+            notify_money_in($this->biz_id, (int)$user['id'], $money_title, $money_line, 'receipts/view/' . $receipt_id);
+
             flash('success', 'Receipt ' . $doc_number . ' created.');
             redirect('receipts/view/' . $receipt_id);
 

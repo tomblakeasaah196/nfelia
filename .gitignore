@@ -24,11 +24,17 @@ cgi-bin/
 /vendor/
 /composer.phar
 
+# Node is only for building the app's styles and copying vendor files
+# (npm run build). What it builds under assets/ IS committed: the server
+# never runs npm.
+/node_modules/
+
 # Runtime uploads and generated artefacts (user data — never in git)
 /uploads/
 /storage/momo_receipts/
 /storage/logs/
 /storage/og-cache/
+/storage/sessions/
 
 # Database dumps. Forward migrations under db/migrations/ ARE tracked, and
 # so is db/schema.sql, the structure-only schema (CI rejects rows in it).
