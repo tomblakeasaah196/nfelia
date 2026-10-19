@@ -6,6 +6,9 @@
  *                 changed; the form to ask for the full document
  *                 ($ask_problem, $form when it was sent back); $file_match
  *                 when a file was checked; $sent / $sent_message after asking
+ *   document      $found (doc_verify_lookup()): a quote, invoice, receipt,
+ *                 delivery note or deed: genuine, its facts, and every
+ *                 signature on it, with its seal checked and what changed since
  *   unknown       a code that is no Nfelia code ($code)
  *   file_unknown  a file that isn't a Records Book as Nfelia made it ($file_name)
  *   notice        $title, $body (a confirmed request, a download that can't be had)
@@ -34,7 +37,7 @@ $book_facts = function (array $f) use ($money): array {
     if (!empty($f['orders'])) $out['Orders'] = number_format((int)$f['orders']);
     return $out;
 };
-$titles = ['start' => 'Check a Nfelia record', 'found' => 'Genuine', 'unknown' => 'We can\'t find that code', 'file_unknown' => 'We can\'t match this file',
+$titles = ['start' => 'Check a Nfelia record', 'found' => 'Genuine', 'document' => 'Genuine', 'unknown' => 'We can\'t find that code', 'file_unknown' => 'We can\'t match this file',
            'notice' => $title ?? '', 'missing' => 'Nothing here'];
 $form ??= [];
 ?>
@@ -116,6 +119,14 @@ $form ??= [];
         .file input[type=file] { font: inherit; color: var(--ink-2); }
         footer { max-width: 640px; margin: 0 auto; padding: 0 16px 32px; color: var(--ink-2); font-size: .875rem; }
         footer p { margin: 0 0 6px; }
+        .sig { padding: 14px 0; border-top: 1px solid var(--line); }
+        .sig b { display: block; }
+        .sig small { display: block; color: var(--ink-2); font-size: .875rem; }
+        .sig .is { display: inline-block; margin: 6px 0 0; padding: 4px 10px; border-radius: 999px; font: 600 .8125rem/1.3 "Plus Jakarta Sans", sans-serif; }
+        .sig .is.ok { background: var(--in-soft); color: var(--in); }
+        .sig .is.bad { background: var(--owed-soft); color: var(--owed); }
+        .sig .is.warn { background: var(--warn-soft); color: var(--warn); }
+        .sig .is.old { background: rgb(31 10 20 / .06); color: var(--ink-2); }
         .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
     </style>
 </head>
@@ -130,11 +141,11 @@ $form ??= [];
 <?php if ($mode === 'start'): ?>
     <section class="card">
         <h1>Check a Nfelia record</h1>
-        <p class="lead">Every Records Book from Nfelia carries a code, and so does each invoice, receipt and payment in it. Scan the QR code, or type the code, to see that it is genuine and what it says.</p>
+        <p class="lead">Every quote, invoice, receipt, delivery note and deed made with Nfelia carries a code, and so does every Records Book and each record in it. Scan the QR code, or type the code, to see that it is genuine, what it says and who signed it.</p>
         <?php if (!empty($problem)): ?><p class="problem" role="alert"><?= $h($problem) ?></p><?php endif; ?>
         <form method="post" action="<?= $h(APP_URL . '/verify') ?>">
             <?= csrf_field() ?>
-            <label for="code">The code <small>On the cover of the book, or in a record's Verify column</small></label>
+            <label for="code">The code <small>At the foot of the document, on the cover of a book, or in a record's Verify column</small></label>
             <div class="row">
                 <input type="text" id="code" name="code" required autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="K7Q2M-XA9WT" maxlength="40">
                 <button class="btn" type="submit">Check it</button>
@@ -233,6 +244,68 @@ $form ??= [];
         <?php endif; ?>
     </section>
     <?php endif; ?>
+
+<?php elseif ($mode === 'document'):
+    $sigs = $found['signatures'];
+    $standing = array_values(array_filter($sigs, fn($s) => $s['standing']));
+    $forged = array_filter($sigs, fn($s) => !$s['seal_ok']);
+    $moved = array_filter($standing, fn($s) => !$s['unchanged']);
+    $what = strtolower(preg_replace('/\s+\S+$/', '', $found['label']) ?: 'document');
+    $when = fn($at) => date('j M Y, g:ia', strtotime((string)$at));
+?>
+    <section class="card">
+        <?php if ($forged): ?>
+            <span class="seal bad"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>A signature doesn't check out</span>
+        <?php elseif ($found['removed']): ?>
+            <span class="seal warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M12 8v5m0 4h.01"/><circle cx="12" cy="12" r="9"/></svg>Genuine, since removed</span>
+        <?php elseif ($moved): ?>
+            <span class="seal warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M12 8v5m0 4h.01"/><circle cx="12" cy="12" r="9"/></svg>Genuine, changed since it was signed</span>
+        <?php else: ?>
+            <span class="seal ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="m5 12 5 5L20 7"/></svg>Genuine<?= $standing ? ' and signed' : '' ?></span>
+        <?php endif; ?>
+        <h1><?= $h($found['label']) ?></h1>
+        <div class="biz">
+            <?php if (!empty($b['logo_path']) && is_file(BASE_PATH . '/' . ltrim($b['logo_path'], '/'))): ?>
+                <img src="<?= $h(APP_URL . '/' . ltrim($b['logo_path'], '/')) ?>" alt="">
+            <?php endif; ?>
+            <span><b><?= $h($b['name']) ?></b><small>Made with Nfelia</small></span>
+        </div>
+        <?php if ($found['removed']): ?>
+            <p>The business has removed this <?= $h($what) ?> from Nfelia since. We can confirm the code is ours, but no longer what it said.</p>
+        <?php else: ?>
+            <dl><?php foreach ($found['facts'] as $field => $value): ?><div><dt><?= $h($field) ?></dt><dd><?= $show($field, $value) ?></dd></div><?php endforeach; ?></dl>
+        <?php endif; ?>
+        <p style="margin:16px 0 0">Code <span class="code"><?= $h(records_code_display($found['code'])) ?></span></p>
+    </section>
+
+    <section class="card">
+        <h2>Signatures</h2>
+        <?php if (!$sigs): ?>
+            <p style="margin:0">This <?= $h($what) ?> is not signed. Its code shows <?= $h($b['name']) ?> made it with Nfelia.</p>
+        <?php endif; ?>
+        <?php foreach (array_reverse($sigs) as $s):
+            $later = array_filter($sigs, fn($o) => $o['party'] === $s['party'] && (int)$o['version'] > (int)$s['version']); ?>
+            <div class="sig">
+                <?php if ($s['party'] === 'business'): ?>
+                    <b>Signed for <?= $h($b['name']) ?> by <?= $h($s['signer_name']) ?><?= !empty($s['signer_role']) ? ', ' . $h($s['signer_role']) : '' ?></b>
+                <?php else: ?>
+                    <b><?= $h(SIGN_TYPES[$found['doc_type']]['customer'] ?? 'Signed by') ?> <?= $h($s['signer_name']) ?></b>
+                <?php endif; ?>
+                <small><?= $h($when($s['signed_at'])) ?> · <?= $s['style'] === 'drawn' ? 'drawn signature' : 'stamp' ?><?= (int)$s['version'] > 1 ? ' · version ' . (int)$s['version'] : '' ?> · seal <?= $h(doc_seal_short((string)$s['seal'])) ?></small>
+                <?php if (!$s['seal_ok']): ?>
+                    <span class="is bad">Doesn't match its seal: it was altered after it was signed</span>
+                <?php elseif (!$s['standing']): ?>
+                    <span class="is old"><?= $later ? 'Signed again on ' . $h($when(reset($later)['signed_at'])) : 'Taken off on ' . $h($when($s['superseded_at'])) ?></span>
+                <?php elseif ($found['removed']): ?>
+                    <span class="is ok">Seal checks out</span>
+                <?php elseif ($s['unchanged']): ?>
+                    <span class="is ok">Seal checks out. Nothing has changed since it was signed</span>
+                <?php else: ?>
+                    <span class="is warn">Seal checks out. Changed since it was signed: <?= $h(implode(', ', $s['what_changed']) ?: 'its content') ?></span>
+                <?php endif; ?>
+            </div>
+        <?php endforeach; ?>
+    </section>
 
 <?php elseif ($mode === 'unknown' || $mode === 'file_unknown'): ?>
     <section class="card">

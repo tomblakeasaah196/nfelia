@@ -332,6 +332,10 @@ foreach (['ORD' => 'Order', 'INV' => 'Invoice', 'REC' => 'Receipt', 'DEL' => 'De
     </form>
 </section>
 
+<?php if (is_boss()): // owners and admins sign for the business ?>
+<?php require BASE_PATH . '/views/settings/signatures.php'; ?>
+<?php endif; ?>
+
 <!-- Hidden auto-logo form -->
 <?php if (!$logo_url && $is_owner): ?>
 <form id="auto-logo-form" method="POST" action="<?= APP_URL ?>/settings/generate-logo" class="hidden">

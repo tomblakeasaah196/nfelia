@@ -1,7 +1,10 @@
 <?php
 /**
  * nfelia.com/verify: anyone (a bank, a landlord, a buyer) checks a Records
- * Book or one record in it, and can ask the business for the full document.
+ * Book or one record in it, and can ask the business for the full document;
+ * or checks a quote, invoice, receipt, delivery note or deed by the code on
+ * it: genuine, who signed it, and whether it changed since
+ * (doc_verify_lookup(), app/helpers/signing.php).
  * No sign-in. What a code shows is in records_verify_lookup()
  * (app/helpers/records.php): that it is genuine, the key facts, and what
  * changed since the book was made; never a customer's phone, email or
@@ -62,6 +65,12 @@ class VerifyController {
         }
         $found = records_verify_lookup($this->db, rawurldecode($code));
         if (!$found) {
+            // A quote, invoice, receipt, delivery note or deed: its own code (app/helpers/signing.php)
+            $p = records_parse_code(rawurldecode($code));
+            $doc = $p && $p['letter'] === null ? doc_verify_lookup($this->db, $p['book']) : null;
+            if ($doc) {
+                $this->page(['mode' => 'document', 'found' => $doc]);
+            }
             $this->page(['mode' => 'unknown', 'code' => mb_substr(rawurldecode($code), 0, 40)], 404);
         }
         $this->page(['mode' => 'found', 'found' => $found, 'sent' => !empty($_GET['asked'])]);

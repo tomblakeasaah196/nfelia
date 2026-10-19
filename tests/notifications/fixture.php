@@ -30,7 +30,7 @@ const FX_TABLES = [
     'users', 'businesses', 'countries', 'ops_audit', 'ops_tokens', 'ops_passkeys', 'ops_staff',
     'error_notes', 'error_events', 'error_groups', 'ops_heartbeats', 'ops_settings', 'ops_alerts', 'ops_push_subscriptions',
     'ops_view_as', 'ops_notes', 'leads', 'campaigns', 'campaign_sends', 'email_opt_outs',
-    'records_books', 'record_requests', 'price_notices', 'price_changes',
+    'records_books', 'record_requests', 'price_notices', 'price_changes', 'doc_codes', 'doc_signatures',
 ];
 
 const T_OPS_PASSWORD = 'OpsPass1234';

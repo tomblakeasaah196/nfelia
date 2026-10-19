@@ -1,7 +1,7 @@
 <?php
 /**
  * Dompdf Strict Print Template
- * Expects: $business, $customer, $quotation, $items, $bank
+ * Expects: $business, $customer, $quotation, $items, $bank, $sign (doc_sign_state)
  */
 $currency = $business['currency_symbol'] ?? '₦';
 $primary_color = $business['primary_color'] ?? '#0F172A';
@@ -54,10 +54,6 @@ if (!empty($business['logo_path']) && file_exists(BASE_PATH . '/' . $business['l
         .block-title { font-size: 10px; font-weight: bold; text-transform: uppercase; color: #888; margin-bottom: 5px; border-bottom: 1px solid #eee; padding-bottom: 3px; }
         .notes-box { margin-bottom: 20px; font-size: 11px; color: #555; }
         
-        .signatures { width: 100%; margin-top: 50px; }
-        .signatures td { width: 50%; padding-top: 40px; vertical-align: bottom; }
-        .sig-line { border-top: 1px solid #000; width: 80%; padding-top: 5px; font-size: 10px; font-weight: bold; text-transform: uppercase; color: #555; }
-        .sig-image { max-height: 50px; margin-bottom: 5px; }
     </style>
 </head>
 <body>
@@ -168,33 +164,7 @@ if (!empty($business['logo_path']) && file_exists(BASE_PATH . '/' . $business['l
         <?php endif; ?>
     </div>
 
-    <table class="signatures">
-        <tr>
-            <!-- Internal Authorization -->
-            <td>
-                <?php if (!empty($quotation['owner_signature_data'])): ?>
-                    <img src="<?= e($quotation['owner_signature_data']) ?>" class="sig-image"><br>
-                    <div style="font-size: 11px; font-weight: bold; color: #111; margin-bottom: 2px; text-transform: uppercase;"><?= e($quotation['owner_signed_by_name']) ?></div>
-                    <div style="font-size: 9px; color: #666; margin-bottom: 12px;">Date: <?= date('d M Y, H:i', strtotime($quotation['owner_signed_at'])) ?></div>
-                <?php else: ?>
-                    <div style="height: 60px;"></div>
-                <?php endif; ?>
-                <div class="sig-line">Authorized By: <?= e($business['name']) ?></div>
-            </td>
-
-            <!-- Client Acceptance -->
-            <td>
-                <?php if (in_array($quotation['status'], ['accepted', 'converted']) && !empty($quotation['signature_data'])): ?>
-                    <img src="<?= e($quotation['signature_data']) ?>" class="sig-image"><br>
-                    <div style="font-size: 11px; font-weight: bold; color: #111; margin-bottom: 2px; text-transform: uppercase;"><?= e($quotation['signed_by_name']) ?></div>
-                    <div style="font-size: 9px; color: #666; margin-bottom: 12px;">Date: <?= date('d M Y, H:i', strtotime($quotation['signed_at'])) ?></div>
-                <?php else: ?>
-                    <div style="height: 60px;"></div>
-                <?php endif; ?>
-                <div class="sig-line">Client Acceptance</div>
-            </td>
-        </tr>
-    </table>
+    <?php require BASE_PATH . '/views/partials/doc_signs_pdf.php'; ?>
 
 </body>
 </html>

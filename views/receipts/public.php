@@ -197,17 +197,8 @@ $og_image  = $business['logo_path']
                     </p>
                 </div>
 
-                <!-- Signature -->
-                <div class="pt-6 border-t border-gray-200 grid grid-cols-2 gap-8">
-                    <div>
-                        <div class="border-b border-gray-300 pb-8 mb-2"></div>
-                        <div class="text-[9px] font-bold uppercase tracking-widest text-gray-500">Authorized By</div>
-                    </div>
-                    <div>
-                        <div class="border-b border-gray-300 pb-8 mb-2"></div>
-                        <div class="text-[9px] font-bold uppercase tracking-widest text-gray-500">Received By</div>
-                    </div>
-                </div>
+                <!-- Signatures (only when signed) and the verify code -->
+                <?php require BASE_PATH . '/views/partials/doc_signs.php'; ?>
 
                 <?php if ($business['tagline']): ?>
                 <div class="mt-8 text-center">

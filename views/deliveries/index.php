@@ -37,7 +37,7 @@ $currency = $business['currency_symbol'] ?? '₦';
         <div class="font-heading font-extrabold text-xl text-green-600"><?= (int)($summary['completed_count'] ?? 0) ?></div>
     </div>
     <div class="bg-brand-white p-4 rounded-xl border border-brand-sand shadow-sm">
-        <div class="data-text text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">Signed Off</div>
+        <div class="data-text text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">Received</div>
         <div class="font-heading font-extrabold text-xl text-purple-600"><?= (int)($summary['signed_count'] ?? 0) ?></div>
     </div>
     <div class="bg-brand-white p-4 rounded-xl border border-brand-sand shadow-sm">

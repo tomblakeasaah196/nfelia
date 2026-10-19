@@ -1,7 +1,8 @@
 <?php
 /**
  * Nfelia — Public Deed of Acquisition View
- * Variables: $deed, $business, $customer, $items, $title
+ * Variables: $deed, $business, $customer, $items, $title,
+ *            $sign (doc_sign_state(): its signature and verify code)
  */
 
 $primary  = $business['primary_color']   ?? '#1B0A11';
@@ -145,14 +146,16 @@ if (!empty($business['logo_path']) && file_exists(BASE_PATH . '/' . $business['l
             </div>
         </div>
 
-        <!-- Footer: Signature + Download -->
-        <div class="px-10 py-8 flex items-end justify-between gap-6">
-            <div class="flex-1">
-                <div class="h-10 border-b mb-2" style="border-color:<?= e($primary) ?>"></div>
-                <p class="text-[9px] uppercase tracking-[0.2em] font-sans"
-                   style="color:<?= e($accent) ?>">Authorized by <?= e($biz_name) ?></p>
+        <!-- Footer: the signature (when signed), the verify code, and the PDF -->
+        <div class="px-10 pb-8">
+            <?php if (!empty($sign['can_sign'])): // the business's owner or an admin, looking at their own deed ?>
+            <div class="flex flex-wrap gap-2 mb-2 font-sans">
+                <?php $sign_row = false; $sign_back = 'deed/' . $deed['token'];
+                      require BASE_PATH . '/views/partials/doc_sign_control.php'; ?>
             </div>
-            <div class="text-right">
+            <?php endif; ?>
+            <div class="font-sans"><?php require BASE_PATH . '/views/partials/doc_signs.php'; ?></div>
+            <div class="text-right mt-6">
                 <a href="<?= APP_URL ?>/deed/download/<?= e($deed['token']) ?>"
                    class="inline-block px-6 py-3 text-[10px] font-bold uppercase tracking-widest text-white font-sans transition-opacity hover:opacity-90"
                    style="background:<?= e($primary) ?>">

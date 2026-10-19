@@ -238,6 +238,7 @@ class InvoiceController {
             ORDER BY p.id DESC LIMIT 1");
         $stmtJob->execute([$id, $this->biz_id]);
         $job_plan = $stmtJob->fetch() ?: null;
+        $sign = doc_sign_state($this->db, 'invoice', (int)$invoice['id'], doc_sign_viewer());
 
         $title     = e($invoice['doc_number']);
         $view_file = BASE_PATH . '/views/invoices/view.php';
@@ -793,6 +794,13 @@ class InvoiceController {
             if ($locked && (int)$locked['customer_id'] !== $customer_id) {
                 customer_refresh_totals($this->db, $this->biz_id, (int)$locked['customer_id']);
             }
+            // Signed or not, as Settings › Signatures say; a signed invoice
+            // that changed is signed again in the name of whoever changed it
+            if ($locked) {
+                doc_changed($this->db, 'invoice', $id, (int)$user['id']);
+            } else {
+                doc_made($this->db, 'invoice', $id, (int)$user['id']);
+            }
 
             $this->db->commit();
             flash('success', $restocked ? 'Invoice saved. Stock updated to match.' : 'Invoice saved.');
@@ -825,6 +833,7 @@ class InvoiceController {
                 INSERT INTO delivery_items (delivery_id, product_id, description, quantity)
                 SELECT ?, product_id, description, quantity FROM invoice_items WHERE invoice_id = ? ORDER BY sort_order
             ")->execute([$delivery_id, $invoice_id]);
+            doc_changed($this->db, 'delivery', (int)$delivery_id, (int)(auth_user()['id'] ?? 0));
         }
     }
 

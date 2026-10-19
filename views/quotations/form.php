@@ -18,6 +18,9 @@ $q_expiry    = $quotation['expiry_date'] ?? date('Y-m-d', strtotime('+14 days'))
 $q_tax       = $quotation['tax_rate'] ?? $tax_default;
 $q_discount  = $quotation['discount_amount'] ?? 0;
 $q_notes     = $quotation['notes'] ?? '';
+// Signed or not: as sent back after a mistake, as saved, else Settings › Signatures
+$q_sign      = isset($quotation['sign_box']) ? !empty($quotation['sign_on'])
+             : ($editing ? !empty($quotation['sign_on']) : signing_settings_for(get_db(), (int)$business['id'])['quote']['on']);
 
 // Build items JSON for Alpine
 $items_json = [];
@@ -287,6 +290,19 @@ if (empty($items_json)) {
                     </div>
                 </div>
             </div>
+
+            <!-- Signed or not (the default is in Settings › Signatures). A quote
+                 already made is switched by an owner or admin only. -->
+            <?php if (!$editing || is_boss()): ?>
+            <label class="flex items-start gap-3 bg-brand-white border border-brand-sand rounded-xl p-4 shadow-sm cursor-pointer">
+                <input type="hidden" name="sign_box" value="1">
+                <input type="checkbox" name="sign_on" value="1" <?= $q_sign ? 'checked' : '' ?> class="mt-0.5 w-4 h-4 accent-[#8B004A] shrink-0">
+                <span>
+                    <span class="block text-xs font-bold text-brand-plum">Signed quote</span>
+                    <span class="block text-[10px] text-brand-plum/50 leading-snug">Signed for your business, and your client signs to accept it. Leave it off and they accept with one tap.</span>
+                </span>
+            </label>
+            <?php endif; ?>
 
             <!-- Action Buttons -->
             <div class="space-y-3">

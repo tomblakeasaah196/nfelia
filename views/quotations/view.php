@@ -4,7 +4,8 @@
  * Renders inside views/layouts/app.php
  *
  * Available from controller:
- *   $user, $business, $quotation, $customer, $items, $bank, $public_url
+ *   $user, $business, $quotation, $customer, $items, $bank, $public_url,
+ *   $sign (doc_sign_state(): its signatures and verify code)
  */
 $currency = $business['currency_symbol'] ?? '₦';
 $font_map = FONT_PAIRINGS[$business['font_pairing'] ?? 'modern_sans'] ?? FONT_PAIRINGS['modern_sans'];
@@ -50,19 +51,8 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
     <!-- Action buttons -->
     <div class="flex flex-wrap items-center gap-2">
         
-        <!-- NEW AUTHORIZE BUTTON STARTS HERE -->
-        <?php if (empty($quotation['owner_signature_data'])): ?>
-            <button onclick="document.getElementById('ownerSignModal').classList.remove('hidden')" class="flex items-center gap-1.5 bg-brand-plum text-white px-3 py-2 rounded-lg hover:bg-brand-burgundy transition-all">
-                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
-                <span class="text-[10px] font-bold uppercase tracking-widest">Authorize</span>
-            </button>
-        <?php else: ?>
-            <span class="flex items-center gap-1.5 bg-green-50 text-green-700 border border-green-200 px-3 py-2 rounded-lg">
-                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-                <span class="text-[10px] font-bold uppercase tracking-widest">Authorized</span>
-            </span>
-        <?php endif; ?>
-        <!-- NEW AUTHORIZE BUTTON ENDS HERE -->
+        <?php $sign_row = false; $sign_back = 'quotations/view/' . (int)$quotation['id'];
+              require BASE_PATH . '/views/partials/doc_sign_control.php'; ?>
 
         <?php if (in_array($quotation['status'], ['draft', 'sent', 'in_negotiation'])): ?>
             <a href="<?= APP_URL ?>/quotations/edit/<?= $quotation['id'] ?>" class="flex items-center gap-1.5 bg-brand-white border border-brand-sand hover:border-brand-gold px-3 py-2 rounded-lg transition-all">
@@ -288,21 +278,8 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
         </div>
         <?php endif; ?>
 
-        <!-- Signature Block -->
-        <div class="mt-10 pt-6 border-t border-gray-200">
-            <div class="grid grid-cols-2 gap-8">
-                <div>
-                    <div class="border-b border-gray-300 pb-8 mb-2"></div>
-                    <div class="text-[9px] font-bold uppercase tracking-widest text-gray-500">Authorized By</div>
-                    <div class="text-xs text-gray-700 mt-0.5"><?= e($business['name']) ?></div>
-                </div>
-                <div>
-                    <div class="border-b border-gray-300 pb-8 mb-2"></div>
-                    <div class="text-[9px] font-bold uppercase tracking-widest text-gray-500">Client Acceptance</div>
-                    <div class="text-xs text-gray-400 mt-0.5">Date: _______________</div>
-                </div>
-            </div>
-        </div>
+        <!-- Signatures (only when signed) and the verify code -->
+        <?php require BASE_PATH . '/views/partials/doc_signs.php'; ?>
 
         <!-- Footer -->
         <?php if ($business['tagline']): ?>
@@ -361,85 +338,3 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
         </div>
     <?php endif; ?>
 </div>
-
-<div id="ownerSignModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-    <div class="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden">
-        <div class="p-5 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
-            <div>
-                <h3 class="font-heading font-bold text-lg text-gray-900">Authorize Document</h3>
-                <p class="text-xs text-gray-500">Sign this quotation before or after sending to the client.</p>
-            </div>
-            <button onclick="document.getElementById('ownerSignModal').classList.add('hidden')" class="text-gray-400 hover:text-gray-700">
-                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-            </button>
-        </div>
-        
-        <form method="POST" action="<?= APP_URL ?>/quotations/sign_internal/<?= $quotation['id'] ?>" onsubmit="return submitOwnerSignature(event)">
-            <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
-            <input type="hidden" name="owner_signature_data" id="owner_signature_data">
-
-            <div class="p-5">
-                <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Authorized Signatory Name</label>
-                <input type="text" name="owner_signed_by_name" id="owner_signed_by_name" value="<?= e($user['full_name']) ?>" <?php /* NFELIA AUDIT FIX M07 2026-06-03 */ ?> class="w-full p-3 border-2 border-gray-200 rounded-lg mb-5 text-sm font-bold text-gray-900 focus:border-brand-plum outline-none" required>
-                
-                <div class="flex justify-between items-end mb-2">
-                    <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-widest">Draw Signature</label>
-                    <button type="button" onclick="clearOwnerCanvas()" class="text-[10px] font-bold text-brand-plum uppercase tracking-widest hover:underline">Clear</button>
-                </div>
-                <div class="border-2 border-gray-900 rounded-xl bg-gray-50 overflow-hidden relative" style="height: 150px;">
-                    <canvas id="owner-sig-canvas" width="500" height="150" class="w-full h-full absolute inset-0 cursor-crosshair touch-none"></canvas>
-                </div>
-            </div>
-
-            <div class="p-5 border-t border-gray-100 flex gap-3 bg-white">
-                <button type="submit" class="w-full py-3 text-xs font-bold text-white bg-brand-plum rounded-lg uppercase tracking-widest shadow-md hover:bg-brand-burgundy transition-colors">
-                    Save Signature
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<script>
-    const canvas = document.getElementById('owner-sig-canvas');
-    const ctx = canvas.getContext('2d');
-    let isDrawing = false;
-    let hasDrawn = false;
-
-    ctx.lineWidth = 3;
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = '#0F172A';
-
-    function getMousePos(e) {
-        const rect = canvas.getBoundingClientRect();
-        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-        return {
-            x: (clientX - rect.left) * (canvas.width / rect.width),
-            y: (clientY - rect.top) * (canvas.height / rect.height)
-        };
-    }
-
-    const startDrawing = (e) => { isDrawing = true; hasDrawn = true; const pos = getMousePos(e); ctx.beginPath(); ctx.moveTo(pos.x, pos.y); };
-    const draw = (e) => { if (!isDrawing) return; e.preventDefault(); const pos = getMousePos(e); ctx.lineTo(pos.x, pos.y); ctx.stroke(); };
-    const stopDrawing = () => { isDrawing = false; };
-
-    canvas.addEventListener('mousedown', startDrawing); canvas.addEventListener('mousemove', draw); canvas.addEventListener('mouseup', stopDrawing); canvas.addEventListener('mouseout', stopDrawing);
-    canvas.addEventListener('touchstart', startDrawing, {passive: false}); canvas.addEventListener('touchmove', draw, {passive: false}); canvas.addEventListener('touchend', stopDrawing);
-
-    function clearOwnerCanvas() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        hasDrawn = false;
-        ctx.beginPath();
-    }
-
-    function submitOwnerSignature(e) {
-        if (!hasDrawn) {
-            alert("Please draw your signature.");
-            e.preventDefault();
-            return false;
-        }
-        document.getElementById('owner_signature_data').value = canvas.toDataURL('image/png');
-        return true;
-    }
-</script>

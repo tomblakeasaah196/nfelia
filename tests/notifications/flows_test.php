@@ -268,7 +268,7 @@ eq($cust->data()['success'] ?? null, true, 'a comment from the quote\'s page');
 expect('quote.comment', [ADA, BISI], 'quotations/view/502');
 eq(latest(ADA, 'quote.comment')['message'] ?? null, 'Ngozi Eze: “Can you do it for ₦200k?”', 'quoting what they said');
 opens(BISI, 'quote.comment', 'quotations/view/502', 'ADA-QUO-0502');
-$cust->post('doc/' . $quote_token(500), ['action' => 'sign', 'name' => 'Ngozi Eze', 'signature' => 'data:image/png;base64,iVBORw0KGgo=']);
+$cust->post('doc/' . $quote_token(500), ['action' => 'sign', 'name' => 'Ngozi Eze', 'signature' => 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAACXBIWXMAAA7EAAAOxAGVKw4bAAAADElEQVQImWNgYGAAAAAEAAGjChXjAAAAAElFTkSuQmCC']);
 $from_quote = rows("SELECT o.id, o.order_number, o.status, o.channel, q.status AS quote_status, (SELECT COUNT(*) FROM invoices i WHERE i.order_id = o.id) AS invoices
                     FROM orders o JOIN quotations q ON q.id = o.quotation_id WHERE o.quotation_id = 500");
 $quote_order = $from_quote[0] ?? ['id' => 0, 'order_number' => '?'];
@@ -281,12 +281,13 @@ ok(count($from_quote) === 1 && $from_quote[0]['channel'] === 'quote' && $from_qu
 $cust->post('doc/' . $quote_token(501), ['action' => 'decline', 'reason' => 'Too dear']);
 expect('quote.declined', [ADA, BISI], 'quotations/view/501');
 eq(latest(ADA, 'quote.declined')['message'] ?? null, 'Ngozi Eze declined it. “Too dear”', 'a declined quote now says so, with the reason');
-$cust->post('doc/' . $quote_token(504), ['action' => 'sign', 'name' => 'Someone', 'signature' => 'data:image/png;base64,iVBORw0KGgo=']);
+$cust->post('doc/' . $quote_token(504), ['action' => 'sign', 'name' => 'Someone', 'signature' => 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAACXBIWXMAAA7EAAAOxAGVKw4bAAAADElEQVQImWNgYGAAAAAEAAGjChXjAAAAAElFTkSuQmCC']);
 eq($cust->status, 409, 'an answered quote can\'t be signed again');
 eq(count(rows("SELECT id FROM notifications WHERE event = 'quote.accepted'")), 2, 'and no second "accepted"');
 
 section('A customer signs for a delivery');
 clean_slate();
+exec_sql("UPDATE deliveries SET sign_on = 1 WHERE id = 600");   // a signed delivery note: the receiver signs (one that isn't is confirmed with a tap, tests/docs)
 $sign = (string)q("SELECT signoff_token FROM deliveries WHERE id = 600");
 $tok = (string)q("SELECT token FROM deliveries WHERE id = 600");
 $cust->get("sign/{$sign}");
