@@ -291,6 +291,14 @@ class QuotationController {
 
         $quotation = $this->find_quotation($id);
         if (!$quotation) { not_found(); return; }
+        // A quote that made an order stays, as that order's record
+        $stmtOrd = $this->db->prepare("SELECT order_number FROM orders WHERE quotation_id = ? AND business_id = ? LIMIT 1");
+        $stmtOrd->execute([(int)$id, $this->biz_id]);
+        if ($order_number = $stmtOrd->fetchColumn()) {
+            flash('error', $quotation['doc_number'] . ' made order ' . $order_number . ', so it stays with that order.');
+            redirect('quotations/view/' . (int)$id);
+            return;
+        }
 
         // Delete items first, then quotation
         $this->db->prepare("DELETE FROM quotation_items WHERE quotation_id = ?")->execute([$id]);

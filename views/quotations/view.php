@@ -146,12 +146,14 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
         <span class="text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest">Public View</span>
     </a>
 
-    <!-- Delete -->
+    <!-- Delete (not once it made an order: it stays as that order's record) -->
+    <?php if (empty($quote_order)): ?>
     <form method="POST" action="<?= APP_URL ?>/quotations/delete/<?= $quotation['id'] ?>" class="inline ml-auto"
           onsubmit="return confirm('Permanently delete this quotation?');">
         <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
         <button class="text-[10px] font-bold text-red-400 uppercase tracking-widest hover:text-red-600 transition-colors">Delete</button>
     </form>
+    <?php endif; ?>
 </div>
 
 <!-- ===== DOCUMENT PREVIEW ===== -->
