@@ -111,4 +111,51 @@ Nothing to do by hand. Existing numbers stay as they are; new ones use each busi
 
 ## How it was tested
 
-<!-- filled in after the final run -->
+- **New suite `tests/orders/core_test.php`** (190 checks, run in CI as `orders/core`). It covers:
+  - numbers carrying on from the old ones, and the prefix rules;
+  - every way an order is paid (now, part, later, kept money) and confirming twice;
+  - quick sales to a walk-in;
+  - changing items up and down;
+  - keeping and giving back, refunds with and without proof, calling a refund off;
+  - cancelling and turning down;
+  - delivery notes and Tasks moving the order;
+  - written-off balances, and what alerts say and open.
+- **Updated suites:** `flows` checks that a signed quote makes its order and that the alert opens it, that a
+  quick sale's alert names its order, and that a signed delivery note's alert opens its order.
+- **The whole CI run on a database built from scratch** (`db/schema.sql` plus every migration, as CI builds
+  it), from a clean checkout of the branch. Every suite passes:
+
+  | Suite | Checks |
+  |---|---|
+  | engine | 91 |
+  | flows | 295 |
+  | cron | 62 |
+  | sw | 17 |
+  | ops/foundation | 101 |
+  | ops/monitor | 117 |
+  | ops/clients | 103 |
+  | ops/sales | 134 |
+  | orders/core | 190 |
+  | ui | 20 |
+  | ops/ui | 47 |
+
+  The PHP syntax check over the tree and the collation check pass too.
+- **The migration** was applied a second time on top of itself without error.
+- **In Chromium at phone width (375px):**
+  - quick sale; a new order with a new customer, part paid and delivered tomorrow; paying the rest, On its
+    way, Delivered;
+  - the Log, and a refund by transfer (refused without a reference, saved with one, slip shown);
+  - the customer's refund form;
+  - the confirm sheet's "Pick a day" (the day reaches the invoice and Tasks);
+  - a double-tapped payment (one payment saved). Replaying the same form twice to the server also saved
+    one payment.
+- **Purge, by hand over HTTP:**
+  - an order with all its documents goes;
+  - an order's invoice alone is refused, naming the order;
+  - an order whose kept money was used elsewhere is refused;
+  - an old standalone invoice still goes.
+- **One review at the end:** four reviewers (money, security, numbering, phone screens), each checked by a
+  skeptic. 33 findings were confirmed and all are fixed in this branch; 3 were ruled out.
+
+Demo data for trying it locally: `php tests/orders/demo_seed.php` (RN Afriluxe, prefix CAS, orders
+CAS-ORD-704 to 713; sign in as ada@adashair.test / TestPass1).
