@@ -156,6 +156,10 @@ class CustomerController {
 
         $currency = $business['currency_symbol'] ?? '₦';
 
+        // Orders: every sale with this client, and money kept for their next one
+        $orders = order_rows($this->db, $this->biz_id, ['customer_id' => (int)$id], 20);
+        $kept   = kept_balance($this->db, $this->biz_id, (int)$id);
+
         // Quotations
         $stmtQ = $this->db->prepare("
             SELECT id, doc_number, status, issue_date, total

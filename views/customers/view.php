@@ -77,8 +77,8 @@ $quo_status_badge = function($s) {
         <?php endif; ?>
 
         <!-- Quick Actions -->
-        <a href="<?= APP_URL ?>/invoices/create?customer_id=<?= $customer['id'] ?>" class="flex items-center gap-1.5 btn-primary text-white px-3 py-2 rounded-lg transition-all">
-            <span class="text-[10px] font-bold uppercase tracking-widest">New Invoice</span>
+        <a href="<?= APP_URL ?>/orders/create?customer=<?= $customer['id'] ?>" class="flex items-center gap-1.5 btn-primary text-white px-3 py-2 rounded-lg transition-all">
+            <span class="text-[10px] font-bold uppercase tracking-widest">New Order</span>
         </a>
 
         <a href="<?= APP_URL ?>/quotations/create?customer_id=<?= $customer['id'] ?>" class="flex items-center gap-1.5 bg-brand-white border border-brand-sand hover:border-brand-gold px-3 py-2 rounded-lg transition-all">
@@ -177,11 +177,19 @@ $quo_status_badge = function($s) {
     </div>
 </div>
 
+<?php if ($kept > 0): ?>
+    <p class="nf-kept-note" style="margin-bottom:16px"><span><b><?= planner_money($kept, $currency) ?></b> kept with you from an earlier order. It is offered on <?= e(planner_first_name($customer['full_name'])) ?>'s next order.</span></p>
+<?php endif; ?>
+
 <!-- Tabbed History Sections -->
-<div x-data="{ tab: 'invoices' }">
+<div x-data="{ tab: '<?= $orders ? 'orders' : 'invoices' ?>' }">
 
     <!-- Tab buttons -->
     <div class="flex items-center gap-1 mb-4 overflow-x-auto">
+        <button @click="tab = 'orders'" :class="tab === 'orders' ? 'btn-primary text-white' : 'bg-brand-white text-brand-plum/60 border border-brand-sand hover:border-brand-gold'"
+                class="px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all whitespace-nowrap">
+            Orders (<?= count($orders) ?>)
+        </button>
         <button @click="tab = 'invoices'" :class="tab === 'invoices' ? 'btn-primary text-white' : 'bg-brand-white text-brand-plum/60 border border-brand-sand hover:border-brand-gold'"
                 class="px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all whitespace-nowrap">
             Invoices (<?= count($invoices) ?>)
@@ -203,6 +211,22 @@ $quo_status_badge = function($s) {
                 class="px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all whitespace-nowrap">
             Debts (<?= count($debts) ?>)
         </button>
+        <?php endif; ?>
+    </div>
+
+    <!-- ORDERS TAB -->
+    <div x-show="tab === 'orders'" class="mb-8">
+        <?php if ($orders): $today = planner_today(); $row_for_client = true; ?>
+            <div class="nf-items">
+                <?php foreach ($orders as $o) require BASE_PATH . '/views/partials/order_row.php'; ?>
+            </div>
+        <?php else: ?>
+            <div class="nf-empty">
+                <span class="nf-tile-ic"><?= nav_icon('orders') ?></span>
+                <h2>No orders yet</h2>
+                <p>Every sale with <?= e(planner_first_name($customer['full_name'])) ?> shows here.</p>
+                <a class="nf-btn nf-btn-primary" href="<?= APP_URL ?>/orders/create?customer=<?= (int)$customer['id'] ?>"><?= nav_icon('plus') ?>New order</a>
+            </div>
         <?php endif; ?>
     </div>
 
