@@ -29,7 +29,7 @@ class CustomerController {
         $per_page = 20;
         $offset   = ($page - 1) * $per_page;
 
-        $where  = ["c.business_id = ?", "c.deleted_at IS NULL"];
+        $where  = ["c.business_id = ?", "c.deleted_at IS NULL", "c.is_walk_in = 0"];
         $params = [$this->biz_id];
 
         if ($search !== '') {
@@ -92,7 +92,7 @@ class CustomerController {
                 COALESCE(SUM(total_received), 0)                             AS total_received,
                 COALESCE(SUM(outstanding_balance), 0)                        AS total_outstanding,
                 SUM(CASE WHEN outstanding_balance > 0 THEN 1 ELSE 0 END)   AS owing_count
-            FROM customers WHERE business_id = ? AND deleted_at IS NULL
+            FROM customers WHERE business_id = ? AND deleted_at IS NULL AND is_walk_in = 0
         ");
         $stmtS->execute([$this->biz_id]);
         $summary = $stmtS->fetch();
@@ -155,6 +155,10 @@ class CustomerController {
         if (!$customer) { not_found(); return; }
 
         $currency = $business['currency_symbol'] ?? '₦';
+
+        // Orders: every sale with this client, and money kept for their next one
+        $orders = order_rows($this->db, $this->biz_id, ['customer_id' => (int)$id], 20);
+        $kept   = kept_balance($this->db, $this->biz_id, (int)$id);
 
         // Quotations
         $stmtQ = $this->db->prepare("

@@ -77,6 +77,7 @@ $method_label = match($receipt['method'] ?? 'cash') {
                     </div>
                     <div class="doc-meta">
                         <strong>Ref:</strong> <?= e($receipt['doc_number']) ?><br>
+                        <?php if (!empty($order_number)): ?><strong>Order:</strong> <?= e($order_number) ?><br><?php endif; ?>
                         <strong>Date:</strong> <?= date('d M Y', strtotime($receipt['issue_date'])) ?>
                     </div>
                 </td>

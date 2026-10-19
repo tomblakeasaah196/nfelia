@@ -58,6 +58,7 @@ foreach (file($envPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line)
 }
 
 $host = $cfg['DB_HOST'] ?? 'localhost';
+$port = $cfg['DB_PORT'] ?? '3306';
 $name = $cfg['DB_NAME'] ?? '';
 $user = $cfg['DB_USER'] ?? '';
 $pass = $cfg['DB_PASS'] ?? '';
@@ -71,7 +72,7 @@ try {
     // No COLLATE in the DSN or any init command. Pinning a server-specific
     // collation here is exactly what broke the app on the MariaDB move.
     $pdo = new PDO(
-        "mysql:host={$host};dbname={$name};charset=utf8mb4",
+        "mysql:host={$host};port={$port};dbname={$name};charset=utf8mb4",
         $user,
         $pass,
         [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,

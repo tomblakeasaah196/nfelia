@@ -14,7 +14,7 @@ $currency = $business['currency_symbol'] ?? '₦';
     <a href="<?= APP_URL ?>/debts" class="text-brand-plum/40 hover:text-brand-plum transition-colors">
         <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
     </a>
-    <h1 class="font-heading font-extrabold text-xl text-brand-plum tracking-tight">Record New Debt</h1>
+    <h1 class="font-heading font-extrabold text-xl text-brand-plum tracking-tight">Add a debt</h1>
 </div>
 
 <form method="POST" action="<?= APP_URL ?>/debts/create" class="max-w-2xl"
@@ -32,12 +32,12 @@ $currency = $business['currency_symbol'] ?? '₦';
                 <button type="button" @click="debtType = 'receivable'"
                         :class="debtType === 'receivable' ? 'btn-primary text-white shadow-sm' : 'bg-brand-cream text-brand-plum/60 border border-brand-sand hover:border-brand-gold'"
                         class="flex-1 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all text-center">
-                    They Owe Me (Receivable)
+                    Owed to me
                 </button>
                 <button type="button" @click="debtType = 'payable'"
                         :class="debtType === 'payable' ? 'btn-primary text-white shadow-sm' : 'bg-brand-cream text-brand-plum/60 border border-brand-sand hover:border-brand-gold'"
                         class="flex-1 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all text-center">
-                    I Owe Them (Payable)
+                    I owe
                 </button>
             </div>
             <input type="hidden" name="type" :value="debtType">

@@ -44,9 +44,17 @@ class TasksController {
             'plan'     => array_key_exists($_GET['plan'] ?? '', planner_templates()) ? $_GET['plan'] : null,
             'customer' => (int)($_GET['customer'] ?? 0) ?: null,
             'invoice'  => (int)($_GET['invoice'] ?? 0) ?: null,
+            'order'    => null,
             'date'     => planner_valid_date($_GET['date'] ?? null) ? $_GET['date'] : null,
             'task'     => $this->task_to_open((int)($_GET['task'] ?? 0), $user, $business, $today),
         ];
+
+        // /tasks?new=task&order=7 from an order page: the task is for that
+        // order and its customer
+        if (!empty($_GET['order']) && ($order = order_find($this->db, $this->biz_id, (int)$_GET['order']))) {
+            $prefill['order'] = ['id' => (int)$order['id'], 'number' => $order['order_number']];
+            $prefill['customer'] = $prefill['customer'] ?: ((int)$order['customer_id'] ?: null);
+        }
 
         // The same choices as More > Notifications (app/helpers/notify.php).
         $mine  = notify_prefs_for($this->db, [(int)$user['id']])[(int)$user['id']];
@@ -170,23 +178,44 @@ class TasksController {
             ")->execute([$kind, $title, $notes, $starred, $date, $time, $end, $customer_id, $assigned_to, $repeat, $repeat_day,
                          $remind, $remind_at, $reminded_at, $id, $this->biz_id]);
 
-            // A delivery step and its invoice keep the same promised date.
+            // A delivery step and its invoice keep the same promised date; an
+            // order's moves its delivery note too, and goes in its Log
             if ($existing['step_key'] === 'deliver' && $existing['invoice_id'] && $date) {
-                $this->db->prepare("UPDATE invoices SET deliver_mode = 'date', deliver_by = ? WHERE id = ? AND business_id = ?")
-                         ->execute([$date, $existing['invoice_id'], $this->biz_id]);
+                $order = order_by_invoice($this->db, $this->biz_id, (int)$existing['invoice_id']);
+                $moved = false;
+                if ($order && $date !== $existing['due_date']) {
+                    try {
+                        order_set_when($this->db, $this->biz_id, (int)$order['id'], $date, (int)$user['id']);
+                        $moved = true;
+                    } catch (DomainException $e) {
+                        // done or not confirmed: the step's own date is all that changes
+                    }
+                }
+                if (!$moved) {
+                    $this->db->prepare("UPDATE invoices SET deliver_mode = 'date', deliver_by = ? WHERE id = ? AND business_id = ?")
+                             ->execute([$date, $existing['invoice_id'], $this->biz_id]);
+                }
             }
             // A step's new date can move its job's finish date (P6)
             if ($existing['parent_id'] !== null && $date) {
                 planner_job_finish_follows_steps($this->db, $this->biz_id, (int)$existing['parent_id']);
             }
         } else {
+            // Added from an order's page: it belongs to that order (its Tasks)
+            $order_id = null;
+            if (!empty($in['order_id']) && ($order = order_find($this->db, $this->biz_id, (int)$in['order_id']))) {
+                $order_id = (int)$order['id'];
+            }
             $this->db->prepare("
                 INSERT INTO tasks (business_id, kind, title, notes, is_starred, due_date, due_time, end_time, customer_id,
-                                   assigned_to, repeat_every, repeat_day, remind_before, remind_at, reminded_at, created_by)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                   assigned_to, repeat_every, repeat_day, remind_before, remind_at, reminded_at, created_by, order_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ")->execute([$this->biz_id, $kind, $title, $notes, $starred, $date, $time, $end, $customer_id,
-                         $assigned_to, $repeat, $repeat_day, $remind, $remind_at, $reminded_at, $user['id']]);
+                         $assigned_to, $repeat, $repeat_day, $remind, $remind_at, $reminded_at, $user['id'], $order_id]);
             $id = (int)$this->db->lastInsertId();
+            if ($order_id) {
+                order_log($this->db, $this->biz_id, $order_id, 'task', 'Task added: ' . $title . '.', (int)$user['id'], ['task_id' => $id]);
+            }
         }
 
         $was = (int)($existing['assigned_to'] ?? 0);
@@ -250,7 +279,7 @@ class TasksController {
             if ($task['plan'] !== null && $task['parent_id'] === null) {
                 $this->db->prepare("UPDATE tasks SET done_at = NOW(), done_by = ? WHERE parent_id = ? AND done_at IS NULL AND deleted_at IS NULL")
                          ->execute([$user['id'], $task['id']]);
-                $this->deliver_invoice_for_job((int)$task['id'], true);
+                $this->deliver_invoice_for_job((int)$task['id'], (int)$user['id']);
                 $message = 'Job done.';
             } elseif ($task['parent_id'] !== null) {
                 $left = $this->db->prepare("SELECT COUNT(*) FROM tasks WHERE parent_id = ? AND done_at IS NULL AND deleted_at IS NULL");
@@ -262,8 +291,7 @@ class TasksController {
             }
 
             if ($task['step_key'] === 'deliver' && $task['invoice_id']) {
-                $this->db->prepare("UPDATE invoices SET delivered_at = NOW() WHERE id = ? AND business_id = ? AND delivered_at IS NULL")
-                         ->execute([$task['invoice_id'], $this->biz_id]);
+                order_from_invoice_delivered($this->db, $this->biz_id, (int)$task['invoice_id'], false, (int)$user['id']);
             }
         } elseif (!$done && $task['done_at'] !== null) {
             $this->db->prepare("UPDATE tasks SET done_at = NULL, done_by = NULL WHERE id = ?")->execute([$task['id']]);
@@ -273,7 +301,7 @@ class TasksController {
                 $this->db->prepare("UPDATE tasks SET done_at = NULL, done_by = NULL WHERE id = ?")->execute([$task['parent_id']]);
             }
             if ($task['step_key'] === 'deliver' && $task['invoice_id']) {
-                $this->db->prepare("UPDATE invoices SET delivered_at = NULL WHERE id = ? AND business_id = ?")->execute([$task['invoice_id'], $this->biz_id]);
+                order_from_invoice_delivered($this->db, $this->biz_id, (int)$task['invoice_id'], true, (int)$user['id']);
             }
         }
 
@@ -335,14 +363,14 @@ class TasksController {
     }
 
     /* ──────────────────────────────────────────
-     *  JSON: mark an invoice's order delivered, or undo
+     *  JSON: mark an invoice's order delivered, or undo. An order moves
+     *  with its delivery note, the customer and its Log (orders.php).
      * ────────────────────────────────────────── */
     public function delivered() {
         $in = $this->json_in();
         $invoice_id = (int)($in['invoice_id'] ?? 0);
         if (!$this->owns('invoices', $invoice_id)) json_response(['error' => 'That invoice was not found.'], 404);
-        $this->db->prepare("UPDATE invoices SET delivered_at = " . (!empty($in['undo']) ? 'NULL' : 'NOW()') . " WHERE id = ? AND business_id = ?")
-                 ->execute([$invoice_id, $this->biz_id]);
+        order_from_invoice_delivered($this->db, $this->biz_id, $invoice_id, !empty($in['undo']), (int)auth_user()['id']);
         $this->respond(!empty($in['undo']) ? 'Back on the list.' : 'Marked delivered.');
     }
 
@@ -579,13 +607,17 @@ class TasksController {
         return [$at, $at <= planner_now()->format('Y-m-d H:i:s') ? planner_now()->format('Y-m-d H:i:s') : null];
     }
 
-    /** Ticking a whole job marks its invoice delivered, as the delivery step would. */
-    private function deliver_invoice_for_job(int $parent_id, bool $done): void {
-        $this->db->prepare("
-            UPDATE invoices i JOIN tasks t ON t.invoice_id = i.id AND t.parent_id = ? AND t.step_key = 'deliver'
-            SET i.delivered_at = " . ($done ? 'COALESCE(i.delivered_at, NOW())' : 'NULL') . "
-            WHERE i.business_id = ?
-        ")->execute([$parent_id, $this->biz_id]);
+    /**
+     * Ticking a whole job delivers its invoice, as the delivery step would:
+     * an order's moves on to done (with its Log and the customer's message),
+     * an invoice on its own is marked delivered.
+     */
+    private function deliver_invoice_for_job(int $parent_id, int $user_id): void {
+        $stmt = $this->db->prepare("SELECT DISTINCT invoice_id FROM tasks WHERE parent_id = ? AND business_id = ? AND step_key = 'deliver' AND invoice_id IS NOT NULL AND deleted_at IS NULL");
+        $stmt->execute([$parent_id, $this->biz_id]);
+        foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $invoice_id) {
+            order_from_invoice_delivered($this->db, $this->biz_id, (int)$invoice_id, false, $user_id);
+        }
     }
 
     /** The person a task was given to hears, as they chose (More > Notifications), never in their quiet hours. */
@@ -599,7 +631,7 @@ class TasksController {
     private function customers(): array {
         $stmt = $this->db->prepare("
             SELECT id, full_name AS name, COALESCE(NULLIF(whatsapp, ''), phone) AS phone
-            FROM customers WHERE business_id = ? AND deleted_at IS NULL AND is_active = 1
+            FROM customers WHERE business_id = ? AND deleted_at IS NULL AND is_active = 1 AND is_walk_in = 0
             ORDER BY full_name LIMIT 2000");
         $stmt->execute([$this->biz_id]);
         return array_map(fn($c) => ['id' => (int)$c['id'], 'name' => $c['name'], 'phone' => (string)$c['phone']], $stmt->fetchAll());
@@ -617,13 +649,15 @@ class TasksController {
     /** Invoices a job plan can be linked to: not cancelled, not yet delivered. */
     private function open_invoices(): array {
         $stmt = $this->db->prepare("
-            SELECT i.id, i.doc_number, i.customer_id, i.deliver_by, c.full_name
+            SELECT i.id, i.doc_number, i.customer_id, i.deliver_by, c.full_name, o.order_number
             FROM invoices i LEFT JOIN customers c ON c.id = i.customer_id
+            LEFT JOIN orders o ON o.id = i.order_id AND o.business_id = i.business_id
             WHERE i.business_id = ? AND i.status <> 'cancelled' AND i.delivered_at IS NULL
             ORDER BY i.id DESC LIMIT 200");
         $stmt->execute([$this->biz_id]);
         return array_map(fn($r) => [
-            'id' => (int)$r['id'], 'label' => $r['doc_number'] . ($r['full_name'] ? ' · ' . $r['full_name'] : ''),
+            // An order's invoice goes by its order number, the one everyone uses
+            'id' => (int)$r['id'], 'label' => ($r['order_number'] ?: $r['doc_number']) . ($r['full_name'] ? ' · ' . $r['full_name'] : ''),
             'customer_id' => $r['customer_id'] !== null ? (int)$r['customer_id'] : null, 'deliver_by' => $r['deliver_by'],
         ], $stmt->fetchAll());
     }

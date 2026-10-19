@@ -17,7 +17,7 @@ if ($inv['status'] === 'partially_paid') {
 <a class="nf-item<?= $inv['status'] === 'cancelled' ? ' is-off' : '' ?>" href="<?= APP_URL ?>/invoices/view/<?= (int)$inv['id'] ?>" data-prefetch>
     <span class="nf-item-main">
         <b><?= e($inv['customer_name'] ?: 'No client') ?></b>
-        <small><?= e($inv['doc_number']) ?> · <?= e(screen_date($inv['issue_date'])) ?></small>
+        <small><?= e($inv['doc_number']) ?><?= !empty($inv['order_number']) ? ' · ' . e($inv['order_number']) : '' ?> · <?= e(screen_date($inv['issue_date'])) ?></small>
     </span>
     <span class="nf-item-end">
         <b><?= planner_money((float)$inv['total'], $currency) ?></b>

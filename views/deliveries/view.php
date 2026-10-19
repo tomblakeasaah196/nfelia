@@ -51,6 +51,9 @@ $public_url  = APP_URL . '/delivery/' . $delivery['token'];
                 </span>
             </div>
             <p class="text-xs text-brand-plum/50 font-medium mt-1">Created <?= fmt_date($delivery['created_at'], 'd M Y, H:i') ?></p>
+            <?php if (!empty($order)): ?>
+                <a href="<?= APP_URL ?>/orders/view/<?= (int)$order['id'] ?>" class="inline-flex items-center min-h-[44px] text-sm font-semibold text-brand-burgundy">For order <?= e($order['order_number']) ?></a>
+            <?php endif; ?>
         </div>
     </div>
     <div class="flex items-center gap-2">
@@ -363,7 +366,8 @@ $public_url  = APP_URL . '/delivery/' . $delivery['token'];
             <!-- WhatsApp Share -->
             <?php if ($wa_number): ?>
                 <?php
-                    $wa_msg = urlencode("Hi {$delivery['recipient_name']},\n\nYour delivery ({$delivery['doc_number']}) is ready. Please confirm receipt by signing here:\n\n{$signoff_url}\n\nThank you!\n— " . ($business['business_name'] ?? 'Nfelia'));
+                    $wa_msg = rawurlencode("Hello " . planner_first_name($delivery['recipient_name']) . ",\n\nYour delivery {$delivery['doc_number']}"
+                        . (!empty($order) ? " for order {$order['order_number']}" : '') . " from {$business['name']} is on its way. When it arrives, please confirm here:\n\n{$signoff_url}\n\nThank you!");
                 ?>
                 <a href="https://wa.me/<?= $wa_number ?>?text=<?= $wa_msg ?>" target="_blank"
                    class="w-full flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 text-white px-4 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-colors shadow-sm">

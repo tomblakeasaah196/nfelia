@@ -88,11 +88,11 @@ $currency = $business["currency_symbol"] ?? "₦"; ?>
                     <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1.5">Target Module</label>
                     <select x-model="targetModule" @change="candidates = []; selectedMap = {};"
                             class="w-full px-3.5 py-2.5 text-xs font-bold uppercase tracking-wider bg-brand-cream border border-brand-sand rounded-xl text-brand-plum focus:outline-none focus:border-brand-gold">
+                        <option value="orders">Orders (ORD), with all their documents</option>
                         <option value="quotations">Quotations (QUO)</option>
                         <option value="invoices">Invoices (INV)</option>
                         <option value="receipts">Receipts (REC)</option>
                         <option value="deliveries">Delivery Notes (DEL)</option>
-                        <option value="orders">Storefront Orders (ORD)</option>
                         <option value="products">Catalog & Stock</option>
                         <option value="customers">Client Directory</option>
                     </select>
@@ -450,7 +450,7 @@ function purgeCockpit() {
     return {
         activeTab: '<?= $has_pin ? "console" : "config" ?>',
         searchMode: 'exact',
-        targetModule: 'quotations',
+        targetModule: 'orders',
         exactString: '',
         batchDate: '<?= date("Y-m-d") ?>',
         batchTimeStart: '00:00',

@@ -26,6 +26,7 @@ require_once __DIR__ . '/app/helpers/billing.php';
 require_once __DIR__ . '/app/helpers/stock.php';
 require_once __DIR__ . '/app/helpers/money.php';
 require_once __DIR__ . '/app/helpers/invoices.php';
+require_once __DIR__ . '/app/helpers/orders.php';
 require_once __DIR__ . '/app/helpers/token.php';
 require_once __DIR__ . '/app/helpers/mail.php';
 require_once __DIR__ . '/app/helpers/webpush.php';
@@ -42,6 +43,7 @@ require_once __DIR__ . '/app/helpers/signin.php';
 require_once __DIR__ . '/app/helpers/passkeys.php';
 require_once __DIR__ . '/app/helpers/notify.php';
 require_once __DIR__ . '/app/helpers/screens.php';
+require_once __DIR__ . '/app/helpers/ui.php';
 require_once __DIR__ . '/app/helpers/view_as.php';
 
 // --- GLOBAL EXCEPTION & FATAL ERROR HANDLER ---

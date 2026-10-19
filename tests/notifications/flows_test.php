@@ -269,8 +269,15 @@ expect('quote.comment', [ADA, BISI], 'quotations/view/502');
 eq(latest(ADA, 'quote.comment')['message'] ?? null, 'Ngozi Eze: “Can you do it for ₦200k?”', 'quoting what they said');
 opens(BISI, 'quote.comment', 'quotations/view/502', 'ADA-QUO-0502');
 $cust->post('doc/' . $quote_token(500), ['action' => 'sign', 'name' => 'Ngozi Eze', 'signature' => 'data:image/png;base64,iVBORw0KGgo=']);
-expect('quote.accepted', [ADA, BISI], 'quotations/view/500');
-eq(latest(ADA, 'quote.accepted')['message'] ?? null, 'Ngozi Eze signed and accepted it, ₦250,000.', 'a won deal, with its value');
+$from_quote = rows("SELECT o.id, o.order_number, o.status, o.channel, q.status AS quote_status, (SELECT COUNT(*) FROM invoices i WHERE i.order_id = o.id) AS invoices
+                    FROM orders o JOIN quotations q ON q.id = o.quotation_id WHERE o.quotation_id = 500");
+$quote_order = $from_quote[0] ?? ['id' => 0, 'order_number' => '?'];
+expect('quote.accepted', [ADA, BISI], 'orders/view/' . $quote_order['id']);
+eq(latest(ADA, 'quote.accepted')['message'] ?? null, 'Ngozi Eze signed and accepted it, ₦250,000. Order ' . $quote_order['order_number'] . ' is made.', 'a won deal, with its value and its order');
+opens(ADA, 'quote.accepted', 'orders/view/' . $quote_order['id'], $quote_order['order_number']);
+ok(count($from_quote) === 1 && $from_quote[0]['channel'] === 'quote' && $from_quote[0]['status'] === 'approved'
+   && (int)$from_quote[0]['invoices'] === 1 && $from_quote[0]['quote_status'] === 'converted',
+   'signing made its order, confirmed, with its invoice, and the quote reads Ordered');
 $cust->post('doc/' . $quote_token(501), ['action' => 'decline', 'reason' => 'Too dear']);
 expect('quote.declined', [ADA, BISI], 'quotations/view/501');
 eq(latest(ADA, 'quote.declined')['message'] ?? null, 'Ngozi Eze declined it. “Too dear”', 'a declined quote now says so, with the reason');
@@ -285,11 +292,11 @@ $tok = (string)q("SELECT token FROM deliveries WHERE id = 600");
 $cust->get("sign/{$sign}");
 if ($cust->status !== 200) { $cust->get("sign/{$tok}"); $sign = $tok; }
 $cust->post("sign/{$sign}", ['signoff_name' => 'Ngozi Eze', 'signature_data' => 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAACXBIWXMAAA7EAAAOxAGVKw4bAAAADElEQVQImWNgYGAAAAAEAAGjChXjAAAAAElFTkSuQmCC']);
-expect('delivery.signed', [ADA, BISI], 'deliveries/view/600');
-eq(latest(ADA, 'delivery.signed')['message'] ?? null, 'Received and signed by Ngozi Eze.', 'who signed');
+expect('delivery.signed', [ADA, BISI], 'orders/view/702#delivery');   // the note is for shop order 702: the order is the hub
+eq(latest(ADA, 'delivery.signed')['message'] ?? null, 'Received and signed by Ngozi Eze, order ORD-0702.', 'who signed, for which order');
 $cust->post("sign/{$sign}", ['signoff_name' => 'Ngozi Eze', 'signature_data' => 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAACXBIWXMAAA7EAAAOxAGVKw4bAAAADElEQVQImWNgYGAAAAAEAAGjChXjAAAAAElFTkSuQmCC']);
 eq(count(rows("SELECT id FROM notifications WHERE event = 'delivery.signed'")), 2, 'signing twice tells nobody twice');
-opens(ADA, 'delivery.signed', 'deliveries/view/600', 'ADA-DN-0600');
+opens(ADA, 'delivery.signed', 'orders/view/702#delivery', 'ADA-DN-0600');
 
 /* ══ Tasks between people ════════════════════════════════════ */
 

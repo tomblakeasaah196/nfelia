@@ -74,18 +74,21 @@ function notify_events(): array
 
     $events = [
         /* ── Money in ─────────────────────────────────────────── */
+        // An order's invoice opens its order, where the money is managed
         'payment.invoice' => [
             'topic' => 'money', 'to' => 'boss', 'urgency' => 'high',
-            'url' => fn($d) => 'invoices/view/' . (int)$d['invoice_id'],
+            'url' => fn($d) => !empty($d['order_id']) ? 'orders/view/' . (int)$d['order_id'] . '#money' : 'invoices/view/' . (int)$d['invoice_id'],
             'tag' => fn($d) => 'pay-inv-' . (int)$d['invoice_id'],
             'text' => fn($d, $m) => [
                 $m($d['amount']) . ' received · ' . $d['invoice_number'],
-                trim(($d['customer'] ?: 'A customer') . ' paid' . (!empty($d['method']) ? ' by ' . $d['method'] : '') . '. '
+                trim(($d['customer'] ?: 'A customer') . ' paid' . (!empty($d['method']) ? ' by ' . $d['method'] : '')
+                    . (!empty($d['order_number']) ? ' for order ' . $d['order_number'] : '') . '. '
                     . ((float)$d['balance'] > 0 ? $m($d['balance']) . ' still owed.' : 'Paid in full.')),
             ],
             'private' => 'Payment received',
-            'lines' => fn($d, $m) => ['Invoice' => $d['invoice_number'], 'Customer' => $d['customer'], 'Amount' => $m($d['amount']), 'Still owed' => $m($d['balance'])],
-            'button' => 'Open the invoice',
+            'lines' => fn($d, $m) => ['Invoice' => $d['invoice_number'], 'Order' => $d['order_number'] ?? '', 'Customer' => $d['customer'],
+                                      'Amount' => $m($d['amount']), 'Still owed' => $m($d['balance'])],
+            'button' => fn($d) => !empty($d['order_id']) ? 'Open the order' : 'Open the invoice',
         ],
         'payment.receipt' => [
             'topic' => 'money', 'to' => 'boss', 'urgency' => 'high',
@@ -120,6 +123,21 @@ function notify_events(): array
             ],
             'private' => 'Payment received',
             'button' => 'Open the debt',
+        ],
+        // Money going back: the customer filled in where their refund should
+        // go (the link from refund_ask() in app/helpers/orders.php)
+        'refund.details' => [
+            'topic' => 'money', 'to' => 'boss', 'urgency' => 'high',
+            'url' => fn($d) => 'orders/view/' . (int)$d['order_id'],
+            'tag' => fn($d) => 'refund-' . (int)$d['order_id'],
+            'text' => fn($d, $m) => [
+                'Refund details from ' . ($d['customer'] ?: 'your customer'),
+                'They sent where to send ' . $m($d['amount']) . ' for order ' . $d['order_number'] . '. Pay it, then record the refund.',
+            ],
+            'private' => 'Refund details received',
+            'lines' => fn($d, $m) => ['Order' => $d['order_number'], 'Customer' => $d['customer'], 'Amount' => $m($d['amount']),
+                                      'Send to' => $d['payee'] ?? ''],
+            'button' => 'Open the order',
         ],
 
         /* ── Shop orders, quote requests, bookings ────────────── */
@@ -168,14 +186,16 @@ function notify_events(): array
         ],
 
         /* ── Customers acting on what you sent ────────────────── */
+        // A signed quote becomes its order (order_from_quote()): that is where to go next
         'quote.accepted' => [
             'topic' => 'customers', 'to' => 'boss', 'urgency' => 'high',
-            'url' => fn($d) => 'quotations/view/' . (int)$d['quotation_id'],
+            'url' => fn($d) => !empty($d['order_id']) ? 'orders/view/' . (int)$d['order_id'] : 'quotations/view/' . (int)$d['quotation_id'],
             'tag' => fn($d) => 'quote-' . (int)$d['quotation_id'],
             'text' => fn($d, $m) => ['Quote accepted: ' . $d['quotation_number'],
-                                     $d['customer'] . ' signed and accepted it' . ($m && isset($d['total']) ? ', ' . $m($d['total']) : '') . '.'],
+                                     $d['customer'] . ' signed and accepted it' . ($m && isset($d['total']) ? ', ' . $m($d['total']) : '') . '.'
+                                     . (!empty($d['order_number']) ? ' Order ' . $d['order_number'] . ' is made.' : '')],
             'private' => 'A quote was accepted',
-            'button' => 'Open the quote',
+            'button' => fn($d) => !empty($d['order_id']) ? 'Open the order' : 'Open the quote',
         ],
         'quote.declined' => [
             'topic' => 'customers', 'to' => 'boss',
@@ -196,11 +216,12 @@ function notify_events(): array
         ],
         'delivery.signed' => [
             'topic' => 'customers', 'to' => 'boss',
-            'url' => fn($d) => 'deliveries/view/' . (int)$d['delivery_id'],
+            'url' => fn($d) => !empty($d['order_id']) ? 'orders/view/' . (int)$d['order_id'] . '#delivery' : 'deliveries/view/' . (int)$d['delivery_id'],
             'tag' => fn($d) => 'delivery-' . (int)$d['delivery_id'],
-            'text' => fn($d, $m) => ['Delivery signed: ' . $d['delivery_number'], 'Received and signed by ' . $d['signer'] . '.'],
+            'text' => fn($d, $m) => ['Delivery signed: ' . $d['delivery_number'],
+                                     'Received and signed by ' . $d['signer'] . (!empty($d['order_number']) ? ', order ' . $d['order_number'] : '') . '.'],
             'private' => 'A delivery was signed',
-            'button' => 'Open the delivery',
+            'button' => fn($d) => !empty($d['order_id']) ? 'Open the order' : 'Open the delivery',
         ],
         'review.new' => [
             'topic' => 'customers', 'to' => 'boss',
@@ -215,12 +236,14 @@ function notify_events(): array
         /* ── Overdue and expired ──────────────────────────────── */
         'invoice.overdue' => [
             'topic' => 'overdue', 'to' => 'boss',
-            'url' => fn($d) => 'invoices/view/' . (int)$d['invoice_id'],
+            'url' => fn($d) => !empty($d['order_id']) ? 'orders/view/' . (int)$d['order_id'] . '#money' : 'invoices/view/' . (int)$d['invoice_id'],
             'tag' => fn($d) => 'overdue-' . (int)$d['invoice_id'],
             'text' => fn($d, $m) => ['Overdue: ' . $d['invoice_number'],
-                                     ($d['customer'] ?: 'A customer') . ' owes ' . $m($d['balance']) . ', ' . $pl((int)$d['days'], 'day', 'days') . ' past due.'],
+                                     ($d['customer'] ?: 'A customer') . ' owes ' . $m($d['balance'])
+                                     . (!empty($d['order_number']) ? ' on order ' . $d['order_number'] : '')
+                                     . ', ' . $pl((int)$d['days'], 'day', 'days') . ' past due.'],
             'private' => 'An invoice is overdue',
-            'button' => 'Open the invoice',
+            'button' => fn($d) => !empty($d['order_id']) ? 'Open the order' : 'Open the invoice',
         ],
         'invoice.overdue_many' => [
             'topic' => 'overdue', 'to' => 'boss',
@@ -627,7 +650,7 @@ function notify(string $event, int $business_id, array $data = [], array $opts =
                             'headline'     => $title,
                             'message'      => $body,
                             'lines'        => $lines,
-                            'button'       => $def['button'] ?? 'Open in Nfelia',
+                            'button'       => ($def['button'] ?? null) instanceof Closure ? ($def['button'])($data) : ($def['button'] ?? 'Open in Nfelia'),
                             'open_url'     => APP_URL . '/' . $open,
                             'prefs_url'    => APP_URL . '/more#notifications',
                             'topic_label'  => $topic ? NOTIFY_TOPICS[$topic]['label'] : null,

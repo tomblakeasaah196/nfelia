@@ -87,6 +87,7 @@ $status_color = match($invoice['status'] ?? '') {
                     <div class="doc-meta">
                         <span class="status-stamp"><?= e($status_label) ?></span><br><br>
                         <strong>Ref:</strong> <?= e($invoice['doc_number']) ?><br>
+                        <?php if (!empty($order_number)): ?><strong>Order:</strong> <?= e($order_number) ?><br><?php endif; ?>
                         <strong>Issue Date:</strong> <?= date('d M Y', strtotime($invoice['issue_date'])) ?><br>
                         <?php if ($invoice['due_date']): ?>
                             <strong>Due Date:</strong> <?= date('d M Y', strtotime($invoice['due_date'])) ?>

@@ -515,15 +515,36 @@ class PurgeController
             if (!empty($row["payment_proof_path"])) {
                 $tree["disk_files"][] = $row["payment_proof_path"];
             }
-            if (!empty($row["invoice_id"])) {
-                $tree["children"][] = [
-                    "type" => "Linked Invoice",
-                    "id" => $row["invoice_id"],
-                    "name" => "INV #{$row["invoice_id"]}",
-                    "val" => $amount,
-                    "status" => "Linked",
-                ];
+            // Everything the order holds goes with it
+            $inv_id = (int) ($row["invoice_id"] ?? 0);
+            $parts = [
+                ["Invoice", "SELECT id, doc_number AS name, total AS val, status FROM invoices WHERE business_id = ? AND (order_id = ? OR id = ?)", [$this->biz_id, $id, $inv_id]],
+                ["Receipt", "SELECT id, doc_number AS name, amount AS val, 'Paid' AS status FROM receipts WHERE business_id = ? AND (order_id = ? OR invoice_id = ?)", [$this->biz_id, $id, $inv_id]],
+                ["Delivery Note", "SELECT id, doc_number AS name, 0 AS val, status FROM deliveries WHERE business_id = ? AND (order_id = ? OR invoice_id = ?)", [$this->biz_id, $id, $inv_id]],
+                ["Debt", "SELECT id, description AS name, balance AS val, status FROM debts WHERE business_id = ? AND (order_id = ? OR invoice_id = ?)", [$this->biz_id, $id, $inv_id]],
+                ["Refund", "SELECT id, COALESCE(doc_number, 'Asked') AS name, amount AS val, status FROM refunds WHERE business_id = ? AND order_id = ?", [$this->biz_id, $id]],
+            ];
+            $seen = [];
+            foreach ($parts as [$type, $sql, $params]) {
+                $s = $this->db->prepare($sql);
+                $s->execute($params);
+                foreach ($s->fetchAll() as $c) {
+                    if (isset($seen[$type . $c["id"]])) {
+                        continue;
+                    }
+                    $seen[$type . $c["id"]] = true;
+                    $tree["children"][] = [
+                        "type" => $type,
+                        "id" => $c["id"],
+                        "name" => $c["name"],
+                        "val" => (float) $c["val"],
+                        "status" => $c["status"],
+                    ];
+                }
             }
+            $s = $this->db->prepare("SELECT proof_path FROM refunds WHERE business_id = ? AND order_id = ? AND proof_path IS NOT NULL");
+            $s->execute([$this->biz_id, $id]);
+            $tree["disk_files"] = array_merge($tree["disk_files"], $s->fetchAll(PDO::FETCH_COLUMN));
         } elseif ($module === "deliveries") {
             if (!empty($row["signoff_signature_path"])) {
                 $tree["disk_files"][] = $row["signoff_signature_path"];
@@ -604,70 +625,77 @@ class PurgeController
                     "UPDATE invoices SET quotation_id = NULL WHERE quotation_id = ?",
                 )
                 ->execute([$target_id]);
-        } elseif ($module === "invoices") {
-            // The stock it took off goes back
-            stock_settle($this->db, $this->biz_id, "invoice", $target_id, [], "invoice " . $impact["identifier"] . " purged");
             $this->db
-                ->prepare("DELETE FROM invoice_items WHERE invoice_id = ?")
-                ->execute([$target_id]);
-            // Delete child receipts, and what pointed at them
-            $stmtR = $this->db->prepare("SELECT id FROM receipts WHERE invoice_id = ? AND business_id = ?");
+                ->prepare("UPDATE orders SET quotation_id = NULL WHERE quotation_id = ? AND business_id = ?")
+                ->execute([$target_id, $this->biz_id]);
+        } elseif ($module === "invoices") {
+            // An order's invoice is that order's money: it goes with its order
+            $order_no = $this->order_number_for_invoice($row);
+            if ($order_no !== null) {
+                return [
+                    "identifier" => $impact["identifier"],
+                    "skipped" => "belongs to order {$order_no}; purge the order and it goes with it",
+                ];
+            }
+            $this->purge_invoice($target_id, $impact["identifier"], $files);
+        } elseif ($module === "orders") {
+            // Money it kept for the customer that another order already used
+            // would leave that order paid from nothing: purge that one first
+            $stmtK = $this->db->prepare("
+                SELECT k.customer_id, SUM(k.amount) AS here,
+                       (SELECT SUM(a.amount) FROM kept_money a WHERE a.business_id = k.business_id AND a.customer_id = k.customer_id) AS everything
+                FROM kept_money k WHERE k.business_id = ? AND k.order_id = ? GROUP BY k.customer_id, k.business_id");
+            $stmtK->execute([$this->biz_id, $target_id]);
+            foreach ($stmtK->fetchAll() as $k) {
+                if ((float) $k["here"] > 0 && (float) $k["everything"] - (float) $k["here"] < -0.004) {
+                    return [
+                        "identifier" => $impact["identifier"],
+                        "skipped" => "money kept from it was used on another order; purge that order first",
+                    ];
+                }
+            }
+            // An order takes everything it holds: its invoice (with payments,
+            // receipts, deliveries and debt), refunds, kept money and its log
+            $stmtI = $this->db->prepare("SELECT id, doc_number FROM invoices WHERE business_id = ? AND (order_id = ? OR id = ?)");
+            $stmtI->execute([$this->biz_id, $target_id, (int) ($row["invoice_id"] ?? 0)]);
+            foreach ($stmtI->fetchAll() as $inv) {
+                $this->purge_invoice((int) $inv["id"], (string) $inv["doc_number"], $files);
+                $this->db
+                    ->prepare("DELETE FROM invoices WHERE id = ? AND business_id = ?")
+                    ->execute([(int) $inv["id"], $this->biz_id]);
+            }
+            // Anything left that still points here without going through the invoice
+            $stmtR = $this->db->prepare("SELECT id FROM receipts WHERE order_id = ? AND business_id = ?");
             $stmtR->execute([$target_id, $this->biz_id]);
             foreach ($stmtR->fetchAll(PDO::FETCH_COLUMN) as $receipt_id) {
                 $this->forget_receipt((int) $receipt_id);
+                $this->db->prepare("DELETE FROM receipts WHERE id = ?")->execute([(int) $receipt_id]);
             }
-            $this->db
-                ->prepare(
-                    "DELETE FROM receipts WHERE invoice_id = ? AND business_id = ?",
-                )
-                ->execute([$target_id, $this->biz_id]);
-            // Its payments, and the debt it raised with its settlements
-            $this->db
-                ->prepare("DELETE FROM payments WHERE invoice_id = ? AND business_id = ?")
-                ->execute([$target_id, $this->biz_id]);
-            $this->db
-                ->prepare("DELETE s FROM debt_settlements s JOIN debts d ON d.id = s.debt_id WHERE d.invoice_id = ? AND d.business_id = ?")
-                ->execute([$target_id, $this->biz_id]);
-            $this->db
-                ->prepare("DELETE FROM debts WHERE invoice_id = ? AND business_id = ?")
-                ->execute([$target_id, $this->biz_id]);
-            $this->db
-                ->prepare("UPDATE deeds SET invoice_id = NULL WHERE invoice_id = ? AND business_id = ?")
-                ->execute([$target_id, $this->biz_id]);
-            // Its tasks stay, without the link or the delivery step's promise (P8)
-            $this->db
-                ->prepare("UPDATE tasks SET invoice_id = NULL, step_key = NULL WHERE invoice_id = ? AND business_id = ?")
-                ->execute([$target_id, $this->biz_id]);
-            // Delete child deliveries & items (and their signatures)
-            $stmtD = $this->db->prepare(
-                "SELECT id, signoff_signature_path FROM deliveries WHERE invoice_id = ? AND business_id = ?",
-            );
+            $stmtD = $this->db->prepare("SELECT id, signoff_signature_path FROM deliveries WHERE order_id = ? AND business_id = ?");
             $stmtD->execute([$target_id, $this->biz_id]);
             foreach ($stmtD->fetchAll() as $drow) {
-                $this->db
-                    ->prepare(
-                        "DELETE FROM delivery_items WHERE delivery_id = ?",
-                    )
-                    ->execute([(int) $drow["id"]]);
-                $this->db
-                    ->prepare("UPDATE orders SET delivery_id = NULL WHERE delivery_id = ? AND business_id = ?")
-                    ->execute([(int) $drow["id"], $this->biz_id]);
+                $this->db->prepare("DELETE FROM delivery_items WHERE delivery_id = ?")->execute([(int) $drow["id"]]);
+                $this->db->prepare("DELETE FROM deliveries WHERE id = ?")->execute([(int) $drow["id"]]);
                 if (!empty($drow["signoff_signature_path"])) {
                     $files[] = $drow["signoff_signature_path"];
                 }
             }
             $this->db
-                ->prepare(
-                    "DELETE FROM deliveries WHERE invoice_id = ? AND business_id = ?",
-                )
+                ->prepare("DELETE s FROM debt_settlements s JOIN debts d ON d.id = s.debt_id WHERE d.order_id = ? AND d.business_id = ?")
                 ->execute([$target_id, $this->biz_id]);
-            // Unlink order references
             $this->db
-                ->prepare(
-                    "UPDATE orders SET invoice_id = NULL WHERE invoice_id = ?",
-                )
-                ->execute([$target_id]);
-        } elseif ($module === "orders") {
+                ->prepare("DELETE FROM debts WHERE order_id = ? AND business_id = ?")
+                ->execute([$target_id, $this->biz_id]);
+            // (refund proofs are already in $files, from the impact tree)
+            foreach (["refunds", "kept_money", "order_events"] as $table) {
+                $this->db
+                    ->prepare("DELETE FROM {$table} WHERE order_id = ? AND business_id = ?")
+                    ->execute([$target_id, $this->biz_id]);
+            }
+            // Its tasks stay, without the link
+            $this->db
+                ->prepare("UPDATE tasks SET order_id = NULL, invoice_id = NULL, step_key = NULL WHERE order_id = ? AND business_id = ?")
+                ->execute([$target_id, $this->biz_id]);
             $this->db
                 ->prepare("DELETE FROM order_items WHERE order_id = ?")
                 ->execute([$target_id]);
@@ -701,7 +729,7 @@ class PurgeController
         );
         $stmtDel->execute([$target_id, $this->biz_id]);
 
-        if ($customer_id && in_array($module, ["invoices", "receipts"], true)) {
+        if ($customer_id && in_array($module, ["invoices", "receipts", "orders"], true)) {
             customer_refresh_totals($this->db, $this->biz_id, $customer_id);
         }
 
@@ -710,6 +738,86 @@ class PurgeController
             "snapshot" => $row,
             "files" => $files,
         ];
+    }
+
+    /**
+     * Clear an invoice and everything hanging off it: its stock goes back,
+     * its receipts, payments, debt, deliveries and lines go. The invoice row
+     * itself is left for the caller to delete.
+     */
+    private function purge_invoice(int $invoice_id, string $identifier, array &$files): void
+    {
+        // The stock it took off goes back
+        stock_settle($this->db, $this->biz_id, "invoice", $invoice_id, [], "invoice " . $identifier . " purged");
+        $this->db
+            ->prepare("DELETE FROM invoice_items WHERE invoice_id = ?")
+            ->execute([$invoice_id]);
+        // Delete child receipts, and what pointed at them
+        $stmtR = $this->db->prepare("SELECT id FROM receipts WHERE invoice_id = ? AND business_id = ?");
+        $stmtR->execute([$invoice_id, $this->biz_id]);
+        foreach ($stmtR->fetchAll(PDO::FETCH_COLUMN) as $receipt_id) {
+            $this->forget_receipt((int) $receipt_id);
+        }
+        $this->db
+            ->prepare(
+                "DELETE FROM receipts WHERE invoice_id = ? AND business_id = ?",
+            )
+            ->execute([$invoice_id, $this->biz_id]);
+        // Its payments, and the debt it raised with its settlements
+        $this->db
+            ->prepare("DELETE FROM payments WHERE invoice_id = ? AND business_id = ?")
+            ->execute([$invoice_id, $this->biz_id]);
+        $this->db
+            ->prepare("DELETE s FROM debt_settlements s JOIN debts d ON d.id = s.debt_id WHERE d.invoice_id = ? AND d.business_id = ?")
+            ->execute([$invoice_id, $this->biz_id]);
+        $this->db
+            ->prepare("DELETE FROM debts WHERE invoice_id = ? AND business_id = ?")
+            ->execute([$invoice_id, $this->biz_id]);
+        $this->db
+            ->prepare("UPDATE deeds SET invoice_id = NULL WHERE invoice_id = ? AND business_id = ?")
+            ->execute([$invoice_id, $this->biz_id]);
+        // Its tasks stay, without the link or the delivery step's promise (P8)
+        $this->db
+            ->prepare("UPDATE tasks SET invoice_id = NULL, step_key = NULL WHERE invoice_id = ? AND business_id = ?")
+            ->execute([$invoice_id, $this->biz_id]);
+        // Delete child deliveries & items (and their signatures)
+        $stmtD = $this->db->prepare(
+            "SELECT id, signoff_signature_path FROM deliveries WHERE invoice_id = ? AND business_id = ?",
+        );
+        $stmtD->execute([$invoice_id, $this->biz_id]);
+        foreach ($stmtD->fetchAll() as $drow) {
+            $this->db
+                ->prepare(
+                    "DELETE FROM delivery_items WHERE delivery_id = ?",
+                )
+                ->execute([(int) $drow["id"]]);
+            $this->db
+                ->prepare("UPDATE orders SET delivery_id = NULL WHERE delivery_id = ? AND business_id = ?")
+                ->execute([(int) $drow["id"], $this->biz_id]);
+            if (!empty($drow["signoff_signature_path"])) {
+                $files[] = $drow["signoff_signature_path"];
+            }
+        }
+        $this->db
+            ->prepare(
+                "DELETE FROM deliveries WHERE invoice_id = ? AND business_id = ?",
+            )
+            ->execute([$invoice_id, $this->biz_id]);
+        // Unlink order references
+        $this->db
+            ->prepare(
+                "UPDATE orders SET invoice_id = NULL WHERE invoice_id = ?",
+            )
+            ->execute([$invoice_id]);
+    }
+
+    /** The order an invoice belongs to, by number, or null for a standalone one. */
+    private function order_number_for_invoice(array $invoice): ?string
+    {
+        $stmt = $this->db->prepare("SELECT order_number FROM orders WHERE business_id = ? AND (id = ? OR invoice_id = ?) LIMIT 1");
+        $stmt->execute([$this->biz_id, (int) ($invoice["order_id"] ?? 0), (int) $invoice["id"]]);
+        $no = $stmt->fetchColumn();
+        return $no === false ? null : (string) $no;
     }
 
     /** Clear everything that points at a receipt, and its lines. */

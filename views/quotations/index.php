@@ -7,18 +7,18 @@
  *   $search, $status, $sort, $page, $total_pages, $total_items
  */
 $currency   = $business['currency_symbol'] ?? '₦';
-$sales_here = 'quotations';
+$orders_here = 'quotations';
 
 $waiting  = (int)($summary['waiting_count'] ?? 0);
 $accepted = (int)($summary['accepted_count'] ?? 0);
 $today    = planner_today();
 $keep     = ['q' => $search, 'status' => $status, 'sort' => $sort !== 'newest' ? $sort : ''];
-$filters  = ['' => 'All', 'waiting' => 'Waiting', 'accepted' => 'Accepted', 'draft' => 'Drafts', 'converted' => 'Invoiced'];
+$filters  = ['' => 'All', 'waiting' => 'Waiting', 'accepted' => 'Accepted', 'draft' => 'Drafts', 'converted' => 'Ordered'];
 $counts   = ['waiting' => $waiting, 'accepted' => $accepted, 'draft' => (int)($summary['draft_count'] ?? 0)];
 $sorts    = ['newest' => 'Newest first', 'oldest' => 'Oldest first', 'total_desc' => 'Biggest first', 'total_asc' => 'Smallest first'];
 ?>
 <div class="nf-page">
-<?php require BASE_PATH . '/views/partials/sales_head.php'; ?>
+<?php require BASE_PATH . '/views/partials/orders_head.php'; ?>
 
 <?php if (!empty($open_requests)): ?>
 <a class="nf-card" href="<?= APP_URL ?>/quotations/requests" style="display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit">
@@ -73,7 +73,7 @@ $sorts    = ['newest' => 'Newest first', 'oldest' => 'Oldest first', 'total_desc
 
     <div class="nf-items">
         <?php foreach ($quotations as $q):
-            [$tag, $tag_cls] = screen_quote_tag($q['status']);
+            [$tag, $tag_cls] = screen_quote_tag($q['status'], (bool)($q['has_order'] ?? true));
             // A quote still out with the customer says how long it stands.
             if (in_array($q['status'], ['sent', 'in_negotiation', 'pending_signature'], true) && $q['expiry_date']) {
                 if ($q['expiry_date'] < $today) {
@@ -110,14 +110,14 @@ $sorts    = ['newest' => 'Newest first', 'oldest' => 'Oldest first', 'total_desc
                 'waiting'   => 'No quote is waiting',
                 'accepted'  => 'No accepted quotes',
                 'draft'     => 'No drafts',
-                'converted' => 'No quote made into an invoice yet',
+                'converted' => 'No quote has become an order yet',
                 default     => 'No quotes here',
             } ?></h2>
             <p><?= match ($status) {
                 'waiting'   => 'Quotes you send wait here until the customer answers.',
-                'accepted'  => 'When a customer accepts a quote, make it an invoice from here.',
+                'accepted'  => 'When a customer accepts a quote, it becomes an order. One that didn\'t waits here: tap Make it an order.',
                 'draft'     => 'Quotes you save without sending wait here.',
-                'converted' => 'Accepted quotes you turn into invoices show here.',
+                'converted' => 'Accepted quotes become orders, and show here.',
                 default     => 'No quote has this status right now.',
             } ?></p>
         <?php endif; ?>

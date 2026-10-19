@@ -6,7 +6,7 @@
  *   $greeting, $money (in, owed, spent: this month), $overdue_count,
  *   $overdue_value, $orders_waiting, $low_stock_count, $deliveries_open,
  *   $quotes_accepted, $plan (Tasks and Calendar items, late first),
- *   $recent_invoices
+ *   $recent_orders
  * Money is shown to owners and admins only ($is_boss, from the layout).
  */
 $currency = $business['currency_symbol'] ?? '₦';
@@ -23,10 +23,10 @@ if ($is_boss && $overdue_count > 0) {
     $attention[] = ['alert', $plural((int)$overdue_count, 'invoice is overdue', 'invoices are overdue'), planner_money((float)$overdue_value, $currency) . ' to collect', 'invoices?status=overdue', 'is-owed'];
 }
 if ($orders_waiting > 0) {
-    $attention[] = ['orders', $plural((int)$orders_waiting, 'shop order is waiting', 'shop orders are waiting'), 'Check the payment, then approve', 'orders', ''];
+    $attention[] = ['orders', $plural((int)$orders_waiting, 'shop order is waiting', 'shop orders are waiting'), 'Check the payment, then confirm', 'orders?view=confirm', ''];
 }
 if ($quotes_accepted > 0) {
-    $attention[] = ['quote', $plural((int)$quotes_accepted, 'quote was accepted', 'quotes were accepted'), 'Ready to make into invoices', 'quotations?status=accepted', ''];
+    $attention[] = ['quote', $plural((int)$quotes_accepted, 'quote was accepted', 'quotes were accepted'), 'Ready to make into orders', 'quotations?status=accepted', ''];
 }
 if ($low_stock_count > 0) {
     $attention[] = ['stock', $plural((int)$low_stock_count, 'item is low or out', 'items are low or out'), 'Restock before you run out', 'products?stock=restock', 'is-warn'];
@@ -42,7 +42,7 @@ if ($deliveries_open > 0) {
 
 <div class="nf-find is-home" data-omni>
     <label class="nf-search"><?= nav_icon('search') ?>
-        <input type="search" placeholder="Find a client, invoice or item" aria-label="Search your business" autocomplete="off" enterkeyhint="search"
+        <input type="search" placeholder="Find a client, order or item" aria-label="Search your business" autocomplete="off" enterkeyhint="search"
                aria-controls="nf-omni" aria-expanded="false">
     </label>
     <div class="nf-results" id="nf-omni" hidden></div>
@@ -59,7 +59,7 @@ if ($deliveries_open > 0) {
                          aria-label="<?= $in_hand ?>% in hand, the rest still owed"><i></i></div>
                     <p class="nf-thread-key">
                         <span><b><?= planner_money($in, $currency) ?></b> in hand</span>
-                        <a href="<?= APP_URL ?>/invoices?status=unpaid"><b class="<?= $owed > 0 ? 'is-owed' : '' ?>"><?= planner_money($owed, $currency) ?></b> still owed</a>
+                        <a href="<?= APP_URL ?>/<?= $owed_url ?>"><b class="<?= $owed > 0 ? 'is-owed' : '' ?>"><?= planner_money($owed, $currency) ?></b> still owed</a>
                     </p>
                 <?php endif; ?>
                 <dl class="nf-figs">
@@ -113,20 +113,20 @@ if ($deliveries_open > 0) {
         </section>
 
         <section class="nf-card is-flush" aria-labelledby="nf-recent-h">
-            <div class="nf-card-h"><h2 id="nf-recent-h">Latest invoices</h2><a class="nf-link" href="<?= APP_URL ?>/invoices" data-prefetch>See all</a></div>
-            <?php if ($recent_invoices): ?>
+            <div class="nf-card-h"><h2 id="nf-recent-h">Latest orders</h2><a class="nf-link" href="<?= APP_URL ?>/orders" data-prefetch>See all</a></div>
+            <?php if ($recent_orders): ?>
                 <div class="nf-items">
-                    <?php foreach ($recent_invoices as $inv) require BASE_PATH . '/views/partials/invoice_row.php'; ?>
+                    <?php foreach ($recent_orders as $o) require BASE_PATH . '/views/partials/order_row.php'; ?>
                 </div>
             <?php else: ?>
-                <p class="nf-card-note">No invoices yet. <a class="nf-link" href="<?= APP_URL ?>/invoices/create">Create your first invoice</a></p>
+                <p class="nf-card-note">No orders yet. <a class="nf-link" href="<?= APP_URL ?>/orders/create">Take your first order</a></p>
             <?php endif; ?>
         </section>
     </div>
 </div>
 
 <script>
-// Search across clients, stock, invoices and quotes (DashboardController::search).
+// Search across clients, stock, orders, invoices and quotes (DashboardController::search).
 // Results are built as elements, never as HTML: names come from customers.
 (function () {
     var box = document.querySelector('[data-omni]');

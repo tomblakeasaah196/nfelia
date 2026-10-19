@@ -135,6 +135,27 @@ function csrf_verify(): void {
 function csrf_regenerate(): void {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
+
+/**
+ * A one-time token for a form that records money (a payment, a refund, a
+ * new order): a second tap on a slow network, or the browser sending it
+ * again, finds the token used and saves nothing twice. Returns the hidden
+ * field. A form posted without one still goes through.
+ */
+function form_once(): string {
+    $t = 'f' . bin2hex(random_bytes(12));
+    $_SESSION['form_once'] = array_slice(($_SESSION['form_once'] ?? []) + [$t => time()], -40, null, true);
+    return '<input type="hidden" name="once" value="' . $t . '">';
+}
+
+/** True when this post's one-time token was already used; uses it otherwise. */
+function form_once_used(): bool {
+    $t = (string)($_POST['once'] ?? '');
+    if ($t === '') return false;
+    if (!isset($_SESSION['form_once'][$t])) return true;
+    unset($_SESSION['form_once'][$t]);
+    return false;
+}
 /**
  * The visitor's IP address. Behind Cloudflare, REMOTE_ADDR is Cloudflare's
  * edge, so its CF-Connecting-IP header is used, but only when the request
