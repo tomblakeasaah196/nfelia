@@ -52,6 +52,10 @@ This note covers what is built, how to change it safely, and what comes next. Re
   Some links change data when opened (`receipts/from_payment` makes a receipt): never widen the rule to all links.
 - **Motion:** app screens stay on the 100/150/200/300ms scale, transform and opacity only. The opening is
   the one exception (see `.ux-profile.md`). No frosted glass.
+- **Page transitions the browser drops:** if the screen changes size between leaving one page and painting
+  the next (a phone's address bar or keyboard), the browser drops the animation and rejects its promises.
+  `quietTransition()` in `shell.js` catches them on `pageswap` and `pagereveal`, and `errors.js` skips that
+  one abort, so it never reaches Ops → Errors. Keep both if the transition code changes.
 
 ## 4. Testing
 
@@ -59,6 +63,8 @@ This note covers what is built, how to change it safely, and what comes next. Re
 the offline page, the opening, the install invitation on iPhone, text size and background, the website's
 Get the app, install details on public pages, sideways scroll at 375px, and a second business's colour.
 Run the older suites too; re-seed with `planner_seed.sql.txt` before each Tasks suite (they share data).
+`transition_test.js` (13 checks, no app copy needed) reproduces a dropped transition and proves nothing is
+reported.
 
 Not provable in a headless browser: Android's real install prompt, iPhone standalone mode, the film on a
 phone (headless Chromium has no H.264), and push delivery. Check those on real phones after deploy.
