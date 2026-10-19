@@ -248,6 +248,8 @@ class ReceiptController {
 
         $public_url = APP_URL . '/doc/' . $receipt['token'];
         $is_standalone = !$receipt['invoice_id'];
+        $order = !empty($receipt['order_id']) ? order_find($this->db, $this->biz_id, (int)$receipt['order_id'])
+               : ($receipt['invoice_id'] ? order_by_invoice($this->db, $this->biz_id, (int)$receipt['invoice_id']) : null);
 
         $title     = e($receipt['doc_number']);
         $view_file = BASE_PATH . '/views/receipts/view.php';

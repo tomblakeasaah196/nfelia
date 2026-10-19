@@ -264,6 +264,7 @@ class PublicController
         $bank = $invoice["bank_account_id"]
             ? $this->get_bank($invoice["bank_account_id"], (int) $invoice["business_id"])
             : null;
+        $order_number = $this->order_number_of($invoice);
         require_once BASE_PATH . "/views/invoices/public.php";
     }
     private function render_receipt(array $receipt): void
@@ -288,7 +289,25 @@ class PublicController
             $stmtInv->execute([$receipt["invoice_id"], $receipt["business_id"]]);
             $invoice = $stmtInv->fetch();
         }
+        $order_number = $this->order_number_of($receipt);
         require_once BASE_PATH . "/views/receipts/public.php";
+    }
+    /** The number of the order a document belongs to ("ADA-ORD-012"), or null: through its own order_id, else its invoice's. */
+    private function order_number_of(array $doc): ?string
+    {
+        $biz = (int) $doc["business_id"];
+        $oid = (int) ($doc["order_id"] ?? 0);
+        if (!$oid && !empty($doc["invoice_id"])) {
+            $stmt = $this->db->prepare("SELECT order_id FROM invoices WHERE id = ? AND business_id = ?");
+            $stmt->execute([(int) $doc["invoice_id"], $biz]);
+            $oid = (int) $stmt->fetchColumn();
+        }
+        if (!$oid) {
+            return null;
+        }
+        $stmt = $this->db->prepare("SELECT order_number FROM orders WHERE id = ? AND business_id = ?");
+        $stmt->execute([$oid, $biz]);
+        return $stmt->fetchColumn() ?: null;
     }
     private function get_business(int $id): ?array
     {
@@ -339,6 +358,7 @@ class PublicController
         require_once BASE_PATH . "/app/controllers/DeliveryController.php";
         $statuses = DeliveryController::STATUSES;
         $providers = DeliveryController::PROVIDERS;
+        $order_number = $this->order_number_of($delivery);
         require_once BASE_PATH . "/views/deliveries/public.php";
     } /* ────────────────────────────────────────── * E-SIGNATURE SIGN-OFF /sign/{signoff_token} * GET → show sign-off form * POST → process signature submission * *──────────────────────────────────────────*/
     public function signoff(string $signoff_token): void
@@ -388,6 +408,7 @@ class PublicController
             $this->process_signoff($delivery, $business);
             return;
         } /* GET — show form */
+        $order_number = $this->order_number_of($delivery);
         require_once BASE_PATH . "/views/deliveries/signoff.php";
     }
     /** * Process the e-signature submission (AJAX POST from sign-off page) */ private function process_signoff(
@@ -490,16 +511,22 @@ class PublicController
         notify("delivery.signed", (int) $delivery["business_id"], [
             "delivery_id" => (int) $delivery["id"], "delivery_number" => $delivery["doc_number"], "signer" => $signoff_name,
         ], ["dedupe" => (string) $delivery["id"]]);
-        /* The order behind this delivery is done: the shopper can now review it */
+        /* The order behind this delivery is done (its Log, the shopper told),
+           and the shopper can now review it */
         $review_link = null;
         try {
-            $stmtOrder = $this->db->prepare(
-                "SELECT id FROM orders WHERE delivery_id = ? AND business_id = ? LIMIT 1",
-            );
-            $stmtOrder->execute([$delivery["id"], $delivery["business_id"]]);
-            $order_id = (int) $stmtOrder->fetchColumn();
+            order_sync_from_delivery($this->db, (int) $delivery["business_id"], (int) $delivery["id"]);
+            $order_id = (int) ($delivery["order_id"] ?? 0);
+            if (!$order_id) {
+                $stmtOrder = $this->db->prepare(
+                    "SELECT id FROM orders WHERE delivery_id = ? AND business_id = ? LIMIT 1",
+                );
+                $stmtOrder->execute([$delivery["id"], $delivery["business_id"]]);
+                $order_id = (int) $stmtOrder->fetchColumn();
+            }
             if ($order_id) {
-                shop_order_tell($this->db, $order_id, "delivered");
+                order_log($this->db, (int) $delivery["business_id"], $order_id, "signed",
+                          mb_substr($signoff_name, 0, 100) . " signed for delivery " . $delivery["doc_number"] . ".");
             }
             $review = $order_id ? review_invite($this->db, $order_id) : null;
             if ($review && $review["status"] === "invited" && $business) {
@@ -594,6 +621,7 @@ class PublicController
                 );
                 $stmtP->execute([$invoice["id"]]);
                 $payments = $stmtP->fetchAll();
+                $order_number = $this->order_number_of($invoice);
                 ob_start();
                 require BASE_PATH . "/views/invoices/pdf_template.php";
                 $html = ob_get_clean();
@@ -627,6 +655,7 @@ class PublicController
                     $stmtInv->execute([$receipt["invoice_id"], $receipt["business_id"]]);
                     $invoice = $stmtInv->fetch();
                 }
+                $order_number = $this->order_number_of($receipt);
                 ob_start();
                 require BASE_PATH . "/views/receipts/pdf_template.php";
                 $html = ob_get_clean();

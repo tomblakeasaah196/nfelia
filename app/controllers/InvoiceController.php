@@ -122,6 +122,11 @@ class InvoiceController {
             return $this->save_invoice(null);
         }
 
+        // Every sale starts as an order now: its invoice is made when it is
+        // confirmed (docs/ORDERS_HUB.md). Old links land on New order.
+        $customer = (int)($_GET['customer_id'] ?? 0);
+        redirect('orders/create' . ($customer ? '?customer=' . $customer : ''));
+
         $invoice   = [];
         $items     = [];
         $editing   = false;
@@ -142,6 +147,10 @@ class InvoiceController {
 
         $invoice = $this->find_invoice($id);
         if (!$invoice) { not_found(); return; }
+
+        if ($order = order_by_invoice($this->db, $this->biz_id, (int)$invoice['id'])) {
+            redirect(is_boss() ? 'orders/edit/' . $order['id'] : 'orders/view/' . $order['id']);
+        }
 
         if (!in_array($invoice['status'], ['draft', 'sent'])) {
             flash('error', 'This invoice can no longer be edited.');
@@ -227,6 +236,7 @@ class InvoiceController {
         }
 
         $public_url = APP_URL . '/doc/' . $invoice['token'];
+        $order = order_by_invoice($this->db, $this->biz_id, (int)$invoice['id']);
 
         // A signed delivery note also counts as delivered.
         $stmtDn = $this->db->prepare("SELECT 1 FROM deliveries WHERE invoice_id = ? AND business_id = ? AND deleted_at IS NULL AND status IN ('delivered','signed_off') LIMIT 1");
@@ -347,6 +357,25 @@ class InvoiceController {
         if (!in_array($method, $valid_methods)) $method = 'cash';
         $symbol = auth_business()['currency_symbol'] ?? '₦';
 
+        // An order's invoice: the order records it, makes the receipt and
+        // tells the team (app/helpers/orders.php)
+        if ($order = order_by_invoice($this->db, $this->biz_id, (int)$id)) {
+            try {
+                $done = order_record_payment($this->db, $this->biz_id, (int)$order['id'], $amount, $payment_date, $method,
+                                             $reference ?: null, $note ?: null, (int)$user['id'], $symbol);
+            } catch (\DomainException $e) {
+                if (is_ajax()) { json_response(['error' => $e->getMessage()], 422); }
+                flash('error', $e->getMessage());
+                redirect('invoices/view/' . $id);
+            }
+            flash('success', planner_money(money2($amount), $symbol) . ' recorded, receipt made.' . ($done['new_balance'] <= 0 ? ' The invoice is fully paid.' : ''));
+            if (is_ajax()) {
+                json_response(['success' => true, 'payment_id' => $done['payment_id'], 'balance_due' => $done['new_balance'],
+                               'fully_paid' => $done['new_balance'] <= 0, 'receipt_url' => APP_URL . '/receipts/view/' . $done['receipt_id']]);
+            }
+            redirect('invoices/view/' . $id);
+        }
+
         $this->db->beginTransaction();
         try {
             // Locks the invoice, checks what is still owed, and keeps its debt
@@ -410,6 +439,12 @@ class InvoiceController {
         $invoice = $this->find_invoice($id);
         if (!$invoice) { not_found(); return; }
 
+        // An order's money goes back from the order, so the customer gets a refund slip
+        if ($order = order_by_invoice($this->db, $this->biz_id, (int)$id)) {
+            flash('info', 'Give the money back from order ' . $order['order_number'] . ', so ' . planner_first_name($order['customer_name']) . ' gets a refund slip.');
+            redirect('orders/view/' . $order['id'] . '#money');
+        }
+
         $method = trim($_POST['method'] ?? 'cash');
         if (!in_array($method, ['cash','bank_transfer','pos','mobile_money','cheque','other'], true)) $method = 'cash';
         $symbol = auth_business()['currency_symbol'] ?? '₦';
@@ -441,6 +476,14 @@ class InvoiceController {
             flash('error', 'Invoice is already cancelled.');
             redirect('invoices/view/' . $id);
             return;
+        }
+
+        // An order's invoice is cancelled with its order: the shopper is told and it goes on the Log
+        if ($order = order_by_invoice($this->db, $this->biz_id, (int)$id)) {
+            require_boss('cancel an order');
+            $problem = order_cancel($this->db, $this->biz_id, (int)$order['id'], (int)auth_user()['id']);
+            flash($problem === '' ? 'success' : 'error', $problem === '' ? 'Order ' . $order['order_number'] . ' and ' . $invoice['doc_number'] . ' cancelled. Stock restored.' : $problem);
+            redirect('invoices/view/' . $id);
         }
 
         $this->db->beginTransaction();
@@ -552,7 +595,7 @@ class InvoiceController {
         // The promise, its delivery step and its job move together
         // (app/helpers/planner.php)
         $undo = !empty($_POST['undo']);
-        planner_invoice_delivered($this->db, $this->biz_id, (int)$invoice['id'], $undo, (int)auth_user()['id']);
+        order_from_invoice_delivered($this->db, $this->biz_id, (int)$invoice['id'], $undo, (int)auth_user()['id']);
 
         flash('success', $undo ? 'Marked as not delivered yet.' : 'Marked delivered.');
         redirect('invoices/view/' . $invoice['id']);

@@ -108,6 +108,7 @@ $already_signed = ($delivery['status'] === 'signed_off' && $delivery['signoff_na
                     <div>
                         <div class="text-[10px] font-bold uppercase tracking-widest opacity-60">Delivery Note</div>
                         <div class="text-lg font-extrabold"><?= e($delivery['doc_number']) ?></div>
+                        <?php if (!empty($order_number)): ?><div class="text-xs font-semibold opacity-80">Order: <?= e($order_number) ?></div><?php endif; ?>
                     </div>
                     <div class="text-right">
                         <div class="text-[10px] font-bold uppercase tracking-widest opacity-60">To</div>
