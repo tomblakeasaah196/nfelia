@@ -82,7 +82,7 @@ $b->get('orders/view/700');
 $b->post('orders/approve/700', ['deliver_mode' => 'immediate']);
 $b->post('orders/approve/700', ['deliver_mode' => 'immediate']);   // a double tap
 deliver();
-eq((int)q("SELECT COUNT(*) FROM invoices WHERE customer_id = 200 AND doc_number <> '' AND id NOT IN (400, 401, 402)"), 1, 'approved once: one invoice, not two');
+eq((int)q("SELECT COUNT(*) FROM invoices WHERE order_id = 700"), 1, 'approved once: one invoice, not two');
 expect('payment.order', [ADA], 'orders/view/700');
 eq(latest(ADA, 'payment.order')['message'] ?? null, 'Shop order ORD-0700 from Ngozi Eze, paid and approved.', 'paid with proof: money in for Ada (Bisi approved it)');
 $ng = mails_to('ngozi@example.test');
