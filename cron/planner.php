@@ -260,8 +260,10 @@ if ($hour >= 8 && $hour < 20) {
     try {
         $db->prepare("UPDATE invoices SET status = 'overdue' WHERE status IN ('sent','partially_paid') AND due_date < ?")->execute([$today]);
         $overdue = $db->prepare("
-            SELECT i.id, i.business_id, i.doc_number, i.balance_due, DATEDIFF(?, i.due_date) AS days, c.full_name AS customer
+            SELECT i.id, i.business_id, i.doc_number, i.balance_due, DATEDIFF(?, i.due_date) AS days, c.full_name AS customer,
+                   o.id AS order_id, o.order_number
             FROM invoices i LEFT JOIN customers c ON c.id = i.customer_id
+            LEFT JOIN orders o ON o.id = i.order_id AND o.business_id = i.business_id
             WHERE i.status = 'overdue' AND i.balance_due > 0 AND i.due_date < ? AND i.due_date >= ? - INTERVAL 56 DAY
             LIMIT 2000");
         $overdue->execute([$today, $today, $today]);
@@ -286,6 +288,7 @@ if ($hour >= 8 && $hour < 20) {
                 $done['overdue_notes'] += (int)(bool)notify('invoice.overdue', $biz_id, [
                     'invoice_id' => (int)$inv['id'], 'invoice_number' => $inv['doc_number'], 'customer' => (string)$inv['customer'],
                     'balance' => (float)$inv['balance_due'], 'days' => (int)$inv['days'],
+                    'order_id' => (int)$inv['order_id'] ?: null, 'order_number' => $inv['order_number'],
                 ], ['dedupe' => $inv['id'] . ':week' . intdiv((int)$inv['days'] - 1, 7)] + ($quietly ? ['channels' => []] : []));
             }
             if ($quietly) {

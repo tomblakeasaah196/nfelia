@@ -492,4 +492,15 @@ exec_sql("UPDATE deliveries SET status = 'dispatched' WHERE id = ?", [$gd]);
 order_sync_from_delivery($db, BIZ, $gd);
 eq(q("SELECT status FROM orders WHERE id = ?", [$g['id']]), 'cancelled', 'a cancelled order never moves');
 
+section('Alerts about an order\'s money open the order');
+clean_slate();
+$m = make_order(['customer_id' => 200, 'items' => [['name' => 'Wig', 'quantity' => 1, 'unit_price' => 50000]], 'paid_now' => 10000, 'pay_by' => $day(1)]);
+$minv = invoice_of((int)$m['id']);
+notify('invoice.overdue', BIZ, ['invoice_id' => (int)$minv['id'], 'invoice_number' => $minv['doc_number'], 'customer' => 'Ngozi Eze',
+                                'balance' => 40000, 'days' => 3, 'order_id' => (int)$m['id'], 'order_number' => $m['order_number']]);
+$n = rows("SELECT title, message, action_url FROM notifications WHERE event = 'invoice.overdue' AND user_id = 20")[0] ?? [];
+eq([$n['title'] ?? null, $n['message'] ?? null, $n['action_url'] ?? null],
+   ['Overdue: ' . $minv['doc_number'], 'Ngozi Eze owes ₦40,000 on order ' . $m['order_number'] . ', 3 days past due.', 'orders/view/' . $m['id'] . '#money'],
+   'overdue: the invoice leads, the order is named, and it opens the order\'s money');
+
 done();

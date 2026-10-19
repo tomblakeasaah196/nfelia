@@ -177,25 +177,12 @@ class ReceiptController {
     }
 
     /* ──────────────────────────────────────────
-     *  CREATE — standalone POS-style receipt
+     *  CREATE — every sale is an order now: a sale on the spot is a quick
+     *  sale, which makes its order, invoice and receipt in one go
+     *  (docs/ORDERS_HUB.md). Receipts for payments come with the payment.
      * ────────────────────────────────────────── */
     public function create() {
-        $user     = auth_user();
-        $business = auth_business();
-
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            csrf_verify();
-            return $this->save_standalone_receipt(null);
-        }
-
-        $receipt   = [];
-        $items     = [];
-        $editing   = false;
-        $customers = $this->get_customers();
-
-        $title     = "New Receipt — Direct Sale";
-        $view_file = BASE_PATH . '/views/receipts/form.php';
-        require_once BASE_PATH . '/views/layouts/app.php';
+        redirect('orders/quick');
     }
 
     /* ──────────────────────────────────────────

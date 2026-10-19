@@ -138,14 +138,19 @@ eq(count(rows("SELECT id FROM notifications WHERE event = 'review.new'")), 2, 'a
 section('A sale on the spot');
 clean_slate();
 $b->get('receipts/create');
-$b->post('receipts/create', ['customer_id' => '', 'item_description' => ['Edge control'], 'item_quantity' => ['2'], 'item_unit_price' => ['3500'],
-                             'item_product_id' => [''], 'method' => 'cash', 'issue_date' => date('Y-m-d')]);
+eq($b->to(), 'orders/quick', 'the old receipt page opens a quick sale: every sale is an order');
+$b->get('orders/quick');
+$b->post('orders/save', ['mode' => 'quick', 'customer_id' => '', 'pay' => 'now', 'method' => 'cash',
+                         'items' => [['product_id' => '', 'name' => 'Edge control', 'quantity' => '2', 'unit_price' => '3500']]]);
+$oid = (int)q("SELECT id FROM orders WHERE business_id = 2 AND channel = 'quick' ORDER BY id DESC LIMIT 1");
 $rid = (int)q("SELECT id FROM receipts WHERE business_id = 2 ORDER BY id DESC LIMIT 1");
-ok($rid > 0, 'Bisi records it, for a walk-in customer (this always failed before)');
-expect('payment.receipt', [ADA], "receipts/view/{$rid}");
-eq(latest(ADA, 'payment.receipt')['title'] ?? null, '₦7,000 received', 'Ada hears ₦7,000 came in');
-ok(str_starts_with(latest(ADA, 'payment.receipt')['message'] ?? '', 'A sale on the spot, receipt'), 'a sale on the spot');
-opens(ADA, 'payment.receipt', "receipts/view/{$rid}");
+ok($oid > 0 && (int)q("SELECT order_id FROM receipts WHERE id = {$rid}") === $oid, 'Bisi sells it to a walk-in customer: an order, with its receipt');
+expect('payment.invoice', [ADA], "orders/view/{$oid}#money");
+$inv = (string)q("SELECT doc_number FROM invoices WHERE order_id = {$oid}");
+$ord = (string)q("SELECT order_number FROM orders WHERE id = {$oid}");
+eq(latest(ADA, 'payment.invoice')['title'] ?? null, "₦7,000 received · {$inv}", 'Ada hears ₦7,000 came in');
+eq(latest(ADA, 'payment.invoice')['message'] ?? null, "Walk-in customer paid by cash for order {$ord}. Paid in full.", 'for which order');
+opens(ADA, 'payment.invoice', "orders/view/{$oid}#money", $ord);
 
 section('A deed of acquisition');
 clean_slate();
