@@ -36,6 +36,9 @@ jobs:
                     ! -path './vendor/*' ! -path './lib/*' -print0)
           exit $fail
 
+      - name: Report periods (no database needed)
+        run: php tests/reports/period_test.php
+
       - name: No server-specific collation may be pinned
         run: |
           set -euo pipefail

@@ -6,6 +6,8 @@ use Dompdf\Options;
  * Profit & Loss reporting from existing data.
  * No new tables needed — reads from invoices, receipts, expenses, debts.
  */
+require_once BASE_PATH . '/app/helpers/report_period.php';
+
 class ReportController {
 
     private $db;
@@ -26,33 +28,26 @@ class ReportController {
         $business = auth_business();
         $currency = $business['currency_symbol'] ?? '₦';
 
-        // Period selection (default: current month)
-        $month = (int)($_GET['month'] ?? date('n'));
-        $year  = (int)($_GET['year'] ?? date('Y'));
-        $month = max(1, min(12, $month));
-        $year  = max(2020, min((int)date('Y') + 1, $year));
-
-        $period_start = sprintf('%04d-%02d-01', $year, $month);
-        $period_end   = date('Y-m-t', strtotime($period_start)); // last day of month
-
-        $month_label = date('F Y', strtotime($period_start));
+        // Period: a preset or a month range (app/helpers/report_period.php)
+        $period       = report_period($_GET);
+        $period_start = $period['start'];
+        $period_end   = $period['end'];
+        $month_label  = $period['label'];
 
         // ── 1. REVENUE: money received this period: invoice payments and
         // sales paid on the spot, the same basis as Home (money_in)
         $revenue = money_in($this->db, $this->biz_id, $period_start, $period_end);
 
         // ── 2. EXPENSES: All expenses this period
-        $stmtExp = $this->db->prepare("
-            SELECT COALESCE(SUM(amount), 0) AS total
-            FROM expenses
-            WHERE business_id = ? AND deleted_at IS NULL
-              AND expense_date BETWEEN ? AND ?
-        ");
-        $stmtExp->execute([$this->biz_id, $period_start, $period_end]);
-        $expenses_total = (float)$stmtExp->fetchColumn();
+        $expenses_total = $this->expenses_between($period_start, $period_end);
 
         // ── 3. GROSS PROFIT
         $gross_profit = $revenue - $expenses_total;
+
+        // ── 3b. THE PERIOD BEFORE, to compare with
+        $prev_revenue  = money_in($this->db, $this->biz_id, $period['prev_start'], $period['prev_end']);
+        $prev_expenses = $this->expenses_between($period['prev_start'], $period['prev_end']);
+        $prev_profit   = $prev_revenue - $prev_expenses;
 
         // ── 4. EXPENSE BREAKDOWN by category
         $stmtCat = $this->db->prepare("
@@ -100,27 +95,28 @@ class ReportController {
             if ($dr['type'] === 'payable')    { $debts_payable    = (float)$dr['total']; $debts_payable_count    = (int)$dr['count']; }
         }
 
-        // ── 7. MONTHLY TREND (last 6 months) — single aggregated query each
-        $trend_start = date('Y-m-01', strtotime('-5 months', strtotime($period_start)));
-        $trend_end   = $period_end;
-
-        $trend_rev_map = money_in_by_month($this->db, $this->biz_id, $trend_start, $trend_end);
-
+        // ── 7. TREND across the period: by day for a month or less, else by month
+        if ($period['by'] === 'day') {
+            $trend_rev_map = money_in_by_day($this->db, $this->biz_id, $period_start, $period_end);
+            $bucket_sql    = '%Y-%m-%d';
+        } else {
+            $trend_rev_map = money_in_by_month($this->db, $this->biz_id, $period_start, $period_end);
+            $bucket_sql    = '%Y-%m';
+        }
         $stmtTrendExp = $this->db->prepare("
-            SELECT DATE_FORMAT(expense_date, '%Y-%m') AS ym, COALESCE(SUM(amount), 0) AS total
+            SELECT DATE_FORMAT(expense_date, '{$bucket_sql}') AS ym, COALESCE(SUM(amount), 0) AS total
             FROM expenses WHERE business_id = ? AND deleted_at IS NULL AND expense_date BETWEEN ? AND ?
             GROUP BY ym
         ");
-        $stmtTrendExp->execute([$this->biz_id, $trend_start, $trend_end]);
+        $stmtTrendExp->execute([$this->biz_id, $period_start, $period_end]);
         $trend_exp_map = [];
         foreach ($stmtTrendExp->fetchAll() as $r) { $trend_exp_map[$r['ym']] = (float)$r['total']; }
 
         $trend = [];
-        for ($i = 5; $i >= 0; $i--) {
-            $ts  = date('Y-m', strtotime("-{$i} months", strtotime($period_start)));
-            $rev = $trend_rev_map[$ts] ?? 0;
-            $exp = $trend_exp_map[$ts] ?? 0;
-            $trend[] = ['label' => date('M', strtotime($ts . '-01')), 'revenue' => $rev, 'expenses' => $exp, 'profit' => $rev - $exp];
+        foreach (report_period_buckets($period) as $key => $label) {
+            $rev = $trend_rev_map[$key] ?? 0;
+            $exp = $trend_exp_map[$key] ?? 0;
+            $trend[] = ['label' => $label, 'revenue' => $rev, 'expenses' => $exp, 'profit' => $rev - $exp];
         }
 
         // ── 8. INVOICES ISSUED this period (for context)
@@ -133,11 +129,12 @@ class ReportController {
         $stmtInv->execute([$this->biz_id, $period_start, $period_end]);
         $invoices_issued = $stmtInv->fetch();
 
-        // Available months for selector
+        // Month and year choices for the month range picker
         $available_months = [];
         for ($m = 1; $m <= 12; $m++) {
-            $available_months[$m] = date('F', mktime(0, 0, 0, $m, 1));
+            $available_months[$m] = date('M', mktime(0, 0, 0, $m, 1));
         }
+        $available_years = range((int)date('Y'), REPORT_PERIOD_FIRST_YEAR);
 
         $title     = "Profit & Loss";
         $view_file = BASE_PATH . '/views/reports/profit_loss.php';
@@ -154,20 +151,16 @@ class ReportController {
         $business = auth_business();
         $currency = $business['currency_symbol'] ?? '₦';
 
-        $month = max(1, min(12, (int)($_GET['month'] ?? date('n'))));
-        $year  = max(2020, min((int)date('Y') + 1, (int)($_GET['year'] ?? date('Y'))));
-
-        $period_start = sprintf('%04d-%02d-01', $year, $month);
-        $period_end   = date('Y-m-t', strtotime($period_start));
-        $month_label  = date('F Y', strtotime($period_start));
+        $period       = report_period($_GET);
+        $period_start = $period['start'];
+        $period_end   = $period['end'];
+        $month_label  = $period['label'];
 
         // Revenue (the same basis as the screen and Home)
         $revenue = money_in($this->db, $this->biz_id, $period_start, $period_end);
 
         // Expenses
-        $stmt = $this->db->prepare("SELECT COALESCE(SUM(amount),0) FROM expenses WHERE business_id=? AND deleted_at IS NULL AND expense_date BETWEEN ? AND ?");
-        $stmt->execute([$this->biz_id, $period_start, $period_end]);
-        $expenses_total = (float)$stmt->fetchColumn();
+        $expenses_total = $this->expenses_between($period_start, $period_end);
         $gross_profit = $revenue - $expenses_total;
 
         // Expense breakdown
@@ -197,7 +190,19 @@ class ReportController {
         $dompdf->loadHtml($html);
         $dompdf->setPaper('A4', 'portrait');
         $dompdf->render();
-        $dompdf->stream('PL_Report_' . $month_label . '.pdf', ['Attachment' => true]);
+        $dompdf->stream('PL_Report_' . $period['filename'] . '.pdf', ['Attachment' => true]);
         exit;
+    }
+
+    /** Expenses recorded from $from to $to inclusive (Y-m-d). */
+    private function expenses_between(string $from, string $to): float {
+        $stmt = $this->db->prepare("
+            SELECT COALESCE(SUM(amount), 0)
+            FROM expenses
+            WHERE business_id = ? AND deleted_at IS NULL
+              AND expense_date BETWEEN ? AND ?
+        ");
+        $stmt->execute([$this->biz_id, $from, $to]);
+        return (float)$stmt->fetchColumn();
     }
 }
