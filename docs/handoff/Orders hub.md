@@ -45,6 +45,20 @@ This fixes the bug that started it: an order showed `ORD-0001` while Tasks and i
 - **The old "receipt only" sale form is gone.** Its links open Quick sale, and New invoice opens New order.
 - **Client pages** open on the client's orders, each led by its order number, with a note when money is kept
   for their next order.
+- **New order starts on "Pay later"**, so no money is recorded unless someone chooses Paid now or Part now.
+  Quick sale starts on Paid now.
+- **A shop order that came with payment proof can't change before it is confirmed** with that payment. After
+  confirming, a change shows any difference to keep or give back, as for any order.
+- **An asked refund can be called off** (the customer chose to keep the money with the shop after all).
+  Changing the order lowers an asked refund to what is now paid over, or calls it off when nothing is.
+- **A balance written off in Debts stays written off**, even if the order later gets a payment or a new
+  pay-by date.
+- **The new prefix is suggested only after a rename.** For businesses from before this card, a suggestion
+  shows only when the name now starts with a different letter (CAS for "RN Afriluxe" does; NFL for "Nfelia"
+  does not).
+- **Home's "still owed"** opens the orders with a balance, or the unpaid invoices when older invoices without
+  an order are owed too, so the list always holds the whole figure.
+- **"Mark not delivered"** stays offered until the customer has left a review.
 
 ## What changed
 
@@ -57,15 +71,20 @@ This fixes the bug that started it: an order showed `ORD-0001` while Tasks and i
   buttons show their name on a long press.
 - **Tasks and Calendar** (`app/helpers/planner.php`, `TasksController`): deliveries, collections and money due
   speak in order numbers and open the order. "Hello Tom-Blake, this is RN Afriluxe. Your order CAS-ORD-704
-  will be delivered tomorrow."
+  will be delivered tomorrow." Tasks and job plans made for an order show its number and open it. Ticking a
+  whole job plan, or moving a delivery step's date, moves the order too (its delivery note, Log and the
+  customer's message follow), as does setting the day or handover on its invoice.
+- **No double money**: Pay, Refund, New order and Quick sale go once. A second tap on a slow network does
+  nothing, and a resubmitted form is refused ("That payment was already saved").
 - **Documents**: invoice, receipt and delivery pages, public pages and PDFs show "Order: CAS-ORD-704";
   "Commercial Invoice" now reads "Invoice". Payments on an order's invoice make their receipt and go
-  through the order.
+  through the order. The invoice list shows and searches order numbers, and older invoices made without an
+  order say "No order". Reminders and share texts for an order's invoice name the order.
 - **Home**: the latest orders, search finds orders, and "still owed" opens the orders with a balance.
 - **Debts**: rewritten for phones, with Owed to me / I owe; an order's debt opens the order.
 - **Clients**: an Orders tab, New order, the kept money note; the walk-in customer is hidden from lists and
   pickers.
-- **Alerts**: payment, overdue and signed-quote alerts name the order and open it.
+- **Alerts**: payment, overdue, signed-quote and delivery-signed alerts name the order and open it.
 
 ## What deploys automatically
 
@@ -73,6 +92,22 @@ Merging to `main` deploys the code and runs `20261023090000_orders_hub.sql`. It 
 tables, seeds the ORD, BKG and RFD counters from the old sequences (so numbers never repeat), and links
 past shop orders to their invoices, receipts, delivery notes, debts and tasks. It is safe to run again.
 Nothing to do by hand. Existing numbers stay as they are; new ones use each business's prefix.
+
+## What to try first
+
+1. **The bug that started this**: open Tasks & Calendar, find a delivery for an order, and tap its WhatsApp
+   button. The message names the order (CAS-ORD-…), not the invoice.
+2. **A shop order**: from Orders, open one marked New, tap Confirm order, pick a day, and confirm. Its invoice
+   is made, the day is on Tasks, and the customer's page and PDF show "Order: …".
+3. **A typed-in order with a deposit**: + → New order, a new customer, two items, Part now. The balance is in
+   Debts straight away under "Owed to me"; pay the rest from the order page and it clears.
+4. **Quick sale**: + → Quick sale, one item, Paid now. You get the receipt at once.
+5. **A change midway**: on a paid order, Change items to something cheaper. Choose Keep for next order, then
+   start a new order for the same customer: the kept money is offered with one tap.
+6. **A refund by transfer**: on an order paid over, Give it back → Transfer or MoMo → Ask for account details.
+   Open the link as the customer, fill it in, then record the refund with a reference or a screenshot. The slip
+   shows it.
+7. **Settings → Document numbers**: change the prefix and check the preview; earlier papers keep their numbers.
 
 ## How it was tested
 
