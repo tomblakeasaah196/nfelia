@@ -136,6 +136,31 @@
         sync();
     }
 
+    // The Records Book's sheets (#records-book) as tabs, like the workbook's
+    // own. Without this script all three pictures show, one under another.
+    document.querySelectorAll('[data-book-tabs]').forEach(function (box) {
+        var tabs = Array.prototype.slice.call(box.querySelectorAll('[role=tab]'));
+        var panels = tabs.map(function (t) { return document.getElementById(t.getAttribute('aria-controls')); });
+        var show = function (i, focus) {
+            tabs.forEach(function (t, j) {
+                t.setAttribute('aria-selected', String(i === j));
+                t.tabIndex = i === j ? 0 : -1;
+                panels[j].hidden = i !== j;
+            });
+            if (focus) tabs[i].focus();
+        };
+        tabs.forEach(function (t, i) {
+            t.addEventListener('click', function () { show(i, false); });
+            t.addEventListener('keydown', function (e) {
+                var n = tabs.length;
+                var to = { ArrowRight: (i + 1) % n, ArrowLeft: (i + n - 1) % n, Home: 0, End: n - 1 }[e.key];
+                if (to !== undefined) { e.preventDefault(); show(to, true); }
+            });
+        });
+        box.classList.add('is-tabs');
+        show(0, false);
+    });
+
     // The website's address types itself in once, when the phone comes into
     // view; its two tags follow. Shown whole for reduced motion or no observer.
     var siteVisual = document.querySelector('[data-site-visual]');
