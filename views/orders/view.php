@@ -8,7 +8,8 @@
  * Available from controller:
  *   $user, $business, $order, $lines, $invoice, $delivery, $stage, $steps, $pay,
  *   $next, $payments, $refunds, $refund_open, $customer, $kept_here, $kept_total,
- *   $debt, $tasks, $events, $quote, $track_url, $customer_url, $review, $messages, $is_boss
+ *   $debt, $tasks, $events, $quote, $track_url, $customer_url, $review, $messages, $is_boss,
+ *   $email_bounced (when the last email to the customer bounced, app/helpers/bounces.php)
  */
 $currency    = $business['currency_symbol'] ?? '₦';
 $today       = planner_today();
@@ -63,6 +64,12 @@ $refund_wa = null;
 if ($refund_open && $wa_phone !== '') {
     $refund_wa = 'https://wa.me/' . $wa_phone . '?text=' . rawurlencode('Hello ' . $first . ', this is ' . $business['name'] . '. We are sending you '
         . planner_money((float)$refund_open['amount'], $currency) . ' back for order ' . $num . '. Tell us where it should go here: ' . refund_url((string)$refund_open['token']));
+}
+// The customer's email bounced: ask for the right one on WhatsApp
+$email_wa = null;
+if ($email_bounced && $wa_phone !== '') {
+    $email_wa = 'https://wa.me/' . $wa_phone . '?text=' . rawurlencode('Hello ' . $first . ', this is ' . $business['name'] . '. We couldn’t email you about order '
+        . $num . ': ' . $order['customer_email'] . ' doesn’t seem to work. Please reply with your correct email address.');
 }
 $event_icons = ['created' => 'plus', 'confirmed' => 'check', 'payment' => 'money', 'receipt' => 'receipt', 'ready' => 'delivery', 'done' => 'check',
                 'whatsapp' => 'whatsapp', 'refund' => 'refund', 'refund_asked' => 'refund', 'refund_details' => 'refund', 'kept' => 'money',
@@ -207,6 +214,26 @@ $event_icons = ['created' => 'plus', 'confirmed' => 'check', 'payment' => 'money
                 <button class="nf-link">Call it off</button>
             </form>
         <?php endif; ?>
+    </section>
+<?php endif; ?>
+
+<?php if ($email_bounced): ?>
+    <!-- Emails to the customer don't arrive: ask for the right address, then save it -->
+    <section class="nf-card is-warn nf-callout" id="email" aria-labelledby="nf-em-h">
+        <h2 id="nf-em-h">Emails to <?= e($first) ?> don’t arrive</h2>
+        <p>The mail server says <?= e($order['customer_email']) ?> doesn’t exist. Ask <?= e($first) ?> for the right one<?= $email_wa ? ' on WhatsApp' : '' ?>, then save it here.</p>
+        <?php if ($email_wa): ?>
+            <div class="nf-callout-do">
+                <a class="nf-btn nf-btn-primary" href="<?= e($email_wa) ?>" target="_blank" rel="noopener"><?= nav_icon('whatsapp') ?>Ask on WhatsApp</a>
+            </div>
+        <?php endif; ?>
+        <form class="nf-payby" method="POST" action="<?= APP_URL ?>/orders/email/<?= $oid ?>"><?= $csrf ?>
+            <label for="nf-email-new">Their right email</label>
+            <span class="nf-payby-row">
+                <input id="nf-email-new" type="email" name="email" maxlength="100" autocomplete="off" required>
+                <button class="nf-btn nf-btn-ghost">Save</button>
+            </span>
+        </form>
     </section>
 <?php endif; ?>
 

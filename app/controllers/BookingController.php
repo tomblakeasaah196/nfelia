@@ -77,6 +77,9 @@ class BookingController
         }
         $booking_link = booking_url($business, $booking);
         $customer_wa  = shop_whatsapp_digits(['phone' => $booking['customer_phone']]);
+        // The mail server said their email doesn't exist (app/helpers/bounces.php)
+        require_once BASE_PATH . '/app/helpers/bounces.php';
+        $email_bounced = bounce_at($this->db, $this->biz_id, $booking['customer_email']);
         $deposit_receipt = null;
         if (!empty($booking['receipt_id'])) {
             $stmt = $this->db->prepare("SELECT id, doc_number FROM receipts WHERE id = ? AND business_id = ?");
@@ -87,6 +90,16 @@ class BookingController
         $title     = 'Booking ' . $booking['booking_number'];
         $view_file = BASE_PATH . '/views/bookings/view.php';
         require_once BASE_PATH . '/views/layouts/app.php';
+    }
+
+    /** The customer's right email, after the one on the booking bounced. */
+    public function email($id = null)
+    {
+        $booking = $this->posted($id, ['pending', 'confirmed', 'declined', 'cancelled', 'completed']);
+        require_once BASE_PATH . '/app/helpers/bounces.php';
+        $email = bounce_new_email($this->db, $this->biz_id, 'bookings', $booking, (string)($_POST['email'] ?? ''));
+        flash($email ? 'success' : 'error', $email ? 'Saved. Emails about this booking now go to ' . $email . '.' : 'Type the email address in full, like name@gmail.com.');
+        redirect('bookings/view/' . (int)$booking['id'] . '#email');
     }
 
     /**

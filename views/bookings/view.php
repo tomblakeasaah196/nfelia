@@ -1,7 +1,8 @@
 <?php
 /**
  * Nfelia — One booking (BookingController::view)
- * Variables: $business, $booking, $booking_link (the shopper's page), $customer_wa
+ * Variables: $business, $booking, $booking_link (the shopper's page), $customer_wa,
+ * $email_bounced (when the last email to them bounced, app/helpers/bounces.php)
  */
 $currency = $business['currency_symbol'] ?? '₦';
 $status   = $booking['status'];
@@ -13,6 +14,10 @@ $wa_text  = match ($status) {
     'declined'  => 'Hello ' . $first . ', I\'m sorry, I can\'t take your booking ' . $booking['booking_number'] . ' for ' . $when . '.',
     default     => 'Hello ' . $first . ', about your booking ' . $booking['booking_number'] . ' for ' . $when . '.',
 } . ($booking_link ? ' Details: ' . $booking_link : '');
+if ($email_bounced) {
+    $wa_text = 'Hello ' . $first . ', this is ' . $business['name'] . '. We couldn’t email you about booking ' . $booking['booking_number'] . ': '
+             . $booking['customer_email'] . ' doesn’t seem to work. Please reply with your correct email address.';
+}
 $labels = ['pending' => 'To confirm', 'confirmed' => 'Confirmed', 'declined' => 'Declined', 'cancelled' => 'Cancelled', 'completed' => 'Done'];
 ?>
 <div class="mb-6">
@@ -93,18 +98,31 @@ $labels = ['pending' => 'To confirm', 'confirmed' => 'Confirmed', 'declined' => 
     </div>
 
     <div class="space-y-6">
-        <div class="bg-brand-white border border-brand-sand rounded-xl p-5 shadow-sm space-y-2">
+        <div class="bg-brand-white border border-brand-sand rounded-xl p-5 shadow-sm space-y-2" id="email">
             <p class="text-sm font-bold text-brand-plum">Customer</p>
             <p class="text-sm text-brand-plum"><?= e($booking['customer_name']) ?></p>
             <a class="block text-sm accent-primary hover:underline" href="tel:<?= e($booking['customer_phone']) ?>"><?= e($booking['customer_phone']) ?></a>
             <?php if ($booking['customer_email']): ?>
             <a class="block text-sm accent-primary hover:underline break-all" href="mailto:<?= e($booking['customer_email']) ?>"><?= e($booking['customer_email']) ?></a>
             <?php endif; ?>
+            <?php if ($email_bounced): ?>
+            <p class="text-sm font-semibold text-red-700">Emails to this address don’t arrive: the mail server says it doesn’t exist. Ask them for the right one, then save it here.</p>
+            <?php endif; ?>
             <?php if ($customer_wa !== ''): ?>
             <a href="https://wa.me/<?= e($customer_wa) ?>?text=<?= e(rawurlencode($wa_text)) ?>" target="_blank" rel="noopener"
                class="mt-2 h-11 px-3 inline-flex w-full items-center justify-center rounded-xl border border-brand-sand text-sm font-bold text-brand-plum hover:bg-brand-cream">
-                <?= $status === 'confirmed' ? 'Tell them it\'s confirmed on WhatsApp' : 'Message them on WhatsApp' ?>
+                <?= $email_bounced ? 'Ask for their email on WhatsApp' : ($status === 'confirmed' ? 'Tell them it\'s confirmed on WhatsApp' : 'Message them on WhatsApp') ?>
             </a>
+            <?php endif; ?>
+            <?php if ($email_bounced): ?>
+            <form method="POST" action="<?= APP_URL ?>/bookings/email/<?= (int)$booking['id'] ?>" class="space-y-2 pt-2">
+                <?= csrf_field() ?>
+                <label class="block text-sm font-semibold text-brand-plum" for="booking-email">Their right email</label>
+                <div class="flex gap-2">
+                    <input id="booking-email" type="email" name="email" maxlength="100" autocomplete="off" required class="flex-1 min-w-0 h-11 px-3 rounded-lg border border-brand-sand text-sm">
+                    <button type="submit" class="h-11 px-4 rounded-xl border border-brand-sand text-sm font-bold text-brand-plum hover:bg-brand-cream">Save</button>
+                </div>
+            </form>
             <?php endif; ?>
         </div>
         <?php if ($booking_link): ?>

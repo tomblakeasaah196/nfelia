@@ -11,6 +11,56 @@ require_once __DIR__ . '/../../lib/PHPMailer/src/SMTP.php';
 
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
+use PHPMailer\PHPMailer\SMTP;
+
+/**
+ * PHPMailer's SMTP, keeping the mail server's answer when it refuses the
+ * address. PHPMailer reports a refused address only as text, and its QUIT
+ * clears the code, but "no such address" and "try later" need telling apart.
+ */
+class NfeliaSMTP extends SMTP
+{
+    public int $refused = 0;        // the code it answered, 0 when it took the address
+    public string $status = '';     // its enhanced status (5.1.1), when it gave one
+    public string $answer = '';     // and what it said
+
+    public function recipient($address, $dsn = '')
+    {
+        $ok = parent::recipient($address, $dsn);
+        if (!$ok) {
+            $error = $this->getError();
+            $this->refused = (int)($error['smtp_code'] ?? 0);
+            $this->status  = (string)($error['smtp_code_ex'] ?? '');
+            $this->answer  = trim(preg_replace('/\s+/', ' ', $this->getLastReply()) ?? '');
+        }
+        return $ok;
+    }
+
+    /**
+     * It said the address doesn't exist: 5.1.x (no such mailbox or domain),
+     * or a plain 55x that says so. Not "try later" (4xx), and not a refusal
+     * of Nfelia itself (5.7.x: relaying, policy), which no other address fixes.
+     */
+    public function no_such_address(): bool
+    {
+        if ($this->refused < 500 || $this->refused > 599) {
+            return false;
+        }
+        if ($this->status !== '') {
+            return str_starts_with($this->status, '5.1.');
+        }
+        return (bool)preg_match('/no such (user|mailbox|address|recipient)|(user|recipient|mailbox) (unknown|not found)|unknown (user|recipient)|does ?n[o’\']?t exist/i', $this->answer);
+    }
+}
+
+/**
+ * After send_mail() returned false: what the mail server said when it said
+ * the address doesn't exist, or null when it failed for another reason.
+ */
+function mail_bounced(): ?string
+{
+    return $GLOBALS['nf_mail_bounced'] ?? null;
+}
 
 /**
  * Render a branded HTML email template.
@@ -70,7 +120,10 @@ function render_email(string $template, array $vars = [], array $business = []):
  * @return bool
  */
 function send_mail(string $to_email, string $to_name, string $subject, string $body, bool $is_html = false, array $headers = [], string $from_name = '', string $reply_to = ''): bool {
+    $GLOBALS['nf_mail_bounced'] = null;
     $mail = new PHPMailer(true);
+    $smtp = new NfeliaSMTP();
+    $mail->setSMTPInstance($smtp);
 
     try {
         $mail->isSMTP();
@@ -125,6 +178,15 @@ function send_mail(string $to_email, string $to_name, string $subject, string $b
         return true;
 
     } catch (Exception $e) {
+        // The address doesn't exist. That is the address's problem, not
+        // Nfelia's: noted once, as a notice, and the outbox tells someone
+        // who can fix it (app/helpers/bounces.php).
+        if ($smtp->no_such_address()) {
+            $GLOBALS['nf_mail_bounced'] = $smtp->answer;
+            require_once __DIR__ . '/errors.php';
+            errors_report('job', 'notice', 'Email bounced: ' . $smtp->answer);
+            return false;
+        }
         error_log('[Nfelia] SMTP failure: ' . $mail->ErrorInfo);
         return false;
     }
