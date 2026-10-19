@@ -6,7 +6,8 @@
  *
  * Available from controller:
  *   $user, $business, $invoice, $customer, $items, $bank,
- *   $payments, $quotation, $public_url, $delivered_by_note, $job_plan, $order
+ *   $payments, $quotation, $public_url, $delivered_by_note, $job_plan, $order,
+ *   $sign (doc_sign_state(): its signatures and verify code)
  */
 $currency = $business['currency_symbol'] ?? '₦';
 $today    = planner_today();
@@ -234,6 +235,9 @@ if ($quotation) {
         <label>The story of the piece <small>Optional. It appears on the deed as its description.</small>
             <textarea name="provenance_text" rows="3" placeholder="For example: hand-made from premium materials in our Lagos studio."></textarea>
         </label>
+        <input type="hidden" name="sign_box" value="1">
+        <label class="nf-switch"><input type="checkbox" role="switch" name="sign_on" value="1"<?= signing_settings_for(get_db(), (int)$business['id'])['deed']['on'] ? ' checked' : '' ?>>
+            <span><b>Signed deed</b><small>Signed for <?= e($business['name']) ?> by the owner or an admin</small></span></label>
         <button type="submit" class="nf-btn nf-btn-primary">Issue the deed</button>
     </form>
 </section>
@@ -413,14 +417,8 @@ if ($quotation) {
         </div>
         <?php endif; ?>
 
-        <!-- Signature Block (Business Owner Only) -->
-        <div class="mt-10 pt-6 border-t border-gray-200">
-            <div class="max-w-xs">
-                <div class="border-b border-gray-300 pb-8 mb-2"></div>
-                <div class="text-[9px] font-bold uppercase tracking-widest text-gray-500">Authorized By</div>
-                <div class="text-xs text-gray-700 mt-0.5"><?= e($business['name']) ?></div>
-            </div>
-        </div>
+        <!-- Signatures (only when signed) and the verify code -->
+        <?php require BASE_PATH . '/views/partials/doc_signs.php'; ?>
 
         <!-- Footer -->
         <?php if ($business['tagline']): ?>
@@ -548,6 +546,8 @@ if ($quotation) {
         <?php endif; ?>
         <a class="nf-row" href="<?= e($public_url) ?>?format=pdf" download="<?= e(preg_replace('/[^A-Za-z0-9._-]+/', '-', $invoice['doc_number'])) ?>.pdf"><span class="nf-tile-ic"><?= nav_icon('download') ?></span>Download PDF</a>
         <a class="nf-row" href="<?= e($public_url) ?>" target="_blank" rel="noopener"><span class="nf-tile-ic"><?= nav_icon('open') ?></span>Open the customer's page</a>
+        <?php $sign_row = true; $sign_back = 'invoices/view/' . (int)$invoice['id'];
+              require BASE_PATH . '/views/partials/doc_sign_control.php'; ?>
         <?php if ($invoice['status'] !== 'cancelled' && (float)$invoice['amount_paid'] > 0 && is_boss()): // giving money back is for owners and admins ?>
             <?php if ($order): ?>
                 <a class="nf-row" href="<?= APP_URL ?>/orders/view/<?= (int)$order['id'] ?>#money"><span class="nf-tile-ic"><?= nav_icon('refund') ?></span>Give money back</a>

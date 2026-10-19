@@ -193,7 +193,7 @@ function notify_events(): array
             'url' => fn($d) => !empty($d['order_id']) ? 'orders/view/' . (int)$d['order_id'] : 'quotations/view/' . (int)$d['quotation_id'],
             'tag' => fn($d) => 'quote-' . (int)$d['quotation_id'],
             'text' => fn($d, $m) => ['Quote accepted: ' . $d['quotation_number'],
-                                     $d['customer'] . ' signed and accepted it' . ($m && isset($d['total']) ? ', ' . $m($d['total']) : '') . '.'
+                                     $d['customer'] . (!empty($d['unsigned']) ? ' accepted it' : ' signed and accepted it') . ($m && isset($d['total']) ? ', ' . $m($d['total']) : '') . '.'
                                      . (!empty($d['order_number']) ? ' Order ' . $d['order_number'] . ' is made.' : '')],
             'private' => 'A quote was accepted',
             'button' => fn($d) => !empty($d['order_id']) ? 'Open the order' : 'Open the quote',
@@ -219,9 +219,10 @@ function notify_events(): array
             'topic' => 'customers', 'to' => 'boss',
             'url' => fn($d) => !empty($d['order_id']) ? 'orders/view/' . (int)$d['order_id'] . '#delivery' : 'deliveries/view/' . (int)$d['delivery_id'],
             'tag' => fn($d) => 'delivery-' . (int)$d['delivery_id'],
-            'text' => fn($d, $m) => ['Delivery signed: ' . $d['delivery_number'],
-                                     'Received and signed by ' . $d['signer'] . (!empty($d['order_number']) ? ', order ' . $d['order_number'] : '') . '.'],
-            'private' => 'A delivery was signed',
+            // "unsigned": the receiver confirmed with a tap (a delivery note that isn't signed)
+            'text' => fn($d, $m) => [(!empty($d['unsigned']) ? 'Delivery received: ' : 'Delivery signed: ') . $d['delivery_number'],
+                                     (!empty($d['unsigned']) ? 'Received by ' : 'Received and signed by ') . $d['signer'] . (!empty($d['order_number']) ? ', order ' . $d['order_number'] : '') . '.'],
+            'private' => 'A delivery was received',
             'button' => fn($d) => !empty($d['order_id']) ? 'Open the order' : 'Open the delivery',
         ],
         'review.new' => [

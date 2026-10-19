@@ -76,7 +76,7 @@ $sections = [
         'title' => 'Deliveries',
         'steps' => [
             ['title' => 'Creating a Delivery', 'text' => 'Link a delivery to an invoice or create a standalone one. Add recipient details, items, delivery provider, and rider info.'],
-            ['title' => 'Status Tracking', 'text' => 'Track deliveries through: <strong>Pending → Dispatched → In Transit → Delivered → Signed Off</strong>. Update the status as items move.'],
+            ['title' => 'Status Tracking', 'text' => 'Track deliveries through: <strong>Pending → Dispatched → In Transit → Delivered → Received</strong>. Update the status as items move.'],
             ['title' => 'E-Signature Sign-Off', 'text' => 'Send a sign-off link to your customer. They sign on their phone to confirm receipt — the signature is stored and shown on the delivery document.'],
         ],
     ],
@@ -129,7 +129,7 @@ $faqs = [
     ['q' => 'Is my data safe?', 'a' => 'Absolutely. All data is encrypted in transit (HTTPS), passwords are hashed with bcrypt, and each business\'s data is completely isolated from others.'],
     ['q' => 'How do I cancel my subscription?', 'a' => 'Go to <strong>Settings → Billing</strong> and click <strong>Cancel Subscription</strong> at the bottom. Your access continues until the end of your current billing period.'],
     ['q' => 'What payment methods do you accept?', 'a' => 'We accept all payment methods supported by Paystack — bank cards (Visa, Mastercard, Verve), bank transfers, and USSD.'],
-    ['q' => 'Can I track deliveries?', 'a' => 'Yes. Create a delivery from any invoice and track it through five stages: Pending → Dispatched → In Transit → Delivered → Signed Off. Customers can e-sign to confirm receipt.'],
+    ['q' => 'Can I track deliveries?', 'a' => 'Yes. Create a delivery from any invoice and track it through five stages: Pending → Dispatched → In Transit → Delivered → Received. The receiver confirms it arrived from their link: with one tap, or by signing when the delivery note is signed.'],
     ['q' => 'How does the Profit & Loss report work?', 'a' => 'The P&L report (owner only) compares your receipts (revenue) against your expenses to show your profit, margin, and a 6-month trend chart. It also shows outstanding invoices and debts.'],
     ['q' => 'Can I use Nfelia on my phone?', 'a' => 'Yes! Nfelia is fully mobile-responsive. Access it from any phone browser — no app download needed.'],
 ];

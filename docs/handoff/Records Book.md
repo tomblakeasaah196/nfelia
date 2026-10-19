@@ -127,11 +127,15 @@ tables and columns the sheets read; the plain copy also takes `order_events`, `r
 
 ## Deploying
 
-- **Composer** gains `phpoffice/phpspreadsheet` and `chillerlan/php-qrcode`. Before merging, check
-  the server's PHP has what they need (Composer refuses to install otherwise and the deploy stops):
-  `/usr/local/bin/ea-php83 -m` should list `zip`, `xml`, `xmlreader`, `xmlwriter`, `dom`, `gd`,
-  `fileinfo`, `iconv`, `zlib` and `mbstring`. Add any that are missing in cPanel → EasyApache 4 →
-  PHP Extensions (ea-php83).
+- **Composer** gains `phpoffice/phpspreadsheet` and `chillerlan/php-qrcode`. The live site's PHP
+  (LiteSpeed's) has every extension they need. The host's command-line PHP
+  (`/usr/local/bin/ea-php83`, which the deploy and the cron run) has no `fileinfo`, and the first
+  deploy stopped there: the code was copied but Composer and the migration did not run, so Mobile
+  Money payments failed until both were run by hand from the cPanel Terminal (19 Oct). Since then,
+  `composer.json` declares `ext-fileinfo` (`config.platform`), so Composer installs on that PHP,
+  and `app/helpers/records.php` stands in for the one fileinfo call PhpSpreadsheet makes (is a
+  picture a picture) when a book is made by the cron. On a new host, `ea-php83 -m` should still
+  list `zip`, `xml`, `xmlreader`, `xmlwriter`, `dom`, `gd`, `iconv`, `zlib` and `mbstring`.
 - **Keep PHP's JIT off** on the server, as PHP 8.3 ships it: `/usr/local/bin/ea-php83 -i | grep
   opcache.jit_buffer_size` should say 0. In CI, PHP 8.3.35 with JIT on (setup-php's default) crashed
   the built-in web server every time it made a book, while the same build from the command line was

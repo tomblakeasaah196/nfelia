@@ -10,6 +10,8 @@ $font_body    = 'Inter';
 $font_mono    = 'Roboto Mono';
 
 $is_active = in_array($quotation['status'], ['draft', 'sent', 'in_negotiation']);
+// A quote set to be signed is accepted by signing it; any other with one tap
+$sign_to_accept = !empty($quotation['sign_on']);
 
 $unread_count = 0;
 if (!empty($activities)) {
@@ -154,6 +156,9 @@ if (!empty($activities)) {
                         <span class="font-mono font-bold text-2xl text-brand"><?= money((float)$quotation['total'], $currency) ?></span>
                     </div>
                 </div>
+
+                <!-- Signatures (only when signed) and the verify code -->
+                <?php require BASE_PATH . '/views/partials/doc_signs.php'; ?>
             </div>
 
             <div x-show="tab === 'terms'" x-cloak x-transition.opacity class="space-y-8">
@@ -227,40 +232,18 @@ if (!empty($activities)) {
                 <button @click="modals.decline = true" class="flex-1 py-3.5 border-2 border-slate-200 text-slate-600 text-xs font-bold uppercase tracking-widest rounded-lg hover:bg-slate-50 transition-colors">
                     Decline
                 </button>
+                <?php if ($sign_to_accept): ?>
                 <button @click="openSignatureModal()" class="flex-[2] py-3.5 bg-brand text-white text-xs font-bold uppercase tracking-widest rounded-lg shadow-lg hover:shadow-xl transition-all">
                     Sign & Accept
                 </button>
+                <?php else: ?>
+                <button @click="acceptQuote()" :disabled="isSubmitting" class="flex-[2] py-3.5 bg-brand text-white text-xs font-bold uppercase tracking-widest rounded-lg shadow-lg hover:shadow-xl transition-all disabled:opacity-50">
+                    Accept quote
+                </button>
+                <?php endif; ?>
             </div>
         <?php endif; ?>
         
-        <?php if ($quotation['owner_signature_data'] || ($quotation['status'] === 'accepted' && $quotation['signature_data'])): ?>
-            <div class="grid grid-cols-2 gap-4 p-6 bg-slate-50 border-t border-slate-200 mt-auto">
-                
-                <div>
-                    <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-3">Authorized By</p>
-                    <?php if ($quotation['owner_signature_data']): ?>
-                        <img src="<?= e($quotation['owner_signature_data']) ?>" class="max-h-16 object-contain mb-2 border-b border-slate-200 pb-2">
-                        <p class="text-sm font-bold text-slate-900"><?= e($quotation['owner_signed_by_name']) ?></p>
-                        <p class="text-[9px] text-slate-500 font-mono mt-0.5">Date: <?= date('d M Y, H:i', strtotime($quotation['owner_signed_at'])) ?></p>
-                    <?php else: ?>
-                        <p class="text-xs text-slate-400 italic mt-6">Pending internal authorization...</p>
-                    <?php endif; ?>
-                </div>
-
-                <div>
-                    <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-3">Client Acceptance</p>
-                    <?php if ($quotation['status'] === 'accepted' && $quotation['signature_data']): ?>
-                        <img src="<?= e($quotation['signature_data']) ?>" class="max-h-16 object-contain mb-2 border-b border-slate-200 pb-2">
-                        <p class="text-sm font-bold text-slate-900"><?= e($quotation['signed_by_name']) ?></p>
-                        <p class="text-[9px] text-slate-500 font-mono mt-0.5">Date: <?= date('d M Y, H:i', strtotime($quotation['signed_at'])) ?></p>
-                    <?php else: ?>
-                        <p class="text-xs text-slate-400 italic mt-6">Pending client signature...</p>
-                    <?php endif; ?>
-                </div>
-
-            </div>
-        <?php endif; ?>
-
         <div x-show="modals.decline" x-cloak class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
             <div @click.away="modals.decline = false" x-transition.translate.y.bottom class="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl">
                 <h3 class="font-heading font-bold text-lg text-slate-900 mb-2">Decline Proposal</h3>
@@ -273,6 +256,7 @@ if (!empty($activities)) {
             </div>
         </div>
 
+        <?php if ($sign_to_accept): ?>
         <div x-show="modals.sign" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 sm:p-6">
             <div @click.away="modals.sign = false" x-transition.scale class="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
                 
@@ -302,6 +286,7 @@ if (!empty($activities)) {
                 </div>
             </div>
         </div>
+        <?php endif; ?>
 
     </div>
 
@@ -335,6 +320,7 @@ if (!empty($activities)) {
 
                 init() {
                     this.canvas = document.getElementById('sig-canvas');
+                    if (!this.canvas) return; // accepted with one tap: nothing to draw
                     this.ctx = this.canvas.getContext('2d');
                     
                     // Canvas Setup
@@ -408,6 +394,13 @@ if (!empty($activities)) {
                     fd.append('name', this.signName);
                     fd.append('signature', dataUrl);
                     
+                    await this.postData(fd);
+                },
+
+                async acceptQuote() {
+                    if (!confirm(<?= json_encode('Accept this quote from ' . $business['name'] . '?', JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>)) return;
+                    const fd = new FormData();
+                    fd.append('action', 'accept');
                     await this.postData(fd);
                 },
 

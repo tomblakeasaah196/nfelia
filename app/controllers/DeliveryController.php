@@ -26,7 +26,7 @@ class DeliveryController {
         'dispatched'       => ['label' => 'Dispatched',       'color' => 'bg-blue-100 text-blue-700',    'icon' => 'truck'],
         'in_transit'       => ['label' => 'In Transit',       'color' => 'bg-amber-100 text-amber-700',  'icon' => 'navigation'],
         'delivered'        => ['label' => 'Delivered',         'color' => 'bg-green-100 text-green-700',  'icon' => 'check-circle'],
-        'signed_off'       => ['label' => 'Signed Off',       'color' => 'bg-purple-100 text-purple-700','icon' => 'edit-3'],
+        'signed_off'       => ['label' => 'Received',         'color' => 'bg-purple-100 text-purple-700','icon' => 'edit-3'],
         'failed'           => ['label' => 'Failed',            'color' => 'bg-red-100 text-red-700',      'icon' => 'x-circle'],
     ];
 
@@ -263,6 +263,7 @@ class DeliveryController {
             $stmt->execute([(int)$delivery['id'], $this->biz_id]);
             $order = $stmt->fetch() ?: ($delivery['invoice_id'] ? order_by_invoice($this->db, $this->biz_id, (int)$delivery['invoice_id']) : null);
         }
+        $sign = doc_sign_state($this->db, 'delivery', (int)$delivery['id'], doc_sign_viewer());
 
         $title     = e($delivery['doc_number']);
         $view_file = BASE_PATH . '/views/deliveries/view.php';
@@ -527,6 +528,8 @@ class DeliveryController {
             return;
         }
 
+        $editing_saved = (bool)$id;
+        $was = $id ? ($this->find_delivery($id) ?: []) : [];
         // Wrap everything in a transaction to prevent partial saves / duplicates
         $this->db->beginTransaction();
         try {
@@ -598,6 +601,18 @@ class DeliveryController {
                     INSERT INTO delivery_items (delivery_id, product_id, description, quantity, unit, notes)
                     VALUES (?, ?, ?, ?, ?, ?)
                 ")->execute([$id, $product_id, $desc, $qty, $unit ?: null, $item_note ?: null]);
+            }
+
+            // Signed or not, as the form's box says: a new note is signed at
+            // once by an owner or admin; a change signs it again
+            $box = signing_box($_POST);
+            $me = (int)(auth_user()['id'] ?? 0);
+            if (!$editing_saved) {
+                doc_made($this->db, 'delivery', $id, $me, $box);
+            } elseif ($box !== null && $box !== !empty($was['sign_on']) && is_boss()) {
+                doc_switch($this->db, $this->biz_id, 'delivery', $id, $box, $me);
+            } else {
+                doc_changed($this->db, 'delivery', $id, $me);
             }
 
             $this->db->commit();

@@ -249,7 +249,18 @@
         if (ref && ref.indexOf(location.origin) === 0 && history.length > 1) { e.preventDefault(); history.back(); }
     });
     var TAB_ROOTS = ['/dashboard', '/invoices', '/receipts', '/quotations', '/tasks', '/more', '/'];
+    // The browser drops a transition when the screen changes size before the
+    // new page is painted (the address bar or keyboard moving), and rejects
+    // its promises. That only means no animation this time: caught here, on
+    // the page leaving and the page arriving, so it is never reported.
+    function quietTransition(vt) {
+        ['ready', 'finished', 'updateCallbackDone'].forEach(function (k) {
+            if (vt[k] && vt[k].catch) vt[k].catch(function () {});
+        });
+    }
+    window.addEventListener('pageswap', function (e) { if (e.viewTransition) quietTransition(e.viewTransition); });
     window.addEventListener('pagereveal', function (e) {
+        if (e.viewTransition) quietTransition(e.viewTransition);
         if (!e.viewTransition || !window.navigation || !navigation.activation) return;
         var a = navigation.activation;
         var from = a.from && a.from.url ? new URL(a.from.url) : null;

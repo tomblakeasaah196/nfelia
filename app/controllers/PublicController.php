@@ -148,45 +148,54 @@ class PublicController
                     throw new Exception("This quotation has already been answered.");
                 }
                 $tell = ["quote.comment", ["comment" => $message], ["dedupe" => "comment-" . $comment_id]];
-            } elseif ($action === "sign") {
-                $signature = $_POST["signature"] ?? ""; /* Base64 Canvas Data */
-                $name = trim($_POST["name"] ?? "");
-                if (!$signature || !$name) {
-                    throw new Exception(
-                        "Digital signature and name are legally required.",
-                    );
+            } elseif ($action === "sign" || $action === "accept") {
+                /* A quote set to be signed is accepted by signing it: the
+                   drawing is kept with the hash of what was signed
+                   (app/helpers/signing.php). Any other quote is accepted
+                   with one tap (Tom: signatures only when wanted). */
+                $name = mb_substr(trim($_POST["name"] ?? ""), 0, 150);
+                $drawing = null;
+                if ($action === "sign") {
+                    if (($_POST["signature"] ?? "") === "" || $name === "") {
+                        throw new Exception("Please write your name and draw your signature.");
+                    }
+                    $drawing = signing_store_drawing((int) $quotation["business_id"], (string) $_POST["signature"]);
+                    if ($drawing === null) {
+                        throw new Exception("That signature didn't come through. Please clear it and sign again.");
+                    }
+                } elseif (!empty($quotation["sign_on"])) {
+                    throw new Exception("This quote needs your signature to accept it. Reload the page and sign it.");
                 }
-                if (
-                    !str_starts_with($signature, "data:image/png;base64,") ||
-                    strlen($signature) > 65000 ||
-                    mb_strlen($name) > 150
-                ) {
-                    throw new Exception(
-                        "That signature didn't come through. Please clear it and sign again.",
-                    );
-                } /* Stamp the quotation with signature data */
                 $stmtUpd = $db->prepare(
-                    " UPDATE quotations SET status = 'accepted', signature_data = ?, signed_by_name = ?, signed_at = NOW(), client_ip = ? WHERE id = ? " . $guard,
+                    " UPDATE quotations SET status = 'accepted', signed_by_name = ?, signed_at = IF(? IS NULL, NULL, NOW()), client_ip = ? WHERE id = ? " . $guard,
                 );
                 $stmtUpd->execute([
-                    $signature,
-                    $name,
+                    $drawing ? $name : null,
+                    $drawing,
                     $client_ip,
                     $quotation["id"],
                 ]);
                 if ($stmtUpd->rowCount() === 0) {
                     throw new Exception("This quotation has already been answered.");
-                } /* Log the signature event */
+                }
+                if ($drawing) {
+                    doc_customer_sign($db, "quote", (int) $quotation["id"], $name, $drawing, $client_ip);
+                }
                 $stmtLog = $db->prepare(
-                    " INSERT INTO quotation_activities (business_id, quotation_id, actor_type, action, message, old_status, new_status) VALUES (?, ?, 'client', 'signed', 'Client signed and legally accepted the proposal.', ?, 'accepted') ",
+                    " INSERT INTO quotation_activities (business_id, quotation_id, actor_type, action, message, old_status, new_status, meta_data) VALUES (?, ?, 'client', ?, ?, ?, 'accepted', JSON_OBJECT('ip', ?)) ",
                 );
                 $stmtLog->execute([
                     $quotation["business_id"],
                     $quotation["id"],
+                    $drawing ? "signed" : "accepted",
+                    $drawing ? "Signed and accepted by " . $name . "." : "Accepted by the client.",
                     $quotation["status"],
+                    $client_ip,
                 ]);
-                $customer_name = $name;
-                $tell = ["quote.accepted", ["total" => (float)($quotation["total"] ?? 0)], ["dedupe" => "accepted"]];
+                if ($drawing) {
+                    $customer_name = $name;
+                }
+                $tell = ["quote.accepted", ["total" => (float)($quotation["total"] ?? 0), "unsigned" => !$drawing], ["dedupe" => "accepted"]];
             } elseif ($action === "decline") {
                 $reason = mb_substr(trim($_POST["reason"] ?? ""), 0, 2000);
                 $stmtState = $db->prepare(
@@ -211,10 +220,10 @@ class PublicController
                 throw new Exception("Invalid action requested.");
             }
             $db->commit();
-            /* Signed: the quote becomes its order, with its invoice and the
-               balance in Debts. If that fails the signature still stands, and
+            /* Accepted: the quote becomes its order, with its invoice and the
+               balance in Debts. If that fails the acceptance still stands, and
                the owner makes the order from the quote's page */
-            if ($action === "sign") {
+            if ($action === "sign" || $action === "accept") {
                 try {
                     $made = order_from_quote($db, (int)$quotation["business_id"], (int)$quotation["id"], (int)$quotation["user_id"]);
                     $tell[1]["order_id"] = (int)$made["id"];
@@ -260,6 +269,7 @@ class PublicController
         );
         $stmtAct->execute([$quotation["id"]]);
         $activities = $stmtAct->fetchAll();
+        $sign = doc_sign_state($this->db, "quote", (int) $quotation["id"]);
         require_once BASE_PATH . "/views/quotations/public.php";
     }
     private function render_invoice(array $invoice): void
@@ -277,6 +287,7 @@ class PublicController
             ? $this->get_bank($invoice["bank_account_id"], (int) $invoice["business_id"])
             : null;
         $order_number = $this->order_number_of($invoice);
+        $sign = doc_sign_state($this->db, "invoice", (int) $invoice["id"]);
         require_once BASE_PATH . "/views/invoices/public.php";
     }
     private function render_receipt(array $receipt): void
@@ -302,6 +313,7 @@ class PublicController
             $invoice = $stmtInv->fetch();
         }
         $order_number = $this->order_number_of($receipt);
+        $sign = doc_sign_state($this->db, "receipt", (int) $receipt["id"]);
         require_once BASE_PATH . "/views/receipts/public.php";
     }
     /** The number of the order a document belongs to ("ADA-ORD-012"), or null: through its own order_id, else its invoice's. */
@@ -371,6 +383,7 @@ class PublicController
         $statuses = DeliveryController::STATUSES;
         $providers = DeliveryController::PROVIDERS;
         $order_number = $this->order_number_of($delivery);
+        $sign = doc_sign_state($this->db, "delivery", (int) $delivery["id"]);
         require_once BASE_PATH . "/views/deliveries/public.php";
     } /* ────────────────────────────────────────── * E-SIGNATURE SIGN-OFF /sign/{signoff_token} * GET → show sign-off form * POST → process signature submission * *──────────────────────────────────────────*/
     public function signoff(string $signoff_token): void
@@ -431,12 +444,16 @@ class PublicController
         if ($delivery["status"] === "signed_off") {
             echo json_encode([
                 "success" => false,
-                "error" => "This delivery has already been signed off.",
+                "error" => "This delivery has already been received.",
             ]);
             return;
         }
-        $signoff_name = trim($_POST["signoff_name"] ?? "");
-        $signature_data = $_POST["signature_data"] ?? "";
+        $signoff_name = mb_substr(trim($_POST["signoff_name"] ?? ""), 0, 100);
+        $signature_data = (string) ($_POST["signature_data"] ?? "");
+        /* A signed delivery note is received by signing it; any other with
+           one tap and a name (Tom: signatures only when wanted). A signature
+           sent for a note that isn't signed is not kept. */
+        $signing = !empty($delivery["sign_on"]);
         if ($signoff_name === "") {
             echo json_encode([
                 "success" => false,
@@ -444,75 +461,60 @@ class PublicController
             ]);
             return;
         }
-        if (
-            $signature_data === "" ||
-            !str_starts_with($signature_data, "data:image/png;base64,")
-        ) {
+        if ($signing && !str_starts_with($signature_data, "data:image/png;base64,")) {
             echo json_encode([
                 "success" => false,
                 "error" => "Please draw your signature.",
             ]);
             return;
         }
-        /* The signature must be a real PNG of a sensible size. It is redrawn
-           by GD and kept in storage/ under a random name: it is only ever
-           shown through this delivery's own links (send_private_file). */
-        $image_data =
-            strlen($signature_data) <= 3 * 1024 * 1024
-                ? base64_decode(substr($signature_data, 22), true)
-                : false;
-        $info = $image_data ? @getimagesizefromstring($image_data) : false;
-        $image =
-            $info &&
-            $info["mime"] === "image/png" &&
-            $info[0] <= 4000 &&
-            $info[1] <= 2000
-                ? @imagecreatefromstring($image_data)
-                : false;
-        if (!$image) {
-            echo json_encode([
-                "success" => false,
-                "error" => "That signature didn't come through. Please clear it and sign again.",
-            ]);
-            return;
+        /* The drawing is redrawn by GD and kept privately under a name made
+           from its content: only ever shown through this delivery's own
+           links (send_private_file) and its signature (signing.php) */
+        $relative_path = null;
+        if ($signing) {
+            $relative_path = signing_store_drawing((int) $delivery["business_id"], $signature_data);
+            if ($relative_path === null) {
+                echo json_encode([
+                    "success" => false,
+                    "error" => "That signature didn't come through. Please clear it and sign again.",
+                ]);
+                return;
+            }
         }
-        imagesavealpha($image, true);
-        $filename = bin2hex(random_bytes(16)) . ".png";
-        $filepath =
-            private_file_dir("signatures", (int) $delivery["business_id"]) .
-            "/" .
-            $filename;
-        $relative_path =
-            "storage/private/signatures/" .
-            $delivery["business_id"] .
-            "/" .
-            $filename;
-        $saved = imagepng($image, $filepath, 8);
-        imagedestroy($image);
-        if (!$saved) {
-            echo json_encode([
-                "success" => false,
-                "error" => "That signature didn't come through. Please try again.",
-            ]);
-            return;
-        } /* Update delivery record */
         $signoff_ip = client_ip();
-        /* Only a delivery still on its way can be signed, once: a second tap,
-           or a delivery cancelled meanwhile, changes nothing (S11) */
-        $stmtSign = $this->db->prepare(
-            " UPDATE deliveries SET status = 'signed_off', signoff_name = ?, signoff_signature_path = ?, signoff_timestamp = NOW(), signoff_ip = ?, actual_delivery = COALESCE(actual_delivery, NOW()) WHERE id = ? AND deleted_at IS NULL AND status IN ('pending_dispatch','dispatched','in_transit','delivered') ",
-        );
-        $stmtSign->execute([
-            mb_substr($signoff_name, 0, 100),
-            $relative_path,
-            $signoff_ip,
-            $delivery["id"],
-        ]);
-        if ($stmtSign->rowCount() !== 1) {
-            @unlink($filepath);
+        /* Only a delivery still on its way can be received, once: a second
+           tap, or a delivery cancelled meanwhile, changes nothing (S11).
+           Its signature is kept with it, or neither is. */
+        $this->db->beginTransaction();
+        try {
+            $stmtSign = $this->db->prepare(
+                " UPDATE deliveries SET status = 'signed_off', signoff_name = ?, signoff_signature_path = ?, signoff_timestamp = NOW(), signoff_ip = ?, actual_delivery = COALESCE(actual_delivery, NOW()) WHERE id = ? AND deleted_at IS NULL AND status IN ('pending_dispatch','dispatched','in_transit','delivered') ",
+            );
+            $stmtSign->execute([
+                $signoff_name,
+                $relative_path,
+                $signoff_ip,
+                $delivery["id"],
+            ]);
+            if ($stmtSign->rowCount() !== 1) {
+                $this->db->rollBack();
+                echo json_encode([
+                    "success" => false,
+                    "error" => "This delivery has already been received or was cancelled.",
+                ]);
+                return;
+            }
+            if ($relative_path) {
+                doc_customer_sign($this->db, "delivery", (int) $delivery["id"], $signoff_name, $relative_path, $signoff_ip);
+            }
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+            errors_report_throwable($e);
             echo json_encode([
                 "success" => false,
-                "error" => "This delivery has already been signed off or was cancelled.",
+                "error" => "That didn't go through. Please try again.",
             ]);
             return;
         }
@@ -528,7 +530,7 @@ class PublicController
         $signed_order = $stmtOrder->fetch() ?: null;
         $order_id = $signed_order ? (int) $signed_order["id"] : 0;
         notify("delivery.signed", (int) $delivery["business_id"], [
-            "delivery_id" => (int) $delivery["id"], "delivery_number" => $delivery["doc_number"], "signer" => $signoff_name,
+            "delivery_id" => (int) $delivery["id"], "delivery_number" => $delivery["doc_number"], "signer" => $signoff_name, "unsigned" => !$relative_path,
             "order_id" => $order_id ?: null, "order_number" => $signed_order["order_number"] ?? null,
         ], ["dedupe" => (string) $delivery["id"]]);
         /* The order behind this delivery is done (its Log, the shopper told),
@@ -538,7 +540,7 @@ class PublicController
             order_sync_from_delivery($this->db, (int) $delivery["business_id"], (int) $delivery["id"]);
             if ($order_id) {
                 order_log($this->db, (int) $delivery["business_id"], $order_id, "signed",
-                          mb_substr($signoff_name, 0, 100) . " signed for delivery " . $delivery["doc_number"] . ".");
+                          $signoff_name . ($relative_path ? " signed for delivery " : " confirmed delivery ") . $delivery["doc_number"] . ($relative_path ? "." : " arrived."));
             }
             $review = $order_id ? review_invite($this->db, $order_id) : null;
             if ($review && $review["status"] === "invited" && $business) {
@@ -604,6 +606,7 @@ class PublicController
             );
             $stmtI->execute([$quotation["id"]]);
             $items = $stmtI->fetchAll();
+            $sign = doc_sign_state($this->db, "quote", (int) $quotation["id"]);
             ob_start();
             require BASE_PATH . "/views/quotations/pdf_template.php";
             $html = ob_get_clean();
@@ -634,6 +637,7 @@ class PublicController
                 $stmtP->execute([$invoice["id"]]);
                 $payments = $stmtP->fetchAll();
                 $order_number = $this->order_number_of($invoice);
+                $sign = doc_sign_state($this->db, "invoice", (int) $invoice["id"]);
                 ob_start();
                 require BASE_PATH . "/views/invoices/pdf_template.php";
                 $html = ob_get_clean();
@@ -668,6 +672,7 @@ class PublicController
                     $invoice = $stmtInv->fetch();
                 }
                 $order_number = $this->order_number_of($receipt);
+                $sign = doc_sign_state($this->db, "receipt", (int) $receipt["id"]);
                 ob_start();
                 require BASE_PATH . "/views/receipts/pdf_template.php";
                 $html = ob_get_clean();

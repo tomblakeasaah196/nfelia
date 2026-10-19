@@ -323,6 +323,7 @@ class BookingController
             INSERT INTO receipt_items (receipt_id, product_id, description, quantity, unit_price, subtotal, sort_order)
             VALUES (?, NULL, ?, 1, ?, ?, 0)
         ")->execute([$receipt_id, mb_substr('Deposit: ' . $booking['product_name'] . ', ' . booking_when($booking), 0, 500), $deposit, $deposit]);
+        doc_made($this->db, 'receipt', $receipt_id, $user_id);   // signed or not, as Settings › Signatures say
         if ($customer_id) {
             customer_refresh_totals($this->db, $this->biz_id, $customer_id);
         }

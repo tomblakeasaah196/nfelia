@@ -31,6 +31,20 @@ require_once __DIR__ . '/money.php';
 require_once __DIR__ . '/billing.php';
 require_once __DIR__ . '/prices.php';
 
+/*
+ * The live site's PHP has fileinfo; the host's command-line PHP, which the
+ * cron makes books with, does not. PhpSpreadsheet only asks it whether a
+ * picture on the sheet is a picture (the logos and the QR code), which the
+ * picture's own header answers just as well.
+ */
+if (!function_exists('mime_content_type')) {
+    function mime_content_type($filename): string|false
+    {
+        $info = is_string($filename) ? @getimagesize($filename) : false;
+        return $info['mime'] ?? 'application/octet-stream';
+    }
+}
+
 const RECORDS_KEEP_DAYS = 365;     // a book, and what it takes to check it
 const RECORDS_RAW_DAYS  = 7;       // a plain copy
 const RECORDS_TRIES     = 3;

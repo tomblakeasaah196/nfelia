@@ -122,6 +122,8 @@ class DeedController {
                 $line_items_json,
                 $total, $currency_symbol, $currency_code,
             ]);
+            // Signed or not, as the form's box says; signed at once by an owner or admin
+            doc_made($this->db, 'deed', (int)$this->db->lastInsertId(), (int)(auth_user()['id'] ?? 0), signing_box($_POST));
 
             // The customer's copy, through the outbox: sent after this page
             // answers, retried if the mail server is down. Only when there
@@ -162,6 +164,7 @@ class DeedController {
         $items = json_decode($deed['line_items'], true) ?: [];
 
         $title     = e($deed['doc_number']) . ' — Deed of Acquisition';
+        $sign      = doc_sign_state($this->db, 'deed', (int)$deed['id'], doc_sign_viewer());
         $view_file = BASE_PATH . '/views/deeds/view.php';
         require_once BASE_PATH . '/views/deeds/view.php';
     }
@@ -177,6 +180,7 @@ class DeedController {
 
         ['deed' => $deed, 'business' => $business, 'customer' => $customer] = $data;
         $items = json_decode($deed['line_items'], true) ?: [];
+        $sign  = doc_sign_state($this->db, 'deed', (int)$deed['id']);
 
         ob_start();
         require BASE_PATH . '/views/deeds/pdf_template.php';

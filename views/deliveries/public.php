@@ -227,9 +227,9 @@ $status_color = $statuses[$delivery['status']]['color'] ?? 'bg-gray-100 text-gra
                 </div>
                 <?php endif; ?>
 
-                <!-- E-Signature Block -->
+                <!-- Proof of delivery: the receiver's confirmation, the signatures (when signed) and the verify code -->
                 <div class="border-t-2 border-dashed border-gray-200 pt-6">
-                    <div class="text-[9px] font-bold uppercase tracking-widest text-gray-400 mb-4">Proof of Delivery — E-Signature</div>
+                    <div class="text-[9px] font-bold uppercase tracking-widest text-gray-400 mb-4">Proof of Delivery</div>
 
                     <?php if ($delivery['status'] === 'signed_off' && $delivery['signoff_name']): ?>
                         <div class="bg-green-50 border border-green-200 rounded-xl p-5">
@@ -237,9 +237,9 @@ $status_color = $statuses[$delivery['status']]['color'] ?? 'bg-gray-100 text-gra
                                 <svg class="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                                 <span class="text-sm font-bold text-green-700">Receipt Confirmed</span>
                             </div>
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
-                                    <div class="text-[9px] text-green-500 uppercase font-bold tracking-widest">Received By</div>
+                                    <div class="text-[9px] text-green-500 uppercase font-bold tracking-widest"><?= $delivery['signoff_signature_path'] ? 'Signed By' : 'Received By' ?></div>
                                     <div class="text-sm font-bold text-green-900"><?= e($delivery['signoff_name']) ?></div>
                                 </div>
                                 <div>
@@ -247,21 +247,14 @@ $status_color = $statuses[$delivery['status']]['color'] ?? 'bg-gray-100 text-gra
                                     <div class="text-sm text-green-900"><?= $delivery['signoff_timestamp'] ? fmt_date($delivery['signoff_timestamp'], 'd M Y, H:i') : '—' ?></div>
                                 </div>
                             </div>
-                            <?php if ($delivery['signoff_signature_path']): ?>
-                                <div>
-                                    <div class="text-[9px] text-green-500 uppercase font-bold tracking-widest mb-2">Signature</div>
-                                    <div class="bg-white rounded-lg border border-green-200 p-4 inline-block">
-                                        <img src="<?= APP_URL . '/delivery/' . e($delivery['token']) . '?signature=1' ?>" alt="Signature" class="max-h-24">
-                                    </div>
-                                </div>
-                            <?php endif; ?>
                         </div>
-                    <?php else: ?>
+                    <?php elseif ($delivery['status'] !== 'failed'): ?>
                         <div class="bg-gray-50 border border-gray-200 rounded-xl p-5 text-center">
-                            <svg class="w-8 h-8 text-gray-300 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
-                            <p class="text-xs text-gray-400 font-medium">Awaiting recipient signature</p>
+                            <p class="text-xs text-gray-400 font-medium"><?= !empty($delivery['sign_on']) ? 'Waiting for the receiver to sign for it' : 'Waiting for the receiver to confirm it arrived' ?></p>
                         </div>
                     <?php endif; ?>
+
+                    <?php require BASE_PATH . '/views/partials/doc_signs.php'; ?>
                 </div>
 
             </div>
