@@ -34,7 +34,12 @@
  * 7. The Nfelia Ops monitor (app/ops/monitor.php): the server log read into
  *    Ops → Errors, health checks, the 8am summary to the Ops team.
  *
- * 8. Phone notifications and emails still waiting, retried (what the
+ * 8. Records Books waiting to be made, kept files past their year, and
+ *    requests for a record nobody answered (app/helpers/records.php); a
+ *    price change's notices, with what is left of the hour's mail after
+ *    campaigns (app/helpers/prices.php).
+ *
+ * 9. Phone notifications and emails still waiting, retried (what the
  *    monitor queued goes out in this same run).
  *
  * Every time here is Lagos time from planner_now(), the same clock remind_at
@@ -333,7 +338,26 @@ try {
     errors_report_throwable($e, ['job' => 'Cron: Ops sales']);
 }
 
-/* ── 8. Phone notifications and emails still waiting ───────── */
+/* ── 8. Records Books, and price notices ──────────────────── */
+
+try {
+    require_once __DIR__ . '/../app/helpers/records.php';
+    $done += records_cron($db);
+} catch (Throwable $e) {
+    $done['errors']++;
+    errors_report_throwable($e, ['job' => 'Cron: Records Books']);
+}
+try {
+    require_once __DIR__ . '/../app/helpers/prices.php';
+    require_once __DIR__ . '/../app/ops/sales.php';
+    $share = (int)ceil(campaign_per_hour() / 12) - (int)($done['campaign_queued'] ?? 0);
+    $done['price_notices'] = prices_notice_drip($db, max(1, $share));
+} catch (Throwable $e) {
+    $done['errors']++;
+    errors_report_throwable($e, ['job' => 'Cron: price notices']);
+}
+
+/* ── 9. Phone notifications and emails still waiting ───────── */
 
 // Most go straight after the page that caused them has answered. This
 // sends what this run queued, and tries again what failed (a mail server

@@ -112,11 +112,15 @@ $sections = [
     ],
 ];
 
+require_once BASE_PATH . '/app/helpers/prices.php';
+$site_prices = prices_site();   // as Ops → Prices has them
+$naira_text  = fn(float $n) => '₦' . number_format($n);
 $faqs = [
-    ['q' => 'How much does Nfelia cost?', 'a' => 'Nfelia is ₦10,000/month with a 14-day free trial. No card required to start. Additional team members cost ₦5,000/month each (up to 5 total users).'],
+    ['q' => 'How much does Nfelia cost?', 'a' => 'Nfelia is ' . $naira_text($site_prices['month']) . '/month with a 14-day free trial. No card required to start. Additional team members cost ' . $naira_text($site_prices['seat']) . '/month each (up to 5 total users).'],
     ['q' => 'Can I try Nfelia for free?', 'a' => 'Yes! Every new business gets a full 14-day free trial with access to all features. No payment information needed.'],
     ['q' => 'What happens when my trial ends?', 'a' => 'Your account will be paused until you subscribe. All your data is safe — nothing is deleted. Subscribe anytime to pick up where you left off.'],
-    ['q' => 'How do I add team members?', 'a' => 'Go to <strong>Settings → Team</strong> (owner only). Add their name, email, and a temporary password. They can change their password after logging in. Each extra seat costs ₦5,000/month.'],
+    ['q' => 'Can I take my records with me?', 'a' => 'Yes, always. Open <strong>Your records</strong> in the menu, under Data. Your <strong>Records Book</strong> puts everything in one Excel workbook in your colours, with totals, a chart of your months and a code anyone can check at nfelia.com/verify. It is free once in every month you pay for, or ' . $naira_text($site_prices['book']) . ' at other times. Your <strong>plain copy</strong> (every record in CSV files) is free, whatever your plan.'],
+    ['q' => 'How do I add team members?', 'a' => 'Go to <strong>Settings → Team</strong> (owner only). Add their name, email, and a temporary password. They can change their password after logging in. Each extra seat costs ' . $naira_text($site_prices['seat']) . '/month.'],
     ['q' => 'What can staff members see?', 'a' => 'Staff have access to products, invoices, receipts, quotations, expenses, debts, and deliveries. They cannot access billing, P&L reports, landing page settings, or team management.'],
     ['q' => 'How do I share documents with customers?', 'a' => 'Every invoice, receipt, quotation, and delivery has a <strong>Share</strong> button that generates a public link. Share via WhatsApp, email, or copy the link directly.'],
     ['q' => 'Can my customers download PDFs?', 'a' => 'Yes. Every shared document page has a <strong>Download PDF</strong> button that generates a branded PDF with your logo and colours.'],

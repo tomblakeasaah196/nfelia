@@ -1,10 +1,10 @@
 <?php
-/** Countries (settings-like list with inline editing): $rows, $methods. */
+/** Countries (settings-like list with inline editing): $rows (each with prices: prices_now()), $methods. */
 ?>
 <div class="ops-head">
     <div>
         <h1>Countries</h1>
-        <p>Where Nfelia sells: the monthly price, the free trial, and how businesses there pay. New sign-ups and renewals use what is here.</p>
+        <p>Where Nfelia sells: the free trial, and how businesses there pay. Prices change under <a href="<?= e(ops_url('prices')) ?>">Prices</a>, with notice for clients already there.</p>
     </div>
     <div class="ops-head-actions"><button type="button" class="ops-btn ops-btn-primary" data-ops-dialog="add-country"><?= ops_icon('plus') ?> Add a country</button></div>
 </div>
@@ -13,15 +13,16 @@
     <details class="ops-card ops-country">
         <summary>
             <span class="grow"><b><?= e(trim(($c['flag_emoji'] ?? '') . ' ' . $c['name'])) ?></b>
-                <span class="muted"> · <?= e($c['currency_symbol'] . number_format((float)$c['monthly_price'])) ?> a month · <?= (int)$c['trial_days'] ?>-day trial · <?= e($methods[$c['payment_method']] ?? $c['payment_method']) ?> · <?= (int)$c['businesses'] ?> business<?= (int)$c['businesses'] === 1 ? '' : 'es' ?></span></span>
+                <span class="muted"> · <?= e(prices_money($c['prices']['month'], $c)) ?> a month · <?= (int)$c['trial_days'] ?>-day trial · <?= e($methods[$c['payment_method']] ?? $c['payment_method']) ?> · <?= (int)$c['businesses'] ?> business<?= (int)$c['businesses'] === 1 ? '' : 'es' ?></span></span>
             <span class="ops-chip <?= (int)$c['is_active'] ? 'ops-chip-ok' : '' ?>"><?= (int)$c['is_active'] ? 'Offered' : 'Not offered' ?></span>
         </summary>
         <div class="ops-card-body">
             <form method="post" action="<?= e(ops_url('countries/' . (int)$c['id'])) ?>">
                 <?= ops_csrf_field() ?>
+                <p class="small" style="margin:0 0 14px"><span class="muted">Prices:</span>
+                    <?= e(implode(' · ', array_map(fn($item, $def) => $def['label'] . ' ' . prices_money($c['prices'][$item], $c), array_keys(PRICE_ITEMS), PRICE_ITEMS))) ?>.
+                    <a href="<?= e(ops_url('prices')) ?>">Change them in Prices</a></p>
                 <div class="ops-row">
-                    <div class="ops-field"><label for="mp-<?= (int)$c['id'] ?>">Monthly price (<?= e($c['currency_code']) ?>)</label><input class="ops-input" id="mp-<?= (int)$c['id'] ?>" name="monthly_price" inputmode="decimal" value="<?= e((string)(float)$c['monthly_price']) ?>"></div>
-                    <div class="ops-field"><label for="es-<?= (int)$c['id'] ?>">Extra seat</label><input class="ops-input" id="es-<?= (int)$c['id'] ?>" name="extra_seat_price" inputmode="decimal" value="<?= e((string)(float)$c['extra_seat_price']) ?>"></div>
                     <div class="ops-field"><label for="td-<?= (int)$c['id'] ?>">Trial days</label><input class="ops-input" id="td-<?= (int)$c['id'] ?>" name="trial_days" inputmode="numeric" value="<?= (int)$c['trial_days'] ?>"></div>
                     <div class="ops-field"><label for="cs-<?= (int)$c['id'] ?>">Symbol</label><input class="ops-input" id="cs-<?= (int)$c['id'] ?>" name="currency_symbol" value="<?= e($c['currency_symbol']) ?>"></div>
                 </div>
@@ -61,9 +62,11 @@
                 <div class="ops-field"><label for="nc-cs">Symbol</label><input class="ops-input" id="nc-cs" name="currency_symbol" required placeholder="GH₵"></div>
             </div>
             <div class="ops-row">
-                <div class="ops-field"><label for="nc-mp">Monthly price</label><input class="ops-input" id="nc-mp" name="monthly_price" inputmode="decimal" required></div>
-                <div class="ops-field"><label for="nc-td">Trial days</label><input class="ops-input" id="nc-td" name="trial_days" inputmode="numeric" value="14"></div>
+                <div class="ops-field"><label for="nc-mp">A month</label><input class="ops-input" id="nc-mp" name="monthly_price" inputmode="decimal" required></div>
+                <div class="ops-field"><label for="nc-sp">Each extra person</label><input class="ops-input" id="nc-sp" name="extra_seat_price" inputmode="decimal" required></div>
+                <div class="ops-field"><label for="nc-bp">A Records Book</label><input class="ops-input" id="nc-bp" name="book_price" inputmode="decimal" required></div>
             </div>
+            <div class="ops-field"><label for="nc-td">Trial days</label><input class="ops-input" id="nc-td" name="trial_days" inputmode="numeric" value="14"></div>
             <div class="ops-field"><label for="nc-pm">How they pay</label><select class="ops-select" id="nc-pm" name="payment_method"><?php foreach ($methods as $k => $label): ?><option value="<?= e($k) ?>"><?= e($label) ?></option><?php endforeach; ?></select></div>
             <label class="ops-check"><input type="checkbox" name="is_active" value="1" checked><span>Offer it at sign-up now</span></label>
         </div>

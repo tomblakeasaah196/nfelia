@@ -10,6 +10,7 @@ if (!function_exists('nf_icon')) {
             'naira'    => '<circle cx="12" cy="12" r="9"/><path d="M9 16V8l6 8V8M7 11h10M7 13.2h10"/>',
             'chart'    => '<path d="M4 20h16M7 16v-4M12 16V6M17 16v-7"/>',
             'box'      => '<path d="M21 7.5 12 3 3 7.5 12 12l9-4.5Z"/><path d="M3 7.5v9L12 21l9-4.5v-9M12 12v9"/>',
+            'sheet'    => '<rect x="3.5" y="4" width="17" height="16" rx="2"/><path d="M3.5 9.5h17M3.5 14.5h17M9.5 9.5V20"/>',
             'chat'     => '<path d="M20.5 12a8.5 8.5 0 0 1-12.4 7.5L3.5 20.5l1-4.4A8.5 8.5 0 1 1 20.5 12Z"/><path d="m8.5 12 2.5 2.5 4.5-5"/>',
             'invoice'  => '<path d="M14 3H6.5A1.5 1.5 0 0 0 5 4.5v15A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V8Z"/><path d="M14 3v5h5M8.5 13h7M8.5 17h4.5"/>',
             'truck'    => '<path d="M2.5 6.5h11v9.5h-11zM13.5 10h4l3 3.2V16h-7"/><circle cx="6.5" cy="17.5" r="2" fill="#fff"/><circle cx="16.5" cy="17.5" r="2" fill="#fff"/>',

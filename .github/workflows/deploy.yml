@@ -173,7 +173,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
-          extensions: pdo_mysql, curl, openssl, mbstring, gd, intl
+          extensions: pdo_mysql, curl, openssl, mbstring, gd, intl, zip, xmlreader, xmlwriter, fileinfo, iconv
           coverage: none
 
       - name: Tools the tests use (faketime for the cron's clock, the mysql client)
@@ -212,14 +212,33 @@ jobs:
       - name: Database (schema, migrations, procedure)
         run: bash tests/notifications/setup.sh
 
+      # Without JIT, as PHP 8.3 ships (no JIT buffer). setup-php turns JIT
+      # on (opcache.jit=1235, a 256M buffer), and the built-in server uses
+      # OPcache, so it ran the app JIT-compiled: on PHP 8.3.35 that crashed
+      # the server outright (a general protection fault in php8.3) every
+      # time a Records Book was made, while the same build ran fine from the
+      # command line, with or without JIT.
       - name: Serve the app
         run: |
-          php -S 127.0.0.1:8099 -t . tests/notifications/router.php > "$RUNNER_TEMP/app.log" 2>&1 &
+          php -d opcache.jit_buffer_size=0 -S 127.0.0.1:8099 -t . tests/notifications/router.php > "$RUNNER_TEMP/app.log" 2>&1 &
           for i in $(seq 50); do curl -sf -o /dev/null http://localhost:8099/login && exit 0; sleep 0.2; done
           echo "::error::the app did not start"; cat "$RUNNER_TEMP/app.log"; exit 1
 
-      - name: Engine, every trigger over HTTP, the cron, the service worker, Nfelia Ops, the orders hub
-        run: bash tests/notifications/run.sh engine flows cron sw ops/foundation ops/monitor ops/clients ops/sales orders/core
+      - name: Engine, every trigger over HTTP, the cron, the service worker, Nfelia Ops, the orders hub, the Records Book
+        run: bash tests/notifications/run.sh engine flows cron sw ops/foundation ops/monitor ops/clients ops/sales orders/core ops/records
+
+      # What the app itself said (PHP errors above all), right in the job's
+      # log: the artifact below has the whole file.
+      - name: The app's log, when a check above failed
+        if: failure()
+        run: |
+          grep -v -E ' (Accepted|Closing)$' "$RUNNER_TEMP/app.log" | tail -n 60 || true
+          echo "--- the app's last connections"; tail -n 6 "$RUNNER_TEMP/app.log" || true
+          echo "--- is the app still running?"; pgrep -af 'php -S' || echo "no: the server process is gone"
+          echo "--- what the kernel saw"; sudo dmesg | tail -n 15 || true
+          echo "--- a Records Book made outside the web server"
+          php -r 'require "tests/bootstrap.php"; require "app/helpers/records.php"; $db = get_db(); $id = records_queue($db, 2, ["charge" => "free", "sheets" => ["customers", "invoices"]]); var_dump(records_build($db, $id), $db->query("SELECT status, error FROM records_books WHERE id = " . $id)->fetch());'; echo "exit code $?"
+          sudo dmesg | tail -n 5 || true
 
       - name: Browser for the UI checks
         id: browser

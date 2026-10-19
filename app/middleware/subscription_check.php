@@ -12,10 +12,11 @@
 // sign-up (an expired trial must not bounce between onboarding and billing)
 // and asking for help. Notifications stay open too: the alert that says the
 // account is on hold must open (and be marked read) while everything else is
-// shut. The Nfelia business locks like any other: the team works in Nfelia
-// Ops (ops.nfelia.com), not in it.
+// shut. Your records too: a business's records are its own, paid up or not.
+// The Nfelia business locks like any other: the team works in Nfelia Ops
+// (ops.nfelia.com), not in it.
 $exempt_routes = ['settings', 'account', 'logout', 'billing', 'momo', 'countries', 'onboarding',
-                  'support', 'contact-support', 'user-guide', 'notifications'];
+                  'support', 'contact-support', 'user-guide', 'notifications', 'records'];
 
 if (!in_array($controller ?? '', $exempt_routes)) {
     $db   = get_db();

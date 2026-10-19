@@ -49,7 +49,7 @@ class PaystackController {
             if ($add < 1) {
                 json_response(['error' => 'Choose at least one new seat (up to ' . (MAX_SEATS - 1) . ' staff in all).'], 400); return;
             }
-            $amount  = $add * $prices['seat'];
+            $amount  = $add * $prices['seat_now'];
             $meta    = ['kind' => 'seats', 'add_seats' => $add];
             $covered = [];
         } else {
@@ -144,9 +144,10 @@ class PaystackController {
             return;
         }
 
+        $book = (self::meta($data)['kind'] ?? '') === 'book';
         switch ($this->apply_payment((int)auth_business_id(), $data)) {
             case 'applied':
-                flash('success', 'Payment received. Thank you!');
+                flash('success', $book ? 'Payment received. We are making your Records Book now.' : 'Payment received. Thank you!');
                 break;
             case 'already':
                 flash('success', 'This payment is already on your account.');
@@ -155,7 +156,7 @@ class PaystackController {
                 flash('error', 'That payment doesn\'t match what was asked for. Please contact support.');
         }
         unset($_SESSION['paystack_reference'], $_SESSION['paystack_extra_seats']);
-        redirect('settings?tab=billing');
+        redirect($book ? 'records' : 'settings?tab=billing');
     }
 
     /* ══════════════════════════════════════════
@@ -355,6 +356,11 @@ class PaystackController {
                         paystack_customer_code = COALESCE(?, paystack_customer_code), last_payment_ref = ?, updated_at = NOW()
                     WHERE business_id = ?
                 ")->execute([MAX_SEATS - 1, $add ?? (int)($meta['extra_seats'] ?? 0), $data['customer']['customer_code'] ?? null, $reference, $biz_id]);
+            } elseif ($kind === 'book') {
+                // A Records Book (app/helpers/records.php): it can be made now
+                $this->db->prepare("UPDATE records_books SET status = 'queued', payment_ref = ?, amount = ?, currency_code = ?
+                                    WHERE id = ? AND business_id = ? AND status IN ('awaiting_payment', 'cancelled')")
+                   ->execute([$reference, $amount, $currency, (int)($meta['book_id'] ?? 0), $biz_id]);
             } elseif ($kind === 'month') {
                 billing_start_month($this->db, $biz_id, $amount, (int)($meta['extra_seats'] ?? 0),
                     array_map('intval', (array)($meta['covered'] ?? [])), 'paystack', $reference);
@@ -387,6 +393,13 @@ class PaystackController {
             throw $e;
         }
 
+        if ($kind === 'book') {
+            require_once BASE_PATH . '/app/helpers/records.php';
+            records_build_later((int)($meta['book_id'] ?? 0));
+            notify('records.paid', $biz_id, ['amount_text' => self::money_text($paid, $currency)], ['dedupe' => $reference]);
+            return 'applied';
+        }
+
         // Whether the shop is open follows the subscription
         storefront_purge($biz_id);
 
@@ -396,10 +409,9 @@ class PaystackController {
         }
 
         // The owner hears it went through, and until when they're covered
-        $symbols = ['NGN' => '₦', 'GHS' => 'GH₵', 'KES' => 'KSh ', 'ZAR' => 'R', 'USD' => '$'];
         $sub     = $this->get_subscription($biz_id);
         notify('billing.paid', $biz_id, [
-            'amount_text' => ($symbols[$currency] ?? $currency . ' ') . number_format($paid / 100, $paid % 100 ? 2 : 0),
+            'amount_text' => self::money_text($paid, $currency),
             'period_end'  => $kind === 'seats' ? null : ($sub['current_period_end'] ?? null),
         ], ['dedupe' => $reference]);
 
@@ -409,6 +421,34 @@ class PaystackController {
             notify('billing.renewals_stopped', $biz_id, [], ['dedupe' => 'renewals-stopped']);
         }
         return 'applied';
+    }
+
+    /**
+     * Start paying for a Records Book by card (RecordsController::make):
+     * [true, the Paystack page] or [false, what went wrong]. The book is
+     * made once the payment is confirmed (apply_payment, kind 'book').
+     */
+    public static function start_book(PDO $db, array $user, int $biz_id, int $book_id, float $amount, string $currency): array {
+        $subunits  = (int)round($amount * 100);
+        $reference = 'NFELIA_' . $biz_id . '_' . bin2hex(random_bytes(12));
+        $response  = self::api('POST', '/transaction/initialize', [
+            'email'        => $user['email'],
+            'amount'       => $subunits,
+            'currency'     => $currency,
+            'reference'    => $reference,
+            'callback_url' => APP_URL . '/billing/callback',
+            'metadata'     => json_encode(['kind' => 'book', 'book_id' => $book_id, 'business_id' => $biz_id, 'amount' => $subunits, 'currency' => $currency]),
+        ]);
+        if (!$response || !($response['status'] ?? false) || empty($response['data']['authorization_url'])) {
+            return [false, (string)($response['message'] ?? 'the payment service did not answer.')];
+        }
+        return [true, (string)$response['data']['authorization_url']];
+    }
+
+    /** An amount in subunits (kobo) as people read it: ₦7,500. */
+    private static function money_text(int $subunits, string $currency): string {
+        $symbols = ['NGN' => '₦', 'GHS' => 'GH₵', 'KES' => 'KSh ', 'ZAR' => 'R', 'USD' => '$'];
+        return ($symbols[$currency] ?? $currency . ' ') . number_format($subunits / 100, $subunits % 100 ? 2 : 0);
     }
 
     /**

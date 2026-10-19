@@ -28,7 +28,7 @@ $sample = [
     'grace_ends' => date('Y-m-d H:i:s'), 'host' => 'adas-hair.nfelia.com', 'changed' => true, 'has_current' => false, 'ticket_id' => 1,
     'subject' => 'Cannot print', 'reply' => 'Fixed now.', 'referred' => 'Kola Prints', 'reward' => 2500, 'role' => 'an admin',
     'device' => 'Chrome on Android', 'staff' => 'Sam from Nfelia', 'new_email' => 'new@example.test', 'business' => "Ada's Hair & Co", 'payment_id' => 1,
-    'contact' => '08030000000', 'count' => 4,
+    'contact' => '08030000000', 'count' => 4, 'book_id' => 1, 'what' => 'Invoice ADA-INV-0400',
 ];
 $money = fn($a) => notify_money_text((float)$a, '₦');
 set_error_handler(function ($no, $str) { throw new ErrorException($str, 0, $no); });

@@ -115,8 +115,10 @@ class OpsClientsController
         $notes   = $all("SELECT n.*, s.full_name FROM ops_notes n LEFT JOIN ops_staff s ON s.id = n.staff_id WHERE n.subject_type = 'business' AND n.subject_id = ? ORDER BY n.id DESC LIMIT 30", [$b['id']]);
         $views   = $all("SELECT v.*, s.full_name FROM ops_view_as v LEFT JOIN ops_staff s ON s.id = v.staff_id WHERE v.business_id = ? AND v.started_at IS NOT NULL ORDER BY v.id DESC LIMIT 10", [$b['id']]);
         $history = ops_can('audit') ? $all("SELECT a.*, s.full_name, NULL AS business_name FROM ops_audit a LEFT JOIN ops_staff s ON s.id = a.staff_id WHERE a.business_id = ? ORDER BY a.id DESC LIMIT 15", [$b['id']]) : null;
+        $books   = ops_can('exports') ? $all("SELECT id, status, charge, created_at FROM records_books WHERE business_id = ? AND kind = 'book' AND status <> 'cancelled' ORDER BY id DESC LIMIT 5", [$b['id']]) : null;
+        $asks    = ops_can('requests') ? $all("SELECT id, name, organisation, label, status, created_at FROM record_requests WHERE business_id = ? AND status <> 'unconfirmed' ORDER BY id DESC LIMIT 5", [$b['id']]) : null;
 
-        ops_render('clients/show', compact('b', 'people', 'use', 'payments', 'plan_log', 'reviews', 'referred_by', 'referred', 'errors', 'tickets', 'notes', 'views', 'history')
+        ops_render('clients/show', compact('b', 'people', 'use', 'payments', 'plan_log', 'reviews', 'referred_by', 'referred', 'errors', 'tickets', 'notes', 'views', 'history', 'books', 'asks')
                    + ['plans' => OPS_PLAN_STATES], $b['name']);
     }
 
