@@ -114,28 +114,10 @@ class InvoiceController {
      *  CREATE — invoice builder
      * ────────────────────────────────────────── */
     public function create() {
-        $user     = auth_user();
-        $business = auth_business();
-
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            csrf_verify();
-            return $this->save_invoice(null);
-        }
-
         // Every sale starts as an order now: its invoice is made when it is
         // confirmed (docs/ORDERS_HUB.md). Old links land on New order.
         $customer = (int)($_GET['customer_id'] ?? 0);
         redirect('orders/create' . ($customer ? '?customer=' . $customer : ''));
-
-        $invoice   = [];
-        $items     = [];
-        $editing   = false;
-        $customers = $this->get_customers();
-        $banks     = $this->get_bank_accounts();
-
-        $title     = "New Invoice";
-        $view_file = BASE_PATH . '/views/invoices/form.php';
-        require_once BASE_PATH . '/views/layouts/app.php';
     }
 
     /* ──────────────────────────────────────────

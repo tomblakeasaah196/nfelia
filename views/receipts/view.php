@@ -247,10 +247,12 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
     <div class="nf-menu-sheet">
         <a class="nf-row" href="<?= e($public_url) ?>?format=pdf" download="<?= e(preg_replace('/[^A-Za-z0-9._-]+/', '-', $receipt['doc_number'])) ?>.pdf"><span class="nf-tile-ic"><?= nav_icon('download') ?></span>Download PDF</a>
         <a class="nf-row" href="<?= e($public_url) ?>" target="_blank" rel="noopener"><span class="nf-tile-ic"><?= nav_icon('open') ?></span>Open the customer's page</a>
+        <?php if (empty($order)): // an order's receipt stays with its payment ?>
         <form method="POST" action="<?= APP_URL ?>/receipts/delete/<?= (int)$receipt['id'] ?>"
-              onsubmit="return confirm('Delete receipt <?= e($receipt['doc_number']) ?>? <?= $invoice ? 'The payment stays recorded on ' . e($invoice['doc_number']) . '.' : 'The stock it took off your shelves is not put back.' ?>');">
+              onsubmit="return confirm('Delete receipt <?= e($receipt['doc_number']) ?>? <?= $invoice ? 'The payment stays recorded on ' . e($invoice['doc_number']) . '.' : 'What it sold goes back on your shelves.' ?>');">
             <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
             <button class="nf-row is-danger"><span class="nf-tile-ic"><?= nav_icon('trash') ?></span>Delete the receipt</button>
         </form>
+        <?php endif; ?>
     </div>
 </dialog>

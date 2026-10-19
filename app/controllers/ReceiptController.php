@@ -252,6 +252,14 @@ class ReceiptController {
 
         $receipt = $this->find_receipt($id);
         if (!$receipt) { not_found(); return; }
+        // Every payment on an order keeps its receipt (docs/ORDERS_HUB.md)
+        $order = !empty($receipt['order_id']) ? order_find($this->db, $this->biz_id, (int)$receipt['order_id'])
+            : ($receipt['invoice_id'] ? order_by_invoice($this->db, $this->biz_id, (int)$receipt['invoice_id']) : null);
+        if ($order) {
+            flash('error', $receipt['doc_number'] . ' is the receipt for a payment on order ' . $order['order_number'] . ', so it stays with its payment.');
+            redirect('receipts/view/' . (int)$id);
+            return;
+        }
 
         // A receipt for an invoice payment is only its paperwork: the payment
         // stays on the invoice (and in the books). A direct sale's receipt is
@@ -280,199 +288,6 @@ class ReceiptController {
         redirect('receipts');
     }
 
-    /* ──────────────────────────────────────────
-     *  AJAX — search products (for standalone form)
-     * ────────────────────────────────────────── */
-    public function search_products() {
-        if (!is_ajax()) { http_response_code(403); exit; }
-        $q = trim($_POST['q'] ?? '');
-        if (strlen($q) < 1) { json_response(['results' => []]); }
-
-        $stmt = $this->db->prepare("
-            SELECT id, name, sku, sell_price, cost_price, stock_qty, unit, is_service
-            FROM products
-            WHERE business_id = ? AND deleted_at IS NULL AND is_active = 1
-              AND (name LIKE ? OR sku LIKE ?)
-            ORDER BY name ASC LIMIT 10
-        ");
-        $like = "%{$q}%";
-        $stmt->execute([$this->biz_id, $like, $like]);
-
-        $results = [];
-        foreach ($stmt->fetchAll() as $p) {
-            $results[] = [
-                'id'         => (int)$p['id'],
-                'name'       => $p['name'],
-                'sku'        => $p['sku'],
-                'sell_price' => (float)$p['sell_price'],
-                'stock_qty'  => (float)$p['stock_qty'],
-                'unit'       => $p['unit'],
-                'is_service' => (int)$p['is_service'],
-            ];
-        }
-        json_response(['results' => $results]);
-    }
-
-    /* ──────────────────────────────────────────
-     *  AJAX — create customer inline
-     * ────────────────────────────────────────── */
-    public function create_customer() {
-        if (!is_ajax() || $_SERVER['REQUEST_METHOD'] !== 'POST') { http_response_code(403); exit; }
-        csrf_verify();
-
-        $name  = trim($_POST['full_name'] ?? '');
-        $phone = trim($_POST['phone'] ?? '');
-        $email = trim($_POST['email'] ?? '');
-
-        if ($name === '') { json_response(['error' => 'Name is required'], 422); }
-        if ($p = phone_problem($phone)) { json_response(['error' => $p], 422); }   // D4
-
-        $stmt = $this->db->prepare("INSERT INTO customers (business_id, full_name, phone, email) VALUES (?, ?, ?, ?)");
-        $stmt->execute([$this->biz_id, $name, $phone ?: null, $email ?: null]);
-
-        json_response([
-            'id'        => (int)$this->db->lastInsertId(),
-            'full_name' => $name,
-            'phone'     => $phone,
-        ]);
-    }
-
-    /* ══════════════════════════════════════════
-     *  PRIVATE: save standalone receipt
-     * ══════════════════════════════════════════ */
-    private function save_standalone_receipt(?int $id): void {
-        $user     = auth_user();
-        $business = auth_business();
-
-        $customer_id  = (int)($_POST['customer_id'] ?? 0) ?: null;
-        $issue_date   = trim($_POST['issue_date'] ?? date('Y-m-d'));
-        $method       = trim($_POST['method'] ?? 'cash');
-        $note         = trim($_POST['note'] ?? '');
-
-        $item_descs    = $_POST['item_description'] ?? [];
-        $item_qtys     = $_POST['item_quantity'] ?? [];
-        $item_prices   = $_POST['item_unit_price'] ?? [];
-        $item_products = $_POST['item_product_id'] ?? [];
-
-        $valid_methods = ['cash','bank_transfer','pos','mobile_money','cheque','other'];
-        if (!in_array($method, $valid_methods)) $method = 'cash';
-
-        // Validate
-        $errors = [];
-        if ($customer_id && !owned_by_business($this->db, 'customers', $customer_id, $this->biz_id)) {
-            $errors[] = 'Please select one of your clients.';
-        }
-        if (empty($item_descs) || count(array_filter($item_descs, 'trim')) === 0) {
-            $errors[] = 'At least one line item is required.';
-        }
-
-        if (!empty($errors)) {
-            flash('error', implode(' ', $errors));
-            $receipt   = $_POST;
-            $items     = [];
-            $editing   = false;
-            $customers = $this->get_customers();
-            $title     = "New Receipt — Direct Sale";
-            $view_file = BASE_PATH . '/views/receipts/form.php';
-            require_once BASE_PATH . '/views/layouts/app.php';
-            return;
-        }
-
-        // Calculate totals + build line items
-        $total = 0;
-        $line_items = [];
-        for ($i = 0; $i < count($item_descs); $i++) {
-            $desc = trim($item_descs[$i] ?? '');
-            if ($desc === '') continue;
-
-            $qty     = max(0.01, (float)($item_qtys[$i] ?? 1));
-            $price   = max(0, (float)($item_prices[$i] ?? 0));
-            $prod_id = (int)($item_products[$i] ?? 0) ?: null;
-            if ($prod_id && !owned_by_business($this->db, 'products', $prod_id, $this->biz_id)) $prod_id = null;
-            $sub     = money2($qty * $price);
-
-            $total = money2($total + $sub);
-            $line_items[] = [
-                'product_id'  => $prod_id,
-                'description' => $desc,
-                'quantity'    => $qty,
-                'unit_price'  => $price,
-                'subtotal'    => $sub,
-                'sort_order'  => $i + 1,
-            ];
-        }
-
-        $this->db->beginTransaction();
-        try {
-            $doc_number = generate_doc_number($this->db, $this->biz_id, 'REC');
-            $token = generate_token();
-
-            $this->db->prepare("
-                INSERT INTO receipts (business_id, invoice_id, payment_id, customer_id, user_id, doc_number, issue_date, amount, balance_remaining, method, note, token)
-                VALUES (?, NULL, NULL, ?, ?, ?, ?, ?, 0, ?, ?, ?)
-            ")->execute([
-                $this->biz_id,
-                $customer_id,
-                $user['id'],
-                $doc_number,
-                $issue_date,
-                $total,
-                $method,
-                $note ?: null,
-                $token
-            ]);
-            $receipt_id = (int)$this->db->lastInsertId();
-
-            // Insert line items
-            $stmtItem = $this->db->prepare("
-                INSERT INTO receipt_items (receipt_id, product_id, description, quantity, unit_price, subtotal, sort_order)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            ");
-            foreach ($line_items as $li) {
-                $stmtItem->execute([
-                    $receipt_id, $li['product_id'], $li['description'],
-                    $li['quantity'], $li['unit_price'], $li['subtotal'], $li['sort_order']
-                ]);
-            }
-
-            // The goods leave the shelf (a direct sale); rows are locked as they move
-            $sold = [];
-            foreach ($line_items as $li) {
-                if ($li['product_id']) {
-                    $sold[$li['product_id']] = ($sold[$li['product_id']] ?? 0) - $li['quantity'];
-                }
-            }
-            stock_settle($this->db, $this->biz_id, 'receipt', $receipt_id, $sold, 'direct sale, receipt ' . $doc_number);
-
-            customer_refresh_totals($this->db, $this->biz_id, $customer_id);
-
-            $this->db->commit();
-
-            // A sale paid on the spot is money in: owners and admins hear
-            // about it, except whoever recorded it (app/helpers/notify.php).
-            // A receipt for nothing is not news.
-            if ((float)$total > 0) {
-                $payer = '';
-                if ($customer_id) {
-                    $stmtWho = $this->db->prepare("SELECT full_name FROM customers WHERE id = ? AND business_id = ?");
-                    $stmtWho->execute([$customer_id, $this->biz_id]);
-                    $payer = trim((string)$stmtWho->fetchColumn());
-                }
-                notify('payment.receipt', $this->biz_id, [
-                    'receipt_id' => $receipt_id, 'receipt_number' => $doc_number, 'payer' => $payer, 'amount' => (float)$total,
-                ], ['actor' => (int)$user['id'], 'dedupe' => (string)$receipt_id]);
-            }
-
-            flash('success', 'Receipt ' . $doc_number . ' created.');
-            redirect('receipts/view/' . $receipt_id);
-
-        } catch (\Throwable $e) {
-            $this->db->rollBack();
-            flash('error', 'Save failed: ' . $e->getMessage());
-            redirect('receipts');
-        }
-    }
-
     /* ══════════════════════════════════════════
      *  PRIVATE HELPERS
      * ══════════════════════════════════════════ */
@@ -482,15 +297,5 @@ class ReceiptController {
         $stmt = $this->db->prepare("SELECT * FROM receipts WHERE id = ? AND business_id = ?");
         $stmt->execute([(int)$id, $this->biz_id]);
         return $stmt->fetch() ?: null;
-    }
-
-    private function get_customers(): array {
-        $stmt = $this->db->prepare("
-            SELECT id, full_name, phone, email FROM customers
-            WHERE business_id = ? AND deleted_at IS NULL AND is_active = 1 AND is_walk_in = 0
-            ORDER BY full_name ASC
-        ");
-        $stmt->execute([$this->biz_id]);
-        return $stmt->fetchAll();
     }
 }
