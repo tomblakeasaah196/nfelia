@@ -20,6 +20,8 @@ applied everywhere, with notice for clients already paying.
 | 7 | Codes and verify | A code (and QR) on the book now, and on every record in it; on invoice and receipt PDFs in a follow-up PR. |
 | 8 | Verify page | Shows it is genuine and its key facts, never a customer's phone, email or address. |
 | 9 | Asking for the document | The person asks with a reason and confirms their email; only Ops Admins see it; one click asks the client (in the app, on the phone, by email); the client approves or declines; approving sends a download link by itself; the record shows who decided. |
+| 10 | The orders hub's records | Refunds and Kept money get their own sheets. Each order's Log stays in the plain copy only. |
+| 11 | What an approved ask sends | The record and its money trail: an invoice with its order number, items and each payment with its receipt; an order with its items, its invoice, each payment with its receipt, and its delivery notes. |
 
 ## What a Records Book is
 
@@ -32,19 +34,29 @@ applied everywhere, with notice for clients already paying.
 - **Contents**: every sheet in the book, linked, with how many records; kinds with nothing in them
   are left out and listed on one line.
 - **At a glance**: the totals, every month in a table (invoiced, money in, spent), and a chart.
-- **One sheet per kind of record** (customers, quotes, invoices, shop orders, bookings, deliveries,
-  receipts, payments, expenses, debts, products, stock movements, tasks…), each an Excel table with
-  filters, a line at the top that adds up what the filters show, banded rows, a link to each
-  document ("Open ↗") and each record's own verify code. Lines (an invoice's items) have their own
-  sheets.
+- **One sheet per kind of record** (customers, quotes, orders, invoices, bookings, deliveries,
+  receipts, payments, refunds, kept money, expenses, debts, products, stock movements, tasks…), each
+  an Excel table with filters, a line at the top that adds up what the filters show, banded rows, a
+  link to each document ("Open ↗") and each record's own verify code. Lines (an invoice's items) have
+  their own sheets.
 - **About this book**: what it is, how to check it, what the codes mean.
 
 Styles are written onto the cells, not left to table styles, so it looks the same in Excel, Google
 Sheets, LibreOffice and Numbers. Customer names on the verify page are masked ("Amaka C.").
 
+**Orders** (the orders hub, `docs/ORDERS_HUB.md`): every sale is an order, so the Orders sheet holds
+them all (from the shop and WhatsApp, typed in, from a quote, quick sales) with its stage and payment
+in the app's words (`order_stage()`, `order_pay_tag()`) and what was paid on its invoice, which owns
+the money. Every invoice, receipt, payment, delivery note, debt and task names its order, and so does
+its verify page. In Payments, money given back is a minus ("Given back"), and kept money moving
+between a customer's own orders says so ("Kept for next order", "Kept money used") and is left out of
+money in, as `money_in()` does. Refunds lists each slip with its reference and where it went (bank or
+network, never the account number); Kept money lists each amount kept and used, and Customers shows
+what is kept for each. The hidden "Walk-in customer" of quick sales is not listed as a customer.
+
 **Codes**: a book's code is 10 letters and digits in Crockford's base 32 (no I, L, O or U), shown as
 `K7Q2M-XA9WT`; a record's is the book's code, a dash, a letter for its kind (I invoice, R receipt,
-P payment, Q quote, O order…) and its id in the same alphabet: `K7Q2MXA9WT-I5C`. Typed codes are
+P payment, Q quote, O order, F refund…) and its id in the same alphabet: `K7Q2MXA9WT-I5C`. Typed codes are
 read however they are written (spaces, dashes, lower case, O for 0). A book keeps a ledger
 (`storage/private/records/<business>/<id>.ledger.json.gz`) of each record's facts as they were, so
 verify can say what has changed since. The file's SHA-256 is kept so verify can say whether an
@@ -70,7 +82,10 @@ book still says it was Nfelia's, but no longer what it said.
   and that is logged too. The client page has "Make a Records Book" and lists their books.
 - **Ops → Document requests** (`requests`: Admins only): requests from nfelia.com/verify, waiting
   first. "Ask …" asks the client; "Turn down" (with a note the person sees) ends junk without
-  bothering them. Requests nobody answers close after 14 days; an approved link lasts 7 days.
+  bothering them. Requests nobody answers close after 14 days; an approved link lasts 7 days. What
+  it downloads is the record as it is today with its money trail
+  (`records_extract_trail_rows()`): an invoice's payments, each with its receipt or refund slip; an
+  order's invoice, payments and delivery notes. The client's page and both emails say so first.
 - **nfelia.com/verify** (`VerifyController`, no sign-in): type or scan a code, or upload a book to
   check it is unchanged. Rate-limited, never cached or indexed, and a honeypot field keeps robots out.
 - **Ops → Prices** (`settings`: Admins): each country's prices today, changes to come, every change
@@ -102,11 +117,13 @@ for that client, and asks them to reply if it is hard. A lower price is told as 
 billing email, so it reaches clients who turned off news emails; each also gets a note in the bell.
 The cron sends a few every 5 minutes, after campaigns, within `CAMPAIGN_PER_HOUR`.
 
-## Tables (db/migrations/20261023090000_records_book.sql)
+## Tables (db/migrations/20261024090000_records_book.sql)
 
 `records_books`, `record_requests`, `price_changes`, `price_notices`; `countries.book_price`
 (Nigeria ₦7,500, other countries 75% of their month); `subscription_payments.kind` gains `book`, with
-`book_id`. Safe to run twice.
+`book_id`. Safe to run twice. It runs after the orders hub's `20261023090000_orders_hub.sql`, whose
+tables and columns the sheets read; the plain copy also takes `order_events`, `refunds` and
+`kept_money`.
 
 ## Deploying
 
@@ -121,18 +138,24 @@ The cron sends a few every 5 minutes, after campaigns, within `CAMPAIGN_PER_HOUR
 
 ## Tests
 
-- `tests/ops/records_test.php` (110 checks, `bash tests/notifications/run.sh ops/records`, in CI):
+- `tests/ops/records_test.php` (132 checks, `bash tests/notifications/run.sh ops/records`, in CI):
   the book and its contents, tenancy (nothing of another business), the free and paid rules, a
   Mobile Money book approved in Ops, the plain copy (no password hashes, no document links), Ops
   roles, verify (facts, no customer details, changes since, file check), the whole request flow,
-  and prices (new sign-ups, clients already here, Billing, the email, telling clients once,
-  calling a change off).
+  orders made through the orders hub (every paper naming its order, kept money counted once,
+  refunds without account numbers, the walk-in customer left out, refund codes, the money trail an
+  approved ask sends), and prices (new sign-ups, clients already here, Billing, the email, telling
+  clients once, calling a change off).
+- Merged with the orders hub, every suite passes locally against a database built the way CI builds
+  it: engine 91, flows 295, cron 62, sw 17, ops/foundation 101, ops/monitor 117, ops/clients 104,
+  ops/sales 134, orders/core 190, ops/records 132, ui 20, ops/ui 56.
 - `tests/ops/ui_test.js` adds the Ops wizard, Prices and a price change on a phone.
 
 ## Pictures for the home page
 
 Real app, example data: `docs/handoff/testkit/records_seed.php` (Ivie Luxe Hair, a year and a half of
-records), a book made for her a month back, then `docs/handoff/testkit/shoot_records.js` (the two
+records, every sale an order as the orders hub keeps them, with a refund and kept money), a book made
+for her a month back, then `docs/handoff/testkit/shoot_records.js` (the two
 phone screens) and `docs/handoff/testkit/shoot_workbook.sh` (the workbook in LibreOffice Calc on a
 virtual screen). The receipts sheet is shown rather than invoices because the demo's customer phone
 numbers are made up but could be someone's.
@@ -142,10 +165,9 @@ numbers are made up but could be someone's.
 - In a data sheet, the "Open" and "Verify" column titles were burgundy on the burgundy header, so
   they could not be seen: PhpSpreadsheet applies a style object to whatever is selected when it is
   changed, and the link colour was set after the header had been selected. Tested now.
+- Counting a sheet's rows cut its SQL at the first FROM and ORDER BY, which broke once a sheet listed
+  an order's receipts with a subquery; `records_count_sql()` now only reads the top level.
 
 ## Follow-ups
 
 - QR codes and verify codes on invoice and receipt PDFs (Tom: the next PR).
-- The parallel work centralising orders and invoices: shop orders are read in one place,
-  `records_orders_sql()` and `records_order_lines_sql()` in `app/helpers/records_sheets.php`, so
-  merging it should only need those two adjusted.

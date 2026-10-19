@@ -99,8 +99,10 @@ final class RecordsBook
 
     /**
      * One record and its lines, as a one-sheet workbook for someone the
-     * business agreed to share it with ($request: the record_requests row).
-     * False when the record no longer exists.
+     * business agreed to share it with ($request: the record_requests row),
+     * with its money trail (records_extract_trail()): an invoice's payments
+     * and receipts; an order's invoice, payments and delivery notes. False
+     * when the record no longer exists.
      */
     public function extract(string $key, int $id, array $request, string $path): bool
     {
@@ -145,6 +147,7 @@ final class RecordsBook
             $ws->getStyle('B' . $r . ':I' . $r)->getBorders()->getBottom()->setBorderStyle(Border::BORDER_HAIR)->getColor()->setRGB(RB_LINE);
             $r++;
         }
+        $r--;   // the last row written: each part below leaves one row empty before it
 
         // Its lines
         if (!empty($sheet['lines'])) {
@@ -152,27 +155,13 @@ final class RecordsBook
             [$sql, $args] = records_sheet_sql_one($lines, (int)$this->business['id'], $id);
             $stmt = $this->db->prepare($sql);
             $stmt->execute($args);
-            $items = $stmt->fetchAll();
-            if ($items) {
-                $r++;
-                $cols = array_values(array_filter($lines['cols'], fn($c) => !in_array($c[1], ['number', 'issued', 'placed', 'made', 'spent_on', 'paid_on'], true)));
-                $cols = array_slice($cols, 0, 8);
-                $this->text($ws, 'B' . $r, $lines['title'], ['size' => 12, 'bold' => true, 'merge' => 'B' . $r . ':I' . $r]);
-                $r++;
-                foreach ($cols as $i => [$head, , $type]) {
-                    $cell = Coordinate::stringFromColumnIndex(2 + $i) . $r;
-                    $this->text($ws, $cell, $head, ['bold' => true, 'color' => $p['on_primary'], 'align' => in_array($type, ['money', 'qty', 'int'], true) ? 'right' : 'left']);
-                }
-                $ws->getStyle('B' . $r . ':' . Coordinate::stringFromColumnIndex(1 + count($cols)) . $r)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB($p['primary']);
-                foreach ($items as $item) {
-                    $r++;
-                    foreach ($cols as $i => [, $field, $type]) {
-                        $this->put($ws, 2 + $i, $r, $type, $item[$field] ?? null);
-                        $this->format_cell($ws, Coordinate::stringFromColumnIndex(2 + $i) . $r, $type);
-                    }
-                    $ws->getStyle('B' . $r . ':' . Coordinate::stringFromColumnIndex(1 + count($cols)) . $r)->getBorders()->getBottom()->setBorderStyle(Border::BORDER_HAIR)->getColor()->setRGB(RB_LINE);
-                }
-            }
+            $cols = array_values(array_filter($lines['cols'], fn($c) => !in_array($c[1], ['number', 'issued', 'placed', 'made', 'spent_on', 'paid_on'], true)));
+            $this->extract_table($ws, $r, $lines['title'], array_slice($cols, 0, 8), $stmt->fetchAll());
+        }
+
+        // How it was paid, and for an order where its goods went
+        foreach (records_extract_trail_rows($this->db, (int)$this->business['id'], $key, $id) as [$title, $cols, $rows]) {
+            $this->extract_table($ws, $r, $title, $cols, $rows);
         }
 
         // Who it is for, who agreed, and its code
@@ -204,6 +193,30 @@ final class RecordsBook
         foreach ($this->temp as $file) @unlink($file);
         $this->s->disconnectWorksheets();
         return true;
+    }
+
+    /** A small table on the extract under $title, from row $r on ($r moves to its last row); nothing when there are no rows. */
+    private function extract_table(Worksheet $ws, int &$r, string $title, array $cols, array $rows): void
+    {
+        if (!$rows) return;
+        $p = $this->brand;
+        $last = Coordinate::stringFromColumnIndex(1 + count($cols));
+        $r += 2;
+        $this->text($ws, 'B' . $r, $title, ['size' => 12, 'bold' => true, 'merge' => 'B' . $r . ':I' . $r]);
+        $r++;
+        foreach ($cols as $i => [$head, , $type]) {
+            $cell = Coordinate::stringFromColumnIndex(2 + $i) . $r;
+            $this->text($ws, $cell, $head, ['bold' => true, 'color' => $p['on_primary'], 'align' => in_array($type, ['money', 'qty', 'int'], true) ? 'right' : 'left']);
+        }
+        $ws->getStyle('B' . $r . ':' . $last . $r)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB($p['primary']);
+        foreach ($rows as $row) {
+            $r++;
+            foreach ($cols as $i => [, $field, $type]) {
+                $this->put($ws, 2 + $i, $r, $type, $row[$field] ?? null);
+                $this->format_cell($ws, Coordinate::stringFromColumnIndex(2 + $i) . $r, $type);
+            }
+            $ws->getStyle('B' . $r . ':' . $last . $r)->getBorders()->getBottom()->setBorderStyle(Border::BORDER_HAIR)->getColor()->setRGB(RB_LINE);
+        }
     }
 
     /** Number formats for one cell, by its type (the extract's values). */
@@ -540,7 +553,7 @@ final class RecordsBook
         $this->tile($ws, 'B', 'C', $r, number_format((int)$f['customers']), 'Customers');
         $this->tile($ws, 'D', 'E', $r, $this->money_text($f['invoiced']), 'Sales invoiced');
         $this->tile($ws, 'F', 'G', $r, $this->money_text($f['received']), 'Money received', RB_IN);
-        $this->tile($ws, 'H', 'I', $r, $orders ? number_format((int)$f['orders']) : $this->money_text($f['spent']), $orders ? 'Shop orders' : 'Spent');
+        $this->tile($ws, 'H', 'I', $r, $orders ? number_format((int)$f['orders']) : $this->money_text($f['spent']), $orders ? 'Orders' : 'Spent');
         $r += 3;
 
         // This book: when, what, and the QR code that checks it
@@ -655,8 +668,9 @@ final class RecordsBook
         $this->text($ws, 'B2', 'At a glance', ['size' => 18, 'bold' => true, 'color' => $p['text'], 'merge' => 'B2:F2']);
         $this->sheet_link($ws, 'H2', 'Contents', '← Contents');
         $ws->getRowDimension(2)->setRowHeight(30);
-        $this->text($ws, 'B3', records_period_text($this->book) . '. Money in is invoice payments and sales paid on the spot, as Nfelia\'s profit and loss counts it.',
-                    ['color' => RB_MUTED, 'merge' => 'B3:I3', 'size' => 9.5]);
+        $this->text($ws, 'B3', records_period_text($this->book) . '. Money in is invoice payments and sales paid on the spot, as Nfelia\'s profit and loss counts it: money kept for a customer\'s next order counts once, when it came in.',
+                    ['color' => RB_MUTED, 'merge' => 'B3:I3', 'size' => 9.5, 'wrap' => true]);
+        $ws->getRowDimension(3)->setRowHeight(27);
 
         $this->tile($ws, 'B', 'C', 5, $this->money_text($f['invoiced']), 'Sales invoiced');
         $this->tile($ws, 'D', 'E', 5, $this->money_text($f['received']), 'Money in', RB_IN);

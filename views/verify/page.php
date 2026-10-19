@@ -31,7 +31,7 @@ $book_facts = function (array $f) use ($money): array {
     if (isset($f['invoices'])) $out['Invoices'] = number_format((int)$f['invoices']) . ' (' . $money($f['invoiced'] ?? 0) . ')';
     if (isset($f['received'])) $out['Money received'] = $money($f['received']);
     if (isset($f['spent'])) $out['Spent'] = $money($f['spent']);
-    if (!empty($f['orders'])) $out['Shop orders'] = number_format((int)$f['orders']);
+    if (!empty($f['orders'])) $out['Orders'] = number_format((int)$f['orders']);
     return $out;
 };
 $titles = ['start' => 'Check a Nfelia record', 'found' => 'Genuine', 'unknown' => 'We can\'t find that code', 'file_unknown' => 'We can\'t match this file',

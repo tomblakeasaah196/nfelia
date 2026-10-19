@@ -314,6 +314,120 @@ exec_sql("UPDATE record_requests SET confirmed_at = NOW() - INTERVAL 15 DAY WHER
 records_cron($db);
 eq((string)q("SELECT status FROM record_requests WHERE email = 'slow@bank.test'"), 'expired', 'a request nobody answers closes after two weeks');
 
+/* ── Orders in the book ─────────────────────────────────────── */
+
+section('Every sale is an order: the book follows it, with refunds and kept money');
+
+clean_slate();
+/** The line of a sheet, as workbook() reads it, that holds $needle ('' when none). */
+function line_with(string $sheet, string $needle): string
+{
+    foreach (explode("\n", $sheet) as $line) if (str_contains($line, $needle)) return $line;
+    return '';
+}
+$order = fn(array $in) => order_create($db, 2, $in + ['channel' => 'manual', 'fulfillment' => 'pickup', 'method' => 'cash', 'paid_now' => 0], ADA);
+// Typed in, delivered, part paid; a quick sale to someone who gave no name
+$sale = $order(['customer_id' => 200, 'fulfillment' => 'delivery', 'delivery_address' => '12 Allen Avenue, Ikeja', 'deliver_by' => planner_add_days(planner_today(), 2),
+                'items' => [['name' => 'Bridal braids', 'quantity' => 1, 'unit_price' => 60000], ['name' => 'Edge gel', 'quantity' => 2.5, 'unit_price' => 4000]],
+                'paid_now' => 30000, 'method' => 'bank_transfer', 'reference' => 'TRF-1001']);
+$quick = $order(['channel' => 'quick', 'fulfillment' => 'now', 'items' => [['name' => 'Wig cap', 'quantity' => 1, 'unit_price' => 5000]], 'paid_now' => 5000]);
+// Paid over and kept for the next order, which uses it; kept and not used yet
+exec_sql("INSERT INTO customers (id, business_id, full_name, phone) VALUES (270, 2, 'Amaka Keep', '08035550270'), (272, 2, 'Tobi Kept', '08035550272')");
+exec_sql("INSERT INTO customers (id, business_id, full_name, phone, email) VALUES (271, 2, 'Bola Return', '08035550271', 'bola.return@example.test')");
+$a = $order(['customer_id' => 270, 'items' => [['name' => 'Bridal set', 'quantity' => 1, 'unit_price' => 100000]], 'paid_now' => 100000]);
+order_update_lines($db, 2, (int)$a['id'], [['name' => 'Bridal set', 'quantity' => 1, 'unit_price' => 85000]], 0, ADA, '₦');
+order_keep_overpaid($db, 2, (int)$a['id'], ADA, '₦');
+$b = $order(['customer_id' => 270, 'items' => [['name' => 'Wig cap', 'quantity' => 1, 'unit_price' => 40000]], 'paid_now' => 25000, 'use_kept' => true]);
+$t = $order(['customer_id' => 272, 'items' => [['name' => 'Closure', 'quantity' => 1, 'unit_price' => 30000]], 'paid_now' => 30000]);
+order_update_lines($db, 2, (int)$t['id'], [['name' => 'Closure', 'quantity' => 1, 'unit_price' => 20000]], 0, ADA, '₦');
+order_keep_overpaid($db, 2, (int)$t['id'], ADA, '₦');
+// Paid over and given back by transfer, to the account the customer gave
+$c1 = $order(['customer_id' => 271, 'items' => [['name' => 'Two bundles', 'quantity' => 1, 'unit_price' => 60000]], 'paid_now' => 60000, 'method' => 'bank_transfer']);
+order_update_lines($db, 2, (int)$c1['id'], [['name' => 'One bundle', 'quantity' => 1, 'unit_price' => 50000]], 0, ADA, '₦');
+$asked = refund_ask($db, 2, (int)$c1['id'], 10000, 'Changed to one bundle', ADA);
+refund_save_details($db, $asked['token'], ['payee_kind' => 'bank', 'payee_name' => 'Bola Return', 'payee_bank' => 'GTBank', 'payee_number' => '0123456789']);
+$refund = refund_record($db, 2, (int)$c1['id'], ['amount' => 10000, 'method' => 'bank_transfer', 'reference' => 'TRF-889', 'refund_id' => $asked['id']], null, ADA, '₦');
+
+$sale_inv = rows("SELECT id, doc_number FROM invoices WHERE order_id = ?", [$sale['id']])[0];
+$sale_rec = (string)q("SELECT doc_number FROM receipts WHERE order_id = ? ORDER BY id LIMIT 1", [$sale['id']]);
+$sale_del = (string)q("SELECT doc_number FROM deliveries WHERE order_id = ?", [$sale['id']]);
+$nb = book_row(records_queue($db, 2, ['charge' => 'free', 'sheets' => $all]));
+records_build($db, (int)$nb['id']);
+$nb = book_row((int)$nb['id']);
+$sheets = workbook((string)file_get_contents((string)records_file($nb)));
+ok(isset($sheets['Orders'], $sheets['Order lines'], $sheets['Refunds'], $sheets['Kept money']) && !isset($sheets['Shop orders']),
+   'the book has Orders (every sale, not only the shop\'s), Refunds and Kept money');
+$row = line_with($sheets['Orders'], $sale['order_number']);
+ok(str_contains($row, 'Typed in') && str_contains($row, 'Confirmed') && str_contains($row, 'Deposit paid') && str_contains($row, '70000 | 30000 | 40000')
+   && str_contains($row, $sale_inv['doc_number']) && str_contains($row, $sale_rec) && str_contains($row, $sale_del),
+   'an order says where it came from, how far it got, what was paid on its invoice, and its papers');
+$row = line_with($sheets['Orders'], $quick['order_number']);
+ok(str_contains($row, 'Quick sale') && str_contains($row, 'Collected') && str_contains($row, '| Paid |'), 'a quick sale is an order too');
+ok(str_contains(line_with($sheets['Order lines'], 'Edge gel'), '2.5'), 'its lines keep quantities like 2.5');
+ok(str_contains(line_with($sheets['Invoices'], $sale_inv['doc_number']), $sale['order_number'])
+   && str_contains(line_with($sheets['Receipts'], $sale_rec), $sale['order_number'])
+   && str_contains(line_with($sheets['Deliveries'], $sale_del), $sale['order_number'])
+   && str_contains(line_with($sheets['Debts'], $sale_inv['doc_number']), $sale['order_number']),
+   'every paper names its order: invoices, receipts, delivery notes, debts');
+$row = line_with($sheets['Payments'], 'TRF-1001');
+ok(str_contains($row, $sale['order_number']) && str_contains($row, $sale_rec) && str_contains($row, '| Payment |'), 'a payment shows its order and its receipt');
+ok(str_contains(line_with($sheets['Payments'], 'Kept for next order'), '-15000') && str_contains(line_with($sheets['Payments'], 'Kept money used'), '15000')
+   && str_contains(line_with($sheets['Payments'], 'TRF-889'), 'Given back'),
+   'kept money moving between orders and money given back are named for what they are');
+$counted = (float)q("SELECT (SELECT SUM(amount) FROM payments WHERE business_id = 2 AND method <> 'kept') + (SELECT COALESCE(SUM(amount), 0) FROM receipts WHERE business_id = 2 AND invoice_id IS NULL)");
+$facts = json_decode((string)$nb['facts'], true);
+ok(abs((float)$facts['received'] - $counted) < 0.01 && abs($counted - (float)q("SELECT SUM(amount) FROM payments WHERE business_id = 2") - (float)q("SELECT COALESCE(SUM(amount), 0) FROM receipts WHERE business_id = 2 AND invoice_id IS NULL")) > 1,
+   'money in counts kept money once, when it came in');
+ok(!str_contains($sheets['Customers'], 'Walk-in customer') && str_contains(line_with($sheets['Customers'], 'Tobi Kept'), '10000'),
+   'the hidden walk-in customer is no customer; what is kept for someone shows by their name');
+ok(str_contains(line_with($sheets['Kept money'], 'Kept from order ' . $t['order_number']), '10000') && line_with($sheets['Kept money'], 'Used on order ' . $b['order_number']) !== '',
+   'Kept money lists each amount kept and used');
+$row = line_with($sheets['Refunds'], (string)$refund['doc_number']);
+ok(str_contains($row, $c1['order_number']) && str_contains($row, 'Given back') && str_contains($row, 'TRF-889') && str_contains($row, 'Bank: GTBank'),
+   'a refund shows its slip, order, reference and where it went');
+ok(!str_contains(implode("\n", $sheets), '0123456789'), 'but never the customer\'s account number');
+
+$fr = records_verify_lookup($db, records_row_code((string)$nb['code'], 'F', (int)$refund['id']));
+eq([$fr['label'] ?? null, $fr['facts']['Order'] ?? null, $fr['facts']['Status'] ?? null], ['Refund ' . $refund['doc_number'], $c1['order_number'], 'Given back'],
+   'a refund has its own verify code, naming its order');
+eq(records_verify_lookup($db, records_row_code((string)$nb['code'], 'I', (int)$sale_inv['id']))['facts']['Order'] ?? null, $sale['order_number'],
+   'and an invoice\'s code names its order');
+
+$extract = sys_get_temp_dir() . '/nf-extract-' . getmypid() . '.xlsx';
+records_extract_write($db, $nb, records_business($db, 2), 'invoices', (int)$sale_inv['id'], ['name' => 'Funmi Bello', 'organisation' => 'Zenith Loans', 'decided_at' => date('Y-m-d H:i:s')], $extract);
+$x = implode("\n", workbook((string)file_get_contents($extract)));
+@unlink($extract);
+ok(str_contains($x, $sale['order_number']) && str_contains($x, 'Payments') && str_contains(line_with($x, 'TRF-1001'), $sale_rec) && !str_contains($x, 'Delivery notes'),
+   'an invoice shared from verify comes with its order number and each payment with its receipt');
+
+$v = new Http();
+$ocode = records_row_code((string)$nb['code'], 'O', (int)$sale['id']);
+$v->get('verify/' . $ocode);
+ok($v->status === 200 && str_contains($v->body, $sale['order_number']) && str_contains($v->body, 'Confirmed') && str_contains($v->body, '₦40,000'),
+   'an order\'s code shows the order at nfelia.com/verify: how far it got and what is still owed');
+$v->post('verify/' . $ocode . '/ask', ['name' => 'Funmi Bello', 'email' => 'trail@bank.test', 'organisation' => 'Zenith Loans', 'role' => 'bank',
+                                       'reason' => 'Checking this sale for loan LA-2291', 'agree' => '1']);
+$v->get(link_in_mail('trail@bank.test', '#https?://[^"\s<]+/verify/confirm/[A-Za-z0-9_-]+#'));
+$trail = (int)q("SELECT id FROM record_requests WHERE email = 'trail@bank.test'");
+$grace->post(o('requests/' . $trail . '/ask'));
+$ada->get('records/request/' . $trail);
+ok(str_contains($ada->body, 'its items, its invoice, each payment with its receipt, and its delivery notes'), 'the owner is told what saying yes shares');
+$ada->post('records/answer/' . $trail, ['answer' => 'approve']);
+ok(str_contains(last_mail('trail@bank.test')['text'] ?? '', 'each payment with its receipt'), 'and so is the person who asked');
+$v->get(link_in_mail('trail@bank.test', '#https?://[^"\s<]+/verify/file/[A-Za-z0-9_-]+#'));
+$x = implode("\n", workbook($v->body));
+ok(str_contains($x, 'Its invoice') && str_contains($x, $sale_inv['doc_number']) && str_contains(line_with($x, 'TRF-1001'), $sale_rec)
+   && str_contains($x, 'Delivery notes') && str_contains($x, $sale_del),
+   'the order comes with its invoice, each payment with its receipt, and its delivery notes');
+ok(!str_contains($x, $quick['order_number']) && !str_contains($x, $c1['order_number']), 'and nothing of any other order');
+
+$raw = book_row(records_queue($db, 2, ['kind' => 'raw']));
+records_build($db, (int)$raw['id']);
+$files = zip_files((string)file_get_contents((string)records_file(book_row((int)$raw['id']))));
+ok(isset($files['refunds.csv'], $files['kept_money.csv'], $files['order_events.csv']) && str_contains($files['refunds.csv'], '0123456789'),
+   'the plain copy has refunds, kept money and every order\'s Log, all of it');
+ok(!str_contains($files['refunds.csv'], (string)$asked['token']) && !str_contains($files['refunds.csv'], 'proof_path'), 'except the refund form\'s link and where proof is stored');
+
 /* ── Prices ─────────────────────────────────────────────────── */
 
 section('Prices: changed in one place, everywhere, with notice');
@@ -362,7 +476,8 @@ eq(prices_notice_drip($db, 10), 3, 'the cron hands them to the outbox');
 deliver();
 $mail = last_mail('ada@adashair.test');
 ok(str_contains($mail['subject'] ?? '', 'Your Nfelia price from'), 'Ada gets it');
-ok(str_contains($mail['text'] ?? '', '3 invoices') && str_contains($mail['text'] ?? '', 'Pay for my next month'), 'with what she has made, and how to keep today\'s price');
+$made = (int)q("SELECT COUNT(*) FROM invoices WHERE business_id = 2 AND status NOT IN ('draft', 'cancelled')");
+ok(str_contains($mail['text'] ?? '', $made . ' invoices') && str_contains($mail['text'] ?? '', 'Pay for my next month'), 'with what she has made, and how to keep today\'s price');
 ok(str_contains(last_mail('kola@kolaprints.test')['text'] ?? '', 'Pay for a month before'), 'on a trial: pay for a first month before the date');
 fixture_subscription(2, ['current_period_end' => date('Y-m-d', strtotime('+40 days'))]);
 $late = prices_notice_vars($db, $change, $nigeria, 2, 'Ada');

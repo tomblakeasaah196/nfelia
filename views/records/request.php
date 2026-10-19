@@ -34,7 +34,8 @@ $open = $r['status'] === 'asked';
 
 <?php if ($open): ?>
 <section class="nf-card">
-    <p style="margin:0 0 12px">If you say yes, Nfelia emails them a link to download it for the next <?= RECORD_REQUEST_LINK_DAYS ?> days<?= $r['record_type'] === null ? '' : ', with the record as it is today' ?>. If you say no, they are told politely. Either way, it is your choice.</p>
+    <?php $trail = $r['record_type'] === null ? '' : records_extract_trail($r['record_type']); ?>
+    <p style="margin:0 0 12px">If you say yes, Nfelia emails them a link to download it for the next <?= RECORD_REQUEST_LINK_DAYS ?> days<?= $r['record_type'] === null ? '' : ', with the record as it is today' . ($trail !== '' ? ' and ' . e($trail) : '') ?>. If you say no, they are told politely. Either way, it is your choice.</p>
     <form method="POST" action="<?= APP_URL ?>/records/answer/<?= (int)$r['id'] ?>" class="nf-form" style="padding:0">
         <input type="hidden" name="csrf_token" value="<?= $csrf ?>">
         <label>A note for them <small>(optional)</small><textarea name="note" maxlength="500" placeholder="e.g. Happy to help. Call me if you need more."></textarea></label>

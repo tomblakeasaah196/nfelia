@@ -149,7 +149,8 @@ function record_request_decide(PDO $db, array $r, bool $approve, ?string $note, 
         $approve ? $r['business_name'] . ' shared ' . $r['label'] . ' with you' : 'About your request to ' . $r['business_name'],
         'record_request', $approve ? [
             'headline' => $r['business_name'] . ' said yes',
-            'message'  => 'You can download ' . $r['label'] . ' for the next ' . RECORD_REQUEST_LINK_DAYS . ' days.' . ($note ? ' Their note: “' . $note . '”' : ''),
+            'message'  => 'You can download ' . $r['label'] . (($trail = records_extract_trail($r['record_type'])) !== '' ? ', with ' . $trail . ',' : '')
+                          . ' for the next ' . RECORD_REQUEST_LINK_DAYS . ' days.' . ($note ? ' Their note: “' . $note . '”' : ''),
             'button'   => 'Download it',
             'url'      => APP_URL . '/verify/file/' . $token,
             'note'     => 'Made by Nfelia from ' . $r['business_name'] . '\'s records. You can check any code in it at nfelia.com/verify.',

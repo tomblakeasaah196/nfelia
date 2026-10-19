@@ -260,9 +260,38 @@ function records_estimate_cells(PDO $db, int $business_id, array $sheets, ?strin
 function records_sheet_count(PDO $db, array $sheet, int $business_id, ?string $from, ?string $to): int
 {
     [$sql, $args] = records_sheet_sql($sheet, $business_id, $from, $to);
-    $stmt = $db->prepare(preg_replace('/^\s*SELECT .*? FROM /s', 'SELECT COUNT(*) FROM ', preg_replace('/\s+ORDER BY .*$/s', '', $sql), 1));
+    $stmt = $db->prepare(records_count_sql($sql));
     $stmt->execute($args);
     return (int)$stmt->fetchColumn();
+}
+
+/**
+ * A sheet's SQL as a count of its rows: what it selects, and how it is
+ * sorted, swapped out where they stand at the top level, never inside a
+ * subquery (an order's receipts are listed in ORDER BY, from their own FROM).
+ */
+function records_count_sql(string $sql): string
+{
+    $depth = 0;
+    $quote = null;
+    $from = $order = null;
+    for ($i = 0, $n = strlen($sql); $i < $n; $i++) {
+        $c = $sql[$i];
+        if ($quote !== null) {
+            if ($c === $quote) $quote = null;
+        } elseif ($c === "'" || $c === '"' || $c === '`') {
+            $quote = $c;
+        } elseif ($c === '(') {
+            $depth++;
+        } elseif ($c === ')') {
+            $depth--;
+        } elseif ($depth === 0 && ctype_space($c)) {
+            if ($from === null && strncasecmp(substr($sql, $i + 1, 5), 'FROM ', 5) === 0) $from = $i;
+            elseif (strncasecmp(substr($sql, $i + 1, 9), 'ORDER BY ', 9) === 0) $order = $i;
+        }
+    }
+    if ($from === null) throw new LogicException('a sheet\'s SQL has no FROM');
+    return 'SELECT COUNT(*)' . substr($sql, $from, ($order ?? $n) - $from);
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -419,8 +448,11 @@ function records_ledger(array $book): array
 /**
  * The figures for a period ($from, $to inclusive; null for no limit), worked
  * out the way Nfelia's own screens do: money in is money_in() (invoice
- * payments and sales paid on the spot), sales invoiced leave out drafts and
- * cancelled invoices, spending is expenses not deleted.
+ * payments and sales paid on the spot; money kept for a customer's next
+ * order counts once, when it came in), sales invoiced leave out drafts and
+ * cancelled invoices, spending is expenses not deleted, orders leave out
+ * those turned down or cancelled, and the hidden walk-in customer of quick
+ * sales is no customer.
  */
 function records_facts(PDO $db, int $biz, ?string $from, ?string $to): array
 {
@@ -430,12 +462,12 @@ function records_facts(PDO $db, int $biz, ?string $from, ?string $to): array
     $all = function (string $sql, array $args) use ($db) { $s = $db->prepare($sql); $s->execute($args); return $s->fetchAll(PDO::FETCH_NUM); };
 
     $facts = [
-        'customers'   => (int)$one("SELECT COUNT(*) FROM customers WHERE business_id = ? AND deleted_at IS NULL", [$biz]),
+        'customers'   => (int)$one("SELECT COUNT(*) FROM customers WHERE business_id = ? AND deleted_at IS NULL AND is_walk_in = 0", [$biz]),
         'invoices'    => (int)$one("SELECT COUNT(*) FROM invoices WHERE business_id = ? AND status NOT IN ('draft', 'cancelled') AND issue_date BETWEEN ? AND ?", [$biz, $from_day, $to_day]),
         'invoiced'    => (float)$one("SELECT COALESCE(SUM(total), 0) FROM invoices WHERE business_id = ? AND status NOT IN ('draft', 'cancelled') AND issue_date BETWEEN ? AND ?", [$biz, $from_day, $to_day]),
         'received'    => money_in($db, $biz, $from_day, $to_day),
         'spent'       => (float)$one("SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE business_id = ? AND deleted_at IS NULL AND expense_date BETWEEN ? AND ?", [$biz, $from_day, $to_day]),
-        'orders'      => (int)$one("SELECT COUNT(*) FROM orders WHERE business_id = ? AND DATE(created_at) BETWEEN ? AND ?", [$biz, $from_day, $to_day]),
+        'orders'      => (int)$one("SELECT COUNT(*) FROM orders WHERE business_id = ? AND status NOT IN ('rejected', 'cancelled') AND DATE(created_at) BETWEEN ? AND ?", [$biz, $from_day, $to_day]),
         'products'    => (int)$one("SELECT COUNT(*) FROM products WHERE business_id = ? AND deleted_at IS NULL", [$biz]),
         'owed_to_you' => (float)$one("SELECT COALESCE(SUM(outstanding_balance), 0) FROM customers WHERE business_id = ? AND deleted_at IS NULL AND outstanding_balance > 0", [$biz]),
     ];
@@ -443,7 +475,7 @@ function records_facts(PDO $db, int $biz, ?string $from, ?string $to): array
     // Month by month: the last 24 months of the period at most
     $first = $one("SELECT MIN(d) FROM (
                        SELECT MIN(issue_date) AS d FROM invoices WHERE business_id = ? AND status NOT IN ('draft', 'cancelled') AND issue_date BETWEEN ? AND ?
-                       UNION ALL SELECT MIN(payment_date) FROM payments WHERE business_id = ? AND payment_date BETWEEN ? AND ?
+                       UNION ALL SELECT MIN(payment_date) FROM payments WHERE business_id = ? AND method <> 'kept' AND payment_date BETWEEN ? AND ?
                        UNION ALL SELECT MIN(issue_date) FROM receipts WHERE business_id = ? AND invoice_id IS NULL AND issue_date BETWEEN ? AND ?
                        UNION ALL SELECT MIN(expense_date) FROM expenses WHERE business_id = ? AND deleted_at IS NULL AND expense_date BETWEEN ? AND ?) f",
                   [$biz, $from_day, $to_day, $biz, $from_day, $to_day, $biz, $from_day, $to_day, $biz, $from_day, $to_day]);
@@ -469,7 +501,7 @@ function records_facts(PDO $db, int $biz, ?string $from, ?string $to): array
     $facts['months'] = $months;
 
     $facts['top_customers'] = $all("SELECT c.full_name, SUM(i.total), MAX(c.outstanding_balance) FROM invoices i JOIN customers c ON c.id = i.customer_id
-                                    WHERE i.business_id = ? AND i.status NOT IN ('draft', 'cancelled') AND i.issue_date BETWEEN ? AND ?
+                                    WHERE i.business_id = ? AND c.is_walk_in = 0 AND i.status NOT IN ('draft', 'cancelled') AND i.issue_date BETWEEN ? AND ?
                                     GROUP BY c.id ORDER BY 2 DESC LIMIT 8", [$biz, $from_day, $to_day]);
     $facts['top_items'] = $all("SELECT name, SUM(qty), SUM(amount) FROM (
                                     SELECT COALESCE(p.name, ii.description) AS name, ii.quantity AS qty, ii.subtotal AS amount
@@ -516,6 +548,9 @@ const RECORDS_RAW_TABLES = [
     'receipt_items'           => 'receipt_id IN (SELECT id FROM receipts WHERE business_id = ?)',
     'orders'                  => 'business_id = ?',
     'order_items'             => 'order_id IN (SELECT id FROM orders WHERE business_id = ?)',
+    'order_events'            => 'business_id = ?',
+    'refunds'                 => 'business_id = ?',
+    'kept_money'              => 'business_id = ?',
     'bookings'                => 'business_id = ?',
     'deliveries'              => 'business_id = ?',
     'delivery_items'          => 'delivery_id IN (SELECT id FROM deliveries WHERE business_id = ?)',
