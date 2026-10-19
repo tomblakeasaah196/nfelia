@@ -584,7 +584,7 @@ $event_icons = ['created' => 'plus', 'confirmed' => 'check', 'payment' => 'money
         <p class="nf-sheet-note">Pick a message. It opens in WhatsApp, ready to send, and goes on the Log.</p>
         <div class="nf-menu-sheet">
             <?php foreach ($wa_list as $key => $m): ?>
-                <a class="nf-row nf-wa-row" href="<?= APP_URL ?>/orders/wa/<?= $oid ?>?m=<?= e($key) ?>" target="_blank" rel="noopener" data-no-prefetch>
+                <a class="nf-row nf-wa-row" href="<?= APP_URL ?>/orders/wa/<?= $oid ?>?m=<?= e($key) ?>" data-wa="https://wa.me/<?= e($wa_phone) ?>?text=<?= e(rawurlencode($m['text'])) ?>" target="_blank" rel="noopener" data-no-prefetch>
                     <span class="nf-tile-ic"><?= nav_icon($m['icon']) ?></span>
                     <span class="nf-wa-txt"><b><?= e($m['label']) ?></b><small><?= e(mb_strimwidth(str_replace("\n", ' ', $m['text']), 0, 90, '…')) ?></small></span>
                 </a>

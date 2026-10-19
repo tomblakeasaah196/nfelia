@@ -401,5 +401,6 @@ $asset = fn(string $path) => APP_URL . '/' . $path . '?v=' . (@filemtime(BASE_PA
 
     <script type="application/json" id="sf-data"><?= json_encode($js, $json_flags) ?></script>
     <script src="<?= e($asset('assets/js/storefront.js')) ?>" defer></script>
+    <script src="<?= e($asset('assets/js/wa.js')) ?>" defer></script>
 </body>
 </html>

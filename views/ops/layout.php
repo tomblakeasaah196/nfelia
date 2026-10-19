@@ -20,6 +20,7 @@ $nav = ops_nav($staff);
     <link rel="preload" href="/assets/fonts/plus-jakarta-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="<?= e(ops_asset('assets/css/ops.css')) ?>">
     <script defer src="<?= e(ops_asset('assets/js/ops.js')) ?>"></script>
+    <script defer src="<?= e(ops_asset('assets/js/wa.js')) ?>"></script>
 </head>
 <body>
 <div class="ops-shell" data-ops-shell>

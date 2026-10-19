@@ -95,6 +95,7 @@ Rules that matter:
 | Quotes past their date, trials about to end | also `cron/planner.php`, on every run: the one cron line the server needs (`docs/DEPLOYMENT_GUIDE.md` part 9). Tested by `testkit/expiry_test.php APPDIR BASEURL` |
 | Share PDF | `views/partials/share_pdf.php` on the invoice, receipt and quote pages; `assets/js/phone.js` |
 | Pick from phone contacts | `data-pick-contact` buttons on New customer and the receipt form's new client box; `assets/js/phone.js` |
+| WhatsApp links open the WhatsApp app on a phone, not WhatsApp's web page first | `assets/js/wa.js`, loaded by every layout (app, shop, website, public notice, Ops); `data-wa` on the order sheet rows and Send a reminder, whose href notes the message on the server (`orders/wa`, `invoices/send_reminder` answer JSON when asked) |
 
 Rules that matter:
 
