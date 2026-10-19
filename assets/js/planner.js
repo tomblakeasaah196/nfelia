@@ -838,9 +838,10 @@ function planner() {
             if (!D.push.enabled) { this.pushState = 'unavailable'; return; }
             if (!window.NfeliaPush || !NfeliaPush.supported()) { this.pushState = 'unsupported'; return; }
             if (Notification.permission === 'denied') { this.pushState = 'blocked'; return; }
-            NfeliaPush.current().then(function (sub) {
-                self.pushState = sub ? 'on' : 'off';
-                if (sub) NfeliaPush.sync(D.push.key).catch(function () {});
+            // A phone that had alerts on but lost its subscription gets it
+            // back here without a tap (assets/js/push.js heal), then the state shows.
+            NfeliaPush.heal(D.push.key, null).then(function () { return NfeliaPush.state(D.push.key, null); }).then(function (state) {
+                self.pushState = state === 'reset' ? 'reset' : (state === 'on' ? 'on' : 'off');
             }).catch(function () { self.pushState = 'off'; });
         },
 

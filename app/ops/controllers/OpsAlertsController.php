@@ -62,7 +62,9 @@ class OpsAlertsController
         if (!push_endpoint_allowed($endpoint)) {
             ops_json(['ok' => false, 'message' => 'This browser gave an address phone alerts cannot use.'], 400);
         }
-        if ($p256dh === '' || $auth === '' || strlen($endpoint) > 2000) {
+        // The keys must be what a browser makes (a 65-byte P-256 point and 16
+        // bytes of auth), or every alert to this device would fail at encryption.
+        if (!push_subscription_ok($endpoint, $p256dh, $auth)) {
             ops_json(['ok' => false, 'message' => 'This browser did not give what phone alerts need.'], 400);
         }
         $this->db->prepare("

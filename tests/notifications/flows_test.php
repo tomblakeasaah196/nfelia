@@ -210,13 +210,24 @@ eq($c->data()['message'] ?? null, 'Sent. Check your phone.', 'the Tasks page\'s 
 section('A phone renews its subscription, and signing out keeps the phone');
 $old = (string)q("SELECT endpoint FROM push_subscriptions WHERE user_id = ?", [CHIDI]);
 $sw = new Http();   // the service worker: no session, no token
+$renewed = T_PUSH_URL . '/ok-renewed-' . bin2hex(random_bytes(3));
 $sw->json('api/notifications?action=resubscribe', ['old_endpoint' => $old, 'subscription' => [
-    'endpoint' => 'https://push.example.test/renewed', 'keys' => ['p256dh' => b64url_encode(webpush_new_keypair()['public']), 'auth' => b64url_encode(random_bytes(16))]]]);
-eq([$sw->data()['success'] ?? null, (string)q("SELECT endpoint FROM push_subscriptions WHERE user_id = ?", [CHIDI])], [true, 'https://push.example.test/renewed'],
+    'endpoint' => $renewed, 'keys' => ['p256dh' => b64url_encode(webpush_new_keypair()['public']), 'auth' => b64url_encode(random_bytes(16))]]]);
+eq([$sw->data()['success'] ?? null, (string)q("SELECT endpoint FROM push_subscriptions WHERE user_id = ?", [CHIDI])], [true, $renewed],
    'the old endpoint proves which row: replaced in place');
 $sw->json('api/notifications?action=resubscribe', ['old_endpoint' => 'https://push.example.test/unknown', 'subscription' => [
     'endpoint' => 'https://push.example.test/x', 'keys' => ['p256dh' => b64url_encode(webpush_new_keypair()['public']), 'auth' => b64url_encode(random_bytes(16))]]]);
-eq($sw->data()['success'] ?? null, false, 'an endpoint Nfelia never had changes nothing');
+eq($sw->status, 422, 'a push service Nfelia may not call is refused');
+$sw->json('api/notifications?action=resubscribe', ['old_endpoint' => 'https://push.example.test/unknown', 'subscription' => [
+    'endpoint' => T_PUSH_URL . '/ok-stray', 'keys' => ['p256dh' => b64url_encode(webpush_new_keypair()['public']), 'auth' => b64url_encode(random_bytes(16))]]]);
+eq($sw->data()['success'] ?? null, false, 'an endpoint Nfelia never had, with no token, changes nothing');
+// Chrome often gives no old subscription: the device token the phone kept says whose it is.
+$fresh = T_PUSH_URL . '/ok-token-' . bin2hex(random_bytes(3));
+$sw->json('api/notifications?action=resubscribe', ['old_endpoint' => null, 'tokens' => [push_device_token(CHIDI, 2), 'not-a-token'], 'subscription' => [
+    'endpoint' => $fresh, 'keys' => ['p256dh' => b64url_encode(webpush_new_keypair()['public']), 'auth' => b64url_encode(random_bytes(16))]]]);
+eq([$sw->data()['success'] ?? null, (int)q("SELECT COUNT(*) FROM push_subscriptions WHERE user_id = ? AND endpoint = ?", [CHIDI, $fresh])], [true, 1],
+   'with the device token alone, the new subscription is saved for Chidi');
+exec_sql("DELETE FROM push_subscriptions WHERE endpoint = ?", [$fresh]);
 $leaving = signin(EMAIL[CHIDI]);   // a session of its own: the others stay signed in
 $leaving->post('logout', ['push_endpoint' => 'https://push.example.test/renewed']);
 eq((int)q("SELECT COUNT(*) FROM push_subscriptions WHERE user_id = ?", [CHIDI]), 1, 'signing out keeps the phone: Chidi still hears about new orders');
@@ -323,9 +334,10 @@ exec_sql("UPDATE users SET quiet_hours = 1, quiet_from = ?, quiet_to = ? WHERE i
          [planner_now()->modify('-1 hour')->format('H:i:00'), planner_now()->modify('+1 hour')->format('H:i:00'), BISI]);
 phone(BISI);
 $a->json('tasks/save', ['kind' => 'task', 'title' => 'Quiet one', 'assigned_to' => BISI]);
-deliver();
+notify_flush();   // what the page's own send and the cron do: nothing goes before its time
 $quiet = outbox('task.assigned', 'push', BISI);
-eq(end($quiet)['last_error'] ?? null, 'quiet hours', 'a task given in Bisi\'s quiet hours doesn\'t buzz her (it used to)');
+eq([end($quiet)['status'] ?? null, end($quiet)['last_error'] ?? null], ['pending', 'held for quiet hours'], 'a task given in Bisi\'s quiet hours doesn\'t buzz her now; it waits for them to end');
+ok((int)q("SELECT next_attempt_at > NOW() + INTERVAL 50 MINUTE FROM notify_outbox WHERE id = ?", [end($quiet)['id'] ?? 0]) === 1, 'until her quiet hours end');
 exec_sql("UPDATE users SET quiet_hours = 0 WHERE id = ?", [BISI]);
 
 /* ══ The team and security ═══════════════════════════════════ */

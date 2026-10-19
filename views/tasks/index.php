@@ -577,27 +577,45 @@
                             <p x-show="pushState === 'unsupported'" class="mt-3 text-sm text-[#5B4650]">This browser cannot show notifications. On iPhone, tap Share, then "Add to Home Screen", and open Nfelia from there.</p>
                             <p x-show="pushState === 'blocked'" class="mt-3 text-sm text-[#B42318]">Notifications are blocked for Nfelia. Allow them in your browser's site settings, then come back.</p>
                             <p x-show="pushState === 'unavailable'" class="mt-3 text-sm text-[#5B4650]">Coming soon. Until then, reminders arrive by bell and email.</p>
+                            <p x-show="pushState === 'reset'" class="mt-3 text-sm text-[#B42318]">Your browser switched alerts off for this phone. Turn them back on.</p>
                             <div class="mt-3 flex flex-wrap gap-2">
-                                <button type="button" x-show="pushState === 'off'" @click="pushOn()" :disabled="busy" class="h-11 px-4 rounded-xl bg-brand-burgundy text-white text-sm font-semibold disabled:opacity-50">Turn on for this phone</button>
+                                <button type="button" x-show="pushState === 'off' || pushState === 'reset'" @click="pushOn()" :disabled="busy" class="h-11 px-4 rounded-xl bg-brand-burgundy text-white text-sm font-semibold disabled:opacity-50">Turn on for this phone</button>
                                 <button type="button" x-show="pushState === 'on'" @click="pushTest()" :disabled="busy" class="h-11 px-4 rounded-xl border border-brand-sand text-sm font-semibold">Send me a test</button>
                                 <button type="button" x-show="pushState === 'on'" @click="pushOff()" :disabled="busy" class="h-11 px-4 rounded-xl border border-brand-sand text-sm font-semibold text-[#5B4650]">Turn off</button>
                             </div>
                         </div>
 
+                        <p class="font-semibold text-base pt-1">Reminders</p>
+                        <p x-show="!prefs.reminder_push" class="text-sm text-[#B42318]">Reminders are not reaching your phone: the phone switch below is off.</p>
                         <label class="flex items-start justify-between gap-3 p-4 rounded-xl border border-brand-sand cursor-pointer">
                             <span>
-                                <span class="block font-semibold text-base">Morning plan by email</span>
-                                <span class="block text-sm text-[#5B4650] mt-0.5">At 7am: today's appointments, tasks, deliveries and money due. Only on days with something on.</span>
+                                <span class="block font-semibold text-base">Reminders on your phone</span>
+                                <span class="block text-sm text-[#5B4650] mt-0.5">A buzz at the time you chose on a task or appointment, on every phone with alerts on.</span>
                             </span>
-                            <input type="checkbox" x-model="prefs.morning_email" @change="savePrefs()" class="mt-1 w-6 h-6 accent-[#8B004A] shrink-0">
+                            <input type="checkbox" x-model="prefs.reminder_push" @change="savePrefs()" class="mt-1 w-6 h-6 accent-[#8B004A] shrink-0" aria-label="Reminders on your phone">
                         </label>
-
                         <label class="flex items-start justify-between gap-3 p-4 rounded-xl border border-brand-sand cursor-pointer">
                             <span>
                                 <span class="block font-semibold text-base">Reminder emails</span>
                                 <span class="block text-sm text-[#5B4650] mt-0.5">An email at the time you chose on a task or appointment.</span>
                             </span>
-                            <input type="checkbox" x-model="prefs.reminder_email" @change="savePrefs()" class="mt-1 w-6 h-6 accent-[#8B004A] shrink-0">
+                            <input type="checkbox" x-model="prefs.reminder_email" @change="savePrefs()" class="mt-1 w-6 h-6 accent-[#8B004A] shrink-0" aria-label="Reminder emails">
+                        </label>
+
+                        <p class="font-semibold text-base pt-1">Morning plan</p>
+                        <label class="flex items-start justify-between gap-3 p-4 rounded-xl border border-brand-sand cursor-pointer">
+                            <span>
+                                <span class="block font-semibold text-base">Morning plan on your phone</span>
+                                <span class="block text-sm text-[#5B4650] mt-0.5">At 7am, on days with something on.</span>
+                            </span>
+                            <input type="checkbox" x-model="prefs.morning_push" @change="savePrefs()" class="mt-1 w-6 h-6 accent-[#8B004A] shrink-0" aria-label="Morning plan on your phone">
+                        </label>
+                        <label class="flex items-start justify-between gap-3 p-4 rounded-xl border border-brand-sand cursor-pointer">
+                            <span>
+                                <span class="block font-semibold text-base">Morning plan by email</span>
+                                <span class="block text-sm text-[#5B4650] mt-0.5">At 7am: today's appointments, tasks, deliveries and money due. Only on days with something on.</span>
+                            </span>
+                            <input type="checkbox" x-model="prefs.morning_email" @change="savePrefs()" class="mt-1 w-6 h-6 accent-[#8B004A] shrink-0" aria-label="Morning plan by email">
                         </label>
                     </div>
                 </div>

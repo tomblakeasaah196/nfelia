@@ -2,18 +2,25 @@
 /**
  * Nfelia — the bell, and each person's notification choices (JSON).
  *
- *   GET  count          unread, for the number on the bell
+ *   GET  count          unread, for the number on the bell, and the newest id (the banner)
  *   GET  list           the newest (limit, max 30); text is raw, the page escapes it
  *   POST mark_read      {id} or {id: 'all'}
  *   GET  prefs          this person's choices (More > Notifications)
  *   POST prefs          {topics: {orders: {push, email}}, quiet_hours, quiet_from, quiet_to, hide_amounts}
  *   POST test           {channel: push | email}: send one to yourself, now
+ *   POST subscribe      this phone's push subscription (assets/js/push.js):
+ *                       saved for the signed-in person; answers with a device
+ *                       token the phone keeps
+ *   POST unsubscribe    {endpoint}: this phone stops, for this person
+ *   GET  device         this person's phones, and how the last phone alert went
+ *   POST device_remove  {id}: forget one of their phones
  *   POST resubscribe    the browser replaced its push subscription (sw.js);
- *                       the old endpoint proves which row it was
+ *                       the old endpoint, or the device token, proves whose it is
  *
  * Every POST carries the session's CSRF token in X-CSRF-Token (resubscribe
- * excepted: the service worker has no token, and the old endpoint, which
- * only the browser and the push service know, stands in for it).
+ * excepted: the service worker has no session or token; the old endpoint,
+ * which only the browser and the push service know, or the device token this
+ * server signed, stands in for it).
  */
 
 $action = $_GET['action'] ?? 'list';
@@ -24,18 +31,43 @@ if ($action === 'resubscribe') {
         json_response(['error' => 'Use POST.'], 405);
     }
     $in  = json_decode((string)file_get_contents('php://input'), true);
+    $in  = is_array($in) ? $in : [];
     $old = (string)($in['old_endpoint'] ?? '');
-    $new = $in['subscription'] ?? [];
+    $new = is_array($in['subscription'] ?? null) ? $in['subscription'] : [];
     $endpoint = (string)($new['endpoint'] ?? '');
     $p256dh   = (string)($new['keys']['p256dh'] ?? '');
     $auth     = (string)($new['keys']['auth'] ?? '');
-    if ($old === '' || !preg_match('#^https://[^\s]{10,2000}$#', $endpoint)
-        || strlen(b64url_decode($p256dh)) !== 65 || strlen(b64url_decode($auth)) !== 16) {
+    if (!push_enabled() || !push_subscription_ok($endpoint, $p256dh, $auth)) {
         json_response(['error' => 'Unusable subscription.'], 422);
     }
-    $stmt = $db->prepare("UPDATE IGNORE push_subscriptions SET endpoint = ?, endpoint_hash = ?, p256dh = ?, auth = ?, failures = 0 WHERE endpoint_hash = ?");
-    $stmt->execute([$endpoint, hash('sha256', $endpoint), $p256dh, $auth, hash('sha256', $old)]);
-    json_response(['success' => $stmt->rowCount() === 1]);
+    $saved = [];
+    // The old endpoint names the rows: everyone who had alerts on that phone
+    // gets the new subscription in its place.
+    if ($old !== '') {
+        $saved = push_device_renew($db, $old, $endpoint, $p256dh, $auth);
+    }
+    // No old rows (Chrome often gives no old subscription): the device
+    // tokens the phone kept say whose phone it is.
+    $tokens = is_array($in['tokens'] ?? null) ? $in['tokens'] : (isset($in['token']) ? [$in['token']] : []);
+    foreach (array_slice(array_filter($tokens, 'is_string'), 0, PUSH_MAX_DEVICES) as $token) {
+        $who = push_device_token_read($token);
+        if (!$who || in_array($who['user_id'], $saved, true)) continue;
+        $stmt = $db->prepare("SELECT id FROM users WHERE id = ? AND business_id = ? AND is_active = 1");
+        $stmt->execute([$who['user_id'], $who['business_id']]);
+        if (!$stmt->fetchColumn()) continue;
+        push_device_save($db, $who['business_id'], $who['user_id'], $endpoint, $p256dh, $auth, null);
+        $saved[] = $who['user_id'];
+    }
+    foreach (array_unique($saved) as $uid) {
+        notify_push_revive($db, $uid);
+    }
+    if ($saved) {
+        json_response(['success' => true, 'people' => count(array_unique($saved))]);
+    }
+    // Nothing to go on: at least don't lose a row that already names this endpoint.
+    $stmt = $db->prepare("SELECT 1 FROM push_subscriptions WHERE endpoint_hash = ?");
+    $stmt->execute([hash('sha256', $endpoint)]);
+    json_response(['success' => (bool)$stmt->fetchColumn()]);
 }
 
 if (!is_logged_in()) {
@@ -61,7 +93,15 @@ switch ($action) {
     case 'count':
         $stmt = $db->prepare("SELECT COUNT(*) FROM notifications WHERE {$mine} AND is_read = 0");
         $stmt->execute($mine_args);
-        json_response(['success' => true, 'count' => (int)$stmt->fetchColumn()]);
+        $count = (int)$stmt->fetchColumn();
+        // The newest id, so the page knows when something new has arrived
+        // (assets/js/bell.js shows it as a banner).
+        $stmt = $db->prepare("SELECT MAX(id) FROM notifications WHERE {$mine}");
+        $stmt->execute($mine_args);
+        $latest = (int)$stmt->fetchColumn();
+        // The page's CSRF token too: an installed app can live for days,
+        // past a sign-in elsewhere that changed it.
+        json_response(['success' => true, 'count' => $count, 'latest' => $latest, 'csrf' => (string)($_SESSION['csrf_token'] ?? '')] + notify_phones_for_page($db, $user_id));
 
     case 'list':
         $limit = max(1, min(30, (int)($_GET['limit'] ?? 15)));
@@ -79,13 +119,17 @@ switch ($action) {
                 'message' => $n['message'],
                 'url'     => 'notifications/open/' . (int)$n['id'],
                 'is_read' => (int)$n['is_read'],
+                'age'     => max(0, $secs),   // seconds old: the banner shows only what just arrived
                 'ago'     => $secs < 60 ? 'Just now' : ($secs < 3600 ? intdiv($secs, 60) . ' min ago'
                            : ($secs < 86400 ? intdiv($secs, 3600) . ' h ago' : date('j M, g:ia', strtotime($n['created_at'])))),
             ];
         }, $stmt->fetchAll());
         $stmt = $db->prepare("SELECT COUNT(*) FROM notifications WHERE {$mine} AND is_read = 0");
         $stmt->execute($mine_args);
-        json_response(['success' => true, 'notifications' => $out, 'count' => (int)$stmt->fetchColumn()]);
+        $count = (int)$stmt->fetchColumn();
+        $stmt = $db->prepare("SELECT MAX(id) FROM notifications WHERE {$mine}");
+        $stmt->execute($mine_args);
+        json_response(['success' => true, 'notifications' => $out, 'count' => $count, 'latest' => (int)$stmt->fetchColumn()] + notify_phones_for_page($db, $user_id));
 
     case 'mark_read':
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -120,6 +164,75 @@ switch ($action) {
                ]);
         }
         json_response(['success' => true, 'prefs' => notify_prefs($user_id)]);
+
+    case 'subscribe':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            json_response(['error' => 'Use POST.'], 405);
+        }
+        $endpoint = (string)($in['endpoint'] ?? '');
+        $p256dh   = (string)($in['keys']['p256dh'] ?? '');
+        $auth     = (string)($in['keys']['auth'] ?? '');
+        if (!push_enabled()) {
+            json_response(['error' => 'Phone notifications are not switched on for Nfelia yet.'], 409);
+        }
+        if (!push_subscription_ok($endpoint, $p256dh, $auth)) {
+            json_response(['error' => 'This browser sent an unusable subscription. Try again.'], 422);
+        }
+        push_device_save($db, $biz_id, $user_id, $endpoint, $p256dh, $auth, (string)($_SERVER['HTTP_USER_AGENT'] ?? ''));
+        // Anything that was waiting for a phone goes now (after this answer).
+        notify_push_revive($db, $user_id);
+        json_response(['success' => true, 'message' => 'Notifications are on for this phone.',
+                       'token' => push_device_token($user_id, $biz_id), 'hash' => hash('sha256', $endpoint)]);
+
+    case 'unsubscribe':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            json_response(['error' => 'Use POST.'], 405);
+        }
+        $hash = hash('sha256', (string)($in['endpoint'] ?? ''));
+        $db->prepare("DELETE FROM push_subscriptions WHERE endpoint_hash = ? AND user_id = ?")->execute([$hash, $user_id]);
+        // Others may still have alerts on this phone: then the browser keeps
+        // its subscription (the page only drops it when nobody is left).
+        $stmt = $db->prepare("SELECT COUNT(*) FROM push_subscriptions WHERE endpoint_hash = ?");
+        $stmt->execute([$hash]);
+        json_response(['success' => true, 'message' => 'Notifications are off for this phone.', 'others' => (int)$stmt->fetchColumn()]);
+
+    case 'device':
+        // Every phone with this person's alerts on, and how the last phone
+        // alert went: the answer to "why didn't my phone buzz?".
+        $stmt = $db->prepare("SELECT id, LEFT(endpoint_hash, 16) AS hash, user_agent, failures, last_sent_at, created_at
+                              FROM push_subscriptions WHERE user_id = ? ORDER BY id DESC");
+        $stmt->execute([$user_id]);
+        $devices = array_map(fn($d) => [
+            'id'        => (int)$d['id'],
+            'hash'      => $d['hash'],
+            'label'     => push_device_label($d['user_agent']),
+            'added'     => date('j M', strtotime($d['created_at'])),
+            'last_sent' => $d['last_sent_at'] ? notify_when_ago($d['last_sent_at']) : null,
+            'failures'  => (int)$d['failures'],
+        ], $stmt->fetchAll());
+        $stmt = $db->prepare("SELECT o.event, o.status, o.attempts, o.last_error, o.created_at, o.sent_at, o.next_attempt_at, n.title
+                              FROM notify_outbox o LEFT JOIN notifications n ON n.id = o.notification_id
+                              WHERE o.user_id = ? AND o.channel = 'push' ORDER BY o.id DESC LIMIT 1");
+        $stmt->execute([$user_id]);
+        $last = null;
+        if ($o = $stmt->fetch()) {
+            $last = [
+                'title'    => $o['title'] ?: $o['event'],
+                'status'   => $o['status'],
+                'when'     => notify_when_ago($o['sent_at'] ?: $o['created_at']),
+                'attempts' => (int)$o['attempts'],
+                'error'    => $o['last_error'],
+                'words'    => notify_push_words($o),
+            ];
+        }
+        json_response(['success' => true, 'enabled' => push_enabled(), 'devices' => $devices, 'last' => $last, 'dead' => push_dead_hashes($db)]);
+
+    case 'device_remove':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            json_response(['error' => 'Use POST.'], 405);
+        }
+        $db->prepare("DELETE FROM push_subscriptions WHERE id = ? AND user_id = ?")->execute([(int)($in['id'] ?? 0), $user_id]);
+        json_response(['success' => true]);
 
     case 'test':
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {

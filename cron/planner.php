@@ -11,7 +11,8 @@
  *    is stamped before anything is sent, so a failure never repeats a
  *    reminder or holds up the rest. A reminder more than a day old (the first
  *    run after the cron is set up, or after the server was down) is stamped
- *    and dropped: "your 2pm appointment" is no use the next afternoon.
+ *    and left in the bell only, marked missed: "your 2pm appointment" is no
+ *    use buzzing the next afternoon, but the person should see it was missed.
  *
  * 2. The morning plan, once per person per day between 07:00 and 11:00:
  *    late items, today's items and deliveries due in the next two days.
@@ -40,7 +41,8 @@
  *    campaigns (app/helpers/prices.php).
  *
  * 9. Phone notifications and emails still waiting, retried (what the
- *    monitor queued goes out in this same run).
+ *    monitor queued goes out in this same run). Reminders and morning plans
+ *    don't wait for this: they are sent right after steps 1 and 2.
  *
  * Every time here is Lagos time from planner_now(), the same clock remind_at
  * was worked out with when the task was saved.
@@ -77,6 +79,15 @@ if ((int)$db->query("SELECT GET_LOCK('nfelia_planner', 0)")->fetchColumn() !== 1
 }
 heartbeat_start('planner');
 $run_started = microtime(true);
+
+// Whatever stops this run early (a fatal in a later job), what was queued
+// still goes: the outbox is sent on the way out.
+$GLOBALS['planner_sent_all'] = false;
+register_shutdown_function(function () use ($db) {
+    if (!empty($GLOBALS['planner_sent_all'])) return;
+    try { notify_flush(null, 200, 120); } catch (Throwable $e) { error_log('Nfelia planner shutdown flush: ' . $e->getMessage()); }
+    try { $db->query("SELECT RELEASE_LOCK('nfelia_planner')"); } catch (Throwable $e) {}
+});
 
 $now   = planner_now();
 $now_s = $now->format('Y-m-d H:i:s');
@@ -123,28 +134,56 @@ $stale_before = $now->modify('-1 day')->format('Y-m-d H:i:s');
 foreach ($due->fetchAll() as $row) {
     $stamp->execute([$now_s, $row['id']]);
     if ($stamp->rowCount() !== 1) continue;
-    if ($row['remind_at'] < $stale_before) { $done['stale']++; continue; }
+    // A reminder more than a day old (the runner was down): no buzz or email
+    // hours late, but a bell row, so the person can see what they missed.
+    $stale = $row['remind_at'] < $stale_before;
+    if ($stale) $done['stale']++;
 
     try {
         $business = planner_cron_business($db, (int)$row['business_id'], $now);
         $user     = $business ? planner_cron_user($db, (int)$row['user_id'], (int)$business['id']) : null;
-        $task     = $user ? (planner_fetch_tasks($db, (int)$business['id'], ['ids' => [(int)$row['id']]])[0] ?? null) : null;
+        if (!$business) {
+            // A business that can't use Nfelia today: the reminder waits
+            // (unstamped) and goes if access returns in time, else it lapses
+            // as stale above.
+            if (!$stale) $db->prepare("UPDATE tasks SET reminded_at = NULL WHERE id = ? AND reminded_at = ?")->execute([$row['id'], $now_s]);
+            $done['skipped']++;
+            continue;
+        }
+        if (!$user) { $done['skipped']++; continue; }   // a person who left: nobody to tell
+        $task = planner_fetch_tasks($db, (int)$business['id'], ['ids' => [(int)$row['id']]])[0] ?? null;
         if (!$task) { $done['skipped']++; continue; }
 
         $it   = planner_task_item($task, $today, $business);
         $when = planner_reminder_when($it, $today);
-        $line = implode(' · ', array_filter([$when, $it['subtitle']]));
+        $line = implode(' · ', array_filter([$stale ? 'Missed reminder' : null, $when, $it['subtitle']]));
 
-        notify('task.reminder', (int)$business['id'], ['task_id' => $it['task_id'], 'title' => $it['title'], 'line' => $line], [
+        $made = notify('task.reminder', (int)$business['id'], ['task_id' => $it['task_id'], 'title' => $it['title'], 'line' => $line], [
             'users' => [(int)$user['id']], 'business' => $business, 'dedupe' => $row['id'] . ':' . $row['remind_at'],
             'vars'  => ['subject' => 'Reminder: ' . $it['title'], 'item' => $it, 'when' => $when],
-        ]);
-        $done['reminders']++;
+        ] + ($stale ? ['channels' => []] : []));
+        if (!$made) {
+            // Nothing was made and nobody had heard: the stamp comes off so
+            // the next run tries again, and the team hears why.
+            $had = $db->prepare("SELECT 1 FROM notifications WHERE user_id = ? AND dedupe_key = ? LIMIT 1");
+            $had->execute([(int)$user['id'], 'task.reminder:' . $row['id'] . ':' . $row['remind_at']]);
+            if (!$had->fetchColumn()) {
+                $db->prepare("UPDATE tasks SET reminded_at = NULL WHERE id = ? AND reminded_at = ?")->execute([$row['id'], $now_s]);
+                errors_report('job', 'error', 'Cron: reminder for task #' . $row['id'] . ' could not be made; it will be tried again', ['business_id' => (int)$business['id']]);
+                $done['errors']++;
+            }
+            continue;
+        }
+        if (!$stale) $done['reminders']++;
     } catch (Throwable $e) {
         $done['errors']++;
         errors_report_throwable($e, ['job' => 'Cron: reminder for task #' . $row['id'], 'business_id' => (int)($row['business_id'] ?? 0) ?: null]);
     }
 }
+
+// Reminders are for a moment: they go now, not after everything else this
+// run does (the monitor, campaigns, a Records Book build can take minutes).
+$flushed = notify_flush();
 
 /* ── 2. The morning plan ───────────────────────────────────── */
 
@@ -185,6 +224,9 @@ if ($hour >= 7 && $hour < 11) {
         }
     }
 }
+
+// The morning plans too, before the slower jobs below.
+foreach (notify_flush() as $k => $v) $flushed[$k] += $v;
 
 /* ── 3. Low stock ──────────────────────────────────────────── */
 
@@ -363,24 +405,31 @@ try {
 // sends what this run queued, and tries again what failed (a mail server
 // or push service that was down), with longer waits each time
 // (app/helpers/notify.php).
+// The lock goes first: a slow mail server or push service must not make
+// the next run (and the reminders in it) wait. Each outbox row is claimed
+// on its own, so two runs sending at once never send one twice.
+$db->query("SELECT RELEASE_LOCK('nfelia_planner')");
+$GLOBALS['planner_sent_all'] = true;
 $sent = notify_flush();
-$done['outbox_sent']  = $sent['sent'];
-$done['outbox_retry'] = $sent['retry'];
-$done['outbox_gave_up'] = $sent['failed'];
+$done['outbox_sent']    = $sent['sent'] + $flushed['sent'];
+$done['outbox_retry']   = $sent['retry'] + $flushed['retry'];
+$done['outbox_gave_up'] = $sent['failed'] + $flushed['failed'];
 
 // Once a day: read alerts go after six months, everything after a year,
 // and the record of sends after a month.
-if ($hour === 3) {
+if ($hour === 3 && (int)$now->format('i') < 5) {
     try {
         $db->exec("DELETE FROM notifications WHERE (is_read = 1 AND created_at < NOW() - INTERVAL 6 MONTH) OR created_at < NOW() - INTERVAL 12 MONTH");
         $db->exec("DELETE FROM notify_outbox WHERE status IN ('sent', 'skipped', 'failed') AND created_at < NOW() - INTERVAL 1 MONTH");
+        // A row some process claimed and never finished, for a day: given up on, with a word.
+        $db->exec("UPDATE notify_outbox SET status = 'failed', last_error = CONCAT('stuck; ', COALESCE(last_error, '')) WHERE status = 'sending' AND next_attempt_at < NOW() - INTERVAL 1 DAY");
+        $db->exec("DELETE FROM push_dead WHERE created_at < NOW() - INTERVAL 60 DAY");
     } catch (Throwable $e) {
         $done['errors']++;
         errors_report_throwable($e, ['job' => 'Cron: notification clean-up']);
     }
 }
 
-$db->query("SELECT RELEASE_LOCK('nfelia_planner')");
 heartbeat_finish('planner', $done['errors'] === 0, implode(' ', array_map(fn($k, $v) => "{$k}={$v}", array_keys($done), $done)),
                  (int)round((microtime(true) - $run_started) * 1000));
 

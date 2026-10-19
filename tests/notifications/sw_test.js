@@ -119,7 +119,7 @@ const pushEvent = (payload) => ({ data: { json: () => (typeof payload === 'strin
     eq(w.did.subscribed, [old.options], 'subscribes again with Nfelia\'s same key');
     const call = w.did.fetched[0] || {};
     eq(call.url, SCOPE + 'api/notifications?action=resubscribe', 'tells Nfelia');
-    eq(JSON.parse(call.opts ? call.opts.body : '{}'), { old_endpoint: 'https://push.test/old', subscription: { endpoint: 'https://push.test/new', keys: { p256dh: 'p', auth: 'a' } } },
+    eq(JSON.parse(call.opts ? call.opts.body : '{}'), { old_endpoint: 'https://push.test/old', tokens: [], subscription: { endpoint: 'https://push.test/new', keys: { p256dh: 'p', auth: 'a' } } },
        'with the old endpoint (which proves which row it was) and the new subscription');
   }
   {

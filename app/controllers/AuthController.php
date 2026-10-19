@@ -522,8 +522,8 @@ class AuthController {
         csrf_verify();
 
         // The phone keeps this person's alerts: signing out never silences a
-        // shop. A phone stops only from More > Notifications, or when someone
-        // else turns alerts on there (TasksController::push_subscribe).
+        // shop. A phone stops only from More > Notifications (Turn off), and
+        // one phone can hold alerts for everyone who turned them on there.
 
         // Delete the sessions table row if remember-me was active
         if (isset($_COOKIE[REMEMBER_COOKIE])) {

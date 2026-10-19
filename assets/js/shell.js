@@ -307,8 +307,12 @@
     // offer is done), unless "Not now" was pressed in the last 7 days.
     // Android tells us it can install a moment after load.
     window.nfInstallOffer = function () {
-        if (kept || !isPhone || standalone || Number(store.get('nf.install.snooze') || 0) >= Date.now()) return;
-        setTimeout(showInstall, deferred || isIOS ? 200 : 2500);
+        if (kept) return;
+        var pushOffer = function () { if (window.nfPushOffer) setTimeout(window.nfPushOffer, 300); };
+        if (!isPhone || standalone || Number(store.get('nf.install.snooze') || 0) >= Date.now()) { if (isPhone) pushOffer(); return; }
+        // The phone alerts offer (bell.js) comes after this one has closed.
+        if (install) install.addEventListener('close', pushOffer, { once: true });
+        setTimeout(function () { showInstall(); if (install && !install.open) { install.removeEventListener('close', pushOffer); pushOffer(); } }, deferred || isIOS ? 200 : 2500);
     };
 
     // ---------- Service worker ----------
