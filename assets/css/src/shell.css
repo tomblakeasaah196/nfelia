@@ -474,6 +474,48 @@ html:active-view-transition-type(tab)::view-transition-new(root) { animation: 20
 @keyframes nf-vt-fade-out { to { opacity: 0; } }
 @keyframes nf-vt-fade-in { from { opacity: 0; } }
 
+/* ---------- Loading: button spinner, and the upload progress overlay ----------
+   shell.js locks a form's submit button and drops a spinner in it the moment
+   the form is sent (opt out with data-no-spin). The catalogue form uploads its
+   pictures over the overlay, filling 0 → 100%. */
+@keyframes nf-spin { to { transform: rotate(360deg); } }
+.nf-spin {
+  display: inline-block; width: 1.05em; height: 1.05em; vertical-align: -0.15em;
+  border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%;
+  animation: nf-spin 600ms linear infinite;
+}
+button.is-spinning, input.is-spinning, .is-spinning[type="submit"] {
+  cursor: progress; opacity: .85;
+}
+button.is-spinning .nf-spin { color: currentColor; }
+
+/* Covers the add/edit catalogue form while its pictures upload. */
+.nf-upload {
+  position: fixed; inset: 0; z-index: 90; display: grid; place-items: center;
+  padding: 24px; background: rgb(31 10 20 / .55); backdrop-filter: blur(2px);
+  animation: nf-fade-in 200ms var(--ease-out);
+}
+.nf-upload[hidden] { display: none; }
+.nf-upload-card {
+  width: min(360px, 100%); background: var(--surface); color: var(--ink);
+  border-radius: 20px; box-shadow: var(--shadow-2); padding: 28px 24px 24px; text-align: center;
+}
+.nf-upload-card h3 { margin: 0 0 4px; font: 700 1.05rem/1.3 var(--font-heading); }
+.nf-upload-card p { margin: 0 0 18px; font: 500 .8rem/1.4 var(--font-body); color: var(--ink-2); }
+.nf-upload-track {
+  height: 10px; border-radius: 999px; background: var(--line-2); overflow: hidden;
+}
+.nf-upload-bar {
+  height: 100%; width: 0; border-radius: 999px;
+  background: linear-gradient(90deg, var(--brand-primary), #B69F5E);
+  transition: width 200ms var(--ease-out);
+}
+.nf-upload-pct { margin-top: 10px; font: 700 .95rem/1 var(--font-body); font-variant-numeric: tabular-nums; }
+.nf-upload.is-done .nf-upload-bar { background: #1FA565; }
+/* While the server finishes (resizing images), the bar glides on its own. */
+.nf-upload.is-working .nf-upload-bar { animation: nf-upload-pulse 1.1s var(--ease-out) infinite alternate; }
+@keyframes nf-upload-pulse { from { opacity: .7; } to { opacity: 1; } }
+
 @media (prefers-reduced-motion: reduce) {
   @view-transition { navigation: none; }
   dialog.nf-sheet[open], dialog.nf-sheet[open]::backdrop, dialog.nf-sheet.is-closing,
@@ -481,4 +523,8 @@ html:active-view-transition-type(tab)::view-transition-new(root) { animation: 20
   .nf-appbar::before { transition: none; }
   dialog.nf-lock[open] { animation: none; }
   input[role="switch"]::after { transition: none; }
+  .nf-spin { animation-duration: 1200ms; }
+  .nf-upload { animation: none; }
+  .nf-upload-bar { transition: none; }
+  .nf-upload.is-working .nf-upload-bar { animation: none; }
 }

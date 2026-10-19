@@ -45,8 +45,8 @@ $step_done = ($has_products && $has_categories) ? 3 : ($has_products ? 2 : ($has
         <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
     </a>
     <div>
-        <h1 class="font-heading font-extrabold text-2xl sm:text-3xl text-brand-plum tracking-tight">Inventory Setup</h1>
-        <p class="text-xs text-brand-plum/50 font-medium mt-1">Configure your catalog, categories, and stock preferences</p>
+        <h1 class="font-heading font-extrabold text-2xl sm:text-3xl text-brand-plum tracking-tight">Catalogue Setup</h1>
+        <p class="text-xs text-brand-plum/50 font-medium mt-1">Add many products and services at once, with categories and stock</p>
     </div>
 </div>
 
