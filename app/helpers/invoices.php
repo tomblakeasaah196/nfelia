@@ -169,3 +169,33 @@ function invoice_cancel(PDO $db, int $biz_id, int $invoice_id, string $symbol = 
     customer_refresh_totals($db, $biz_id, (int)$invoice['customer_id']);
     return '';
 }
+
+/**
+ * The WhatsApp reminder for an unpaid invoice, as a wa.me link to its
+ * customer: the balance, how late it is, and the invoice's public page.
+ * Both the Send a reminder button (views/invoices/view.php, where
+ * assets/js/wa.js opens WhatsApp with it directly) and
+ * InvoiceController::send_reminder() use it, so they say the same thing.
+ */
+function invoice_reminder_wa_link(array $invoice, ?array $customer, array $business, ?array $order = null): string {
+    $currency  = $business['currency_symbol'] ?? '₦';
+    $wa_number = wa_digits((string)(($customer['whatsapp'] ?? '') ?: ($customer['phone'] ?? '')), $business);
+
+    $days_overdue = '';
+    if (!empty($invoice['due_date'])) {
+        $diff = (int)((time() - strtotime($invoice['due_date'])) / 86400);
+        if ($diff > 0) $days_overdue = " ({$diff} day" . ($diff > 1 ? 's' : '') . " past due)";
+    }
+
+    $public_url = APP_URL . '/doc/' . $invoice['token'];
+    $text = "Hello " . ($customer['full_name'] ?? '') . ",\n\n"
+        . "This is a friendly reminder regarding your outstanding invoice from *{$business['name']}*:\n\n"
+        . "Invoice: *{$invoice['doc_number']}*" . ($order ? " for your order *{$order['order_number']}*" : '') . "\n"
+        . "Total: *{$currency}" . number_format((float)$invoice['total'], 2) . "*\n"
+        . "Balance Due: *{$currency}" . number_format((float)$invoice['balance_due'], 2) . "*" . $days_overdue . "\n"
+        . (!empty($invoice['due_date']) ? "Due Date: " . fmt_date($invoice['due_date'], 'd M Y') . "\n" : '')
+        . "\nView invoice: {$public_url}\n\n"
+        . "Kindly let us know once payment is made. Thank you!\n\n"
+        . "_Sent via Nfelia — nfelia.com_";
+    return "https://wa.me/{$wa_number}?text=" . urlencode($text);
+}

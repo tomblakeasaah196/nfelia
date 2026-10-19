@@ -97,7 +97,7 @@ if ($quotation) {
     <?php if ($can_pay): ?>
         <button type="button" class="nf-btn nf-btn-primary" data-open="nf-pay"><?= nav_icon('money') ?>Record payment</button>
         <?php if ($invoice['status'] === 'overdue'): ?>
-            <a class="nf-btn nf-btn-ghost nf-wide" href="<?= APP_URL ?>/invoices/send_reminder/<?= (int)$invoice['id'] ?>" data-no-prefetch><?= nav_icon('whatsapp') ?>Send a reminder</a>
+            <a class="nf-btn nf-btn-ghost nf-wide" href="<?= APP_URL ?>/invoices/send_reminder/<?= (int)$invoice['id'] ?>" data-wa="<?= e(invoice_reminder_wa_link($invoice, $customer ?: null, $business, $order)) ?>" data-no-prefetch><?= nav_icon('whatsapp') ?>Send a reminder</a>
         <?php endif; ?>
     <?php elseif ($invoice['status'] === 'draft'): ?>
         <form method="POST" action="<?= APP_URL ?>/invoices/send/<?= (int)$invoice['id'] ?>"

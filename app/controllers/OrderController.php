@@ -485,7 +485,8 @@ class OrderController
      *  WHATSAPP, AND THE FORM'S CUSTOMER SEARCH
      *──────────────────────────────────────────*/
 
-    /** GET orders/wa/{id}?m=key: a ready message goes on the Log, then opens in WhatsApp. */
+    /** GET orders/wa/{id}?m=key: a ready message goes on the Log, then opens in WhatsApp
+     *  (or, asked by assets/js/wa.js, answers with the wa.me link as JSON: the page opens WhatsApp itself). */
     public function wa($id = null)
     {
         $order = $this->order_or_back($id);
@@ -506,7 +507,11 @@ class OrderController
         if ($same_site && !view_as_active()) {
             order_log($this->db, $this->biz_id, (int) $order["id"], "whatsapp", "WhatsApp: " . $m["label"] . ".", $this->user_id(), ["key" => $key]);
         }
-        header("Location: https://wa.me/" . $messages["phone"] . "?text=" . rawurlencode($m["text"]));
+        $wa_link = "https://wa.me/" . $messages["phone"] . "?text=" . rawurlencode($m["text"]);
+        if (is_ajax()) {
+            json_response(["wa_link" => $wa_link]);
+        }
+        header("Location: " . $wa_link);
         exit();
     }
 

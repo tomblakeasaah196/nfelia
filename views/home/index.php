@@ -684,5 +684,6 @@ $flash = get_flash();
 </dialog>
 
 <script src="<?= APP_URL ?>/assets/js/home.js?v=6" defer></script>
+<script src="<?= APP_URL ?>/assets/js/wa.js?v=<?= (int)@filemtime(BASE_PATH . '/assets/js/wa.js') ?>" defer></script>
 </body>
 </html>

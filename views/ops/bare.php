@@ -17,6 +17,7 @@
     <link rel="icon" href="/favicon.ico">
     <link rel="stylesheet" href="<?= e(ops_asset('assets/css/ops.css')) ?>">
     <script defer src="<?= e(ops_asset('assets/js/ops.js')) ?>"></script>
+    <script defer src="<?= e(ops_asset('assets/js/wa.js')) ?>"></script>
 </head>
 <body>
 <main class="ops-auth">

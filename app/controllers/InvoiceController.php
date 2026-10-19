@@ -505,34 +505,10 @@ class InvoiceController {
         $stmtCust->execute([$invoice['customer_id'], $this->biz_id]);
         $customer = $stmtCust->fetch();
 
-        $business = auth_business();
-        $currency = $business['currency_symbol'] ?? '₦';
+        $order   = order_by_invoice($this->db, $this->biz_id, (int)$invoice['id']);
+        $wa_link = invoice_reminder_wa_link($invoice, $customer ?: null, auth_business(), $order);
 
-        $wa_number = $customer['whatsapp'] ?: $customer['phone'] ?: '';
-        $wa_number = wa_digits($wa_number, auth_business());
-
-        $days_overdue = '';
-        if ($invoice['due_date']) {
-            $diff = (int)((time() - strtotime($invoice['due_date'])) / 86400);
-            if ($diff > 0) $days_overdue = " ({$diff} day" . ($diff > 1 ? 's' : '') . " past due)";
-        }
-
-        $public_url = APP_URL . '/doc/' . $invoice['token'];
-        $order = order_by_invoice($this->db, $this->biz_id, (int)$invoice['id']);
-        $wa_text = urlencode(
-            "Hello " . ($customer['full_name'] ?? '') . ",\n\n"
-            . "This is a friendly reminder regarding your outstanding invoice from *{$business['name']}*:\n\n"
-            . "Invoice: *{$invoice['doc_number']}*" . ($order ? " for your order *{$order['order_number']}*" : '') . "\n"
-            . "Total: *{$currency}" . number_format((float)$invoice['total'], 2) . "*\n"
-            . "Balance Due: *{$currency}" . number_format((float)$invoice['balance_due'], 2) . "*" . $days_overdue . "\n"
-            . ($invoice['due_date'] ? "Due Date: " . fmt_date($invoice['due_date'], 'd M Y') . "\n" : '')
-            . "\nView invoice: {$public_url}\n\n"
-            . "Kindly let us know once payment is made. Thank you!\n\n"
-            . "_Sent via Nfelia — nfelia.com_"
-        );
-
-        $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
-
+        // assets/js/wa.js asks for the link this way, then opens WhatsApp itself
         if (is_ajax()) {
             json_response(['wa_link' => $wa_link]);
         }
