@@ -212,9 +212,15 @@ jobs:
       - name: Database (schema, migrations, procedure)
         run: bash tests/notifications/setup.sh
 
+      # Without JIT, as PHP 8.3 ships (no JIT buffer). setup-php turns JIT
+      # on (opcache.jit=1235, a 256M buffer), and the built-in server uses
+      # OPcache, so it ran the app JIT-compiled: on PHP 8.3.35 that crashed
+      # the server outright (a general protection fault in php8.3) every
+      # time a Records Book was made, while the same build ran fine from the
+      # command line, with or without JIT.
       - name: Serve the app
         run: |
-          php -S 127.0.0.1:8099 -t . tests/notifications/router.php > "$RUNNER_TEMP/app.log" 2>&1 &
+          php -d opcache.jit_buffer_size=0 -S 127.0.0.1:8099 -t . tests/notifications/router.php > "$RUNNER_TEMP/app.log" 2>&1 &
           for i in $(seq 50); do curl -sf -o /dev/null http://localhost:8099/login && exit 0; sleep 0.2; done
           echo "::error::the app did not start"; cat "$RUNNER_TEMP/app.log"; exit 1
 

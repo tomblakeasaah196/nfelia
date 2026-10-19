@@ -132,6 +132,11 @@ tables and columns the sheets read; the plain copy also takes `order_events`, `r
   `/usr/local/bin/ea-php83 -m` should list `zip`, `xml`, `xmlreader`, `xmlwriter`, `dom`, `gd`,
   `fileinfo`, `iconv`, `zlib` and `mbstring`. Add any that are missing in cPanel → EasyApache 4 →
   PHP Extensions (ea-php83).
+- **Keep PHP's JIT off** on the server, as PHP 8.3 ships it: `/usr/local/bin/ea-php83 -i | grep
+  opcache.jit_buffer_size` should say 0. In CI, PHP 8.3.35 with JIT on (setup-php's default) crashed
+  the built-in web server every time it made a book, while the same build from the command line was
+  fine; CI now serves the app without JIT. Should a page's build ever stop like that, the cron makes
+  the book again within 20 minutes.
 - `storage/private/records/` is made on first use, under `storage/` (closed to the web).
 - The cron (`cron/planner.php`) now also makes books whose page's own build didn't run, deletes kept
   files past their date, closes unanswered requests, and sends price notices.
