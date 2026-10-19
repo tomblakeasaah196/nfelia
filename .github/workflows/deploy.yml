@@ -225,7 +225,14 @@ jobs:
       # log: the artifact below has the whole file.
       - name: The app's log, when a check above failed
         if: failure()
-        run: grep -v -E ' (Accepted|Closing)$' "$RUNNER_TEMP/app.log" | tail -n 150 || true
+        run: |
+          grep -v -E ' (Accepted|Closing)$' "$RUNNER_TEMP/app.log" | tail -n 60 || true
+          echo "--- the app's last connections"; tail -n 6 "$RUNNER_TEMP/app.log" || true
+          echo "--- is the app still running?"; pgrep -af 'php -S' || echo "no: the server process is gone"
+          echo "--- what the kernel saw"; sudo dmesg | tail -n 15 || true
+          echo "--- a Records Book made outside the web server"
+          php -r 'require "tests/bootstrap.php"; require "app/helpers/records.php"; $db = get_db(); $id = records_queue($db, 2, ["charge" => "free", "sheets" => ["customers", "invoices"]]); var_dump(records_build($db, $id), $db->query("SELECT status, error FROM records_books WHERE id = " . $id)->fetch());'; echo "exit code $?"
+          sudo dmesg | tail -n 5 || true
 
       - name: Browser for the UI checks
         id: browser
