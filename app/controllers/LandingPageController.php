@@ -221,7 +221,8 @@ class LandingPageController {
             $too_big = in_array($file['error'] ?? 0, [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true);
             json_response(['error' => $too_big ? 'That file is too big. ' . $limits : 'The upload didn\'t arrive. Try again.'], 422);
         }
-        $is_photo = str_starts_with((string)(mime_content_type($file['tmp_name']) ?: ''), 'image/') && !str_ends_with((string)mime_content_type($file['tmp_name']), 'gif');
+        $mime     = (string)(mime_content_type($file['tmp_name']) ?: '');
+        $is_photo = str_starts_with($mime, 'image/') && !str_ends_with($mime, 'gif');
         if ($file['size'] > ($is_photo ? 20 : $video_mb) * 1048576) {
             json_response(['error' => 'That file is too big. ' . $limits], 422);
         }

@@ -153,8 +153,7 @@ class FeedbackController {
         $max_size = 2 * 1024 * 1024; // 2MB
         if ($file['size'] > $max_size) return null;
 
-        $finfo = new finfo(FILEINFO_MIME_TYPE);
-        $mime  = $finfo->file($file['tmp_name']);
+        $mime = mime_content_type($file['tmp_name']);
         $allowed = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
 
         if (!isset($allowed[$mime])) return null;
