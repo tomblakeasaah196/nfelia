@@ -548,14 +548,16 @@ if ($quotation) {
         <?php endif; ?>
         <a class="nf-row" href="<?= e($public_url) ?>?format=pdf" download="<?= e(preg_replace('/[^A-Za-z0-9._-]+/', '-', $invoice['doc_number'])) ?>.pdf"><span class="nf-tile-ic"><?= nav_icon('download') ?></span>Download PDF</a>
         <a class="nf-row" href="<?= e($public_url) ?>" target="_blank" rel="noopener"><span class="nf-tile-ic"><?= nav_icon('open') ?></span>Open the customer's page</a>
-        <?php if ($invoice['status'] !== 'cancelled' && (float)$invoice['amount_paid'] > 0): ?>
+        <?php if ($invoice['status'] !== 'cancelled' && (float)$invoice['amount_paid'] > 0 && is_boss()): // giving money back is for owners and admins ?>
             <?php if ($order): ?>
                 <a class="nf-row" href="<?= APP_URL ?>/orders/view/<?= (int)$order['id'] ?>#money"><span class="nf-tile-ic"><?= nav_icon('refund') ?></span>Give money back</a>
             <?php else: ?>
                 <button type="button" class="nf-row" data-open="nf-refund"><span class="nf-tile-ic"><?= nav_icon('money') ?></span>Record a refund</button>
             <?php endif; ?>
         <?php endif; ?>
-        <?php if ($live): ?>
+        <?php if ($live && is_boss() && $order): // an order's invoice goes with its order: cancel it there, with its reason ?>
+            <a class="nf-row is-danger" href="<?= APP_URL ?>/orders/view/<?= (int)$order['id'] ?>#sheet:nf-cancel"><span class="nf-tile-ic"><?= nav_icon('cancel') ?></span>Cancel order <?= e($order['order_number']) ?></a>
+        <?php elseif ($live && is_boss()): ?>
             <form method="POST" action="<?= APP_URL ?>/invoices/cancel/<?= (int)$invoice['id'] ?>"
                   onsubmit="return confirm('Cancel <?= e($invoice['doc_number']) ?>? Its stock goes back on your shelves, and what is owed on it is cleared.');">
                 <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">

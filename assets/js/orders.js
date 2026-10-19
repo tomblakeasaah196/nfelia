@@ -18,7 +18,7 @@ function orderForm() {
         return {
             key: ++uid, product_id: src.product_id || null, name: src.name || (p ? p.name : ''),
             quantity: String(src.quantity || '1'), unit_price: src.unit_price !== undefined && src.unit_price !== '' ? String(src.unit_price) : (p ? String(p.price) : ''),
-            note: src.note || '', showNote: false, stock: p ? p.stock : null, unit: p ? p.unit : ''
+            note: src.note || '', variant: src.variant || '', showNote: false, stock: p ? p.stock : null, unit: p ? p.unit : ''
         };
     }
     function productById(id) {

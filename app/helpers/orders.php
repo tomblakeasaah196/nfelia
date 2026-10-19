@@ -1136,7 +1136,7 @@ function refund_ask(PDO $db, int $biz, int $order_id, float $amount, string $rea
             $vars = ['first_name' => $first, 'shop_name' => (string)$business['name'], 'order_number' => (string)$order['order_number'],
                      'amount' => $money, 'refund_url' => $url];
             order__after(fn() => notify_email($biz, $email, $name, 'Your ' . $money . ' refund for order ' . $order['order_number'] . ' — ' . $business['name'],
-                                              'refund_details', $vars, 'refund:' . $refund_id . ':ask', 'shopper.refund_details'));
+                                              'refund_details', $vars, 'refund:' . $refund_id . ':ask:' . date('YmdHi'), 'shopper.refund_details'));   // "Ask again" sends again; a double tap doesn't
         }
         order_log($db, $biz, $order_id, 'refund_asked', 'Asked ' . $name . ' where to send ' . $money . ' back.', $user_id,
                   ['refund_id' => $refund_id, 'amount' => $amount]);
@@ -1754,7 +1754,8 @@ function order__list_where(array $f): array {
     $params = [];
     $q = trim((string)($f['q'] ?? ''));
     if ($q !== '') {
-        $where[] = "(x.order_number LIKE ? OR x.customer_name LIKE ? OR x.customer_phone LIKE ? OR x.inv_number LIKE ?)";
+        // Phones compare as digits: "0803 123 4567" is found by 08031234567 and +2348031234567
+        $where[] = "(x.order_number LIKE ? OR x.customer_name LIKE ? OR REGEXP_REPLACE(COALESCE(x.customer_phone, ''), '[^0-9]', '') LIKE ? OR x.inv_number LIKE ?)";
         $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $q) . '%';
         $digits = preg_replace('/\D/', '', $q);
         array_push($params, $like, $like, strlen($digits) >= 4 ? '%' . substr($digits, -10) . '%' : $like, $like);

@@ -57,6 +57,12 @@
         }
         return dlg;
     }
+    // A link can open a sheet on the page it goes to: page#sheet:nf-cancel
+    if (location.hash.indexOf('#sheet:') === 0) {
+        var sheetId = location.hash.slice(7);
+        var openFromLink = function () { if (openSheet(sheetId)) history.replaceState(null, '', location.pathname + location.search); };
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', openFromLink); else openFromLink();
+    }
     document.addEventListener('click', function (e) {
         var opener = e.target.closest('[data-open]');
         if (opener) { e.preventDefault(); openSheet(opener.getAttribute('data-open')); return; }

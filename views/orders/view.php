@@ -519,7 +519,7 @@ $event_icons = ['created' => 'plus', 'confirmed' => 'check', 'payment' => 'money
 <dialog class="nf-sheet" id="nf-refund" aria-labelledby="nf-rf2-h">
     <div class="nf-grab"></div>
     <div class="nf-sheet-h"><h2 id="nf-rf2-h">Give money back</h2><button type="button" class="nf-icon-btn" data-close aria-label="Close"><?= nav_icon('close') ?></button></div>
-    <div class="nf-form" x-data="{ how: '<?= $refund_open ? 'bank' : 'cash' ?>', sent: <?= $refund_open && $refund_open['status'] === 'details_in' ? 'true' : 'false' ?> }">
+    <div class="nf-form" x-data="{ how: '<?= $refund_open ? 'bank' : 'cash' ?>', sent: <?= $refund_open ? 'true' : 'false' ?> }">
         <fieldset class="nf-field">
             <legend>How are you giving it back?</legend>
             <div class="nf-seg is-2">
@@ -551,14 +551,15 @@ $event_icons = ['created' => 'plus', 'confirmed' => 'check', 'payment' => 'money
                     <button type="button" class="nf-link" @click="sent = true">I already know where to send it</button>
                 </form>
             <?php endif; ?>
-            <form method="POST" action="<?= APP_URL ?>/orders/refund/<?= $oid ?>" enctype="multipart/form-data" class="nf-form is-inner nf-step" data-once x-show="sent"<?= $refund_open && $refund_open['status'] === 'details_in' ? '' : ' x-cloak' ?>><?= $csrf ?><?= form_once() ?>
+            <form method="POST" action="<?= APP_URL ?>/orders/refund/<?= $oid ?>" enctype="multipart/form-data" class="nf-form is-inner nf-step" data-once x-show="sent"<?= $refund_open ? '' : ' x-cloak' ?>><?= $csrf ?><?= form_once() ?>
                 <p class="nf-step-h"><span>2</span>Record it once you've sent it</p>
                 <?php if ($refund_open): ?><input type="hidden" name="refund_id" value="<?= (int)$refund_open['id'] ?>"><?php endif; ?>
                 <label>How much
                     <span class="nf-amount"><span><?= e($currency) ?></span><input type="text" name="amount" inputmode="decimal" value="<?= e(fmt_qty($refund_default)) ?>" required autocomplete="off"></span></label>
                 <div class="nf-seg is-2">
-                    <label><input type="radio" name="method" value="bank_transfer" checked><span class="opt">Bank transfer</span></label>
-                    <label><input type="radio" name="method" value="mobile_money"><span class="opt">MoMo</span></label>
+                    <?php $momo = ($refund_open['payee_kind'] ?? '') === 'momo'; // as the customer said to send it ?>
+                    <label><input type="radio" name="method" value="bank_transfer"<?= $momo ? '' : ' checked' ?>><span class="opt">Bank transfer</span></label>
+                    <label><input type="radio" name="method" value="mobile_money"<?= $momo ? ' checked' : '' ?>><span class="opt">MoMo</span></label>
                 </div>
                 <label>Transfer reference <small>Or add the screenshot below. One of them goes on the slip.</small><input type="text" name="reference" maxlength="100" autocomplete="off"></label>
                 <label class="nf-file"><?= nav_icon('image') ?><span>Add the screenshot or receipt <small>Picture or PDF</small></span>
@@ -608,7 +609,7 @@ $event_icons = ['created' => 'plus', 'confirmed' => 'check', 'payment' => 'money
         <?php if ($customer_url): ?>
             <button type="button" class="nf-row" data-copy="<?= e($customer_url) ?>"><span class="nf-tile-ic"><?= nav_icon('link') ?></span>Copy <?= e($first) ?>'s page</button>
         <?php endif; ?>
-        <?php if ($stage['key'] === 'done' && $is_boss && empty($review)): ?>
+        <?php if ($stage['key'] === 'done' && $is_boss && empty($review['rating'])): // not once the customer has reviewed it ?>
             <form method="POST" action="<?= APP_URL ?>/orders/stage/<?= $oid ?>"><?= $csrf ?><input type="hidden" name="to" value="undo_done">
                 <button class="nf-row"><span class="nf-tile-ic"><?= nav_icon('refund') ?></span>Mark not <?= $is_delivery ? 'delivered' : 'collected' ?></button></form>
         <?php endif; ?>

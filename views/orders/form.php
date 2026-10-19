@@ -45,7 +45,7 @@ $data = [
         'fulfillment'      => (string)($old['fulfillment'] ?? ($is_quick ? 'now' : 'pickup')),
         'deliver_by'       => (string)($old['deliver_by'] ?? ''),
         'delivery_address' => (string)($old['delivery_address'] ?? ''),
-        'pay'              => (string)($old['pay'] ?? ($is_quick ? 'now' : 'now')),
+        'pay'              => (string)($old['pay'] ?? ($is_quick ? 'now' : 'later')),
         'paid_now'         => (string)($old['paid_now'] ?? ''),
         'method'           => (string)($old['method'] ?? 'cash'),
         'reference'        => (string)($old['reference'] ?? ''),
@@ -142,9 +142,10 @@ $action = $is_edit ? APP_URL . '/orders/update/' . (int)$order['id'] : APP_URL .
             <template x-for="(it, i) in items" :key="it.key">
                 <li class="nf-oitem">
                     <input type="hidden" :name="'items[' + i + '][product_id]'" :value="it.product_id || ''">
+                    <input type="hidden" :name="'items[' + i + '][variant]'" :value="it.variant || ''">
                     <div class="nf-oitem-top">
                         <template x-if="it.product_id">
-                            <span class="nf-oitem-name"><b x-text="it.name"></b><small x-show="it.stock !== null && it.stock !== undefined" :class="{ 'is-owed': it.stock < num(it.quantity) }" x-text="stockWords(it)"></small></span>
+                            <span class="nf-oitem-name"><b x-text="it.name"></b><small x-show="it.variant" x-text="it.variant"></small><small x-show="it.stock !== null && it.stock !== undefined" :class="{ 'is-owed': it.stock < num(it.quantity) }" x-text="stockWords(it)"></small></span>
                         </template>
                         <template x-if="!it.product_id">
                             <label class="nf-oitem-name"><span class="sr-only">Item</span><input type="text" x-model="it.name" placeholder="What is it?" maxlength="200"></label>

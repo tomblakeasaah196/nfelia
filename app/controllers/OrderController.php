@@ -139,7 +139,7 @@ class OrderController
         if ($track_url !== null) {
             $stmt = $this->db->prepare("SELECT * FROM reviews WHERE order_id = ?");
             $stmt->execute([$oid]);
-            $review = $stmt->fetch() ?: review_invite($this->db, $oid);
+            $review = $stmt->fetch() ?: null;   // looking never makes an invitation: moving to done does
         }
 
         $messages = $this->messages($order, $business, $invoice, $payments, $stage, $pay, $track_url, $customer_url, $customer);
@@ -185,7 +185,7 @@ class OrderController
             "discount" => (float) $order["discount_amount"] > 0 ? $order["discount_amount"] : "",
             "items" => array_map(fn($l) => [
                 "product_id" => $l["product_id"], "name" => $l["product_name"], "quantity" => fmt_qty((float) $l["quantity"]),
-                "unit_price" => (float) $l["unit_price"], "note" => $l["item_note"],
+                "unit_price" => (float) $l["unit_price"], "note" => $l["item_note"], "variant" => (string) $l["variant_selection"],
             ], order_lines($this->db, (int) $order["id"])),
         ];
         $this->form("edit", $old, $order);
@@ -522,7 +522,8 @@ class OrderController
             $stmt = $this->db->prepare(
                 "SELECT id FROM customers
                  WHERE business_id = ? AND deleted_at IS NULL AND is_walk_in = 0
-                   AND (full_name LIKE ? OR business_name LIKE ? OR phone LIKE ? OR whatsapp LIKE ?)
+                   AND (full_name LIKE ? OR business_name LIKE ?
+                        OR REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '') LIKE ? OR REGEXP_REPLACE(COALESCE(whatsapp, ''), '[^0-9]', '') LIKE ?)
                  ORDER BY full_name LIMIT 8",
             );
             $stmt->execute([$this->biz_id, $like, $like, $phone_like, $phone_like]);
@@ -755,6 +756,7 @@ class OrderController
                 "quantity" => round($this->amount($row["quantity"] ?? "0"), 2),
                 "unit_price" => round($this->amount($row["unit_price"] ?? "0"), 2),
                 "note" => (string) ($row["note"] ?? ""),
+                "variant" => (string) ($row["variant"] ?? ""),   // what the shopper chose (colour, size), kept through a change
             ];
         }
         $discount = $this->amount($p["discount"] ?? "0");

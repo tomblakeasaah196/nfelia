@@ -27,7 +27,8 @@
 .nf-orow-2 small { min-width: 0; display: flex; align-items: center; gap: 6px; font: 400 .875rem/1.35 var(--font-body); color: var(--ink-2); white-space: nowrap; overflow: hidden; }
 .nf-orow-num { flex: none; font-variant-numeric: tabular-nums; }
 .nf-orow-now { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.nf-orow-2 .nf-tag { flex: none; }
+.nf-orow-2 { flex-wrap: wrap; row-gap: 4px; }   /* a long balance tag moves under, so where it stands is never cut */
+.nf-orow-2 .nf-tag { flex: none; margin-left: auto; }
 .nf-order-row.is-off .nf-orow-1 b { color: var(--ink-2); }
 @media (max-width: 639px) { .nf-order-row .nf-face { display: none; } }
 .nf-order-ch { display: inline-flex; flex: none; color: var(--ink-3); }
