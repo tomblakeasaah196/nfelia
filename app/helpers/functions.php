@@ -258,6 +258,38 @@ function generate_otp(): string {
 }
 
 /**
+ * The MIME type of a file read from its own first bytes, without the fileinfo
+ * extension. The host's PHP has none — the live upload path threw "Call to
+ * undefined function mime_content_type()" on 19 Oct, and the cron's
+ * command-line PHP never had it — so nothing may assume fileinfo is there.
+ * Knows the uploads Nfelia takes: pictures (JPEG, PNG, GIF, WebP, BMP) from
+ * their image header, and PDF and MP4 from their magic bytes. Returns '' for
+ * anything it doesn't recognise.
+ */
+function nf_mime_from_header(string $path): string {
+    if ($path === '' || !is_file($path)) return '';
+    $info = @getimagesize($path);
+    if (is_array($info) && !empty($info['mime'])) return (string)$info['mime'];
+    $head = (string)@file_get_contents($path, false, null, 0, 16);
+    if (strncmp($head, '%PDF-', 5) === 0) return 'application/pdf';
+    if (strlen($head) >= 12 && substr($head, 4, 4) === 'ftyp') return 'video/mp4';
+    return '';
+}
+
+/*
+ * Stand in for mime_content_type() when the fileinfo extension is missing, so
+ * every upload path — and PhpSpreadsheet, which calls it by name while a
+ * Records Book is built — works without it. When fileinfo is present (CI, and
+ * any host that has it) the real function is used untouched.
+ */
+if (!function_exists('mime_content_type')) {
+    function mime_content_type(string $filename): string|false {
+        $mime = nf_mime_from_header($filename);
+        return $mime !== '' ? $mime : 'application/octet-stream';
+    }
+}
+
+/**
  * Resize and save an uploaded image using GD.
  *
  * Files over 20 MB or 52 megapixels are refused before GD opens them, and the
@@ -296,6 +328,22 @@ function save_image(array $file, string $dest, int $max_width = 800, string $for
     if ($scale < 1) {
         $new_w = max(1, (int)round($orig_w * $scale));
         $new_h = max(1, (int)round($orig_h * $scale));
+
+        // A big phone photo resampled in one pass is slow — imagecopyresampled
+        // reads every source pixel, which is what made POST /posts/create take
+        // 4–5 s. For JPEGs (no transparency to keep) more than 3x oversize,
+        // drop close to the target with a fast scale first, then resample for
+        // the final look. PNGs (logos, avatars) keep the single quality pass.
+        if ($format === 'jpg' && $scale < 1 / 3 && function_exists('imagescale')) {
+            $pre = imagescale($src, $new_w * 2, $new_h * 2);
+            if ($pre !== false) {
+                imagedestroy($src);
+                $src    = $pre;
+                $orig_w = imagesx($src);
+                $orig_h = imagesy($src);
+            }
+        }
+
         $dst = imagecreatetruecolor($new_w, $new_h);
 
         // Preserve transparency for PNG
@@ -447,11 +495,14 @@ function save_media(array $file, string $dest_dir, string $base_name): ?array {
     $tmp  = $file['tmp_name'];
     $mime = mime_content_type($tmp) ?: ($file['type'] ?? '');
 
-    // 1. Handle Static Images
+    // 1. Handle Static Images. A hero is a photo, so it is saved as a JPEG:
+    //    far smaller and quicker to write than a PNG (the shop page loads
+    //    faster too), and quick enough that POST /landing-page/upload-image
+    //    no longer runs slow.
     $image_mimes = ['image/jpeg', 'image/png', 'image/webp'];
     if (in_array($mime, $image_mimes)) {
-        $dest = $dest_dir . '/' . $base_name . '.png';
-        if (save_image($file, $dest, 1920)) {
+        $dest = $dest_dir . '/' . $base_name . '.jpg';
+        if (save_image($file, $dest, 1920, 'jpg')) {
             return ['path' => $dest, 'type' => 'image'];
         }
         return null;
