@@ -466,6 +466,7 @@ $flash = get_flash();
     <script src="<?= $asset('assets/js/passkey.js') ?>" defer></script>
     <script src="<?= $asset('assets/js/lock.js') ?>" defer></script>
     <script src="<?= $asset('assets/js/phone.js') ?>" defer></script>
+    <script src="<?= $asset('assets/js/wa.js') ?>" defer></script>
 
     <!-- Global Feedback Modal -->
     <?php
