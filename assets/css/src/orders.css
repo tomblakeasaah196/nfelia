@@ -329,3 +329,26 @@ a.nf-doc-row:hover { background: rgb(31 10 20 / .05); }
 @media (prefers-reduced-motion: reduce) {
   .nf-fold > summary > svg:last-child { transition: none; }
 }
+
+/* ---------- Settings › Document numbers ---------- */
+.nf-prefix { margin-top: 24px; }
+.nf-prefix .nf-card-h h2 { display: flex; align-items: center; gap: 2px; }
+.nf-prefix-nudge { margin: 8px 0 14px; padding: 14px; border-radius: 16px; background: var(--warn-soft); }
+.nf-prefix-nudge p { margin: 0; font: 400 .9375rem/1.5 var(--font-body); color: var(--ink); }
+.nf-prefix-nudge-do { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.nf-prefix-nudge-do form { margin: 0; flex: 1 1 140px; }
+.nf-prefix-nudge-do .nf-btn { width: 100%; }
+.nf-prefix-form { display: grid; gap: 8px; }
+.nf-prefix-form > label { display: flex; align-items: baseline; gap: 8px; font: 600 .875rem/1.3 var(--font-body); color: var(--ink); }
+.nf-prefix-form > label small { font: 400 .8125rem/1.3 var(--font-body); color: var(--ink-3); }
+.nf-prefix-row { display: flex; gap: 8px; }
+.nf-prefix-row input { flex: 1; min-width: 0; max-width: 200px; min-height: 52px; padding: 0 14px; border-radius: 12px; border: 0; background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line-2); font: 600 1.375rem/1 var(--font-heading); letter-spacing: .08em; color: var(--ink); text-transform: uppercase; }
+.nf-prefix-row input:focus { outline: none; box-shadow: inset 0 0 0 2px var(--accent-text); }
+.nf-prefix-row .nf-btn { flex: none; min-height: 52px; }
+.nf-prefix-row .nf-btn:disabled { opacity: .5; cursor: default; }
+.nf-prefix-next { list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 8px 0 0; padding: 0; }
+@media (min-width: 640px) { .nf-prefix-next { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.nf-prefix-next li { display: grid; gap: 2px; padding: 10px 12px; border-radius: 14px; background: rgb(31 10 20 / .04); min-width: 0; }
+.nf-prefix-next small { font: 500 .8125rem/1.3 var(--font-body); color: var(--ink-2); }
+.nf-prefix-next b { font: 600 .9375rem/1.3 var(--font-body); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }

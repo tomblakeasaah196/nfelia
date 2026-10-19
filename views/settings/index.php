@@ -276,6 +276,57 @@ $current_staff_count = count($staff);
     </div>
 </form>
 
+<?php
+// Document numbers: the prefix every order and paper number starts with,
+// the next number of each kind, and a suggestion after a rename.
+$prefix_now = strtoupper((string)($business['doc_prefix'] ?? 'NFE'));
+$prefix_suggest = derive_prefix((string)($business['name'] ?? ''));
+$prefix_nudge = $is_owner && $prefix_suggest !== $prefix_now && $prefix_suggest !== strtoupper((string)($business['prefix_nudge_seen'] ?? ''));
+$next_numbers = [];
+$stmt_counters = get_db()->prepare("SELECT doc_type, last_number FROM document_counters WHERE business_id = ?");
+$stmt_counters->execute([(int)$business['id']]);
+$counters = $stmt_counters->fetchAll(PDO::FETCH_KEY_PAIR);
+foreach (['ORD' => 'Order', 'INV' => 'Invoice', 'REC' => 'Receipt', 'DEL' => 'Delivery note'] as $doc_type => $doc_word) {
+    $next_numbers[$doc_type] = [$doc_word, str_pad((string)((int)($counters[$doc_type] ?? 0) + 1), 3, '0', STR_PAD_LEFT)];
+}
+?>
+<section class="nf-card nf-prefix" id="numbers" aria-labelledby="nf-numbers-h" x-data="{ p: '<?= e($prefix_now) ?>' }">
+    <div class="nf-card-h">
+        <div>
+            <h2 id="nf-numbers-h">Document numbers <?= nf_info('Document numbers', 'Every order, invoice, receipt and delivery note number starts with these letters, so customers know it is yours. Changing them only changes new numbers: papers already sent keep theirs, and each kind keeps counting on from where it was.') ?></h2>
+            <p>The letters your order and paper numbers start with.</p>
+        </div>
+    </div>
+
+    <?php if ($prefix_nudge): ?>
+        <div class="nf-prefix-nudge">
+            <p>Your business is now <b><?= e($business['name']) ?></b>, but your numbers still start with <b><?= e($prefix_now) ?></b>. Start new ones with <b><?= e($prefix_suggest) ?></b>?</p>
+            <div class="nf-prefix-nudge-do">
+                <form method="POST" action="<?= APP_URL ?>/settings/doc-prefix"><?= csrf_field() ?><input type="hidden" name="doc_prefix" value="<?= e($prefix_suggest) ?>">
+                    <button class="nf-btn nf-btn-primary">Use <?= e($prefix_suggest) ?></button></form>
+                <form method="POST" action="<?= APP_URL ?>/settings/doc-prefix-keep"><?= csrf_field() ?>
+                    <button class="nf-btn nf-btn-ghost">Keep <?= e($prefix_now) ?></button></form>
+            </div>
+        </div>
+    <?php endif; ?>
+
+    <form method="POST" action="<?= APP_URL ?>/settings/doc-prefix" class="nf-prefix-form">
+        <?= csrf_field() ?>
+        <label for="nf-prefix-in">Prefix <small>2 to 5 letters or digits</small></label>
+        <div class="nf-prefix-row">
+            <input id="nf-prefix-in" type="text" name="doc_prefix" x-model="p" @input="p = p.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5)"
+                   maxlength="5" autocapitalize="characters" autocomplete="off" spellcheck="false" required<?= $is_owner ? '' : ' disabled' ?>>
+            <?php if ($is_owner): ?><button class="nf-btn nf-btn-primary" :disabled="p === '<?= e($prefix_now) ?>' || p.length < 2">Save</button><?php endif; ?>
+        </div>
+        <ul class="nf-prefix-next" aria-label="Your next numbers">
+            <?php foreach ($next_numbers as $doc_type => [$doc_word, $doc_next]): ?>
+                <li><small><?= e($doc_word) ?></small><b><span x-text="p || '<?= e($prefix_now) ?>'"><?= e($prefix_now) ?></span>-<?= $doc_type ?>-<?= $doc_next ?></b></li>
+            <?php endforeach; ?>
+        </ul>
+        <?php if (!$is_owner): ?><p class="nf-help">Only the business owner can change them.</p><?php endif; ?>
+    </form>
+</section>
+
 <!-- Hidden auto-logo form -->
 <?php if (!$logo_url && $is_owner): ?>
 <form id="auto-logo-form" method="POST" action="<?= APP_URL ?>/settings/generate-logo" class="hidden">

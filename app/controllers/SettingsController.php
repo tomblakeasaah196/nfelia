@@ -155,6 +155,59 @@ class SettingsController {
     /* ──────────────────────────────────────────
      *  UPDATE BUSINESS PROFILE — POST
      * ────────────────────────────────────────── */
+    /**
+     * POST settings/doc-prefix: the letters every order and document number
+     * starts with. Only new numbers change; each kind keeps counting on
+     * (CAS-INV-031, then RNA-INV-032), so nothing already sent is wrong.
+     */
+    public function doc_prefix() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { redirect('settings'); return; }
+        csrf_verify();
+        if ((auth_user()['role'] ?? 'staff') !== 'owner') {
+            flash('error', 'Only the business owner can change the document numbers.');
+            redirect('settings#numbers');
+            return;
+        }
+        $prefix = strtoupper(trim((string)($_POST['doc_prefix'] ?? '')));
+        if (($problem = doc_prefix_problem($prefix)) !== null) {
+            flash('error', $problem);
+            redirect('settings#numbers');
+            return;
+        }
+        $stmt = $this->db->prepare("SELECT doc_prefix FROM businesses WHERE id = ?");
+        $stmt->execute([$this->biz_id]);
+        $old = (string)$stmt->fetchColumn();
+        if ($prefix === $old) {
+            flash('info', 'Your numbers already start with ' . $prefix . '.');
+            redirect('settings#numbers');
+            return;
+        }
+        $this->db->prepare("UPDATE businesses SET doc_prefix = ?, prefix_nudge_seen = NULL WHERE id = ?")->execute([$prefix, $this->biz_id]);
+        update_business_session(['doc_prefix' => $prefix]);
+        flash('success', 'New numbers start with ' . $prefix . ', like ' . $prefix . '-ORD-' . $this->next_number('ORD') . '. Papers already sent keep ' . $old . '.');
+        redirect('settings#numbers');
+    }
+
+    /** POST settings/doc-prefix-keep: after a rename, keep the prefix as it is (the suggestion stops showing). */
+    public function doc_prefix_keep() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { redirect('settings'); return; }
+        csrf_verify();
+        if ((auth_user()['role'] ?? 'staff') === 'owner') {
+            $stmt = $this->db->prepare("SELECT name FROM businesses WHERE id = ?");
+            $stmt->execute([$this->biz_id]);
+            $this->db->prepare("UPDATE businesses SET prefix_nudge_seen = ? WHERE id = ?")
+                     ->execute([derive_prefix((string)$stmt->fetchColumn()), $this->biz_id]);
+        }
+        redirect('settings#numbers');
+    }
+
+    /** The next number of a kind, as its digits ("013"). */
+    private function next_number(string $type): string {
+        $stmt = $this->db->prepare("SELECT last_number FROM document_counters WHERE business_id = ? AND doc_type = ?");
+        $stmt->execute([$this->biz_id, $type]);
+        return str_pad((string)((int)$stmt->fetchColumn() + 1), 3, '0', STR_PAD_LEFT);
+    }
+
     public function update_business() {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') { redirect('settings'); return; }
         csrf_verify();
