@@ -80,6 +80,8 @@ function built(array $book): array
         }
         usleep(100000);
     } while (microtime(true) < $until);
+    fwrite(STDERR, "Book {$id} is still " . ($b['status'] ?? 'missing') . ' after a minute (error: ' . ($b['error'] ?? '') . '). Last recorded: '
+                   . json_encode(rows("SELECT level, message, file, line FROM error_groups ORDER BY id DESC LIMIT 3"), JSON_UNESCAPED_SLASHES) . "\n");
     return $b;
 }
 

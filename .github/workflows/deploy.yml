@@ -221,6 +221,12 @@ jobs:
       - name: Engine, every trigger over HTTP, the cron, the service worker, Nfelia Ops, the Records Book
         run: bash tests/notifications/run.sh engine flows cron sw ops/foundation ops/monitor ops/clients ops/sales ops/records
 
+      # What the app itself said (PHP errors above all), right in the job's
+      # log: the artifact below has the whole file.
+      - name: The app's log, when a check above failed
+        if: failure()
+        run: grep -v -E ' (Accepted|Closing)$' "$RUNNER_TEMP/app.log" | tail -n 150 || true
+
       - name: Browser for the UI checks
         id: browser
         continue-on-error: true
