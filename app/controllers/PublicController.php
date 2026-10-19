@@ -948,19 +948,9 @@ class PublicController
         $this->db->beginTransaction();
         $committed = false;
         try {
-            /* Generate order number (ORD-0001) */
-            $this->db
-                ->prepare(
-                    "UPDATE businesses SET order_number_seq = order_number_seq + 1 WHERE id = ?",
-                )
-                ->execute([$business_id]);
-            $stmtSeq = $this->db->prepare(
-                "SELECT order_number_seq FROM businesses WHERE id = ?",
-            );
-            $stmtSeq->execute([$business_id]);
-            $seq = (int) $stmtSeq->fetchColumn();
-            $order_number =
-                "ORD-" . str_pad((string) $seq, 4, "0", STR_PAD_LEFT);
+            /* The order number, ADA-ORD-008: the one generator, carrying on
+               from the old ORD-0007 numbers; a rollback gives it back */
+            $order_number = generate_doc_number($this->db, (int) $business_id, "ORD");
             $status =
                 $channel === "whatsapp"
                     ? "pending"

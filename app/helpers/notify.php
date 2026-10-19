@@ -121,6 +121,21 @@ function notify_events(): array
             'private' => 'Payment received',
             'button' => 'Open the debt',
         ],
+        // Money going back: the customer filled in where their refund should
+        // go (the link from refund_ask() in app/helpers/orders.php)
+        'refund.details' => [
+            'topic' => 'money', 'to' => 'boss', 'urgency' => 'high',
+            'url' => fn($d) => 'orders/view/' . (int)$d['order_id'],
+            'tag' => fn($d) => 'refund-' . (int)$d['order_id'],
+            'text' => fn($d, $m) => [
+                'Refund details from ' . ($d['customer'] ?: 'your customer'),
+                'They sent where to send ' . $m($d['amount']) . ' for order ' . $d['order_number'] . '. Pay it, then record the refund.',
+            ],
+            'private' => 'Refund details received',
+            'lines' => fn($d, $m) => ['Order' => $d['order_number'], 'Customer' => $d['customer'], 'Amount' => $m($d['amount']),
+                                      'Send to' => $d['payee'] ?? ''],
+            'button' => 'Open the order',
+        ],
 
         /* ── Shop orders, quote requests, bookings ────────────── */
         'order.new' => [

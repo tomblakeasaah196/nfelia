@@ -210,7 +210,8 @@ class OrderController
     }
 
     /* ──────────────────────────────────────────
-     *  APPROVE — triggers invoice/receipt/delivery generation
+     *  APPROVE — the order is confirmed: invoice, stock, the shop payment
+     *  and its receipt, the delivery note (order_confirm, app/helpers/orders.php)
      *──────────────────────────────────────────*/
     public function approve($id = null)
     {
@@ -223,13 +224,8 @@ class OrderController
             redirect("orders");
         }
 
-        $stmt = $this->db->prepare(
-            "SELECT * FROM orders WHERE id = ? AND business_id = ? AND status IN ('pending','pending_verification')",
-        );
-        $stmt->execute([(int) $id, $this->biz_id]);
-        $order = $stmt->fetch();
-
-        if (!$order) {
+        $order = order_find($this->db, $this->biz_id, (int) $id);
+        if (!$order || !in_array($order["status"], ["pending", "pending_verification"], true)) {
             flash("error", "Order not found or cannot be approved.");
             redirect("orders");
         }
@@ -241,94 +237,23 @@ class OrderController
             redirect("orders/view/{$id}");
         }
 
-        // Get order items
-        $stmtI = $this->db->prepare(
-            "SELECT * FROM order_items WHERE order_id = ?",
-        );
-        $stmtI->execute([(int) $order["id"]]);
-        $items = $stmtI->fetchAll();
-
-        // One transaction for everything approving does. It starts by claiming
-        // the order (a double tap or a retry finds it already approved), so
-        // nothing is ever made twice.
+        // One transaction for everything approving does (order_confirm). It
+        // starts by claiming the order, so a double tap or a retry finds it
+        // already approved and nothing is ever made twice.
         if ($this->db->inTransaction()) {
             $this->db->rollBack();
         }
-        $this->db->beginTransaction();
         try {
-            $stmtClaim = $this->db->prepare("
-                UPDATE orders SET status = 'approved', reviewed_by = ?, reviewed_at = NOW()
-                WHERE id = ? AND business_id = ? AND status IN ('pending','pending_verification')
-            ");
-            $stmtClaim->execute([$this->get_current_user_id(), (int) $order["id"], $this->biz_id]);
-            if ($stmtClaim->rowCount() !== 1) {
-                throw new \DomainException("This order has already been dealt with.");
-            }
-
-            // 1. The order's own customer (or one matched by phone, or a new one)
-            $customer_id = $this->match_or_create_customer($order);
-
-            // 2. Create invoice (sent: the goods are going out)
-            $invoice_id = $this->create_invoice_from_order(
-                $order,
-                $items,
-                $customer_id,
-            );
-
-            $this->db
-                ->prepare("UPDATE invoices SET deliver_mode = ?, deliver_by = ?, deliver_show = ?, delivered_at = ? WHERE id = ? AND business_id = ?")
-                ->execute([$delivery["deliver_mode"], $delivery["deliver_by"], $delivery["deliver_show"], $delivery["delivered_at"], $invoice_id, $this->biz_id]);
-
-            // 2b. The goods leave the shelf, as when an invoice is sent
-            stock_settle($this->db, $this->biz_id, "invoice", $invoice_id, invoice_stock_target($this->db, $this->biz_id, $invoice_id),
-                         "shop order " . $order["order_number"]);
-
-            // 3. Paid with proof: a payment on the invoice (so Home and the
-            //    profit and loss count it) and its receipt
-            $receipt_id = null;
-            if (!empty($order["payment_proof_path"])) {
-                $receipt_id = $this->create_receipt_from_order(
-                    $order,
-                    $invoice_id,
-                    $customer_id,
-                );
-            }
-            customer_refresh_totals($this->db, $this->biz_id, $customer_id);
-
-            // 4. If fulfillment is delivery, create delivery note
-            $delivery_id = null;
-            if (($order["fulfillment_type"] ?? "") === "delivery") {
-                $delivery_id = $this->create_delivery_from_order(
-                    $order,
-                    $items,
-                    $invoice_id,
-                    $customer_id,
-                );
-            }
-
-            // 5. Update order
-            $this->db->prepare("
-                UPDATE orders SET customer_id = ?, invoice_id = ?, receipt_id = ?, delivery_id = ?
-                WHERE id = ? AND business_id = ?
-            ")->execute([$customer_id, $invoice_id, $receipt_id, $delivery_id, (int) $order["id"], $this->biz_id]);
-
-            $this->db->commit();
-
-            // Paid with proof: that is money in, for owners and admins other
-            // than whoever approved it (app/helpers/notify.php).
-            if ($receipt_id) {
-                notify("payment.order", $this->biz_id, [
-                    "order_id" => (int) $order["id"], "order_number" => $order["order_number"],
-                    "customer" => $order["customer_name"], "amount" => (float) $order["total"],
-                ], ["actor" => (int) $this->get_current_user_id(), "dedupe" => (string) $order["id"]]);
-            }
-
-            shop_order_tell($this->db, (int) $order["id"], "confirmed");
+            order_confirm($this->db, $this->biz_id, (int) $order["id"], $this->get_current_user_id(), [
+                "payment_received" => isset($_POST["payment_received"]) ? !empty($_POST["payment_received"]) : null,
+                "pay_by"       => trim((string) ($_POST["pay_by"] ?? "")) ?: null,
+                "deliver_mode" => $delivery["deliver_mode"],
+                "deliver_by"   => $delivery["deliver_by"],
+                "deliver_show" => $delivery["deliver_show"],
+                "delivered_at" => $delivery["delivered_at"],
+            ]);
             flash("success", "Order {$order["order_number"]} approved. Invoice created.");
         } catch (\Exception $e) {
-            if ($this->db->inTransaction()) {
-                $this->db->rollBack();
-            }
             error_log("Order approve error: " . $e->getMessage());
             flash("error", $e instanceof \DomainException ? $e->getMessage() : "Error approving order: " . $e->getMessage());
         }
@@ -337,7 +262,7 @@ class OrderController
     }
 
     /* ──────────────────────────────────────────
-     *  REJECT
+     *  REJECT — turned down, and the shopper told why
      *──────────────────────────────────────────*/
     public function reject($id = null)
     {
@@ -350,27 +275,18 @@ class OrderController
             redirect("orders");
         }
 
-        $stmt = $this->db->prepare("
-            UPDATE orders SET status = 'rejected', reviewed_by = ?, reviewed_at = NOW()
-            WHERE id = ? AND business_id = ? AND status IN ('pending','pending_verification')
-        ");
-        $stmt->execute([
-            $this->get_current_user_id(),
-            (int) $id,
-            $this->biz_id,
-        ]);
-
-        if ($stmt->rowCount()) {
-            shop_order_tell($this->db, (int) $id, "turned_down", mb_substr(trim($_POST["reason"] ?? ""), 0, 300));
+        try {
+            order_turn_down($this->db, $this->biz_id, (int) $id, $this->get_current_user_id(), (string) ($_POST["reason"] ?? ""));
             flash("info", "Order rejected.");
-        } else {
+        } catch (\DomainException $e) {
             flash("error", "Order not found or cannot be rejected.");
         }
         redirect("orders/view/{$id}");
     }
 
     /* ──────────────────────────────────────────
-     *  UPDATE STATUS — for processing/fulfilled
+     *  UPDATE STATUS — processing (still Confirmed: the shopper hears it is
+     *  being prepared), fulfilled (done), cancelled
      *──────────────────────────────────────────*/
     public function update_status($id = null)
     {
@@ -383,289 +299,57 @@ class OrderController
         $allowed_transitions = [
             "approved" => ["processing", "fulfilled", "cancelled"],
             "processing" => ["fulfilled", "cancelled"],
+            "ready" => ["fulfilled", "cancelled"],
         ];
+        $order = order_find($this->db, $this->biz_id, (int) $id);
+        if (
+            !$order ||
+            !isset($allowed_transitions[$order["status"]]) ||
+            !in_array($new_status, $allowed_transitions[$order["status"]], true)
+        ) {
+            flash("error", "Invalid status transition.");
+            redirect("orders/view/{$id}");
+        }
 
-        // One transaction: cancelling the order cancels its invoice too, which
-        // puts the stock back and closes the delivery (S4). An invoice with
-        // money on it needs a refund first, as on the invoice itself.
-        $this->db->beginTransaction();
+        $user_id = $this->get_current_user_id();
         try {
-            $stmt = $this->db->prepare(
-                "SELECT status, invoice_id FROM orders WHERE id = ? AND business_id = ? FOR UPDATE",
-            );
-            $stmt->execute([(int) $id, $this->biz_id]);
-            $order = $stmt->fetch();
-
-            if (
-                !$order ||
-                !isset($allowed_transitions[$order["status"]]) ||
-                !in_array($new_status, $allowed_transitions[$order["status"]])
-            ) {
-                throw new DomainException("Invalid status transition.");
-            }
-
-            // From the status the page showed, so a double tap tells the shopper once
-            $moved = $this->db->prepare(
-                "UPDATE orders SET status = ? WHERE id = ? AND business_id = ? AND status = ?",
-            );
-            $moved->execute([$new_status, (int) $id, $this->biz_id, $order["status"]]);
-
-            if ($new_status === "cancelled" && !empty($order["invoice_id"])) {
-                $problem = invoice_cancel($this->db, $this->biz_id, (int) $order["invoice_id"],
-                                          (string) (auth_business()["currency_symbol"] ?? "₦"));
-                if ($problem !== "" && $problem !== "Invoice is already cancelled.") {
+            if ($new_status === "processing") {
+                // From the status the page showed, so a double tap tells the shopper once
+                $moved = $this->db->prepare(
+                    "UPDATE orders SET status = 'processing' WHERE id = ? AND business_id = ? AND status = 'approved'",
+                );
+                $moved->execute([(int) $id, $this->biz_id]);
+                if ($moved->rowCount() === 1) {
+                    order_log($this->db, $this->biz_id, (int) $id, "preparing", "Being prepared.", $user_id);
+                    shop_order_tell($this->db, (int) $id, "preparing");
+                }
+            } elseif ($new_status === "fulfilled") {
+                order_set_stage($this->db, $this->biz_id, (int) $id, "done", $user_id);
+            } else {
+                // Cancelling the order cancels its invoice too, which puts the
+                // stock back and closes the delivery (S4). Money paid on it
+                // needs to be given back first.
+                $problem = order_cancel($this->db, $this->biz_id, (int) $id, $user_id);
+                if ($problem !== "") {
                     throw new DomainException($problem);
                 }
             }
-            $this->db->commit();
         } catch (DomainException $e) {
-            $this->db->rollBack();
             flash("error", $e->getMessage());
             redirect("orders/view/{$id}");
         } catch (Throwable $e) {
-            $this->db->rollBack();
             error_log("Order status error: " . $e->getMessage());
             flash("error", "Could not update the order. Please try again.");
             redirect("orders/view/{$id}");
         }
-        // A fulfilled order can be reviewed: the link shows on the order and
-        // on the shopper's tracking page
-        if ($new_status === "fulfilled") {
-            review_invite($this->db, (int) $id);
-            // Its invoice's delivery promise is kept (P2)
-            if (!empty($order["invoice_id"])) {
-                planner_invoice_delivered($this->db, $this->biz_id, (int) $order["invoice_id"], false, $this->get_current_user_id());
-            }
-        }
-        if ($moved->rowCount() === 1) {
-            shop_order_tell($this->db, (int) $id, match ($new_status) {
-                "processing" => "preparing",
-                "fulfilled"  => "delivered",
-                default      => "cancelled",
-            });
-        }
         flash("success", "Order status updated to {$new_status}.");
         redirect("orders/view/{$id}");
     }
-
-    /* ══════════════════════════════════════════
-     *  PRIVATE HELPERS — Invoice/Receipt/Delivery creation
-     *══════════════════════════════════════════*/
 
     private function get_current_user_id(): int
     {
         $u = auth_user();
         return (int) ($u["id"] ??
             ($_SESSION["user"]["id"] ?? ($_SESSION["user_id"] ?? 1)));
-    }
-
-    private function match_or_create_customer(array $order): int
-    {
-        // The customer the order was placed as, if they are still here
-        if (!empty($order["customer_id"])) {
-            $stmt = $this->db->prepare("SELECT id FROM customers WHERE id = ? AND business_id = ? AND deleted_at IS NULL");
-            $stmt->execute([(int) $order["customer_id"], $this->biz_id]);
-            if ($stmt->fetchColumn()) {
-                return (int) $order["customer_id"];
-            }
-        }
-        // Try matching by phone
-        $stmt = $this->db->prepare(
-            "SELECT id FROM customers WHERE business_id = ? AND phone = ? AND deleted_at IS NULL LIMIT 1",
-        );
-        $stmt->execute([$this->biz_id, $order["customer_phone"]]);
-        $existing = $stmt->fetchColumn();
-        if ($existing) {
-            return (int) $existing;
-        }
-
-        // Create new customer (matching PublicController schema exactly)
-        $this->db
-            ->prepare(
-                "
-            INSERT INTO customers (business_id, full_name, phone, email, notes)
-            VALUES (?, ?, ?, ?, ?)
-        ",
-            )
-            ->execute([
-                $this->biz_id,
-                $order["customer_name"],
-                $order["customer_phone"],
-                $order["customer_email"] ?: null,
-                "Address: " .
-                ($order["delivery_address"] ?: "None") .
-                " | Storefront Order: " .
-                $order["order_number"],
-            ]);
-        return (int) $this->db->lastInsertId();
-    }
-
-    private function create_invoice_from_order(
-        array $order,
-        array $items,
-        int $customer_id,
-    ): int {
-        $doc_number = generate_doc_number($this->db, $this->biz_id, "INV");
-        $token = bin2hex(random_bytes(16));
-        // Sent and unpaid; a paid order's payment is recorded on it next
-        $balance = (float) $order["total"];
-        $paid = 0;
-        $inv_status = "sent";
-
-        $this->db
-            ->prepare(
-                "
-            INSERT INTO invoices (business_id, customer_id, user_id, doc_number, status, issue_date, due_date,
-                subtotal, discount_amount, tax_rate, tax_amount, total, amount_paid, balance_due, notes, token, created_at)
-            VALUES (?, ?, ?, ?, ?, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 7 DAY),
-                ?, 0, 0, 0, ?, ?, ?, ?, ?, NOW())
-        ",
-            )
-            ->execute([
-                $this->biz_id,
-                $customer_id,
-                $this->get_current_user_id(),
-                $doc_number,
-                $inv_status,
-                $order["subtotal"],
-                $order["total"],
-                $paid,
-                $balance,
-                "Auto-generated from order {$order["order_number"]}",
-                $token,
-            ]);
-        $invoice_id = (int) $this->db->lastInsertId();
-
-        // Insert line items
-        foreach ($items as $item) {
-            $this->db
-                ->prepare(
-                    "
-                INSERT INTO invoice_items (invoice_id, product_id, description, quantity, unit_price, discount_percent, discount_amount, subtotal)
-                VALUES (?, ?, ?, ?, ?, 0, 0, ?)
-            ",
-                )
-                ->execute([
-                    $invoice_id,
-                    $item["product_id"],
-                    $item["product_name"] .
-                    (!empty($item["variant_selection"])
-                        ? " ({$item["variant_selection"]})"
-                        : ""),
-                    $item["quantity"],
-                    $item["unit_price"],
-                    $item["line_total"],
-                ]);
-        }
-
-        return $invoice_id;
-    }
-
-    /**
-     * Take the invoice's goods off stock, as sending an invoice does
-     * (InvoiceController::send). It reads the invoice's own lines, the same
-     * ones cancelling the invoice reads to put stock back, so the two always
-     * match. Services have no stock and are skipped.
-     */
-    private function create_receipt_from_order(
-        array $order,
-        int $invoice_id,
-        int $customer_id,
-    ): int {
-        $method = $order["payment_method"] ?? "bank_transfer";
-        $valid_methods = [
-            "cash",
-            "bank_transfer",
-            "pos",
-            "mobile_money",
-            "cheque",
-            "other",
-        ];
-        if (!in_array($method, $valid_methods)) {
-            $method = "other";
-        }
-
-        // The payment, on the invoice (it becomes paid)
-        $paid = invoice_record_payment($this->db, $this->biz_id, $invoice_id, (float) $order["total"], date("Y-m-d"), $method,
-                                       null, "Shop order {$order["order_number"]}, proof sent with the order.",
-                                       (int) $this->get_current_user_id(), (string) (auth_business()["currency_symbol"] ?? "₦"));
-
-        $doc_number = generate_doc_number($this->db, $this->biz_id, "REC");
-        $token = bin2hex(random_bytes(16));
-        $this->db
-            ->prepare(
-                "
-            INSERT INTO receipts (business_id, customer_id, invoice_id, payment_id, user_id, doc_number, issue_date, amount, balance_remaining, method, note, token, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, CURDATE(), ?, 0, ?, ?, ?, NOW())
-        ",
-            )
-            ->execute([
-                $this->biz_id,
-                $customer_id,
-                $invoice_id,
-                $paid["payment_id"],
-                $this->get_current_user_id(),
-                $doc_number,
-                $order["total"],
-                $method,
-                "Auto-receipt from order {$order["order_number"]}. Payment proof sent with the order.",
-                $token,
-            ]);
-        return (int) $this->db->lastInsertId();
-    }
-
-    private function create_delivery_from_order(
-        array $order,
-        array $items,
-        int $invoice_id,
-        int $customer_id,
-    ): int {
-        $doc_number = generate_doc_number($this->db, $this->biz_id, "DEL");
-
-        $token = bin2hex(random_bytes(16));
-        $signoff_token = bin2hex(random_bytes(16));
-        $this->db
-            ->prepare(
-                "
-            INSERT INTO deliveries (business_id, customer_id, invoice_id, doc_number, token, signoff_token,
-                recipient_name, recipient_phone, delivery_address, notes, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
-        ",
-            )
-            ->execute([
-                $this->biz_id,
-                $customer_id,
-                $invoice_id,
-                $doc_number,
-                $token,
-                $signoff_token,
-                $order["customer_name"],
-                $order["customer_phone"],
-                $order["delivery_address"] ?: "Pickup",
-                "Auto-delivery from order {$order["order_number"]}",
-            ]);
-        $delivery_id = (int) $this->db->lastInsertId();
-
-        // The delivery's lines (delivery_items.delivery_id, as on every delivery screen)
-        foreach ($items as $item) {
-            $this->db
-                ->prepare(
-                    "
-                INSERT INTO delivery_items (delivery_id, product_id, description, quantity)
-                VALUES (?, ?, ?, ?)
-            ",
-                )
-                ->execute([
-                    $delivery_id,
-                    $item["product_id"],
-                    $item["product_name"] .
-                    (!empty($item["variant_selection"])
-                        ? " ({$item["variant_selection"]})"
-                        : ""),
-                    $item["quantity"],
-                ]);
-        }
-
-        return $delivery_id;
     }
 }

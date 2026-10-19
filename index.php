@@ -26,6 +26,7 @@ require_once __DIR__ . '/app/helpers/billing.php';
 require_once __DIR__ . '/app/helpers/stock.php';
 require_once __DIR__ . '/app/helpers/money.php';
 require_once __DIR__ . '/app/helpers/invoices.php';
+require_once __DIR__ . '/app/helpers/orders.php';
 require_once __DIR__ . '/app/helpers/token.php';
 require_once __DIR__ . '/app/helpers/mail.php';
 require_once __DIR__ . '/app/helpers/webpush.php';

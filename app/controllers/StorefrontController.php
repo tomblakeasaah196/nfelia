@@ -494,10 +494,8 @@ class StorefrontController extends PublicController
             $total   = round($item['price'] * $slot['units'], 2);
             $deposit = booking_deposit($info, $total);
 
-            $this->db->prepare("UPDATE businesses SET booking_number_seq = booking_number_seq + 1 WHERE id = ?")->execute([$bid]);
-            $stmt = $this->db->prepare("SELECT booking_number_seq FROM businesses WHERE id = ?");
-            $stmt->execute([$bid]);
-            $number = 'BKG-' . str_pad((string)$stmt->fetchColumn(), 4, '0', STR_PAD_LEFT);
+            // ADA-BKG-008, carrying on from the old BKG-0007 numbers
+            $number = generate_doc_number($this->db, (int)$bid, 'BKG');
             $token  = shop_order_token();
 
             $stmt = $this->db->prepare("SELECT id FROM customers WHERE business_id = ? AND phone = ? AND deleted_at IS NULL LIMIT 1");

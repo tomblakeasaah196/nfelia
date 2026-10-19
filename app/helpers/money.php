@@ -6,7 +6,9 @@
  * profit and loss alike: payments recorded on invoices, by their date, plus
  * receipts for sales paid on the spot (receipts with no invoice), by theirs.
  * A receipt made for an invoice payment is that payment's paperwork, so it is
- * never counted twice.
+ * never counted twice. Payments with the method 'kept' are money moved from
+ * one of a customer's orders to another (app/helpers/orders.php): the money
+ * came in once, when it was first paid, so they are left out.
  *
  * customer_refresh_totals() works a client's invoiced, received and owed
  * figures out again from their documents after every change (Tom's decision,
@@ -21,7 +23,7 @@ function money2(float $amount): float {
 /** Money received from $from to $to inclusive (Y-m-d). */
 function money_in(PDO $db, int $biz_id, string $from, string $to): float {
     $stmt = $db->prepare("
-        SELECT (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE business_id = ? AND payment_date BETWEEN ? AND ?)
+        SELECT (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE business_id = ? AND method <> 'kept' AND payment_date BETWEEN ? AND ?)
              + (SELECT COALESCE(SUM(amount), 0) FROM receipts WHERE business_id = ? AND invoice_id IS NULL AND issue_date BETWEEN ? AND ?)
     ");
     $stmt->execute([$biz_id, $from, $to, $biz_id, $from, $to]);
@@ -33,7 +35,7 @@ function money_in_by_month(PDO $db, int $biz_id, string $from, string $to): arra
     $stmt = $db->prepare("
         SELECT ym, SUM(total) AS total FROM (
             SELECT DATE_FORMAT(payment_date, '%Y-%m') AS ym, SUM(amount) AS total
-            FROM payments WHERE business_id = ? AND payment_date BETWEEN ? AND ? GROUP BY ym
+            FROM payments WHERE business_id = ? AND method <> 'kept' AND payment_date BETWEEN ? AND ? GROUP BY ym
             UNION ALL
             SELECT DATE_FORMAT(issue_date, '%Y-%m') AS ym, SUM(amount) AS total
             FROM receipts WHERE business_id = ? AND invoice_id IS NULL AND issue_date BETWEEN ? AND ? GROUP BY ym
@@ -51,7 +53,9 @@ function money_in_by_month(PDO $db, int $biz_id, string $from, string $to): arra
  * Work a client's figures out again from their documents:
  *   invoiced  every invoice that went out (not drafts, not cancelled)
  *   received  payments on their invoices, sales paid on the spot, and what
- *             they paid off debts recorded by hand
+ *             they paid off debts recorded by hand. Money kept for their
+ *             next order and used there (method 'kept') moved between their
+ *             own invoices, so it is left out: it was received once.
  *   owed      what is left on their open invoices, and on those debts
  * Call it after anything that changes one of those, for each client touched.
  */
@@ -64,7 +68,7 @@ function customer_refresh_totals(PDO $db, int $biz_id, ?int $customer_id): void 
             total_invoiced = (SELECT COALESCE(SUM(i.total), 0) FROM invoices i
                               WHERE i.customer_id = c.id AND i.business_id = c.business_id AND i.status NOT IN ('draft', 'cancelled')),
             total_received = (SELECT COALESCE(SUM(p.amount), 0) FROM payments p JOIN invoices i ON i.id = p.invoice_id
-                              WHERE i.customer_id = c.id AND p.business_id = c.business_id)
+                              WHERE i.customer_id = c.id AND p.business_id = c.business_id AND p.method <> 'kept')
                            + (SELECT COALESCE(SUM(r.amount), 0) FROM receipts r
                               WHERE r.customer_id = c.id AND r.business_id = c.business_id AND r.invoice_id IS NULL)
                            + (SELECT COALESCE(SUM(s.amount), 0) FROM debt_settlements s JOIN debts d ON d.id = s.debt_id

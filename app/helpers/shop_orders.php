@@ -94,9 +94,12 @@ function shop_order_steps(array $order, string $shop_name): array {
     $status   = (string)$order['status'];
     $delivery = $order['delivery'] ?? null;
     $dstatus  = (string)($delivery['status'] ?? '');
-    $confirmed = in_array($status, ['approved', 'processing', 'fulfilled'], true);
+    $confirmed = in_array($status, ['approved', 'processing', 'ready', 'fulfilled'], true);
     $is_delivery = ($order['fulfillment_type'] ?? '') === 'delivery';
     $done = shop_order_is_done($order, $delivery);
+    // 'ready' is the owner's "Mark ready": ready for pickup, or on its way
+    // when it is delivered (app/helpers/orders.php)
+    $ready = $status === 'ready';
 
     if ($status === 'rejected') {
         return ['state' => 'turned_down', 'steps' => []];
@@ -133,11 +136,11 @@ function shop_order_steps(array $order, string $shop_name): array {
         ];
     }
 
-    $moving = in_array($dstatus, ['dispatched', 'in_transit', 'delivered', 'signed_off'], true);
+    $moving = in_array($dstatus, ['dispatched', 'in_transit', 'delivered', 'signed_off'], true) || ($ready && $is_delivery);
     $steps[] = [
         'label'  => 'Being prepared',
         'detail' => '',
-        'state'  => ($done || $moving) ? 'done' : ($confirmed ? 'now' : 'next'),
+        'state'  => ($done || $moving || $ready) ? 'done' : ($confirmed ? 'now' : 'next'),
         'time'   => null,
     ];
 
@@ -157,8 +160,14 @@ function shop_order_steps(array $order, string $shop_name): array {
         ];
     } else {
         $steps[] = [
+            'label'  => 'Ready for pickup',
+            'detail' => $ready ? 'Pick it up from ' . $shop_name . '.' : '',
+            'state'  => $done ? 'done' : ($ready ? 'now' : 'next'),
+            'time'   => null,
+        ];
+        $steps[] = [
             'label'  => 'Collected',
-            'detail' => $done ? '' : 'Pick it up from ' . $shop_name . '.',
+            'detail' => '',
             'state'  => $done ? 'done' : 'next',
             'time'   => null,
         ];
@@ -200,8 +209,9 @@ function review_invite(PDO $db, int $order_id): ?array {
  * per step (the outbox's dedupe key), after the page has answered, retried
  * if the mail server is down. The order page also offers the same news as a
  * ready-written WhatsApp message (shop_order_whatsapp_text()).
- *   $state: confirmed, preparing, on_the_way, delivered (or collected, for
- *   pickup: chosen here), cancelled, turned_down
+ *   $state: confirmed, preparing, ready (ready for pickup; on_the_way for a
+ *   delivery: chosen here), on_the_way, delivered (or collected, for pickup:
+ *   chosen here), cancelled, turned_down
  */
 function shop_order_tell(PDO $db, int $order_id, string $state, string $message = ''): void {
     try {
@@ -214,11 +224,15 @@ function shop_order_tell(PDO $db, int $order_id, string $state, string $message 
         if ($state === 'delivered' && ($order['fulfillment_type'] ?? '') !== 'delivery') {
             $state = 'collected';
         }
+        if ($state === 'ready' && ($order['fulfillment_type'] ?? '') === 'delivery') {
+            $state = 'on_the_way';
+        }
         $business = business_with_shop_link(['id' => (int)$order['business_id'], 'name' => $order['shop_name']]);
         $review = in_array($state, ['delivered', 'collected'], true) ? review_invite($db, $order_id) : null;
         $subject = match ($state) {
             'confirmed'  => 'Your order ' . $order['order_number'] . ' is confirmed',
             'preparing'  => 'Your order ' . $order['order_number'] . ' is being prepared',
+            'ready'      => 'Your order ' . $order['order_number'] . ' is ready for pickup',
             'on_the_way' => 'Your order ' . $order['order_number'] . ' is on its way',
             'delivered'  => 'Your order ' . $order['order_number'] . ' has been delivered',
             'collected'  => 'Thank you for collecting order ' . $order['order_number'],
@@ -243,12 +257,14 @@ function shop_order_tell(PDO $db, int $order_id, string $state, string $message 
 function shop_order_whatsapp_text(array $order, string $shop_name, ?string $track_url, ?string $delivery_status = null): string {
     $first = preg_split('/\s+/u', trim((string)$order['customer_name']))[0] ?: 'there';
     $num   = $order['order_number'];
-    $moving = in_array($delivery_status, ['dispatched', 'in_transit'], true);
+    $moving = in_array($delivery_status, ['dispatched', 'in_transit'], true)
+           || ($order['status'] === 'ready' && ($order['fulfillment_type'] ?? '') === 'delivery');
     $news = match (true) {
         $order['status'] === 'rejected'   => "we're sorry, we couldn't take your order {$num}.",
         $order['status'] === 'cancelled'  => "your order {$num} has been cancelled.",
         $order['status'] === 'fulfilled'  => ($order['fulfillment_type'] === 'delivery' ? "your order {$num} has been delivered" : "thank you for collecting your order {$num}") . '. We hope you love it!',
         $moving                           => "your order {$num} is on its way to you.",
+        $order['status'] === 'ready'      => "your order {$num} is ready for pickup.",
         $order['status'] === 'processing' => "we're getting your order {$num} ready.",
         $order['status'] === 'approved'   => "your order {$num} is confirmed.",
         default                           => "we've received your order {$num}.",

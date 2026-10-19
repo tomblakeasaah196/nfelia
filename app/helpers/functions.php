@@ -14,13 +14,16 @@
  * locked until the caller commits, and a rollback gives the number back.
  * Outside one, it runs its own.
  *
+ * Orders (ORD), bookings (BKG) and refunds (RFD) are numbered here too, in
+ * the same PREFIX-TYPE-001 shape (docs/ORDERS_HUB.md, section 4).
+ *
  * @param PDO    $db          Active database connection
  * @param int    $business_id The business to generate for
- * @param string $doc_type    One of: QUO, INV, REC, DEL, DEA, EXP
+ * @param string $doc_type    One of: QUO, INV, REC, DEL, DEA, EXP, ORD, BKG, RFD
  * @return string             e.g. "NFA-INV-004"
  */
 function generate_doc_number(PDO $db, int $business_id, string $doc_type): string {
-    $valid_types = ['QUO', 'INV', 'REC', 'DEL', 'DEA', 'EXP'];
+    $valid_types = ['QUO', 'INV', 'REC', 'DEL', 'DEA', 'EXP', 'ORD', 'BKG', 'RFD'];
     if (!in_array($doc_type, $valid_types)) {
         throw new \InvalidArgumentException("Invalid doc_type: {$doc_type}");
     }
@@ -40,17 +43,30 @@ function generate_doc_number(PDO $db, int $business_id, string $doc_type): strin
         if ($last === false) {
             // A new counter starts after the highest number this business
             // already used for the type, so no number is ever repeated
-            $table = ['QUO' => 'quotations', 'INV' => 'invoices', 'REC' => 'receipts',
-                      'DEL' => 'deliveries', 'DEA' => 'deeds', 'EXP' => 'expenses'][$doc_type];
+            [$table, $column] = [
+                'QUO' => ['quotations', 'doc_number'], 'INV' => ['invoices', 'doc_number'], 'REC' => ['receipts', 'doc_number'],
+                'DEL' => ['deliveries', 'doc_number'], 'DEA' => ['deeds', 'doc_number'], 'EXP' => ['expenses', 'doc_number'],
+                'ORD' => ['orders', 'order_number'], 'BKG' => ['bookings', 'booking_number'], 'RFD' => ['refunds', 'doc_number'],
+            ][$doc_type];
+            // Orders and bookings were numbered ORD-0007 and BKG-0007 before
+            // they took the prefix, from a counter on the business: both
+            // count, so ADA-ORD-008 follows ORD-0007
+            $old_seq = ['ORD' => 'order_number_seq', 'BKG' => 'booking_number_seq'][$doc_type] ?? null;
             $stmtMax = $db->prepare(
-                "SELECT COALESCE(MAX(CAST(SUBSTRING_INDEX(doc_number, '-', -1) AS UNSIGNED)), 0)
-                 FROM {$table} WHERE business_id = ? AND doc_number LIKE ?"
+                "SELECT COALESCE(MAX(CAST(SUBSTRING_INDEX({$column}, '-', -1) AS UNSIGNED)), 0)
+                 FROM {$table} WHERE business_id = ? AND {$column} LIKE ?"
             );
-            $stmtMax->execute([$business_id, '%-' . $doc_type . '-%']);
+            $stmtMax->execute([$business_id, ($old_seq ? '%' : '%-') . $doc_type . '-%']);
+            $start = (int)$stmtMax->fetchColumn();
+            if ($old_seq) {
+                $stmtSeq = $db->prepare("SELECT {$old_seq} FROM businesses WHERE id = ?");
+                $stmtSeq->execute([$business_id]);
+                $start = max($start, (int)$stmtSeq->fetchColumn());
+            }
             $db->prepare(
                 "INSERT INTO document_counters (business_id, doc_type, last_number) VALUES (?, ?, ?)
                  ON DUPLICATE KEY UPDATE last_number = last_number"
-            )->execute([$business_id, $doc_type, (int)$stmtMax->fetchColumn()]);
+            )->execute([$business_id, $doc_type, $start]);
             $stmtLock->execute([$business_id, $doc_type]);
             $last = $stmtLock->fetchColumn();
         }
@@ -99,7 +115,10 @@ function ascii_fold(string $text): string {
 
 /**
  * Derive a document prefix from a business name. Works on its plain letters,
- * so a name starting with "Ọ" or "É" doesn't break sign-up (D3).
+ * so a name starting with "Ọ" or "É" doesn't break sign-up (D3). What comes
+ * out is always a prefix doc_prefix_problem() accepts: a short name is
+ * padded with X (Jo → JOX), and one that spells a word already inside every
+ * number is changed (Orders → ORX, not ORD-ORD-001).
  */
 function derive_prefix(string $business_name): string {
     $plain = (string)preg_replace('/[^A-Za-z0-9\s]/', '', ascii_fold($business_name));
@@ -108,12 +127,42 @@ function derive_prefix(string $business_name): string {
         return 'NFE';
     }
     if (count($words) >= 3) {
-        return substr($words[0], 0, 1) . substr($words[1], 0, 1) . substr($words[2], 0, 1);
+        $prefix = substr($words[0], 0, 1) . substr($words[1], 0, 1) . substr($words[2], 0, 1);
     } elseif (count($words) === 2) {
-        return substr($words[0], 0, 2) . substr($words[1], 0, 1);
+        $prefix = substr($words[0], 0, 2) . substr($words[1], 0, 1);
     } else {
-        return substr($words[0], 0, 3);
+        $prefix = substr($words[0], 0, 3);
     }
+    $prefix = str_pad($prefix, 3, 'X');
+    if (doc_prefix_problem($prefix) !== null) {
+        $prefix = substr($prefix, 0, 2) . 'X';
+    }
+    return $prefix;
+}
+
+/**
+ * What's wrong with a document prefix (the RNA in RNA-INV-032), or null when
+ * it is fine: 2 to 5 letters or digits, and not one of the words already
+ * inside every number. Small letters count as capitals: the prefix is saved
+ * in capitals.
+ */
+function doc_prefix_problem(string $prefix): ?string {
+    $prefix = strtoupper(trim($prefix));
+    if ($prefix === '') {
+        return 'Type 2 to 5 letters or digits to start your document numbers with.';
+    }
+    if (!preg_match('/^[A-Z0-9]+$/', $prefix)) {
+        return 'Use only the letters A to Z and the digits 0 to 9, with no spaces or symbols.';
+    }
+    if (strlen($prefix) < 2 || strlen($prefix) > 5) {
+        return 'Use 2 to 5 letters or digits.';
+    }
+    $kinds = ['ORD' => 'order', 'INV' => 'invoice', 'REC' => 'receipt', 'DEL' => 'delivery note', 'QUO' => 'quote',
+              'EXP' => 'expense', 'DEA' => 'deed', 'BKG' => 'booking', 'RFD' => 'refund'];
+    if (isset($kinds[$prefix])) {
+        return $prefix . ' is already in every ' . $kinds[$prefix] . ' number (like ABC-' . $prefix . '-012), so it would read twice. Choose other letters.';
+    }
+    return null;
 }
 
 /**

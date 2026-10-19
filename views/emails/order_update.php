@@ -2,7 +2,7 @@
 /*
  * views/emails/order_update.php — to a shopper as their order moves along
  * (shop_order_tell() in app/helpers/shop_orders.php).
- * Variables: $state (confirmed | preparing | on_the_way | delivered |
+ * Variables: $state (confirmed | preparing | ready | on_the_way | delivered |
  * collected | cancelled | turned_down), $first_name, $shop_name,
  * $order_number, $order_url, $review_url, $message (the shop's own words)
  */
@@ -10,6 +10,7 @@ $h = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES);
 [$headline, $line] = match ($state) {
     'confirmed'   => ['Your order is confirmed', $shop_name . ' has confirmed your order ' . $order_number . ' and will get it ready now.'],
     'preparing'   => ['Your order is being prepared', $shop_name . ' is getting your order ' . $order_number . ' ready.'],
+    'ready'       => ['Your order is ready for pickup', $shop_name . ' has your order ' . $order_number . ' ready. Pick it up when it suits you.'],
     'on_the_way'  => ['Your order is on its way', $shop_name . ' has sent out your order ' . $order_number . '.'],
     'delivered'   => ['Your order has been delivered', 'Thank you for shopping with ' . $shop_name . '.'],
     'collected'   => ['Thank you for collecting your order', 'We hope you love it. Thank you for shopping with ' . $shop_name . '.'],
