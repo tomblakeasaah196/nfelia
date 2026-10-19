@@ -547,4 +547,48 @@ eq([$n['title'] ?? null, $n['message'] ?? null, $n['action_url'] ?? null],
    ['Overdue: ' . $minv['doc_number'], 'Ngozi Eze owes ₦40,000 on order ' . $m['order_number'] . ', 3 days past due.', 'orders/view/' . $m['id'] . '#money'],
    'overdue: the invoice leads, the order is named, and it opens the order\'s money');
 
+section('An email that bounced: the order asks for the right one on WhatsApp, and takes it (#863)');
+$b = make_order(['customer_id' => 200, 'items' => [['name' => 'Wig', 'quantity' => 1, 'unit_price' => 50000]]]);
+$bid = (int)$b['id'];
+clean_slate();   // the email it sent Ngozi went through
+$ada = signin('ada@adashair.test');
+$page = $ada->get('orders/view/' . $bid)->body;
+ok(str_contains($page, $b['order_number']) && !str_contains($page, 'id="email"'), 'an order whose emails arrive says nothing about it');
+exec_sql("UPDATE orders SET customer_email = 'ngozi@gone.invalid' WHERE id = ?", [$bid]);
+exec_sql("UPDATE customers SET email = 'ngozi@gone.invalid' WHERE id = 200");
+notify_email(BIZ, 'ngozi@gone.invalid', 'Ngozi Eze', 'Your order is confirmed', 'order_update', ['state' => 'confirmed', 'first_name' => 'Ngozi',
+             'shop_name' => "Ada's Hair & Co", 'order_number' => $b['order_number'], 'order_url' => null, 'review_url' => null, 'message' => ''],
+             'order:' . $bid . ':confirmed', 'shopper.order_confirmed');
+deliver();
+$page = $ada->get('orders/view/' . $bid)->body;
+ok(str_contains($page, 'id="email"') && str_contains($page, 'Emails to Ngozi don’t arrive') && str_contains($page, 'ngozi@gone.invalid doesn’t exist'),
+   'once one bounced, the order says emails to Ngozi don\'t arrive');
+$wa = preg_match('/<a class="nf-btn nf-btn-primary" href="(https:\/\/wa\.me\/[^"]+)"[^>]*>.*?Ask on WhatsApp/s', $page, $m) ? html_entity_decode($m[1]) : '';
+ok(str_starts_with($wa, 'https://wa.me/2348031110000?text='), 'with a WhatsApp message to her number: ' . $wa);
+eq(rawurldecode((string)substr($wa, (int)strpos($wa, '?text=') + 6)),
+   "Hello Ngozi, this is Ada's Hair & Co. We couldn’t email you about order " . $b['order_number']
+   . ": ngozi@gone.invalid doesn’t seem to work. Please reply with your correct email address.",
+   'asking for her right email, ready to send');
+$ada->post('orders/email/' . $bid, ['email' => 'not an address']);
+eq(q("SELECT customer_email FROM orders WHERE id = ?", [$bid]), 'ngozi@gone.invalid', 'something that isn\'t an address is refused');
+$ada->post('orders/email/' . $bid, ['email' => 'ngozi.eze@example.test']);
+eq([q("SELECT customer_email FROM orders WHERE id = ?", [$bid]), q("SELECT email FROM customers WHERE id = 200")], ['ngozi.eze@example.test', 'ngozi.eze@example.test'],
+   'her answer is saved on the order, and on her record for her next order');
+eq(q("SELECT text FROM order_events WHERE order_id = ? AND kind = 'edited' ORDER BY id DESC LIMIT 1", [$bid]), 'Email changed to ngozi.eze@example.test.', 'the order\'s Log says so');
+$page = $ada->get('orders/view/' . $bid)->body;
+ok(str_contains($page, $b['order_number']) && !str_contains($page, 'id="email"'), 'and the order stops asking');
+
+exec_sql("INSERT INTO bookings (id, business_id, product_id, product_name, booking_number, public_token, kind, starts_at, ends_at, customer_id, customer_name, customer_phone, customer_email, status)
+          VALUES (5, 2, 302, 'Bridal styling', 'BKG-0005', ?, 'day', CURDATE() + INTERVAL 3 DAY, CURDATE() + INTERVAL 4 DAY, 200, 'Ngozi Eze', '08031110000', 'ngozi@gone.invalid', 'confirmed')",
+         [bin2hex(random_bytes(16))]);
+notify_email(BIZ, 'ngozi@gone.invalid', 'Ngozi Eze', 'Your booking', 'booking_update', ['state' => 'confirmed', 'first_name' => 'Ngozi', 'shop_name' => 'Ada',
+             'booking_number' => 'BKG-0005', 'service' => 'Bridal styling', 'when' => 'Sat', 'booking_url' => APP_URL, 'total' => '₦80,000', 'deposit' => '', 'message' => ''],
+             'booking:5:confirmed', 'shopper.booking');
+deliver();
+$page = $ada->get('bookings/view/5')->body;
+ok(str_contains($page, 'Emails to this address don’t arrive') && str_contains($page, 'Ask for their email on WhatsApp')
+   && str_contains($page, rawurlencode('We couldn’t email you about booking BKG-0005')), 'a booking says so too, with the WhatsApp message ready');
+$ada->post('bookings/email/5', ['email' => 'ngozi.eze@example.test']);
+eq(q("SELECT customer_email FROM bookings WHERE id = 5"), 'ngozi.eze@example.test', 'and takes the right address');
+
 done();

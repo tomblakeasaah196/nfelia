@@ -5,6 +5,10 @@
 # unless MAIL_ENCRYPTION is "ssl". While a file named REFUSE exists in
 # OUTDIR it turns every message away with a temporary error (451), the way
 # a mail server that is down or overloaded does, so retries can be tested.
+# Some addresses it refuses for good, as real mail servers do:
+#   ...@x.invalid  550 5.1.1, the address doesn't exist (production's words)
+#   ...@x.nouser   550 with no enhanced status, saying so
+#   ...@x.denied   550 5.7.1, it won't relay: not the address's fault
 import os, socketserver, ssl, sys, threading
 
 OUT = sys.argv[1]
@@ -60,8 +64,19 @@ class H(socketserver.StreamRequestHandler):
                 self.w("334 ")
             elif u.startswith("AUTH"):
                 self.w("235 ok")
-            elif u.startswith("RCPT") and os.path.exists(os.path.join(OUT, "REFUSE")):
-                self.w("451 try again later")
+            elif u.startswith("RCPT"):
+                to = t.split(":", 1)[-1].strip().strip("<>")
+                if os.path.exists(os.path.join(OUT, "REFUSE")):
+                    self.w("451 try again later")
+                elif to.lower().endswith(".invalid"):
+                    self.w(f"550 5.1.1 The mail server could not deliver mail to {to}.  The account or domain may not exist, "
+                           "they may be blacklisted, or missing the proper dns entries.")
+                elif to.lower().endswith(".nouser"):
+                    self.w("550 No Such User Here")
+                elif to.lower().endswith(".denied"):
+                    self.w("550 5.7.1 Relaying denied")
+                else:
+                    self.w("250 ok")
             elif u.startswith("DATA"):
                 data = True
                 self.w("354 go")

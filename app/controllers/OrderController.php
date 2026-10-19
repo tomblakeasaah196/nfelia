@@ -145,6 +145,10 @@ class OrderController
         $messages = $this->messages($order, $business, $invoice, $payments, $stage, $pay, $track_url, $customer_url, $customer);
         $is_boss = is_boss();
 
+        // The mail server said the customer's email doesn't exist (app/helpers/bounces.php)
+        require_once BASE_PATH . "/app/helpers/bounces.php";
+        $email_bounced = bounce_at($this->db, $this->biz_id, $order["customer_email"] ?? null);
+
         $title = $order["order_number"];
         $view_file = BASE_PATH . "/views/orders/view.php";
         require_once BASE_PATH . "/views/layouts/app.php";
@@ -479,6 +483,20 @@ class OrderController
             $this->back($order, "error", $e->getMessage());
         }
         $this->back($order, "success", "Order turned down." . ($order["customer_email"] ? " " . planner_first_name($order["customer_name"]) . " gets an email." : ""));
+    }
+
+    /** POST orders/email/{id}: the customer's right email, after the one on the order bounced. */
+    public function email($id = null)
+    {
+        $this->post_only("orders/view/" . (int) $id);
+        $order = $this->order_or_back($id);
+        require_once BASE_PATH . "/app/helpers/bounces.php";
+        $email = bounce_new_email($this->db, $this->biz_id, "orders", $order, (string) ($_POST["email"] ?? ""));
+        if ($email === null) {
+            $this->back($order, "error", "Type the email address in full, like name@gmail.com.", "email");
+        }
+        order_log($this->db, $this->biz_id, (int) $order["id"], "edited", "Email changed to " . $email . ".", $this->user_id());
+        $this->back($order, "success", "Saved. Emails about this order now go to " . $email . ".", "email");
     }
 
     /* ──────────────────────────────────────────

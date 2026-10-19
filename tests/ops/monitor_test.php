@@ -76,6 +76,15 @@ ok($wg && str_contains($wg['title'], 'Undefined array key "missing_key"'), 'the 
 ok(str_contains(ops_bell(GRACE)[1]['title'] ?? '', 'New: Warning'), 'Grace\'s bell has it');
 eq(count(pushes_to($grace_phone)), 1, 'but no phone buzz for a warning');
 
+section('GD\'s warnings about an uploaded picture are not Nfelia\'s errors (#575)');
+
+$events = (int)q("SELECT COUNT(*) FROM error_events");
+$p = boom('picture');
+eq([$p->status, trim($p->body)], [200, 'refused'], 'a PNG cut short is turned down');
+$p = boom('picture/whole');
+eq([$p->status, trim($p->body)], [200, 'saved'], 'the whole one is saved');
+eq((int)q("SELECT COUNT(*) FROM error_events"), $events, 'and nothing is recorded in Ops → Errors');
+
 section('A crash (out of memory) is recorded too');
 
 $f = boom('fatal');

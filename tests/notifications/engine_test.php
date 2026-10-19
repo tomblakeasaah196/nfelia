@@ -29,6 +29,7 @@ $sample = [
     'subject' => 'Cannot print', 'reply' => 'Fixed now.', 'referred' => 'Kola Prints', 'reward' => 2500, 'role' => 'an admin',
     'device' => 'Chrome on Android', 'staff' => 'Sam from Nfelia', 'new_email' => 'new@example.test', 'business' => "Ada's Hair & Co", 'payment_id' => 1,
     'contact' => '08030000000', 'count' => 4, 'book_id' => 1, 'what' => 'Invoice ADA-INV-0400',
+    'user_id' => 22, 'kind' => 'order', 'number' => 'ORD-0700',
 ];
 $money = fn($a) => notify_money_text((float)$a, '₦');
 set_error_handler(function ($no, $str) { throw new ErrorException($str, 0, $no); });
@@ -248,6 +249,106 @@ notify('billing.failed', 2, [], ['dedupe' => 'down']);
 for ($i = 0; $i < 7; $i++) deliver();
 eq(outbox('billing.failed', 'email', 20)[0]['status'] ?? null, 'failed', 'down for good: given up after ' . NOTIFY_MAX_ATTEMPTS['email'] . ' tries');
 unlink(T_MAIL_DIR . '/REFUSE');
+
+section('An address that doesn\'t exist: given up at once, and whoever can fix it is told (#863)');
+clean_slate();
+exec_sql("DELETE FROM error_events");
+exec_sql("DELETE FROM ops_alerts");
+exec_sql("DELETE FROM error_groups");
+exec_sql("UPDATE users SET email = 'chidi@gone.invalid' WHERE id = 22");
+$log = sys_get_temp_dir() . '/nf_bounce_' . getmypid() . '.log';
+@unlink($log);
+ini_set('error_log', $log);
+notify('order.new', 2, $sample, ['dedupe' => 'bounce']);
+deliver();
+deliver();
+ini_restore('error_log');
+$row = outbox('order.new', 'email', 22)[0] ?? [];
+eq([$row['status'] ?? null, (int)($row['attempts'] ?? 0)], ['failed', 1], 'the mail server says Chidi\'s address doesn\'t exist: given up after one try, never retried');
+ok(str_starts_with((string)($row['last_error'] ?? ''), 'bounced: 550 5.1.1 '), 'what it said is kept: ' . ($row['last_error'] ?? ''));
+eq(count(mails_to('ada@adashair.test')), 1, 'Ada\'s own email about the order still went');
+eq(told('email.bounced'), [20], 'the owner is told, and only her');
+$note = bell(20, 'email.bounced')[0] ?? [];
+eq($note['title'] ?? '', 'Emails to Chidi Staff don’t arrive', 'naming the person');
+ok(str_contains($note['message'] ?? '', 'chidi@gone.invalid') && str_contains($note['message'] ?? '', 'under Team'), 'the address, and where to change it: ' . ($note['message'] ?? ''));
+eq($note['action_url'] ?? '', 'settings?tab=staff', 'it opens Settings, Team');
+eq(outbox('email.bounced', 'email'), [], 'by bell and phone, not email');
+$groups = rows("SELECT kind, level, title FROM error_groups");
+eq(array_map(fn($g) => [$g['kind'], $g['level']], $groups), [['job', 'notice']], 'Ops → Errors notes it once, as a notice');
+ok(str_starts_with($groups[0]['title'] ?? '', 'Email bounced: ') && str_contains($groups[0]['title'] ?? '', '<email>') && !str_contains($groups[0]['title'] ?? '', 'gone.invalid'),
+   'with the address masked: ' . ($groups[0]['title'] ?? ''));
+eq((int)q("SELECT COUNT(*) FROM ops_alerts WHERE kind LIKE 'error.%'"), 0, 'which alerts nobody on the Nfelia team');
+$lines = array_values(array_filter(array_map('trim', @file($log) ?: [])));
+@unlink($log);
+ok(count($lines) === 1 && preg_match('/Nfelia notice \[E[A-Z2-9]{7}\]: Email bounced/', $lines[0]),
+   'the server log has that one line, which the log reader skips, and no "SMTP failure": ' . implode(' | ', $lines));
+notify('order.new', 2, $sample, ['dedupe' => 'bounce-again']);
+deliver();
+eq(count(bell(20, 'email.bounced')), 1, 'another email bouncing from the same address doesn\'t tell her again');
+
+exec_sql("UPDATE users SET email = 'chidi@shop.nouser' WHERE id = 22");
+notify('order.new', 2, $sample, ['dedupe' => 'nouser']);
+deliver();
+eq(outbox('order.new', 'email', 22)[2]['status'] ?? null, 'failed', 'a mail server that only says "No Such User Here": the same');
+clean_slate();
+exec_sql("UPDATE users SET email = 'chidi@relay.denied' WHERE id = 22");
+notify('order.new', 2, $sample, ['dedupe' => 'denied']);
+deliver();
+$row = outbox('order.new', 'email', 22)[0] ?? [];
+eq([$row['status'] ?? null, $row['last_error'] ?? null], ['pending', 'the mail server did not accept it'],
+   'refused for another reason (5.7.1, it won\'t relay): kept to try again, as before');
+eq(told('email.bounced'), [], 'and nobody is told the address doesn\'t exist');
+exec_sql("UPDATE users SET email = 'chidi@adashair.test' WHERE id = 22");
+
+clean_slate();
+exec_sql("UPDATE users SET email = 'ada@gone.invalid' WHERE id = 20");
+notify('billing.failed', 2, []);
+deliver();
+$note = bell(20, 'email.bounced')[0] ?? [];
+ok(($note['action_url'] ?? '') === 'settings?tab=profile' && str_contains($note['message'] ?? '', 'under Profile'),
+   'the owner\'s own address: she is told to change it in her Profile');
+exec_sql("UPDATE users SET email = 'ada@adashair.test' WHERE id = 20");
+
+clean_slate();
+exec_sql("DELETE FROM ops_alerts");
+exec_sql("UPDATE ops_staff SET email = 'sam@gone.invalid' WHERE id = 2");
+notify_email(null, 'sam@gone.invalid', 'Sam Support', 'A test', 'ops_message',
+             ['headline' => 'A test', 'message' => 'Hello', 'button' => 'Open Ops', 'url' => APP_URL, 'note' => ''], 'bounce-ops', 'ops.test');
+deliver();
+eq(array_map('intval', array_column(rows("SELECT staff_id FROM ops_alerts WHERE kind = 'email.bounced' ORDER BY staff_id"), 'staff_id')), [1],
+   'someone on the Nfelia team: the Ops admins are told, to change it in Team');
+exec_sql("UPDATE ops_staff SET email = 'sam@nfelia.test' WHERE id = 2");
+
+section('A shopper\'s address that doesn\'t exist: the owner asks them for the right one (#863)');
+clean_slate();
+$vars = ['state' => 'confirmed', 'first_name' => 'Ngozi', 'shop_name' => "Ada's Hair & Co", 'order_number' => 'ORD-0700', 'order_url' => null, 'review_url' => null, 'message' => ''];
+notify_email(2, 'ngozi@gone.invalid', 'Ngozi Eze', 'Your order is confirmed', 'order_update', $vars, 'order:700:confirmed', 'shopper.order_confirmed');
+deliver();
+eq(outbox('shopper.order_confirmed', 'email')[0]['status'] ?? null, 'failed', 'given up at once');
+eq(told('email.bounced_shopper'), [20], 'the owner is told');
+$note = bell(20, 'email.bounced_shopper')[0] ?? [];
+eq($note['title'] ?? '', 'Ask Ngozi Eze for their email', 'to ask the customer for their email');
+ok(str_contains($note['message'] ?? '', 'order ORD-0700') && str_contains($note['message'] ?? '', 'ngozi@gone.invalid') && str_contains($note['message'] ?? '', 'WhatsApp'),
+   'about which order, and on WhatsApp: ' . ($note['message'] ?? ''));
+eq($note['action_url'] ?? '', 'orders/view/700#email', 'it opens the order, where the message is ready');
+notify_email(2, 'ngozi@gone.invalid', 'Ngozi Eze', 'Your order is ready', 'order_update', ['state' => 'ready'] + $vars, 'order:700:ready', 'shopper.order_ready');
+deliver();
+eq(count(bell(20, 'email.bounced_shopper')), 1, 'once per order, however many of its emails bounce');
+ok(bounce_at(get_db(), 2, 'ngozi@gone.invalid') !== null && bounce_at(get_db(), 2, 'ngozi@example.test') === null, 'the order page can tell the address bounced');
+exec_sql("INSERT INTO notify_outbox (business_id, event, channel, recipient, payload, status) VALUES (2, 'shopper.order_done', 'email', 'ngozi@gone.invalid', '{}', 'sent')");
+eq(bounce_at(get_db(), 2, 'ngozi@gone.invalid'), null, 'an email that went through since clears it');
+
+clean_slate();
+exec_sql("INSERT INTO bookings (id, business_id, product_id, product_name, booking_number, public_token, kind, starts_at, ends_at, customer_id, customer_name, customer_phone, customer_email, status)
+          VALUES (1, 2, 302, 'Bridal styling', 'BKG-0001', ?, 'day', CURDATE() + INTERVAL 3 DAY, CURDATE() + INTERVAL 4 DAY, 200, 'Ngozi Eze', '08031110000', 'ngozi@gone.invalid', 'confirmed')",
+         [bin2hex(random_bytes(16))]);
+notify_email(2, 'ngozi@gone.invalid', 'Ngozi Eze', 'Your booking', 'booking_update', ['state' => 'confirmed', 'first_name' => 'Ngozi', 'shop_name' => 'Ada',
+             'booking_number' => 'BKG-0001', 'service' => 'Bridal styling', 'when' => 'Sat', 'booking_url' => APP_URL, 'total' => '₦80,000', 'deposit' => '', 'message' => ''],
+             'booking:1:confirmed', 'shopper.booking');
+deliver();
+$note = bell(20, 'email.bounced_shopper')[0] ?? [];
+ok(($note['action_url'] ?? '') === 'bookings/view/1#email' && str_contains($note['message'] ?? '', 'booking BKG-0001'), 'a booking\'s email: the note opens the booking');
+exec_sql("DELETE FROM bookings");
 
 section('Only one sender per message');
 clean_slate();

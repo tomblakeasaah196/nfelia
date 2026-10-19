@@ -539,6 +539,26 @@ function notify_events(): array
             'text' => fn($d, $m) => [$d['name'] . ' left your team', 'Removed by ' . $d['by'] . '. They can no longer sign in.'],
             'private' => 'Someone left your team',
         ],
+        // The mail server said an address doesn't exist (app/helpers/bounces.php)
+        'email.bounced' => [
+            'topic' => 'team', 'to' => 'owner',
+            'url' => fn($d) => !empty($d['self']) ? 'settings?tab=profile' : 'settings?tab=staff',
+            'tag' => fn($d) => 'bounce-user-' . (int)$d['user_id'],
+            'text' => fn($d, $m) => ['Emails to ' . $d['name'] . ' don’t arrive',
+                                     'The mail server says ' . $d['email'] . ' doesn’t exist. Change it in Settings, under '
+                                     . (!empty($d['self']) ? 'Profile.' : 'Team.')],
+            'private' => 'An email address doesn’t work',
+        ],
+        'email.bounced_shopper' => [
+            'topic' => 'customers', 'to' => 'owner',
+            'url' => fn($d) => $d['kind'] === 'booking' ? 'bookings/view/' . (int)$d['booking_id'] . '#email' : 'orders/view/' . (int)$d['order_id'] . '#email',
+            'tag' => fn($d) => 'bounce-' . $d['kind'] . '-' . (int)$d[$d['kind'] . '_id'],
+            'text' => fn($d, $m) => ['Ask ' . $d['customer'] . ' for their email',
+                                     'Emails about ' . $d['kind'] . ' ' . $d['number'] . ' don’t arrive: the mail server says '
+                                     . $d['email'] . ' doesn’t exist. Ask them on WhatsApp.'],
+            'private' => 'A customer’s email doesn’t work',
+            'button' => fn($d) => $d['kind'] === 'booking' ? 'Open the booking' : 'Open the order',
+        ],
 
         /* ── Sign-ins and security (always by email too) ──────── */
         'security.new_device' => [
@@ -877,9 +897,19 @@ function notify_flush(?array $ids = null, int $limit = 200): array
     return $done;
 }
 
-/** Record how a send went. 'retry' becomes 'failed' once the tries run out. */
+/**
+ * Record how a send went. 'retry' becomes 'failed' once the tries run out.
+ * 'bounced' (the address doesn't exist) fails at once, and whoever can fix
+ * the address is told (app/helpers/bounces.php).
+ */
 function notify_outcome(PDO $db, array $row, string $outcome, ?string $error): string
 {
+    if ($outcome === 'bounced') {
+        $db->prepare("UPDATE notify_outbox SET status = 'failed', last_error = ? WHERE id = ?")->execute([$error, $row['id']]);
+        require_once __DIR__ . '/bounces.php';
+        bounce_tell($db, $row);
+        return 'failed';
+    }
     $attempts = (int)$row['attempts'];   // already counts this try
     if ($outcome === 'retry' && $attempts >= NOTIFY_MAX_ATTEMPTS[$row['channel']]) {
         $outcome = 'failed';
@@ -966,9 +996,13 @@ function notify_send_email(PDO $db, array $row): array
     // A shop's own customer sees the shop's name, and a reply reaches the
     // shop. People signed up to Nfelia, and Ops, hear from Nfelia.
     $shopper = $brand && empty($row['user_id']) && empty($row['staff_id']);
-    return send_mail($row['recipient'], (string)$row['recipient_name'], (string)($p['subject'] ?? 'Nfelia'), $html, true, (array)($p['headers'] ?? []),
-                     $shopper ? (string)$brand['name'] : '', $shopper ? (string)($brand['email'] ?? '') : '')
-        ? ['sent', null]
+    if (send_mail($row['recipient'], (string)$row['recipient_name'], (string)($p['subject'] ?? 'Nfelia'), $html, true, (array)($p['headers'] ?? []),
+                  $shopper ? (string)$brand['name'] : '', $shopper ? (string)($brand['email'] ?? '') : '')) {
+        return ['sent', null];
+    }
+    $bounced = mail_bounced();
+    return $bounced !== null
+        ? ['bounced', mb_substr('bounced: ' . $bounced, 0, 255)]
         : ['retry', 'the mail server did not accept it'];
 }
 

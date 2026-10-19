@@ -58,6 +58,16 @@ uses the same outbox and retries. Shop order steps go through
 `order_update` template. `shop_order_whatsapp_text()` writes the same words
 for the WhatsApp button on `views/orders/view.php`.
 
+**Addresses that don't exist.** When the mail server says so (a 5.1.x answer,
+or "no such user"), the email is not retried: its row fails at once with the
+server's words, and Ops → Errors notes it once, as a notice. `bounce_tell()`
+in `app/helpers/bounces.php` then tells whoever can fix the address, once, by
+bell and phone: the owner, for someone on their team (`email.bounced`) or a
+customer (`email.bounced_shopper`, which opens the order or booking: there a
+WhatsApp message asking for the right address is ready, and the answer can
+be saved); the Ops admins, for someone on the Nfelia team. Any other refusal
+(4xx, or 5.7.x for relaying) is retried as before.
+
 ### Links: every alert opens the exact page
 
 - Every bell row, push and email links to `notifications/open/{id}`
@@ -163,7 +173,8 @@ bash tests/notifications/run.sh ui         # the browser checks (Playwright + Ch
 
 `run.sh` starts the stand-ins itself: `push_sink.php` on port 8098 is a
 "phone" that decrypts every push it receives. `smtp_sink.py` on port 2525 is
-an inbox that can also be told to refuse mail. The fixture world is
+an inbox that can also be told to refuse mail, and refuses some addresses
+for good the way real mail servers do (see its top comment). The fixture world is
 Nfelia (business 1), Ada's Hair & Co (2: owner, admin, staff, an inactive
 person) and Kola Prints (3). Every password is `TestPass1`.
 

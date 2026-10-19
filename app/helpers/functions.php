@@ -276,11 +276,14 @@ function save_image(array $file, string $dest, int $max_width = 800, string $for
     $info = @getimagesize($tmp);
     if (!$info || $info[0] < 1 || $info[1] < 1 || $info[0] * $info[1] > 52000000) return false;
 
+    // GD warns about pictures it reads anyway, like a PNG with a wrong
+    // colour profile ("iCCP: known incorrect sRGB profile"). That is the
+    // file's quirk, not Nfelia's error; one it can't read returns false.
     $mime = $info['mime'];
     switch ($mime) {
-        case 'image/jpeg': $src = imagecreatefromjpeg($tmp); break;
-        case 'image/png':  $src = imagecreatefrompng($tmp);  break;
-        case 'image/webp': $src = imagecreatefromwebp($tmp); break;
+        case 'image/jpeg': $src = @imagecreatefromjpeg($tmp); break;
+        case 'image/png':  $src = @imagecreatefrompng($tmp);  break;
+        case 'image/webp': $src = @imagecreatefromwebp($tmp); break;
         default: return false;
     }
     if (!$src) return false;
