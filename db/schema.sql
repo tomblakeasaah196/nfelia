@@ -714,11 +714,12 @@ CREATE TABLE `product_variant_options` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `variant_group_id` int(11) NOT NULL,
   `label` varchar(50) NOT NULL,
+  `price_delta` decimal(12,2) NOT NULL DEFAULT 0.00,
   `sort_order` int(11) DEFAULT 0,
   PRIMARY KEY (`id`),
   KEY `idx_group` (`variant_group_id`),
   CONSTRAINT `product_variant_options_ibfk_1` FOREIGN KEY (`variant_group_id`) REFERENCES `product_variant_groups` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Selectable options within a variant group. No price/stock delta in v1.';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Selectable options within a variant group. price_delta nudges the item price; stock stays shared.';
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8mb4 */;

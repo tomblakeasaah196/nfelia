@@ -80,20 +80,25 @@ $wa_text = 'Hello ' . $business['name'] . ', I found ' . $item['name'] . ' on yo
                     <?php endif; ?>
                 </div>
                 <?php else: ?>
+                <?php $has_priced = (bool)array_filter($item['variants'], fn($g) => !empty($g['deltas'])); ?>
                 <form class="sf-buy" data-buy="<?= (int)$item['id'] ?>" novalidate>
                     <?php foreach ($item['variants'] as $gi => $group): ?>
                         <fieldset class="sf-buy__group" data-group="<?= e($group['name']) ?>">
                             <legend><?= e($group['name']) ?></legend>
                             <div class="sf-choices">
-                                <?php foreach ($group['options'] as $oi => $option): ?>
+                                <?php foreach ($group['options'] as $oi => $option):
+                                    $d = (float)($group['deltas'][$option] ?? 0); ?>
                                     <label class="sf-choice">
-                                        <input type="radio" name="pdp-v<?= $gi ?>" value="<?= e($option) ?>"<?= $oi === 0 ? ' checked' : '' ?>>
-                                        <span><?= e($option) ?></span>
+                                        <input type="radio" name="pdp-v<?= $gi ?>" value="<?= e($option) ?>" data-delta="<?= e(rtrim(rtrim(number_format($d, 2, '.', ''), '0'), '.')) ?>"<?= $oi === 0 ? ' checked' : '' ?>>
+                                        <span><?= e($option) ?><?php if ($d != 0.0): ?> <small class="sf-choice__delta"><?= ($d > 0 ? '+' : '−') . e(sf_money(abs($d), $currency)) ?></small><?php endif; ?></span>
                                     </label>
                                 <?php endforeach; ?>
                             </div>
                         </fieldset>
                     <?php endforeach; ?>
+                    <?php if ($has_priced): ?>
+                        <p class="sf-buy__chosen" data-buy-price hidden></p>
+                    <?php endif; ?>
                     <label class="sf-field">
                         <span class="sf-field__label">Note for the shop <span class="sf-field__opt">(optional)</span></span>
                         <input type="text" name="note" maxlength="255" autocomplete="off">

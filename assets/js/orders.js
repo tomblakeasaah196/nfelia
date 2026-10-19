@@ -13,12 +13,37 @@ function orderForm() {
 
     function num(v) { var n = parseFloat(String(v === undefined || v === null ? '' : v).replace(NUM, '')); return isFinite(n) ? n : 0; }
     function round2(n) { return Math.round(n * 100) / 100; }
+    // Variant helpers: the chosen options' price changes, and the text that
+    // names the choice ("Colour: Navy Blue, Size: XXL").
+    function deltaSum(variants, choices) {
+        var d = 0;
+        (variants || []).forEach(function (g) {
+            var lab = choices[g.name];
+            (g.options || []).forEach(function (o) { if (o.label === lab) { d += num(o.delta); } });
+        });
+        return d;
+    }
+    function variantStr(variants, choices) {
+        return (variants || []).map(function (g) { return g.name + ': ' + (choices[g.name] || ''); })
+            .filter(function (s) { return s.slice(-2) !== ': '; }).join(', ');
+    }
     function line(src, product) {
         var p = product || null;
+        var variants = (p && p.variants) || [];
+        var choices = {};
+        // Start from a stored choice (editing), then fill any gap with the first option.
+        if (src.variant) {
+            String(src.variant).split(', ').forEach(function (tok) { var at = tok.indexOf(': '); if (at > 0) { choices[tok.slice(0, at)] = tok.slice(at + 2); } });
+        }
+        variants.forEach(function (g) { if (choices[g.name] === undefined) { choices[g.name] = g.options[0] ? g.options[0].label : ''; } });
+        var base = p ? p.price : num(src.unit_price);
+        var hasPrice = src.unit_price !== undefined && src.unit_price !== '';
         return {
             key: ++uid, product_id: src.product_id || null, name: src.name || (p ? p.name : ''),
-            quantity: String(src.quantity || '1'), unit_price: src.unit_price !== undefined && src.unit_price !== '' ? String(src.unit_price) : (p ? String(p.price) : ''),
-            note: src.note || '', variant: src.variant || '', showNote: false, stock: p ? p.stock : null, unit: p ? p.unit : ''
+            quantity: String(src.quantity || '1'),
+            unit_price: hasPrice ? String(src.unit_price) : String(round2(base + deltaSum(variants, choices))),
+            note: src.note || '', variant: src.variant || variantStr(variants, choices), variants: variants, choices: choices, base: base,
+            showNote: false, stock: p ? p.stock : null, unit: p ? p.unit : ''
         };
     }
     function productById(id) {
@@ -148,11 +173,20 @@ function orderForm() {
             return list.slice(0, 60);
         },
         addProduct: function (p) {
-            for (var i = 0; i < this.items.length; i++) {
-                if (this.items[i].product_id === p.id) { this.step(this.items[i], 1); this.closePicker(); return; }
+            // Products without variants merge into one line; a product with
+            // variants can appear several times (one per colour/size), so each
+            // gets its own line.
+            if (!(p.variants && p.variants.length)) {
+                for (var i = 0; i < this.items.length; i++) {
+                    if (this.items[i].product_id === p.id) { this.step(this.items[i], 1); this.closePicker(); return; }
+                }
             }
-            this.items.push(line({ product_id: p.id, name: p.name, quantity: '1', unit_price: p.price }, p));
+            this.items.push(line({ product_id: p.id, name: p.name, quantity: '1' }, p));
             this.closePicker();
+        },
+        onVariant: function (it) {
+            it.variant = variantStr(it.variants, it.choices);
+            it.unit_price = String(round2(num(it.base) + deltaSum(it.variants, it.choices)));
         },
         addOwn: function () {
             if (!this.ownName.trim()) return;

@@ -912,7 +912,7 @@ function storefront_catalogue(array $business, array $settings): array {
 
     $variants = [];
     $stmt = $db->prepare("
-        SELECT g.id AS group_id, g.product_id, g.name AS group_name, o.label
+        SELECT g.id AS group_id, g.product_id, g.name AS group_name, o.label, o.price_delta
         FROM product_variant_groups g
         LEFT JOIN product_variant_options o ON o.variant_group_id = g.id
         WHERE g.business_id = ?
@@ -922,9 +922,15 @@ function storefront_catalogue(array $business, array $settings): array {
     foreach ($stmt->fetchAll() as $row) {
         $pid = (int)$row['product_id'];
         $gid = (int)$row['group_id'];
-        $variants[$pid][$gid] ??= ['name' => $row['group_name'], 'options' => []];
+        // 'deltas' maps an option's label to its price change; only options that
+        // actually move the price are listed, so most groups carry none.
+        $variants[$pid][$gid] ??= ['name' => $row['group_name'], 'options' => [], 'deltas' => []];
         if ($row['label'] !== null && $row['label'] !== '') {
             $variants[$pid][$gid]['options'][] = $row['label'];
+            $delta = (float)$row['price_delta'];
+            if ($delta != 0.0) {
+                $variants[$pid][$gid]['deltas'][$row['label']] = $delta;
+            }
         }
     }
 

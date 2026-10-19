@@ -132,7 +132,7 @@ class ProductController {
         $stmtCats->execute([$this->biz_id]);
         $categories = $stmtCats->fetchAll(PDO::FETCH_COLUMN);
 
-        $title     = ($business['business_type'] ?? '') === 'service' ? 'Services' : 'Stock';
+        $title     = 'Catalogue';
         $view_file = BASE_PATH . '/views/products/index.php';
         require_once BASE_PATH . '/views/layouts/app.php';
     }
@@ -572,7 +572,7 @@ class ProductController {
         $stmtCnt->execute([$this->biz_id]);
         $product_count = (int)$stmtCnt->fetchColumn();
 
-        $title     = "Inventory Setup";
+        $title     = "Catalogue Setup";
         $view_file = BASE_PATH . '/views/products/setup.php';
         require_once BASE_PATH . '/views/layouts/app.php';
     }
@@ -941,48 +941,75 @@ class ProductController {
     }
 
     private function save_variant_groups(int $product_id): void {
+        // The editor sends parallel arrays per group:
+        //   variant_group_name[gi]        the group's name
+        //   variant_opt_label[gi][]       each option's label
+        //   variant_opt_price[gi][]       each option's price change (+/−),
+        //                                 only when the group changes the price
         $group_names = $_POST['variant_group_name'] ?? [];
-        $group_options = $_POST['variant_group_options'] ?? [];
+        $opt_labels  = $_POST['variant_opt_label'] ?? [];
+        $opt_prices  = $_POST['variant_opt_price'] ?? [];
 
-        if (empty($group_names)) return;
-
-        // Delete existing variant groups (cascade deletes options)
+        // Clear first so removing every group on an edit actually takes effect.
         $this->db->prepare("DELETE FROM product_variant_groups WHERE product_id = ? AND business_id = ?")
                   ->execute([$product_id, $this->biz_id]);
+        if (!is_array($group_names) || !$group_names) return;
 
-        for ($i = 0; $i < count($group_names); $i++) {
-            $name = trim($group_names[$i] ?? '');
-            $opts_str = trim($group_options[$i] ?? '');
+        $sort = 0;
+        $ins_opt = $this->db->prepare("
+            INSERT INTO product_variant_options (variant_group_id, label, price_delta, sort_order)
+            VALUES (?, ?, ?, ?)
+        ");
+        foreach ($group_names as $gi => $raw_name) {
+            // A comma is the separator in the "Group: Label" choice string the
+            // shop and order builder use, so it can't live inside a name.
+            $name = trim(str_replace(',', ' ', (string)$raw_name));
             if ($name === '') continue;
+
+            // Gather this group's non-empty options, each with its price delta.
+            $labels = is_array($opt_labels[$gi] ?? null) ? $opt_labels[$gi] : [];
+            $prices = is_array($opt_prices[$gi] ?? null) ? $opt_prices[$gi] : [];
+            $options = [];
+            foreach ($labels as $j => $label) {
+                $label = trim(str_replace(',', ' ', (string)$label));
+                if ($label === '') continue;
+                $delta = round((float)($prices[$j] ?? 0), 2);
+                $options[] = [mb_substr($label, 0, 50), $delta];
+            }
+            if (!$options) continue;   // a group with no options is not a group
 
             $this->db->prepare("
                 INSERT INTO product_variant_groups (product_id, business_id, name, sort_order)
                 VALUES (?, ?, ?, ?)
-            ")->execute([$product_id, $this->biz_id, $name, $i]);
+            ")->execute([$product_id, $this->biz_id, mb_substr($name, 0, 50), $sort]);
             $group_id = (int)$this->db->lastInsertId();
 
-            // Parse comma-separated options
-            $opts = array_filter(array_map('trim', explode(',', $opts_str)));
-            foreach ($opts as $j => $label) {
-                if ($label === '') continue;
-                $this->db->prepare("
-                    INSERT INTO product_variant_options (variant_group_id, label, sort_order)
-                    VALUES (?, ?, ?)
-                ")->execute([$group_id, $label, $j]);
+            foreach ($options as $j => [$label, $delta]) {
+                $ins_opt->execute([$group_id, $label, $delta, $j]);
             }
+            $sort++;
         }
     }
 
     private function get_variant_groups(int $product_id): array {
         $stmt = $this->db->prepare("
-            SELECT pvg.*, GROUP_CONCAT(pvo.label ORDER BY pvo.sort_order SEPARATOR ', ') as options_str
+            SELECT pvg.id, pvg.name, pvo.label, pvo.price_delta
             FROM product_variant_groups pvg
             LEFT JOIN product_variant_options pvo ON pvo.variant_group_id = pvg.id
             WHERE pvg.product_id = ? AND pvg.business_id = ?
-            GROUP BY pvg.id
-            ORDER BY pvg.sort_order ASC
+            ORDER BY pvg.sort_order ASC, pvg.id ASC, pvo.sort_order ASC, pvo.id ASC
         ");
         $stmt->execute([$product_id, $this->biz_id]);
-        return $stmt->fetchAll();
+        $groups = [];
+        foreach ($stmt->fetchAll() as $row) {
+            $gid = (int)$row['id'];
+            if (!isset($groups[$gid])) {
+                $groups[$gid] = ['id' => $gid, 'name' => (string)$row['name'], 'options' => []];
+            }
+            if ($row['label'] !== null && $row['label'] !== '') {
+                $groups[$gid]['options'][] = ['label' => (string)$row['label'], 'price_delta' => (float)$row['price_delta']];
+            }
+        }
+        return array_values($groups);
     }
 }
