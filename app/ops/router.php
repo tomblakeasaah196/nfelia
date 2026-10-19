@@ -43,6 +43,7 @@ function ops_routes(): array
         // The monitor: errors, health, alerts
         ['GET',  'errors',                       'OpsErrorsController',  'index',            'errors'],
         ['POST', 'errors/bulk',                  'OpsErrorsController',  'bulk',             'errors'],
+        ['POST', 'errors/export',                'OpsErrorsController',  'export',           'errors'],
         ['GET',  'errors/(\d+)',                 'OpsErrorsController',  'show',             'errors'],
         ['GET',  'errors/code/([A-Za-z0-9]{8})', 'OpsErrorsController',  'code',             'errors'],
         ['POST', 'errors/(\d+)/status',          'OpsErrorsController',  'status',           'errors'],

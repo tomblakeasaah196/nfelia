@@ -322,6 +322,16 @@ $grace->get(o('errors'));
 $grace->post(o('errors/bulk'), ['ids' => $ids, 'status' => 'fixed']);
 eq((int)q("SELECT COUNT(*) FROM error_groups WHERE kind = 'log' AND status = 'fixed'"), count($ids), count($ids) . ' marked fixed together');
 
+section('Downloading several for an AI');
+
+$grace->get(o('errors'));
+ok(str_contains($grace->body, 'Download for AI'), 'the ticked bar offers a download');
+$grace->post(o('errors/export'), ['ids' => [$fg['id'], group_of($sref)['id']]]);
+ok(str_starts_with($grace->headers['content-type'] ?? '', 'text/markdown') && str_contains($grace->headers['content-disposition'] ?? '', '.md"'), 'a Markdown file to save');
+ok(str_contains($grace->body, '# Nfelia errors to fix: 2 problems') && str_contains($grace->body, 'exactly 2 clarification questions'), 'with the brief for the AI');
+ok(str_contains($grace->body, 'Allowed memory size') && str_contains($grace->body, $sref) && str_contains($grace->body, 'Raised the limit on the export'), 'each problem, its error codes and the team\'s notes');
+ok(!str_contains($grace->body, 'Ada\'s Hair'), 'but no client names');
+
 section('Health, alerts, and who sees them');
 
 $grace->get(o('health'));

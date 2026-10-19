@@ -68,6 +68,7 @@ if ($filter['level'] !== '') $chips[] = [$levels[$filter['level']] ?? $filter['l
     <?= ops_csrf_field() ?>
     <div class="ops-bulk" data-ops-bulk-bar hidden>
         <span><b data-ops-bulk-count>0</b> ticked</span>
+        <button class="ops-btn ops-btn-primary ops-btn-sm" type="submit" formaction="<?= e(ops_url('errors/export')) ?>" title="One Markdown file with every ticked error, to share with an AI"><?= ops_icon('download') ?> <span>Download for AI</span></button>
         <button class="ops-btn ops-btn-secondary ops-btn-sm" type="submit" name="status" value="fixed">Mark fixed</button>
         <button class="ops-btn ops-btn-secondary ops-btn-sm" type="submit" name="status" value="ignored">Ignore</button>
         <?php if ($filter['status'] === 'fixed' || $filter['status'] === 'ignored'): ?>

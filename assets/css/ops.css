@@ -247,8 +247,9 @@ a.ops-kpi:hover { border-color: var(--line-2); box-shadow: var(--shadow); text-d
 .ops-select-auto { width: auto; min-height: 40px; padding: 8px 10px; }
 .ops-chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: -4px 0 12px; }
 .ops-chips a.ops-chip:hover { text-decoration: none; border-color: var(--accent); }
-.ops-bulk { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 14px; margin-bottom: 10px; background: var(--accent-tint); border: 1px solid #EBC9D9; border-radius: var(--radius-sm); }
+.ops-bulk { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; position: sticky; top: 8px; z-index: 5; padding: 10px 14px; margin-bottom: 10px; background: var(--accent-tint); border: 1px solid #EBC9D9; border-radius: var(--radius-sm); }
 .ops-bulk > span { margin-right: 8px; }
+@media (max-width: 899px) { .ops-bulk { top: 64px; } }
 .ops-table .cell-check { width: 40px; padding-right: 0; }
 .ops-table .cell-check input { width: 18px; height: 18px; accent-color: var(--accent); }
 .ops-table .cell-problem .cell-sub { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 4px; }

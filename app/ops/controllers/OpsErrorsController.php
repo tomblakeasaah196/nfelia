@@ -10,6 +10,7 @@
  *   POST errors/{id}/assign          who is looking at it
  *   POST errors/{id}/notes           a note for the team
  *   POST errors/bulk                 fixed or ignored, for several at once
+ *   POST errors/export               the ticked ones as a Markdown file for an AI
  */
 class OpsErrorsController
 {
@@ -222,6 +223,48 @@ class OpsErrorsController
         ops_redirect(ops_back('errors'));
     }
 
+    /** The ticked problems as one Markdown file, with a brief, to hand to an AI. */
+    public function export(): void
+    {
+        $ids = array_slice(array_values(array_filter(array_map('intval', (array)($_POST['ids'] ?? [])))), 0, 50);
+        if (!$ids) {
+            ops_flash('error', 'Tick at least one, then download.');
+            ops_redirect(ops_back('errors'));
+        }
+        $in = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $this->db->prepare("SELECT * FROM error_groups WHERE id IN ({$in}) ORDER BY last_seen_at DESC");
+        $stmt->execute($ids);
+        $groups = $stmt->fetchAll();
+        if (!$groups) {
+            ops_redirect(ops_back('errors'));
+        }
+
+        $events  = $this->db->prepare("SELECT ref, created_at, method, path, source, message, trace, user_agent, release_id, duration_ms FROM error_events WHERE group_id = ? ORDER BY id DESC LIMIT 5");
+        $day     = $this->db->prepare("SELECT COUNT(*) FROM error_events WHERE group_id = ? AND created_at > NOW() - INTERVAL 1 DAY");
+        $clients = $this->db->prepare("SELECT COUNT(DISTINCT business_id) FROM error_events WHERE group_id = ? AND business_id IS NOT NULL");
+        $notes   = $this->db->prepare("SELECT body FROM error_notes WHERE group_id = ? ORDER BY id");
+        foreach ($groups as &$g) {
+            $events->execute([$g['id']]);
+            $g['latest'] = $events->fetchAll();
+            $day->execute([$g['id']]);
+            $g['day_events'] = (int)$day->fetchColumn();
+            $clients->execute([$g['id']]);
+            $g['clients'] = (int)$clients->fetchColumn();
+            $notes->execute([$g['id']]);
+            $g['notes'] = $notes->fetchAll(PDO::FETCH_COLUMN);
+        }
+        unset($g);
+
+        ops_audit('error.export', 'Downloaded ' . count($groups) . ' error' . (count($groups) === 1 ? '' : 's') . ' for AI',
+                  ['data' => ['ids' => array_map('intval', array_column($groups, 'id'))]]);
+
+        $md = ops_errors_markdown($groups, $this->me['full_name'] ?? '', self::KINDS, self::LEVELS, self::STATUSES);
+        header('Content-Type: text/markdown; charset=utf-8');
+        header('Content-Disposition: attachment; filename="nfelia-errors-' . date('Y-m-d-Hi') . '.md"');
+        header('Cache-Control: no-store');
+        echo $md;
+    }
+
     /* ── Shared ───────────────────────────────────────────── */
 
     private function group(int $id): array
@@ -320,4 +363,95 @@ function ops_error_copy_text(array $g, array $events, array $clients, int $day_e
     }
     $lines[] = 'The app: Nfelia, PHP 8.3 without a framework (index.php front controller, app/controllers, app/helpers, views), MariaDB 10.11.';
     return implode("\n", $lines);
+}
+
+/**
+ * Several problems as one Markdown file for an AI chat: a brief first (find the
+ * root cause, ask two questions, then fix), then each problem with its latest
+ * occurrences. No client or person names: the file leaves Nfelia.
+ */
+function ops_errors_markdown(array $groups, string $by, array $kinds, array $levels, array $statuses): string
+{
+    $fence = function (string $text): string {
+        preg_match_all('/`+/', $text, $m);
+        $ticks = str_repeat('`', max(3, ...array_map(fn($r) => strlen($r) + 1, $m[0] ?: [''])));
+        return $ticks . "\n" . rtrim($text) . "\n" . $ticks;
+    };
+    $one_line = fn(string $s): string => trim(preg_replace('/\s+/', ' ', $s));
+    $n = count($groups);
+
+    $md = [];
+    $md[] = '# Nfelia errors to fix: ' . $n . ' problem' . ($n === 1 ? '' : 's');
+    $md[] = '';
+    $md[] = 'Downloaded from Nfelia Ops on ' . date('j M Y, H:i') . ' Lagos time' . ($by !== '' ? ' by ' . $by : '') . '. Live release: ' . app_release() . '.';
+    $md[] = '';
+    $md[] = '## How to work on these';
+    $md[] = '';
+    $md[] = 'You are helping fix production errors in Nfelia: PHP 8.3 without a framework (index.php front controller, app/controllers, app/helpers, views), MariaDB 10.11, plain JavaScript and Alpine.js in the browser. Times are Lagos time (UTC+1).';
+    $md[] = '';
+    $md[] = '1. Read every problem below before answering. Several may be one bug showing on different pages or in different ways; say so when they are.';
+    $md[] = '2. Brainstorm the root cause of each: what in the code most likely does this, and why. Cite the file, line, stack trace, page or browser that points to it, and say how sure you are. If the code is not in front of you, say which files you need to see.';
+    $md[] = '3. Before changing anything, ask me exactly 2 clarification questions: the two whose answers would most change the fix. Wait for my answers.';
+    $md[] = '4. Then fix the root cause, not the symptom, with the smallest change that does it. Say which problems (by number and error code) each change resolves, and how I can check it worked.';
+    $md[] = '';
+    $md[] = '## The problems';
+    $md[] = '';
+    $md[] = '| # | Problem | Kind | Today | In all |';
+    $md[] = '|---|---|---|---|---|';
+    foreach ($groups as $i => $g) {
+        $md[] = '| ' . ($i + 1) . ' | ' . str_replace('|', '\|', mb_strimwidth($one_line($g['title']), 0, 90, '…')) . ' | ' . ($kinds[$g['kind']] ?? $g['kind']) . ' | ' . (int)$g['day_events'] . ' | ' . (int)$g['events'] . ' |';
+    }
+
+    foreach ($groups as $i => $g) {
+        $md[] = '';
+        $md[] = '---';
+        $md[] = '';
+        $md[] = '### ' . ($i + 1) . '. ' . mb_strimwidth($one_line($g['title']), 0, 200, '…');
+        $md[] = '';
+        $md[] = '- **What:** ' . ($levels[$g['level']] ?? $g['level']) . ', ' . ($kinds[$g['kind']] ?? $g['kind']) . ' (' . $g['kind'] . '/' . $g['level'] . '). Status: ' . ($statuses[$g['status']] ?? $g['status']) . '.';
+        if ($g['file']) $md[] = '- **Where in the code:** `' . $g['file'] . ($g['line'] ? ':' . $g['line'] : '') . '`';
+        if ($g['route']) $md[] = '- **Page:** `' . $g['route'] . '`';
+        $md[] = '- **How often:** ' . (int)$g['day_events'] . ' in the last 24 hours, ' . (int)$g['events'] . ' in all, for ' . (int)$g['clients'] . ' client' . ((int)$g['clients'] === 1 ? '' : 's') . '.';
+        $md[] = '- **First seen:** ' . $g['first_seen_at'] . ' (release ' . ($g['first_release'] ?: '?') . '). **Last seen:** ' . $g['last_seen_at'] . ' (release ' . ($g['last_release'] ?: '?') . ').';
+        if ((int)$g['regressions']) $md[] = '- **Came back** ' . (int)$g['regressions'] . ' time' . ((int)$g['regressions'] === 1 ? '' : 's') . ' after being marked fixed.';
+        $explain = ops_error_explain($g);
+        if ($explain !== '') $md[] = '- **In plain words:** ' . $explain;
+        $md[] = '- **In Ops:** ' . ops_url('errors/' . (int)$g['id']);
+        if ($g['message'] && $g['message'] !== $g['title']) {
+            $md[] = '';
+            $md[] = '**Full message:**';
+            $md[] = '';
+            $md[] = $fence(mb_substr($g['message'], 0, 2000));
+        }
+        $pages = array_values(array_unique(array_filter(array_column($g['latest'], 'path'))));
+        if (count($pages) > 1) {
+            $md[] = '';
+            $md[] = '**Pages it happened on lately:** ' . implode(', ', array_map(fn($p) => '`' . $p . '`', $pages));
+        }
+        foreach ($g['latest'] as $k => $ev) {
+            $md[] = '';
+            $md[] = '**' . ($k === 0 ? 'Latest occurrence' : 'Earlier') . ', ' . $ev['ref'] . ':** ' . $ev['created_at']
+                  . ' on ' . trim(($ev['method'] && $ev['method'] !== 'CLI' ? $ev['method'] . ' ' : '') . ($ev['path'] ?: '?'))
+                  . ' (' . $ev['source'] . ', release ' . ($ev['release_id'] ?: '?') . ($ev['duration_ms'] ? ', ' . number_format($ev['duration_ms'] / 1000, 1) . ' s' : '') . ')';
+            if ($ev['user_agent']) $md[] = '- Browser: ' . $one_line($ev['user_agent']);
+            if ($ev['message'] && $ev['message'] !== $g['message'] && $ev['message'] !== $g['title']) {
+                $md[] = '';
+                $md[] = $fence(mb_substr($ev['message'], 0, 1000));
+            }
+            // The full stack trace for the latest; earlier ones only if it differs.
+            if ($ev['trace'] && ($k === 0 || $ev['trace'] !== ($g['latest'][0]['trace'] ?? null))) {
+                $md[] = '';
+                $md[] = $fence(mb_substr($ev['trace'], 0, $k === 0 ? 4000 : 1500));
+            }
+        }
+        if ($g['notes']) {
+            $md[] = '';
+            $md[] = '**What the team noted:**';
+            foreach ($g['notes'] as $note) {
+                $md[] = '- ' . $one_line(mb_substr($note, 0, 1000));
+            }
+        }
+    }
+    $md[] = '';
+    return implode("\n", $md);
 }
