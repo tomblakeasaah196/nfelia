@@ -319,14 +319,14 @@ function records_build(PDO $db, int $id): bool
     return true;
 }
 
-/** Let a build use more memory where the host allows it (a big book needs a few hundred MB). */
+/**
+ * A build gets 1 GB (a book at the cell limit needs about 420 MB): more than
+ * most hosts give a page, and a ceiling where they give none, so a build that
+ * went wrong stops with an error saying where, not killed by the system.
+ */
 function records_raise_memory(): void
 {
-    $limit = (string)ini_get('memory_limit');
-    $bytes = (int)$limit * match (strtoupper(substr($limit, -1))) { 'G' => 1073741824, 'M' => 1048576, 'K' => 1024, default => 1 };
-    if ($limit !== '-1' && $bytes < 1073741824) {
-        @ini_set('memory_limit', '1024M');
-    }
+    @ini_set('memory_limit', '1024M');
 }
 
 /** A business, with what its book shows about it: owner, country, currency, shop link. */
