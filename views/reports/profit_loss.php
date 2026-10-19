@@ -177,7 +177,7 @@ $cat_labels = [
                     <div class="text-[10px] text-brand-plum/40"><?= $pending_count ?> invoice<?= $pending_count !== 1 ? 's' : '' ?></div>
                 </div>
                 <div>
-                    <div class="text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">Active Debts (Receivable)</div>
+                    <div class="text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">Owed to me</div>
                     <div class="font-heading font-extrabold text-xl text-amber-600"><?= $currency ?><?= number_format($debts_receivable, 0) ?></div>
                     <div class="text-[10px] text-brand-plum/40"><?= $debts_receivable_count ?> debt<?= $debts_receivable_count !== 1 ? 's' : '' ?></div>
                 </div>
@@ -193,7 +193,7 @@ $cat_labels = [
         <div class="bg-brand-white border border-brand-sand rounded-xl p-5 shadow-sm">
             <h2 class="font-heading font-bold text-sm text-brand-plum mb-3 uppercase tracking-wider">Money You Owe</h2>
             <div>
-                <div class="text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">Active Debts (Payable)</div>
+                <div class="text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">I owe</div>
                 <div class="font-heading font-extrabold text-xl text-red-600"><?= $currency ?><?= number_format($debts_payable, 0) ?></div>
                 <div class="text-[10px] text-brand-plum/40"><?= $debts_payable_count ?> debt<?= $debts_payable_count !== 1 ? 's' : '' ?> to suppliers</div>
             </div>
