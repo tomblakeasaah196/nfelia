@@ -63,6 +63,26 @@ function newest_book(int $business, string $kind = 'book'): array
     return rows("SELECT * FROM records_books WHERE business_id = ? AND kind = ? ORDER BY id DESC LIMIT 1", [$business, $kind])[0] ?? [];
 }
 
+/**
+ * A book once it is made. The page answers first and makes the book just
+ * after (after_response), as the live server does, so this waits until the
+ * build is over and, when it worked, the owner has been told.
+ */
+function built(array $book): array
+{
+    $id = (int)($book['id'] ?? 0);
+    $until = microtime(true) + 60;
+    do {
+        $b = book_row($id);
+        $over = $b && !in_array($b['status'], ['queued', 'building'], true);
+        if ($over && ($b['status'] !== 'ready' || (int)q("SELECT COUNT(*) FROM notifications WHERE dedupe_key LIKE ?", ['%:book:' . $id]))) {
+            return $b;
+        }
+        usleep(100000);
+    } while (microtime(true) < $until);
+    return $b;
+}
+
 function last_mail(string $address): array
 {
     $all = mails_to($address);
@@ -87,7 +107,7 @@ $chidi->get('records');
 eq($chidi->to(), 'dashboard', 'staff can\'t take the business\'s records out');
 
 $ada->post('records/make', ['sheets' => $all, 'period' => 'all']);
-$book = newest_book(2);
+$book = built(newest_book(2));
 eq([$book['status'] ?? null, $book['charge'] ?? null], ['ready', 'free'], 'the book is made at once, free with the plan');
 ok(($file = records_file($book)) && hash_file('sha256', $file) === $book['sha256'], 'the file is kept, with the fingerprint nfelia.com/verify checks');
 eq(told('records.ready'), [ADA], 'the owner is told it is ready');
@@ -136,7 +156,8 @@ eq([$receipt['kind'] ?? null, (int)($receipt['book_id'] ?? 0), (float)($receipt[
 $grace->get(o('payments'));
 ok(str_contains($grace->body, 'Records Book'), 'Ops sees it is for a Records Book');
 $grace->post(o('payments/' . $receipt['id'] . '/approve'));
-eq([book_row((int)$paid['id'])['status'], book_row((int)$paid['id'])['charge'], (float)book_row((int)$paid['id'])['amount']], ['ready', 'paid', 110.0], 'approved: the book is made, as bought');
+$paid = built($paid);
+eq([$paid['status'], $paid['charge'], (float)$paid['amount']], ['ready', 'paid', 110.0], 'approved: the book is made, as bought');
 ok(in_array(KOLA, told('records.paid'), true) && in_array(KOLA, told('records.ready'), true), 'Kola hears the payment came in, then that it is ready');
 exec_sql("UPDATE businesses SET country_id = 1 WHERE id = 3");
 exec_sql("UPDATE subscriptions SET country_id = 1, payment_method = NULL WHERE business_id = 3");
@@ -147,7 +168,7 @@ exec_sql("UPDATE subscriptions SET trial_ends_at = CURDATE() - INTERVAL 20 DAY W
 $kola->get('records');
 eq($kola->status, 200, 'Your records stays open after the trial ends');
 $kola->post('records/plain');
-$raw = newest_book(3, 'raw');
+$raw = built(newest_book(3, 'raw'));
 eq([$raw['status'] ?? null, $raw['charge'] ?? null], ['ready', 'raw'], 'the plain copy is made at once, free');
 $kola->get('records/download/' . $raw['id']);
 $files = zip_files($kola->body);
@@ -155,7 +176,7 @@ ok(isset($files['customers.csv'], $files['READ ME.txt']) && str_contains($files[
 ok(!str_contains(implode("\n", $files), 'Ngozi Eze'), 'only Kola\'s own records');
 ok(!str_contains($files['users.csv'] ?? '', 'password_hash') && !str_contains($files['users.csv'] ?? '', '$2y$'), 'no password hashes');
 $ada->post('records/plain');
-$files = zip_files(($ada->get('records/download/' . newest_book(2, 'raw')['id']))->body);
+$files = zip_files(($ada->get('records/download/' . built(newest_book(2, 'raw'))['id']))->body);
 ok(!str_contains($files['invoices.csv'] ?? '', (string)q("SELECT token FROM invoices WHERE id = 400")), 'nor the secret links of documents');
 exec_sql("UPDATE subscriptions SET trial_ends_at = CURDATE() + INTERVAL 10 DAY WHERE business_id = 3");
 ok(str_contains($files['invoices.csv'] ?? '', 'ADA-INV-0400') && str_contains($files['invoices.csv'] ?? '', 'currency') === str_contains((string)q("SHOW COLUMNS FROM invoices LIKE 'currency%'"), 'currency'),
@@ -176,7 +197,7 @@ $sam->post(o('records'), ['client' => 2, 'sheets' => $all, 'reason' => '']);
 eq((int)q("SELECT COUNT(*) FROM records_books"), $before, 'a reason is needed (the owner is told it)');
 clean_slate();
 $sam->post(o('records'), ['client' => 2, 'sheets' => $all, 'period' => 'all', 'reason' => 'Ada asked on WhatsApp, for a bank loan']);
-$team = newest_book(2);
+$team = built(newest_book(2));
 eq([$team['status'], $team['charge'], (int)$team['staff_id'], (int)$team['send_to_owner'], ops_to($sam)], ['ready', 'team', 2, 1, 'records/' . $team['id']], 'made by the team, sent to the owner');
 $bell = bell(ADA, 'records.team_built')[0] ?? [];
 ok($bell && str_contains($bell['message'], 'Sam Support') && str_contains($bell['message'], 'bank loan'), 'Ada is told who made it and why');
@@ -189,7 +210,7 @@ $grace->get(o('records/' . $team['id'] . '/download'));
 ok(is_xlsx($grace), 'an Admin can');
 eq(count(audit_rows('records.downloaded')), 1, 'and that is in the audit log too');
 $grace->post(o('records'), ['client' => 3, 'sheets' => ['customers'], 'period' => 'all', 'reason' => 'Checking a support ticket']);
-eq((int)newest_book(3)['send_to_owner'], 0, 'an Admin may make one without sending it');
+eq((int)built(newest_book(3))['send_to_owner'], 0, 'an Admin may make one without sending it');
 $sam->get(o('clients/2'));
 ok(str_contains($sam->body, 'Make a Records Book'), 'the client\'s page links to it');
 $sam->get(o(''));
