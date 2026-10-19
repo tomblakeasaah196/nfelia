@@ -182,7 +182,11 @@ class SettingsController {
             redirect('settings#numbers');
             return;
         }
-        $this->db->prepare("UPDATE businesses SET doc_prefix = ?, prefix_nudge_seen = NULL WHERE id = ?")->execute([$prefix, $this->biz_id]);
+        // A prefix chosen by hand answers the name as it is now: no suggestion until a rename
+        $stmt = $this->db->prepare("SELECT name FROM businesses WHERE id = ?");
+        $stmt->execute([$this->biz_id]);
+        $this->db->prepare("UPDATE businesses SET doc_prefix = ?, prefix_nudge_seen = ? WHERE id = ?")
+                 ->execute([$prefix, derive_prefix((string)$stmt->fetchColumn()), $this->biz_id]);
         update_business_session(['doc_prefix' => $prefix]);
         flash('success', 'New numbers start with ' . $prefix . ', like ' . $prefix . '-ORD-' . $this->next_number('ORD') . '. Papers already sent keep ' . $old . '.');
         redirect('settings#numbers');
@@ -264,6 +268,16 @@ class SettingsController {
         }
 
         $remove_logo = isset($_POST['remove_logo']);
+
+        // A rename: remember what the old name suggested, so the Document
+        // numbers card offers a new prefix only because the name changed
+        $stmt_was = $this->db->prepare("SELECT name, prefix_nudge_seen FROM businesses WHERE id = ?");
+        $stmt_was->execute([$this->biz_id]);
+        $was = $stmt_was->fetch() ?: [];
+        if ($name !== '' && ($was['name'] ?? '') !== $name && ($was['prefix_nudge_seen'] ?? null) === null) {
+            $this->db->prepare("UPDATE businesses SET prefix_nudge_seen = ? WHERE id = ?")
+                     ->execute([derive_prefix((string)$was['name']), $this->biz_id]);
+        }
 
         $sql = "UPDATE businesses SET
                     name = ?, tagline = ?, phone = ?, email = ?,

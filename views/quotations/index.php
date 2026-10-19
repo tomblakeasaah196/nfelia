@@ -73,7 +73,7 @@ $sorts    = ['newest' => 'Newest first', 'oldest' => 'Oldest first', 'total_desc
 
     <div class="nf-items">
         <?php foreach ($quotations as $q):
-            [$tag, $tag_cls] = screen_quote_tag($q['status']);
+            [$tag, $tag_cls] = screen_quote_tag($q['status'], (bool)($q['has_order'] ?? true));
             // A quote still out with the customer says how long it stands.
             if (in_array($q['status'], ['sent', 'in_negotiation', 'pending_signature'], true) && $q['expiry_date']) {
                 if ($q['expiry_date'] < $today) {
@@ -115,7 +115,7 @@ $sorts    = ['newest' => 'Newest first', 'oldest' => 'Oldest first', 'total_desc
             } ?></h2>
             <p><?= match ($status) {
                 'waiting'   => 'Quotes you send wait here until the customer answers.',
-                'accepted'  => 'When a customer accepts a quote, make it an invoice from here.',
+                'accepted'  => 'When a customer accepts a quote, it becomes an order. One that didn\'t waits here: tap Make it an order.',
                 'draft'     => 'Quotes you save without sending wait here.',
                 'converted' => 'Accepted quotes become orders, and show here.',
                 default     => 'No quote has this status right now.',

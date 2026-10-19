@@ -61,6 +61,14 @@ class DashboardController {
 
         // The latest orders: every sale starts as one.
         $recent_orders = order_rows($this->db, $this->biz_id, [], 5);
+        // "Still owed" opens the orders with a balance, unless older invoices
+        // without an order are owed too: then the unpaid invoices hold it all
+        $stmt_loose = $this->db->prepare("
+            SELECT COUNT(*) FROM invoices i
+            WHERE i.business_id = ? AND i.status IN ('sent','partially_paid','overdue') AND i.balance_due > 0
+              AND i.order_id IS NULL AND NOT EXISTS (SELECT 1 FROM orders o WHERE o.invoice_id = i.id AND o.business_id = i.business_id)");
+        $stmt_loose->execute([$this->biz_id]);
+        $owed_url = (int)$stmt_loose->fetchColumn() > 0 ? 'invoices?status=unpaid' : 'orders?view=balance';
 
         $hour = (int)$now->format('G');
         $greeting = $hour < 12 ? 'Good morning' : ($hour < 17 ? 'Good afternoon' : 'Good evening');

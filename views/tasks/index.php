@@ -547,7 +547,8 @@
                         </ol>
                     </div>
                     <div class="px-5 py-4 border-t border-brand-sand flex items-center gap-3">
-                        <a x-show="job.invoice_id" :href="appUrl + '/invoices/view/' + job.invoice_id" class="h-12 flex-1 inline-flex items-center justify-center rounded-xl border border-brand-sand text-sm font-semibold">Open invoice</a>
+                        <a x-show="job.order" :href="appUrl + '/orders/view/' + (job.order ? job.order.id : '')" class="h-12 flex-1 inline-flex items-center justify-center rounded-xl border border-brand-sand text-sm font-semibold" x-text="job.order ? 'Open order ' + job.order.number : ''"></a>
+                        <a x-show="job.invoice_id && !job.order" :href="appUrl + '/invoices/view/' + job.invoice_id" class="h-12 flex-1 inline-flex items-center justify-center rounded-xl border border-brand-sand text-sm font-semibold">Open invoice</a>
                         <button type="button" x-show="canDelete(job)" @click="form = { id: job.task_id, title: job.title, plan: job.plan }; askDelete()" class="h-12 px-4 rounded-xl border border-[#F3C5C0] text-[#B42318] text-sm font-semibold">Delete job plan</button>
                     </div>
                 </div>

@@ -54,7 +54,8 @@ class DebtController {
 
         if ($search !== '') {
             if ($tab === 'receivable') {
-                $where[]  = "(d.description LIKE ? OR c.full_name LIKE ? OR d.counterparty_name LIKE ?)";
+                $where[]  = "(d.description LIKE ? OR c.full_name LIKE ? OR d.counterparty_name LIKE ? OR o.order_number LIKE ?)";
+                $params[] = "%{$search}%";
                 $params[] = "%{$search}%";
             } else {
                 $where[]  = "(d.description LIKE ? OR s.full_name LIKE ?)";
@@ -87,7 +88,7 @@ class DebtController {
         // Count
         $count_sql = "SELECT COUNT(*) FROM debts d";
         if ($tab === 'receivable') {
-            $count_sql .= " LEFT JOIN customers c ON c.id = d.customer_id";
+            $count_sql .= " LEFT JOIN customers c ON c.id = d.customer_id LEFT JOIN orders o ON o.id = d.order_id AND o.business_id = d.business_id";
         } else {
             $count_sql .= " LEFT JOIN suppliers s ON s.id = d.supplier_id";
         }
@@ -529,6 +530,11 @@ class DebtController {
         $overdue = $stmt->fetchAll();
 
         foreach ($overdue as $inv) {
+            // An order's invoice: its one "Balance on order" debt, with its order
+            if ($order = order_by_invoice($this->db, $this->biz_id, (int)$inv['id'])) {
+                order_sync_debt($this->db, $this->biz_id, (int)$order['id']);
+                continue;
+            }
             $this->db->prepare("
                 INSERT INTO debts (business_id, user_id, type, customer_id, description, total_amount, amount_settled, balance, due_date, status, source, invoice_id)
                 VALUES (?, NULL, 'receivable', ?, ?, ?, 0, ?, ?, 'active', 'invoice', ?)

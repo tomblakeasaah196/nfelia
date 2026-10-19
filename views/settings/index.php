@@ -281,7 +281,12 @@ $current_staff_count = count($staff);
 // the next number of each kind, and a suggestion after a rename.
 $prefix_now = strtoupper((string)($business['doc_prefix'] ?? 'NFE'));
 $prefix_suggest = derive_prefix((string)($business['name'] ?? ''));
-$prefix_nudge = $is_owner && $prefix_suggest !== $prefix_now && $prefix_suggest !== strtoupper((string)($business['prefix_nudge_seen'] ?? ''));
+// Only after a rename: prefix_nudge_seen holds what the name suggested when
+// the prefix was last settled. With no record yet (businesses from before
+// this card), only a name that starts differently counts as a rename.
+$prefix_seen  = strtoupper((string)($business['prefix_nudge_seen'] ?? ''));
+$prefix_nudge = $is_owner && $prefix_suggest !== $prefix_now
+    && ($prefix_seen !== '' ? $prefix_suggest !== $prefix_seen : $prefix_suggest[0] !== $prefix_now[0]);
 $next_numbers = [];
 $stmt_counters = get_db()->prepare("SELECT doc_type, last_number FROM document_counters WHERE business_id = ?");
 $stmt_counters->execute([(int)$business['id']]);

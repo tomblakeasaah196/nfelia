@@ -66,7 +66,8 @@ class QuotationController {
 
         // Fetch
         $stmtQ = $this->db->prepare("
-            SELECT q.*, c.full_name as customer_name, c.phone as customer_phone
+            SELECT q.*, c.full_name as customer_name, c.phone as customer_phone,
+                   EXISTS(SELECT 1 FROM orders o WHERE o.quotation_id = q.id AND o.business_id = q.business_id) AS has_order
             FROM quotations q
             LEFT JOIN customers c ON c.id = q.customer_id
             WHERE {$where_sql}

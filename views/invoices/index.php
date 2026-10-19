@@ -96,8 +96,8 @@ $sorts    = ['newest' => 'Newest first', 'oldest' => 'Oldest first', 'due_date' 
     <div class="nf-empty">
         <span class="nf-tile-ic"><?= nav_icon('invoice') ?></span>
         <h2>No invoices yet</h2>
-        <p>When a customer buys now and pays later, an invoice keeps count of what they owe, and reminds you when it's due.</p>
-        <a class="nf-btn nf-btn-primary" href="<?= APP_URL ?>/invoices/create"><?= nav_icon('plus') ?>Create an invoice</a>
+        <p>Every order gets its invoice when you confirm it. It keeps count of what the customer owes, and reminds you when it's due.</p>
+        <a class="nf-btn nf-btn-primary" href="<?= APP_URL ?>/orders/create"><?= nav_icon('plus') ?>New order</a>
     </div>
 <?php endif; ?>
 </div>

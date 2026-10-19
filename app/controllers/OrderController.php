@@ -500,7 +500,12 @@ class OrderController
             $this->back($order, "error", "That message isn't ready for this order.");
         }
         $m = $messages["list"][$key];
-        order_log($this->db, $this->biz_id, (int) $order["id"], "whatsapp", "WhatsApp: " . $m["label"] . ".", $this->user_id(), ["key" => $key]);
+        // Logged only for a tap in the app itself: not by Nfelia support looking
+        // on (read-only), nor by a link followed from another site
+        $same_site = ($_SERVER["HTTP_SEC_FETCH_SITE"] ?? "same-origin") === "same-origin";
+        if ($same_site && !view_as_active()) {
+            order_log($this->db, $this->biz_id, (int) $order["id"], "whatsapp", "WhatsApp: " . $m["label"] . ".", $this->user_id(), ["key" => $key]);
+        }
         header("Location: https://wa.me/" . $messages["phone"] . "?text=" . rawurlencode($m["text"]));
         exit();
     }
@@ -589,6 +594,9 @@ class OrderController
     {
         $this->post_only("orders");
         $new_status = trim($_POST["status"] ?? "");
+        if ($new_status === "cancelled") {
+            require_boss("cancel an order");   // as orders/cancel does
+        }
         $allowed = [
             "approved" => ["processing", "fulfilled", "cancelled"],
             "processing" => ["fulfilled", "cancelled"],

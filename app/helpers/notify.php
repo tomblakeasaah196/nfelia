@@ -216,11 +216,12 @@ function notify_events(): array
         ],
         'delivery.signed' => [
             'topic' => 'customers', 'to' => 'boss',
-            'url' => fn($d) => 'deliveries/view/' . (int)$d['delivery_id'],
+            'url' => fn($d) => !empty($d['order_id']) ? 'orders/view/' . (int)$d['order_id'] . '#delivery' : 'deliveries/view/' . (int)$d['delivery_id'],
             'tag' => fn($d) => 'delivery-' . (int)$d['delivery_id'],
-            'text' => fn($d, $m) => ['Delivery signed: ' . $d['delivery_number'], 'Received and signed by ' . $d['signer'] . '.'],
+            'text' => fn($d, $m) => ['Delivery signed: ' . $d['delivery_number'],
+                                     'Received and signed by ' . $d['signer'] . (!empty($d['order_number']) ? ', order ' . $d['order_number'] : '') . '.'],
             'private' => 'A delivery was signed',
-            'button' => 'Open the delivery',
+            'button' => fn($d) => !empty($d['order_id']) ? 'Open the order' : 'Open the delivery',
         ],
         'review.new' => [
             'topic' => 'customers', 'to' => 'boss',

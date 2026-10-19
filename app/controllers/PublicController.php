@@ -520,22 +520,22 @@ class PublicController
         if (!empty($delivery["invoice_id"])) {
             planner_invoice_delivered($this->db, (int) $delivery["business_id"], (int) $delivery["invoice_id"]);
         }
+        /* The order behind this delivery, by its link or the order's own */
+        $stmtOrder = $this->db->prepare(
+            "SELECT id, order_number FROM orders WHERE business_id = ? AND (id = ? OR delivery_id = ?) ORDER BY id = ? DESC LIMIT 1",
+        );
+        $stmtOrder->execute([$delivery["business_id"], (int) ($delivery["order_id"] ?? 0), $delivery["id"], (int) ($delivery["order_id"] ?? 0)]);
+        $signed_order = $stmtOrder->fetch() ?: null;
+        $order_id = $signed_order ? (int) $signed_order["id"] : 0;
         notify("delivery.signed", (int) $delivery["business_id"], [
             "delivery_id" => (int) $delivery["id"], "delivery_number" => $delivery["doc_number"], "signer" => $signoff_name,
+            "order_id" => $order_id ?: null, "order_number" => $signed_order["order_number"] ?? null,
         ], ["dedupe" => (string) $delivery["id"]]);
         /* The order behind this delivery is done (its Log, the shopper told),
            and the shopper can now review it */
         $review_link = null;
         try {
             order_sync_from_delivery($this->db, (int) $delivery["business_id"], (int) $delivery["id"]);
-            $order_id = (int) ($delivery["order_id"] ?? 0);
-            if (!$order_id) {
-                $stmtOrder = $this->db->prepare(
-                    "SELECT id FROM orders WHERE delivery_id = ? AND business_id = ? LIMIT 1",
-                );
-                $stmtOrder->execute([$delivery["id"], $delivery["business_id"]]);
-                $order_id = (int) $stmtOrder->fetchColumn();
-            }
             if ($order_id) {
                 order_log($this->db, (int) $delivery["business_id"], $order_id, "signed",
                           mb_substr($signoff_name, 0, 100) . " signed for delivery " . $delivery["doc_number"] . ".");

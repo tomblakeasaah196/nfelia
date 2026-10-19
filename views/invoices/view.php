@@ -49,6 +49,8 @@ if ($invoice['due_date'] && in_array($invoice['status'], ['overdue', 'sent', 'pa
 $meta = [e($invoice['doc_number'])];
 if ($order) {
     $meta[] = 'order <a href="' . APP_URL . '/orders/view/' . (int)$order['id'] . '" data-prefetch>' . e($order['order_number']) . '</a>';
+} else {
+    $meta[] = 'No order';   // made before every sale was an order
 }
 $meta[] = 'Issued ' . e(screen_date($invoice['issue_date']));
 if ($invoice['due_date'] && $live) {
@@ -118,7 +120,7 @@ if ($quotation) {
 <!-- Share it -->
 <div class="nf-do">
     <?php $share_pdf = ['url' => $public_url, 'name' => $invoice['doc_number'] . '.pdf', 'title' => 'Invoice ' . $invoice['doc_number'],
-                        'text' => 'Invoice ' . $invoice['doc_number'] . ' from ' . $business['name'] . '. View and pay here: ' . $public_url, 'tile' => true];
+                        'text' => 'Invoice ' . $invoice['doc_number'] . (!empty($order) ? ' for order ' . $order['order_number'] : '') . ' from ' . $business['name'] . '. View and pay here: ' . $public_url, 'tile' => true];
           require BASE_PATH . '/views/partials/share_pdf.php'; ?>
     <a class="is-wa" href="<?= e($wa_link) ?>" target="_blank" rel="noopener"><?= nav_icon('whatsapp') ?><span>WhatsApp</span></a>
     <button type="button" data-copy="<?= e($public_url) ?>"><?= nav_icon('copy') ?><span>Copy link</span></button>

@@ -183,7 +183,7 @@ function planner_item(array $f): array {
         'tick' => null, 'calendar' => true, 'notes' => '', 'repeat' => null,
         'remind_before' => null, 'parent_id' => null, 'parent_title' => null,
         'steps' => null, 'invoice_id' => null, 'created_by' => null, 'plan' => null,
-        'pressure' => false, 'amount' => null,
+        'pressure' => false, 'amount' => null, 'order' => null,
     ];
 }
 
@@ -252,12 +252,15 @@ function planner_fetch_tasks(PDO $db, int $biz_id, array $opt = []): array {
                c.full_name AS customer_name, COALESCE(NULLIF(c.whatsapp, ''), c.phone) AS customer_phone,
                u.full_name AS assignee_name,
                p.title AS parent_title,
+               o.id AS oid, o.order_number,
                (SELECT COUNT(*) FROM tasks s WHERE s.parent_id = t.id AND s.deleted_at IS NULL) AS step_total,
                (SELECT COUNT(*) FROM tasks s WHERE s.parent_id = t.id AND s.deleted_at IS NULL AND s.done_at IS NOT NULL) AS step_done
         FROM tasks t
         LEFT JOIN customers c ON c.id = t.customer_id AND c.business_id = t.business_id
         LEFT JOIN users u     ON u.id = t.assigned_to AND u.business_id = t.business_id
         LEFT JOIN tasks p     ON p.id = t.parent_id AND p.deleted_at IS NULL
+        LEFT JOIN invoices ti ON ti.id = COALESCE(t.invoice_id, p.invoice_id) AND ti.business_id = t.business_id
+        LEFT JOIN orders o    ON o.business_id = t.business_id AND o.id = COALESCE(t.order_id, p.order_id, ti.order_id)
         WHERE " . implode(' AND ', $where) . "
         ORDER BY t.due_date IS NULL, t.due_date, t.due_time IS NULL, t.due_time, t.is_starred DESC, t.sort_order, t.id
         LIMIT 500";
@@ -276,6 +279,7 @@ function planner_task_item(array $t, string $today, array $business, ?array $nex
     $sub = [];
     if ($t['parent_title']) $sub[] = $t['parent_title'];
     if ($t['customer_name'] && !$t['parent_title']) $sub[] = $t['customer_name'];
+    if (!empty($t['order_number'])) $sub[] = $t['order_number'];   // the order it is for, by the number everyone uses
 
     // Countdowns carry the pressure, so they go on promises: deliveries,
     // whole jobs, and anything already late. Not on every ordinary to-do.
@@ -323,10 +327,12 @@ function planner_task_item(array $t, string $today, array $business, ?array $nex
         'parent_title'  => $t['parent_title'],
         'steps'         => $is_job ? ['done' => (int)$t['step_done'], 'total' => (int)$t['step_total'], 'next' => $next_step] : null,
         'invoice_id'    => $t['invoice_id'] !== null ? (int)$t['invoice_id'] : null,
+        'order'         => !empty($t['oid']) ? ['id' => (int)$t['oid'], 'number' => $t['order_number']] : null,
         'created_by'    => (int)$t['created_by'],
         'plan'          => $t['plan'],
         'pressure'      => $t['step_key'] === 'deliver',
-        'url'           => $t['invoice_id'] ? 'invoices/view/' . (int)$t['invoice_id'] : ($t['customer_id'] ? 'customers/view/' . (int)$t['customer_id'] : null),
+        'url'           => !empty($t['oid']) ? 'orders/view/' . (int)$t['oid']
+                           : ($t['invoice_id'] ? 'invoices/view/' . (int)$t['invoice_id'] : ($t['customer_id'] ? 'customers/view/' . (int)$t['customer_id'] : null)),
     ]);
 }
 
@@ -440,6 +446,7 @@ function planner_auto_items(PDO $db, int $biz_id, ?string $from, string $to, arr
             'customer' => $r['cid'] ? ['id' => (int)$r['cid'], 'name' => $r['full_name']] : null,
             'countdown' => planner_countdown($r['deliver_by'], $today, $pickup ? 'Ready' : 'Deliver'),
             'url' => $url, 'invoice_id' => (int)$r['id'], 'order_id' => $r['oid'] ? (int)$r['oid'] : null,
+            'order' => $r['oid'] ? ['id' => (int)$r['oid'], 'number' => $r['order_number']] : null,
             'wa' => $r['phone'] ? planner_wa_link($r['phone'], $text, $business) : null,
             'wa_label' => $r['phone'] ? 'Update ' . $first : null,
             'tick' => 'delivered', 'pressure' => true,

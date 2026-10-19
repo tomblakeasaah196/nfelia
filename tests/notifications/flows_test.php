@@ -292,11 +292,11 @@ $tok = (string)q("SELECT token FROM deliveries WHERE id = 600");
 $cust->get("sign/{$sign}");
 if ($cust->status !== 200) { $cust->get("sign/{$tok}"); $sign = $tok; }
 $cust->post("sign/{$sign}", ['signoff_name' => 'Ngozi Eze', 'signature_data' => 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAACXBIWXMAAA7EAAAOxAGVKw4bAAAADElEQVQImWNgYGAAAAAEAAGjChXjAAAAAElFTkSuQmCC']);
-expect('delivery.signed', [ADA, BISI], 'deliveries/view/600');
-eq(latest(ADA, 'delivery.signed')['message'] ?? null, 'Received and signed by Ngozi Eze.', 'who signed');
+expect('delivery.signed', [ADA, BISI], 'orders/view/702#delivery');   // the note is for shop order 702: the order is the hub
+eq(latest(ADA, 'delivery.signed')['message'] ?? null, 'Received and signed by Ngozi Eze, order ORD-0702.', 'who signed, for which order');
 $cust->post("sign/{$sign}", ['signoff_name' => 'Ngozi Eze', 'signature_data' => 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAACXBIWXMAAA7EAAAOxAGVKw4bAAAADElEQVQImWNgYGAAAAAEAAGjChXjAAAAAElFTkSuQmCC']);
 eq(count(rows("SELECT id FROM notifications WHERE event = 'delivery.signed'")), 2, 'signing twice tells nobody twice');
-opens(ADA, 'delivery.signed', 'deliveries/view/600', 'ADA-DN-0600');
+opens(ADA, 'delivery.signed', 'orders/view/702#delivery', 'ADA-DN-0600');
 
 /* ══ Tasks between people ════════════════════════════════════ */
 

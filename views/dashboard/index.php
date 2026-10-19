@@ -26,7 +26,7 @@ if ($orders_waiting > 0) {
     $attention[] = ['orders', $plural((int)$orders_waiting, 'shop order is waiting', 'shop orders are waiting'), 'Check the payment, then confirm', 'orders?view=confirm', ''];
 }
 if ($quotes_accepted > 0) {
-    $attention[] = ['quote', $plural((int)$quotes_accepted, 'quote was accepted', 'quotes were accepted'), 'Ready to make into invoices', 'quotations?status=accepted', ''];
+    $attention[] = ['quote', $plural((int)$quotes_accepted, 'quote was accepted', 'quotes were accepted'), 'Ready to make into orders', 'quotations?status=accepted', ''];
 }
 if ($low_stock_count > 0) {
     $attention[] = ['stock', $plural((int)$low_stock_count, 'item is low or out', 'items are low or out'), 'Restock before you run out', 'products?stock=restock', 'is-warn'];
@@ -59,7 +59,7 @@ if ($deliveries_open > 0) {
                          aria-label="<?= $in_hand ?>% in hand, the rest still owed"><i></i></div>
                     <p class="nf-thread-key">
                         <span><b><?= planner_money($in, $currency) ?></b> in hand</span>
-                        <a href="<?= APP_URL ?>/orders?view=balance"><b class="<?= $owed > 0 ? 'is-owed' : '' ?>"><?= planner_money($owed, $currency) ?></b> still owed</a>
+                        <a href="<?= APP_URL ?>/<?= $owed_url ?>"><b class="<?= $owed > 0 ? 'is-owed' : '' ?>"><?= planner_money($owed, $currency) ?></b> still owed</a>
                     </p>
                 <?php endif; ?>
                 <dl class="nf-figs">
