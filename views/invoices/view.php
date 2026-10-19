@@ -6,7 +6,7 @@
  *
  * Available from controller:
  *   $user, $business, $invoice, $customer, $items, $bank,
- *   $payments, $quotation, $public_url, $delivered_by_note, $job_plan
+ *   $payments, $quotation, $public_url, $delivered_by_note, $job_plan, $order
  */
 $currency = $business['currency_symbol'] ?? '₦';
 $today    = planner_today();
@@ -20,19 +20,15 @@ $watermark_text = match($invoice['status']) {
     default          => '',
 };
 
-// WhatsApp share message
-$wa_number = $customer ? ($customer['whatsapp'] ?? $customer['phone'] ?? '') : '';
-$wa_number = preg_replace('/[^0-9]/', '', $wa_number);
-if (str_starts_with($wa_number, '0')) $wa_number = '234' . substr($wa_number, 1);
-$wa_text = urlencode(
-    "Hello" . ($customer ? ' ' . $customer['full_name'] : '') . "!\n\n"
-    . "Please find your *Commercial Invoice* from *{$business['name']}*:\n\n"
-    . "{$invoice['doc_number']}\n"
-    . "Total: {$currency}" . number_format((float)$invoice['total'], 2) . "\n"
-    . "Balance Due: {$currency}" . number_format((float)$invoice['balance_due'], 2) . "\n"
-    . ($invoice['due_date'] ? "Due Date: " . fmt_date($invoice['due_date'], 'd M Y') . "\n" : '')
-    . "\nView & pay here:\n{$public_url}\n\n"
-    . "_Sent via Nfelia — nfelia.com_"
+// WhatsApp share message: the invoice leads, its order is named
+$wa_number = wa_digits($customer ? (($customer['whatsapp'] ?? '') ?: ($customer['phone'] ?? '')) : '', $business);
+$wa_text = rawurlencode(
+    "Hello" . ($customer ? ' ' . planner_first_name($customer['full_name']) : '') . ",\n\n"
+    . "Here is invoice *{$invoice['doc_number']}*" . ($order ? " for your order {$order['order_number']}" : '') . " from *{$business['name']}*.\n\n"
+    . "Total: " . planner_money((float)$invoice['total'], $currency) . "\n"
+    . ((float)$invoice['balance_due'] > 0 ? "Balance: " . planner_money((float)$invoice['balance_due'], $currency) . "\n" : "Paid in full\n")
+    . ($invoice['due_date'] && (float)$invoice['balance_due'] > 0 ? "Pay by: " . fmt_date($invoice['due_date'], 'd M Y') . "\n" : '')
+    . "\nSee it here: {$public_url}"
 );
 $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
 
@@ -50,7 +46,13 @@ if ($invoice['due_date'] && in_array($invoice['status'], ['overdue', 'sent', 'pa
     $diff = (int)((strtotime($today) - strtotime($invoice['due_date'])) / 86400);
     if ($diff > 0) $days_overdue = $diff;
 }
-$meta = [e($invoice['doc_number']), 'Issued ' . e(screen_date($invoice['issue_date']))];
+$meta = [e($invoice['doc_number'])];
+if ($order) {
+    $meta[] = 'order <a href="' . APP_URL . '/orders/view/' . (int)$order['id'] . '" data-prefetch>' . e($order['order_number']) . '</a>';
+} else {
+    $meta[] = 'No order';   // made before every sale was an order
+}
+$meta[] = 'Issued ' . e(screen_date($invoice['issue_date']));
 if ($invoice['due_date'] && $live) {
     $meta[] = $days_overdue > 0
         ? '<span class="is-owed">' . $days_overdue . ' day' . ($days_overdue > 1 ? 's' : '') . ' overdue</span>'
@@ -106,10 +108,19 @@ if ($quotation) {
     <?php endif; ?>
 </section>
 
+<?php if ($order): ?>
+<!-- The order this invoice belongs to: delivery, messages and refunds live there -->
+<a class="nf-doc-row nf-inv-order" href="<?= APP_URL ?>/orders/view/<?= (int)$order['id'] ?>" data-prefetch>
+    <span class="nf-tile-ic"><?= nav_icon('orders') ?></span>
+    <span class="nf-doc-row-main"><b>Order <?= e($order['order_number']) ?></b><small>Delivery, messages and refunds are on the order</small></span>
+    <span class="nf-go"><?= nav_icon('chevron') ?></span>
+</a>
+<?php endif; ?>
+
 <!-- Share it -->
 <div class="nf-do">
     <?php $share_pdf = ['url' => $public_url, 'name' => $invoice['doc_number'] . '.pdf', 'title' => 'Invoice ' . $invoice['doc_number'],
-                        'text' => 'Invoice ' . $invoice['doc_number'] . ' from ' . $business['name'] . '. View and pay here: ' . $public_url, 'tile' => true];
+                        'text' => 'Invoice ' . $invoice['doc_number'] . (!empty($order) ? ' for order ' . $order['order_number'] : '') . ' from ' . $business['name'] . '. View and pay here: ' . $public_url, 'tile' => true];
           require BASE_PATH . '/views/partials/share_pdf.php'; ?>
     <a class="is-wa" href="<?= e($wa_link) ?>" target="_blank" rel="noopener"><?= nav_icon('whatsapp') ?><span>WhatsApp</span></a>
     <button type="button" data-copy="<?= e($public_url) ?>"><?= nav_icon('copy') ?><span>Copy link</span></button>
@@ -274,8 +285,9 @@ if ($quotation) {
 
             <!-- Doc Info (Right) -->
             <div class="text-right">
-                <h1 class="font-heading font-extrabold text-2xl uppercase tracking-wider" style="color: <?= e($business['primary_color'] ?? '#8B004A') ?>;">Commercial Invoice</h1>
+                <h1 class="font-heading font-extrabold text-2xl uppercase tracking-wider" style="color: <?= e($business['primary_color'] ?? '#8B004A') ?>;">Invoice</h1>
                 <div class="data-text text-sm font-bold text-gray-700 mt-1"><?= e($invoice['doc_number']) ?></div>
+                <?php if ($order): ?><div class="data-text text-xs text-gray-600 mt-0.5">Order: <?= e($order['order_number']) ?></div><?php endif; ?>
                 <div class="text-[10px] text-gray-500 mt-2 space-y-0.5">
                     <div>Issued: <?= fmt_date($invoice['issue_date'], 'd M Y') ?></div>
                     <?php if ($invoice['due_date']): ?>
@@ -523,7 +535,12 @@ if ($quotation) {
         <button type="button" class="nf-icon-btn" data-close aria-label="Close"><?= nav_icon('close') ?></button>
     </div>
     <div class="nf-menu-sheet">
-        <?php if (in_array($invoice['status'], ['draft', 'sent'], true)): ?>
+        <?php if ($order): ?>
+            <a class="nf-row" href="<?= APP_URL ?>/orders/view/<?= (int)$order['id'] ?>"><span class="nf-tile-ic"><?= nav_icon('orders') ?></span>Open order <?= e($order['order_number']) ?></a>
+            <?php if (is_boss() && $live && !in_array($order['status'], ['fulfilled', 'cancelled', 'rejected'], true)): ?>
+                <a class="nf-row" href="<?= APP_URL ?>/orders/edit/<?= (int)$order['id'] ?>"><span class="nf-tile-ic"><?= nav_icon('edit') ?></span>Change the items</a>
+            <?php endif; ?>
+        <?php elseif (in_array($invoice['status'], ['draft', 'sent'], true)): ?>
             <a class="nf-row" href="<?= APP_URL ?>/invoices/edit/<?= (int)$invoice['id'] ?>"><span class="nf-tile-ic"><?= nav_icon('edit') ?></span>Edit the invoice</a>
         <?php endif; ?>
         <?php if ($live): ?>
@@ -531,10 +548,16 @@ if ($quotation) {
         <?php endif; ?>
         <a class="nf-row" href="<?= e($public_url) ?>?format=pdf" download="<?= e(preg_replace('/[^A-Za-z0-9._-]+/', '-', $invoice['doc_number'])) ?>.pdf"><span class="nf-tile-ic"><?= nav_icon('download') ?></span>Download PDF</a>
         <a class="nf-row" href="<?= e($public_url) ?>" target="_blank" rel="noopener"><span class="nf-tile-ic"><?= nav_icon('open') ?></span>Open the customer's page</a>
-        <?php if ($invoice['status'] !== 'cancelled' && (float)$invoice['amount_paid'] > 0): ?>
-            <button type="button" class="nf-row" data-open="nf-refund"><span class="nf-tile-ic"><?= nav_icon('money') ?></span>Record a refund</button>
+        <?php if ($invoice['status'] !== 'cancelled' && (float)$invoice['amount_paid'] > 0 && is_boss()): // giving money back is for owners and admins ?>
+            <?php if ($order): ?>
+                <a class="nf-row" href="<?= APP_URL ?>/orders/view/<?= (int)$order['id'] ?>#money"><span class="nf-tile-ic"><?= nav_icon('refund') ?></span>Give money back</a>
+            <?php else: ?>
+                <button type="button" class="nf-row" data-open="nf-refund"><span class="nf-tile-ic"><?= nav_icon('money') ?></span>Record a refund</button>
+            <?php endif; ?>
         <?php endif; ?>
-        <?php if ($live): ?>
+        <?php if ($live && is_boss() && $order): // an order's invoice goes with its order: cancel it there, with its reason ?>
+            <a class="nf-row is-danger" href="<?= APP_URL ?>/orders/view/<?= (int)$order['id'] ?>#sheet:nf-cancel"><span class="nf-tile-ic"><?= nav_icon('cancel') ?></span>Cancel order <?= e($order['order_number']) ?></a>
+        <?php elseif ($live && is_boss()): ?>
             <form method="POST" action="<?= APP_URL ?>/invoices/cancel/<?= (int)$invoice['id'] ?>"
                   onsubmit="return confirm('Cancel <?= e($invoice['doc_number']) ?>? Its stock goes back on your shelves, and what is owed on it is cleared.');">
                 <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">

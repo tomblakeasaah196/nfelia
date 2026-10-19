@@ -41,7 +41,7 @@ if ($invoice['due_date'] && in_array($invoice['status'], ['overdue','sent','part
 // SEO / embed helpers
 $doc_url   = APP_URL . '/doc/' . e($invoice['token']);
 $og_title  = 'Invoice ' . e($invoice['doc_number']) . ' from ' . e($business['name']);
-$og_desc   = 'Commercial Invoice — ' . money((float)$invoice['total'], $currency)
+$og_desc   = 'Invoice — ' . money((float)$invoice['total'], $currency)
            . ($customer ? ' for ' . e($customer['full_name']) : '')
            . '. Issued ' . fmt_date($invoice['issue_date'], 'd M Y')
            . ($invoice['due_date'] ? ', due ' . fmt_date($invoice['due_date'], 'd M Y') : '')
@@ -197,8 +197,9 @@ $og_image  = $business['logo_path']
                         </div>
                     </div>
                     <div class="text-right">
-                        <h1 class="font-heading font-extrabold text-2xl uppercase tracking-wider" style="color: <?= e($primary) ?>;">Commercial Invoice</h1>
+                        <h1 class="font-heading font-extrabold text-2xl uppercase tracking-wider" style="color: <?= e($primary) ?>;">Invoice</h1>
                         <div class="data-text text-sm font-bold text-gray-700 mt-1"><?= e($invoice['doc_number']) ?></div>
+                        <?php if (!empty($order_number)): ?><div class="data-text text-xs text-gray-600 mt-0.5">Order: <?= e($order_number) ?></div><?php endif; ?>
                         <div class="text-[10px] text-gray-500 mt-2 space-y-0.5">
                             <div>Issued: <?= fmt_date($invoice['issue_date'], 'd M Y') ?></div>
                             <?php if ($invoice['due_date']): ?>

@@ -57,6 +57,12 @@
         }
         return dlg;
     }
+    // A link can open a sheet on the page it goes to: page#sheet:nf-cancel
+    if (location.hash.indexOf('#sheet:') === 0) {
+        var sheetId = location.hash.slice(7);
+        var openFromLink = function () { if (openSheet(sheetId)) history.replaceState(null, '', location.pathname + location.search); };
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', openFromLink); else openFromLink();
+    }
     document.addEventListener('click', function (e) {
         var opener = e.target.closest('[data-open]');
         if (opener) { e.preventDefault(); openSheet(opener.getAttribute('data-open')); return; }
@@ -73,6 +79,41 @@
         // Following a link inside a sheet: close it so Back doesn't reopen it.
         dlg.addEventListener('click', function (e) { if (e.target.closest('a[href]')) setTimeout(function () { if (dlg.open) dlg.close(); }, 400); });
     });
+
+    // ---------- (i): the longer words behind a figure (nf_info() in app/helpers/ui.php) ----------
+    document.addEventListener('click', function (e) {
+        var info = e.target.closest('[data-info]');
+        if (!info) return;
+        e.preventDefault();
+        var dlg = document.getElementById('nf-info');
+        if (!dlg) return;
+        dlg.querySelector('[data-info-title]').textContent = info.getAttribute('data-info-title') || '';
+        dlg.querySelector('[data-info-text]').textContent = info.getAttribute('data-info') || '';
+        openSheet('nf-info');
+    });
+
+    // ---------- Labels for icon-only buttons on a phone ----------
+    // A hover shows [data-tip]; a finger can't hover, so pressing and holding
+    // shows it instead, and that press doesn't also count as a tap.
+    var tipTimer = null, tipShown = null;
+    document.addEventListener('touchstart', function (e) {
+        var el = e.target.closest('[data-tip]');
+        if (!el) return;
+        clearTimeout(tipTimer);
+        tipTimer = setTimeout(function () {
+            if (tipShown) tipShown.classList.remove('is-tip');
+            tipShown = el;
+            el.classList.add('is-tip');
+            setTimeout(function () { el.classList.remove('is-tip'); if (tipShown === el) tipShown = null; }, 1600);
+        }, 450);
+    }, { passive: true });
+    ['touchend', 'touchmove', 'touchcancel'].forEach(function (type) {
+        document.addEventListener(type, function () { clearTimeout(tipTimer); }, { passive: true });
+    });
+    document.addEventListener('click', function (e) {
+        if (tipShown && e.target.closest('[data-tip]') === tipShown) { e.preventDefault(); e.stopImmediatePropagation(); tipShown = null; }
+    }, true);
+    document.addEventListener('contextmenu', function (e) { if (e.target.closest('[data-tip]')) e.preventDefault(); });
 
     // ---------- Toasts ----------
     var toasts = document.getElementById('nf-toasts');
@@ -173,6 +214,17 @@
         e.preventDefault();
         showNet('offline', 'You’re offline', 'Nothing was sent. Your changes are still here.');
     }, true);
+    // A form that records money (data-once) goes once: a second tap while the
+    // first is on its way does nothing. Coming back to the page frees it again.
+    document.addEventListener('submit', function (e) {
+        var form = e.target;
+        if (e.defaultPrevented || !form.hasAttribute || !form.hasAttribute('data-once')) return;
+        if (form.getAttribute('data-sent') === '1') { e.preventDefault(); return; }
+        form.setAttribute('data-sent', '1');
+    });
+    window.addEventListener('pageshow', function () {
+        document.querySelectorAll('form[data-sent]').forEach(function (f) { f.removeAttribute('data-sent'); });
+    });
 
     // ---------- Text size and background (this device) ----------
     document.addEventListener('change', function (e) {

@@ -66,7 +66,8 @@ class QuotationController {
 
         // Fetch
         $stmtQ = $this->db->prepare("
-            SELECT q.*, c.full_name as customer_name, c.phone as customer_phone
+            SELECT q.*, c.full_name as customer_name, c.phone as customer_phone,
+                   EXISTS(SELECT 1 FROM orders o WHERE o.quotation_id = q.id AND o.business_id = q.business_id) AS has_order
             FROM quotations q
             LEFT JOIN customers c ON c.id = q.customer_id
             WHERE {$where_sql}
@@ -272,6 +273,11 @@ class QuotationController {
         $stmtAct->execute([$id]);
         $activities = $stmtAct->fetchAll();
 
+        // The order this quote became, if it did
+        $stmtOrd = $this->db->prepare("SELECT id, order_number FROM orders WHERE quotation_id = ? AND business_id = ? ORDER BY id DESC LIMIT 1");
+        $stmtOrd->execute([$id, $this->biz_id]);
+        $quote_order = $stmtOrd->fetch() ?: null;
+
         $title     = e($quotation['doc_number']);
         $view_file = BASE_PATH . '/views/quotations/view.php';
         require_once BASE_PATH . '/views/layouts/app.php';
@@ -286,6 +292,14 @@ class QuotationController {
 
         $quotation = $this->find_quotation($id);
         if (!$quotation) { not_found(); return; }
+        // A quote that made an order stays, as that order's record
+        $stmtOrd = $this->db->prepare("SELECT order_number FROM orders WHERE quotation_id = ? AND business_id = ? LIMIT 1");
+        $stmtOrd->execute([(int)$id, $this->biz_id]);
+        if ($order_number = $stmtOrd->fetchColumn()) {
+            flash('error', $quotation['doc_number'] . ' made order ' . $order_number . ', so it stays with that order.');
+            redirect('quotations/view/' . (int)$id);
+            return;
+        }
 
         // Delete items first, then quotation
         $this->db->prepare("DELETE FROM quotation_items WHERE quotation_id = ?")->execute([$id]);
@@ -363,8 +377,20 @@ public function update_status($id = null) {
     } catch (\Throwable $e) {
         $this->db->rollBack();
         flash('error', 'Failed to update status.');
+        redirect('quotations/view/' . $id);
     }
-    
+
+    // Accepted: it becomes its order straight away (docs/ORDERS_HUB.md)
+    if ($new_status === 'accepted') {
+        try {
+            $order = order_from_quote($this->db, $this->biz_id, (int)$id, (int)auth_user()['id']);
+            flash('success', 'Accepted. Order ' . $order['order_number'] . ' is made, with its invoice.');
+            redirect('orders/view/' . $order['id']);
+        } catch (\DomainException $e) {
+            flash('error', 'Accepted, but the order couldn\'t be made: ' . $e->getMessage());
+        }
+    }
+
     redirect('quotations/view/' . $id);
 }
 
@@ -461,88 +487,16 @@ public function update_status($id = null) {
         $quotation = $this->find_quotation($id);
         if (!$quotation) { not_found(); return; }
 
-        if ($quotation['status'] === 'converted') {
-            flash('error', 'This quotation has already been converted.');
-            redirect('quotations/view/' . $id);
-            return;
-        }
-
-        // Load quotation items
-        $stmtItems = $this->db->prepare("SELECT * FROM quotation_items WHERE quotation_id = ? ORDER BY sort_order ASC");
-        $stmtItems->execute([$id]);
-        $q_items = $stmtItems->fetchAll();
-
-        $this->db->beginTransaction();
+        // A quote becomes an order, never an invoice on its own: the order
+        // makes its invoice, and every sale is found in Orders (docs/ORDERS_HUB.md)
         try {
-            // Claim the quote first: a second tap, or a second person, finds it
-            // already converted and stops here (M8)
-            $claim = $this->db->prepare("UPDATE quotations SET status = 'converted' WHERE id = ? AND business_id = ? AND status <> 'converted'");
-            $claim->execute([(int)$id, $this->biz_id]);
-            if ($claim->rowCount() !== 1) {
-                throw new DomainException('This quotation has already been converted.');
-            }
-
-            // Generate invoice doc number
-            $doc_number = generate_doc_number($this->db, $this->biz_id, 'INV');
-
-            $token = generate_token();
-
-            // Create invoice
-            $stmtInv = $this->db->prepare("
-                INSERT INTO invoices (business_id, customer_id, quotation_id, bank_account_id, user_id, doc_number, status, issue_date, due_date, subtotal, discount_amount, tax_rate, tax_amount, total, balance_due, notes, token)
-                VALUES (?, ?, ?, ?, ?, ?, 'draft', CURDATE(), DATE_ADD(CURDATE(), INTERVAL 14 DAY), ?, ?, ?, ?, ?, ?, ?, ?)
-            ");
-            $stmtInv->execute([
-                $this->biz_id,
-                $quotation['customer_id'],
-                $id,
-                $quotation['bank_account_id'],
-                auth_user()['id'],
-                $doc_number,
-                $quotation['subtotal'],
-                $quotation['discount_amount'],
-                $quotation['tax_rate'],
-                $quotation['tax_amount'],
-                $quotation['total'],
-                $quotation['total'],   // balance_due = total initially
-                $quotation['notes'],
-                $token
-            ]);
-            $invoice_id = (int)$this->db->lastInsertId();
-
-            // Copy line items
-            foreach ($q_items as $qi) {
-                $this->db->prepare("
-                    INSERT INTO invoice_items (invoice_id, product_id, description, quantity, unit_price, discount_percent, discount_amount, subtotal, sort_order)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ")->execute([
-                    $invoice_id,
-                    $qi['product_id'],
-                    $qi['description'],
-                    $qi['quantity'],
-                    $qi['unit_price'],
-                    $qi['discount_percent'],
-                    $qi['discount_amount'],
-                    $qi['subtotal'],
-                    $qi['sort_order']
-                ]);
-            }
-
-            $this->db->commit();
-
-            flash('success', $quotation['doc_number'] . ' converted to Invoice ' . $doc_number);
-            redirect('invoices/view/' . $invoice_id);
-
+            $order = order_from_quote($this->db, $this->biz_id, (int)$id, (int)auth_user()['id']);
         } catch (DomainException $e) {
-            $this->db->rollBack();
             flash('error', $e->getMessage());
             redirect('quotations/view/' . $id);
-        } catch (\Throwable $e) {
-            $this->db->rollBack();
-            error_log('Quotation convert error: ' . $e->getMessage());
-            flash('error', 'Could not convert the quotation. Please try again.');
-            redirect('quotations/view/' . $id);
         }
+        flash('success', $quotation['doc_number'] . ' is now order ' . $order['order_number'] . ', with its invoice.');
+        redirect('orders/view/' . $order['id']);
     }
 
     /* ──────────────────────────────────────────
@@ -782,7 +736,7 @@ public function update_status($id = null) {
     private function get_customers(): array {
         $stmt = $this->db->prepare("
             SELECT id, full_name, phone, email FROM customers
-            WHERE business_id = ? AND deleted_at IS NULL AND is_active = 1
+            WHERE business_id = ? AND deleted_at IS NULL AND is_active = 1 AND is_walk_in = 0
             ORDER BY full_name ASC
         ");
         $stmt->execute([$this->biz_id]);

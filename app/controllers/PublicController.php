@@ -211,6 +211,18 @@ class PublicController
                 throw new Exception("Invalid action requested.");
             }
             $db->commit();
+            /* Signed: the quote becomes its order, with its invoice and the
+               balance in Debts. If that fails the signature still stands, and
+               the owner makes the order from the quote's page */
+            if ($action === "sign") {
+                try {
+                    $made = order_from_quote($db, (int)$quotation["business_id"], (int)$quotation["id"], (int)$quotation["user_id"]);
+                    $tell[1]["order_id"] = (int)$made["id"];
+                    $tell[1]["order_number"] = $made["order_number"];
+                } catch (\Throwable $e) {
+                    error_log("Order from signed quote " . $quotation["id"] . " failed: " . $e->getMessage());
+                }
+            }
             if ($tell) {
                 [$event, $extra, $opts] = $tell;
                 notify($event, (int)$quotation["business_id"], $extra + [
@@ -264,6 +276,7 @@ class PublicController
         $bank = $invoice["bank_account_id"]
             ? $this->get_bank($invoice["bank_account_id"], (int) $invoice["business_id"])
             : null;
+        $order_number = $this->order_number_of($invoice);
         require_once BASE_PATH . "/views/invoices/public.php";
     }
     private function render_receipt(array $receipt): void
@@ -288,7 +301,25 @@ class PublicController
             $stmtInv->execute([$receipt["invoice_id"], $receipt["business_id"]]);
             $invoice = $stmtInv->fetch();
         }
+        $order_number = $this->order_number_of($receipt);
         require_once BASE_PATH . "/views/receipts/public.php";
+    }
+    /** The number of the order a document belongs to ("ADA-ORD-012"), or null: through its own order_id, else its invoice's. */
+    private function order_number_of(array $doc): ?string
+    {
+        $biz = (int) $doc["business_id"];
+        $oid = (int) ($doc["order_id"] ?? 0);
+        if (!$oid && !empty($doc["invoice_id"])) {
+            $stmt = $this->db->prepare("SELECT order_id FROM invoices WHERE id = ? AND business_id = ?");
+            $stmt->execute([(int) $doc["invoice_id"], $biz]);
+            $oid = (int) $stmt->fetchColumn();
+        }
+        if (!$oid) {
+            return null;
+        }
+        $stmt = $this->db->prepare("SELECT order_number FROM orders WHERE id = ? AND business_id = ?");
+        $stmt->execute([$oid, $biz]);
+        return $stmt->fetchColumn() ?: null;
     }
     private function get_business(int $id): ?array
     {
@@ -339,6 +370,7 @@ class PublicController
         require_once BASE_PATH . "/app/controllers/DeliveryController.php";
         $statuses = DeliveryController::STATUSES;
         $providers = DeliveryController::PROVIDERS;
+        $order_number = $this->order_number_of($delivery);
         require_once BASE_PATH . "/views/deliveries/public.php";
     } /* ────────────────────────────────────────── * E-SIGNATURE SIGN-OFF /sign/{signoff_token} * GET → show sign-off form * POST → process signature submission * *──────────────────────────────────────────*/
     public function signoff(string $signoff_token): void
@@ -388,6 +420,7 @@ class PublicController
             $this->process_signoff($delivery, $business);
             return;
         } /* GET — show form */
+        $order_number = $this->order_number_of($delivery);
         require_once BASE_PATH . "/views/deliveries/signoff.php";
     }
     /** * Process the e-signature submission (AJAX POST from sign-off page) */ private function process_signoff(
@@ -487,19 +520,25 @@ class PublicController
         if (!empty($delivery["invoice_id"])) {
             planner_invoice_delivered($this->db, (int) $delivery["business_id"], (int) $delivery["invoice_id"]);
         }
+        /* The order behind this delivery, by its link or the order's own */
+        $stmtOrder = $this->db->prepare(
+            "SELECT id, order_number FROM orders WHERE business_id = ? AND (id = ? OR delivery_id = ?) ORDER BY id = ? DESC LIMIT 1",
+        );
+        $stmtOrder->execute([$delivery["business_id"], (int) ($delivery["order_id"] ?? 0), $delivery["id"], (int) ($delivery["order_id"] ?? 0)]);
+        $signed_order = $stmtOrder->fetch() ?: null;
+        $order_id = $signed_order ? (int) $signed_order["id"] : 0;
         notify("delivery.signed", (int) $delivery["business_id"], [
             "delivery_id" => (int) $delivery["id"], "delivery_number" => $delivery["doc_number"], "signer" => $signoff_name,
+            "order_id" => $order_id ?: null, "order_number" => $signed_order["order_number"] ?? null,
         ], ["dedupe" => (string) $delivery["id"]]);
-        /* The order behind this delivery is done: the shopper can now review it */
+        /* The order behind this delivery is done (its Log, the shopper told),
+           and the shopper can now review it */
         $review_link = null;
         try {
-            $stmtOrder = $this->db->prepare(
-                "SELECT id FROM orders WHERE delivery_id = ? AND business_id = ? LIMIT 1",
-            );
-            $stmtOrder->execute([$delivery["id"], $delivery["business_id"]]);
-            $order_id = (int) $stmtOrder->fetchColumn();
+            order_sync_from_delivery($this->db, (int) $delivery["business_id"], (int) $delivery["id"]);
             if ($order_id) {
-                shop_order_tell($this->db, $order_id, "delivered");
+                order_log($this->db, (int) $delivery["business_id"], $order_id, "signed",
+                          mb_substr($signoff_name, 0, 100) . " signed for delivery " . $delivery["doc_number"] . ".");
             }
             $review = $order_id ? review_invite($this->db, $order_id) : null;
             if ($review && $review["status"] === "invited" && $business) {
@@ -594,6 +633,7 @@ class PublicController
                 );
                 $stmtP->execute([$invoice["id"]]);
                 $payments = $stmtP->fetchAll();
+                $order_number = $this->order_number_of($invoice);
                 ob_start();
                 require BASE_PATH . "/views/invoices/pdf_template.php";
                 $html = ob_get_clean();
@@ -627,6 +667,7 @@ class PublicController
                     $stmtInv->execute([$receipt["invoice_id"], $receipt["business_id"]]);
                     $invoice = $stmtInv->fetch();
                 }
+                $order_number = $this->order_number_of($receipt);
                 ob_start();
                 require BASE_PATH . "/views/receipts/pdf_template.php";
                 $html = ob_get_clean();
@@ -948,19 +989,9 @@ class PublicController
         $this->db->beginTransaction();
         $committed = false;
         try {
-            /* Generate order number (ORD-0001) */
-            $this->db
-                ->prepare(
-                    "UPDATE businesses SET order_number_seq = order_number_seq + 1 WHERE id = ?",
-                )
-                ->execute([$business_id]);
-            $stmtSeq = $this->db->prepare(
-                "SELECT order_number_seq FROM businesses WHERE id = ?",
-            );
-            $stmtSeq->execute([$business_id]);
-            $seq = (int) $stmtSeq->fetchColumn();
-            $order_number =
-                "ORD-" . str_pad((string) $seq, 4, "0", STR_PAD_LEFT);
+            /* The order number, ADA-ORD-008: the one generator, carrying on
+               from the old ORD-0007 numbers; a rollback gives it back */
+            $order_number = generate_doc_number($this->db, (int) $business_id, "ORD");
             $status =
                 $channel === "whatsapp"
                     ? "pending"
@@ -1169,6 +1200,59 @@ class PublicController
      * A small standalone page for links that don't lead anywhere: missing
      * documents, retired shop links, closed shops. Always noindex.
      */
+    /* ──────────────────────────────────────────
+     * REFUNDS /public/refund/{token}
+     * The customer tells the shop where to send money it is giving back
+     * (refund_ask() in app/helpers/orders.php emails them this link); once
+     * the shop has sent it, the same link is their refund slip.
+     *──────────────────────────────────────────*/
+    public function refund(string $token): void
+    {
+        $refund = $this->refund_by_token($token);
+        if (!$refund || $refund["status"] === "cancelled") {
+            $this->notice([
+                "title" => $refund ? "This refund was called off" : "We couldn't find this refund",
+                "body" => $refund ? "Contact the shop if you have any questions." : "The link may have been copied wrongly. Ask the shop to send it again.",
+            ]);
+            return;
+        }
+        $error = null;
+        $sent = false;
+        if ($_SERVER["REQUEST_METHOD"] === "POST" && $refund["status"] !== "paid") {
+            if (!throttle_allows("refund_details_ip", client_ip(), 20, 60) || !throttle_allows("refund_details", $token, 8, 60)) {
+                $error = "Too many tries for now. Please wait a little, or call the shop.";
+            } else {
+                $error = refund_save_details($this->db, $token, $_POST);
+                if ($error === null) {
+                    $sent = true;
+                    $refund = $this->refund_by_token($token);
+                }
+            }
+        }
+        $business = $this->get_business((int) $refund["business_id"]);
+        $stmt = $this->db->prepare("SELECT order_number, customer_name FROM orders WHERE id = ? AND business_id = ?");
+        $stmt->execute([(int) $refund["order_id"], (int) $refund["business_id"]]);
+        $refund_order = $stmt->fetch() ?: ["order_number" => "", "customer_name" => ""];
+        require BASE_PATH . "/views/public/refund.php";
+    }
+
+    /** /public/refund-proof/{token}: the shop's proof that the refund was sent (a picture or a PDF). */
+    public function refund_proof(string $token): void
+    {
+        $refund = $this->refund_by_token($token);
+        send_private_proof($refund && $refund["status"] === "paid" ? $refund["proof_path"] : null);
+    }
+
+    private function refund_by_token(string $token): ?array
+    {
+        if (!preg_match('/^[a-f0-9]{32}$/', $token)) {
+            return null;
+        }
+        $stmt = $this->db->prepare("SELECT * FROM refunds WHERE token = ? LIMIT 1");
+        $stmt->execute([$token]);
+        return $stmt->fetch() ?: null;
+    }
+
     protected function notice(array $notice): void
     {
         require BASE_PATH . "/views/public/notice.php";

@@ -83,6 +83,7 @@ $status_color = $statuses[$delivery['status']]['color'] ?? 'bg-gray-100 text-gra
                     <div class="text-right">
                         <div class="text-[10px] font-bold uppercase tracking-widest opacity-60">Dispatch Confirmation</div>
                         <div class="text-xl font-extrabold mt-1"><?= e($delivery['doc_number']) ?></div>
+                        <?php if (!empty($order_number)): ?><div class="text-xs font-semibold mt-0.5 opacity-80">Order: <?= e($order_number) ?></div><?php endif; ?>
                         <div class="inline-block mt-2 px-2.5 py-1 rounded text-[9px] font-bold uppercase tracking-wider <?= $status_color ?>"><?= $status_label ?></div>
                     </div>
                 </div>

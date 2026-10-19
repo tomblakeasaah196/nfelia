@@ -39,9 +39,12 @@ function screen_invoice_tag(string $status): array
     };
 }
 
-/** How a quote stands: [words, tag class]. */
-function screen_quote_tag(string $status): array
+/** How a quote stands: [words, tag class]. A quote converted before orders became an invoice, not an order. */
+function screen_quote_tag(string $status, bool $has_order = true): array
 {
+    if ($status === 'converted' && !$has_order) {
+        return ['Invoiced', 'is-accent'];
+    }
     return match ($status) {
         'draft'             => ['Draft', 'is-line'],
         'sent'              => ['Sent', ''],
@@ -50,7 +53,7 @@ function screen_quote_tag(string $status): array
         'accepted'          => ['Accepted', 'is-in'],
         'declined'          => ['Declined', 'is-owed'],
         'expired'           => ['Expired', 'is-line'],
-        'converted'         => ['Invoiced', 'is-accent'],
+        'converted'         => ['Ordered', 'is-accent'],
         default             => [ucfirst(str_replace('_', ' ', $status)), ''],
     };
 }

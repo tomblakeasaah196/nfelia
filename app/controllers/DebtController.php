@@ -54,7 +54,9 @@ class DebtController {
 
         if ($search !== '') {
             if ($tab === 'receivable') {
-                $where[]  = "(d.description LIKE ? OR c.full_name LIKE ?)";
+                $where[]  = "(d.description LIKE ? OR c.full_name LIKE ? OR d.counterparty_name LIKE ? OR o.order_number LIKE ?)";
+                $params[] = "%{$search}%";
+                $params[] = "%{$search}%";
             } else {
                 $where[]  = "(d.description LIKE ? OR s.full_name LIKE ?)";
             }
@@ -86,7 +88,7 @@ class DebtController {
         // Count
         $count_sql = "SELECT COUNT(*) FROM debts d";
         if ($tab === 'receivable') {
-            $count_sql .= " LEFT JOIN customers c ON c.id = d.customer_id";
+            $count_sql .= " LEFT JOIN customers c ON c.id = d.customer_id LEFT JOIN orders o ON o.id = d.order_id AND o.business_id = d.business_id";
         } else {
             $count_sql .= " LEFT JOIN suppliers s ON s.id = d.supplier_id";
         }
@@ -99,9 +101,11 @@ class DebtController {
         // Fetch
         if ($tab === 'receivable') {
             $fetch_sql = "
-                SELECT d.*, c.full_name AS party_name, c.phone AS party_phone, c.deleted_at AS party_deleted
+                SELECT d.*, c.full_name AS party_name, c.phone AS party_phone, c.deleted_at AS party_deleted,
+                       o.id AS order_ref_id, o.order_number
                 FROM debts d
                 LEFT JOIN customers c ON c.id = d.customer_id AND c.business_id = d.business_id
+                LEFT JOIN orders o ON o.id = d.order_id AND o.business_id = d.business_id
                 WHERE {$where_sql}
                 ORDER BY {$order}
                 LIMIT {$per_page} OFFSET {$offset}
@@ -141,7 +145,7 @@ class DebtController {
         $stmtSum->execute([$this->biz_id]);
         $dashboard = $stmtSum->fetch();
 
-        $title     = "Debt Tracker";
+        $title     = "Debts";
         $view_file = BASE_PATH . '/views/debts/index.php';
         require_once BASE_PATH . '/views/layouts/app.php';
     }
@@ -208,6 +212,10 @@ class DebtController {
             $source_doc = $stmt->fetch();
         }
 
+        // The order a balance belongs to
+        $order = !empty($debt['order_id']) ? order_find($this->db, $this->biz_id, (int)$debt['order_id'])
+               : ($debt['invoice_id'] ? order_by_invoice($this->db, $this->biz_id, (int)$debt['invoice_id']) : null);
+
         // WhatsApp number
         $wa_number = '';
         if ($party) {
@@ -215,7 +223,7 @@ class DebtController {
             $wa_number = wa_digits($wa_number, auth_business());
         }
 
-        $title     = "Debt — " . $debt['description'];
+        $title     = $order ? 'Balance · ' . $order['order_number'] : "Debt — " . $debt['description'];
         $view_file = BASE_PATH . '/views/debts/view.php';
         require_once BASE_PATH . '/views/layouts/app.php';
     }
@@ -271,7 +279,13 @@ class DebtController {
             }
             $amount = min($amount, money2((float)$debt['balance']));
 
-            if ($debt['type'] === 'receivable' && $debt['invoice_id']) {
+            $order = ($debt['type'] === 'receivable' && $debt['invoice_id']) ? order_by_invoice($this->db, $this->biz_id, (int)$debt['invoice_id']) : null;
+            if ($order) {
+                // An order's balance is paid on the order: the payment, its
+                // receipt, the Log, and the team told (app/helpers/orders.php)
+                order_record_payment($this->db, $this->biz_id, (int)$order['id'], $amount, $date, $method,
+                                     $reference ?: null, $note ?: null, (int)auth_user()['id'], $symbol);
+            } elseif ($debt['type'] === 'receivable' && $debt['invoice_id']) {
                 // An invoice's debt is paid on the invoice: the payment counts in
                 // the books, the invoice's balance moves, and the debt follows
                 invoice_record_payment($this->db, $this->biz_id, (int)$debt['invoice_id'], $amount, $date, $method,
@@ -319,7 +333,7 @@ class DebtController {
 
             // A customer paying what they owe is money in: owners and admins
             // hear, except whoever recorded it (app/helpers/notify.php).
-            if ($debt['type'] === 'receivable') {
+            if ($debt['type'] === 'receivable' && !$order) {   // an order's payment was announced by the order
                 notify('payment.debt', $this->biz_id, [
                     'debt_id' => (int)$id, 'customer' => (string)($debt['counterparty_name'] ?? ''), 'amount' => $amount, 'balance' => (float)$now['balance'],
                 ], ['actor' => (int)auth_user()['id'], 'dedupe' => (string)$settlement_id]);
@@ -334,7 +348,7 @@ class DebtController {
                     'settlement_id'  => $settlement_id,
                 ]);
             }
-            flash('success', money($amount, $symbol) . ' settlement recorded.');
+            flash('success', money($amount, $symbol) . ' payment saved.' . ($order ? ' Receipt made.' : ''));
         } catch (\DomainException $ex) {
             $this->db->rollBack();
             $fail($ex->getMessage());
@@ -411,7 +425,7 @@ class DebtController {
         if (strlen($q) < 2) { json_response([]); return; }
         $stmt = $this->db->prepare("
             SELECT id, full_name, business_name, phone
-            FROM customers WHERE business_id = ? AND deleted_at IS NULL AND is_active = 1
+            FROM customers WHERE business_id = ? AND deleted_at IS NULL AND is_active = 1 AND is_walk_in = 0
               AND (full_name LIKE ? OR business_name LIKE ? OR phone LIKE ?)
             ORDER BY full_name ASC LIMIT 10
         ");
@@ -516,6 +530,11 @@ class DebtController {
         $overdue = $stmt->fetchAll();
 
         foreach ($overdue as $inv) {
+            // An order's invoice: its one "Balance on order" debt, with its order
+            if ($order = order_by_invoice($this->db, $this->biz_id, (int)$inv['id'])) {
+                order_sync_debt($this->db, $this->biz_id, (int)$order['id']);
+                continue;
+            }
             $this->db->prepare("
                 INSERT INTO debts (business_id, user_id, type, customer_id, description, total_amount, amount_settled, balance, due_date, status, source, invoice_id)
                 VALUES (?, NULL, 'receivable', ?, ?, ?, 0, ?, ?, 'active', 'invoice', ?)

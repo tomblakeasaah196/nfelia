@@ -75,6 +75,8 @@ function invoice_record_payment(PDO $db, int $biz_id, int $invoice_id, float $am
 /**
  * Record money given back on an invoice: a payment with a minus amount, on the
  * day it was given back, so the books show both the payment and the refund.
+ * An invoice still covered by what is left paid stays paid (giving back what
+ * was paid over the total); it is part paid only when something is owed.
  */
 function invoice_record_refund(PDO $db, int $biz_id, int $invoice_id, float $amount, string $date, string $method,
                                ?string $note, int $user_id, string $symbol = '₦'): array {
@@ -91,16 +93,22 @@ function invoice_record_refund(PDO $db, int $biz_id, int $invoice_id, float $amo
         INSERT INTO payments (business_id, invoice_id, user_id, amount, payment_date, method, reference, note)
         VALUES (?, ?, ?, ?, ?, ?, NULL, ?)
     ")->execute([$biz_id, $invoice_id, $user_id, -$amount, $date, $method, 'Refund' . ($note ? ': ' . $note : '')]);
+    $payment_id = (int)$db->lastInsertId();
 
     $new_paid    = money2($paid - $amount);
-    $new_balance = money2((float)$invoice['total'] - $new_paid);
-    $new_status  = $invoice['status'] === 'cancelled' ? 'cancelled' : ($new_paid > 0 ? 'partially_paid' : 'sent');
+    $new_balance = money2(max(0, (float)$invoice['total'] - $new_paid));
+    $new_status  = match (true) {
+        $invoice['status'] === 'cancelled'      => 'cancelled',
+        $new_paid >= (float)$invoice['total']   => 'paid',
+        $new_paid > 0                           => 'partially_paid',
+        default                                 => 'sent',
+    };
     $db->prepare("UPDATE invoices SET amount_paid = ?, balance_due = ?, status = ? WHERE id = ? AND business_id = ?")
        ->execute([$new_paid, $new_balance, $new_status, $invoice_id, $biz_id]);
 
     invoice_sync_debt($db, $biz_id, $invoice_id);
     customer_refresh_totals($db, $biz_id, (int)$invoice['customer_id']);
-    return ['invoice' => $invoice, 'new_paid' => $new_paid, 'new_balance' => $new_balance];
+    return ['invoice' => $invoice, 'payment_id' => $payment_id, 'new_paid' => $new_paid, 'new_balance' => $new_balance];
 }
 
 /** An invoice's open debt follows what is still owed on the invoice. */
@@ -125,9 +133,9 @@ function invoice_sync_debt(PDO $db, int $biz_id, int $invoice_id): void {
 /**
  * Cancel an invoice: once, and only with nothing paid on it (Tom's decision:
  * record a refund first). The stock it took off goes back, exactly what it
- * moved; its debt is written off; a shop order made into this invoice is
- * cancelled, and its delivery closed so nobody signs for it. Returns an error
- * message, or '' when it is cancelled.
+ * moved; its debt is written off; its order (invoices.order_id, or an older
+ * shop order that points at it) is cancelled, and its delivery closed so
+ * nobody signs for it. Returns an error message, or '' when it is cancelled.
  */
 function invoice_cancel(PDO $db, int $biz_id, int $invoice_id, string $symbol = '₦'): string {
     $invoice = invoice_lock($db, $biz_id, $invoice_id);
@@ -148,8 +156,8 @@ function invoice_cancel(PDO $db, int $biz_id, int $invoice_id, string $symbol = 
 
     $db->prepare("
         UPDATE orders SET status = 'cancelled'
-        WHERE invoice_id = ? AND business_id = ? AND status NOT IN ('cancelled', 'rejected')
-    ")->execute([$invoice_id, $biz_id]);
+        WHERE (invoice_id = ? OR id = ?) AND business_id = ? AND status NOT IN ('cancelled', 'rejected')
+    ")->execute([$invoice_id, (int)($invoice['order_id'] ?? 0), $biz_id]);
     $db->prepare("
         UPDATE deliveries SET status = 'failed', notes = CONCAT(COALESCE(notes, ''), ' [Invoice cancelled]')
         WHERE invoice_id = ? AND business_id = ? AND deleted_at IS NULL AND status IN ('pending_dispatch', 'dispatched', 'in_transit')

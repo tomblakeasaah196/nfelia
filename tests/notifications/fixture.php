@@ -21,7 +21,8 @@
 
 const FX_TABLES = [
     'notify_outbox', 'notifications', 'notification_prefs', 'push_subscriptions', 'user_devices', 'user_passkeys', 'sessions',
-    'account_tokens', 'auth_throttle', 'planner_sends', 'planner_dismissals', 'tasks', 'reviews', 'bookings', 'order_items', 'orders',
+    'account_tokens', 'auth_throttle', 'planner_sends', 'planner_dismissals', 'tasks', 'reviews', 'bookings', 'order_events', 'refunds',
+    'kept_money', 'order_items', 'orders',
     'quote_requests', 'quotation_activities', 'quotation_items', 'quotations', 'debt_settlements', 'debts', 'payments', 'receipt_items',
     'receipts', 'invoice_items', 'invoices', 'delivery_items', 'deliveries', 'deeds', 'stock_movements', 'product_images', 'products',
     'customers', 'support_tickets', 'subscription_payments', 'subscription_history', 'subscription_status_log', 'subscriptions',

@@ -3,7 +3,7 @@
  * Nfelia — the signed-in app's frame (app.php).
  *
  * On a phone: an app bar on top, the page, and tabs at the bottom (Home,
- * Sales, + to create, Tasks, More). On a computer: a sidebar instead of the
+ * Orders, + to create, Tasks, More). On a computer: a sidebar instead of the
  * tabs. The business's colour runs through it (app/helpers/theme.php), and
  * the person's text size and background choice are read from this device.
  * In the installed app, the first page of a launch plays the opening.
@@ -54,8 +54,8 @@ $nav_groups      = nav_groups($user_role, $business_type, $business_id);
 $current_url     = trim($_GET['url'] ?? '', '/');
 $current_section = explode('/', $current_url)[0] ?: 'dashboard';
 $current_tab     = nav_tab_for($current_section);
-// Sales holds three lists (Invoices, Receipts, Quotes): each is a first page of the tab.
-$tab_roots       = ['dashboard' => 'home', 'invoices' => 'sales', 'receipts' => 'sales', 'quotations' => 'sales', 'tasks' => 'tasks', 'more' => 'more', '' => 'home'];
+// Orders holds four lists (Orders, Quotes, Invoices, Receipts): each is a first page of the tab.
+$tab_roots       = ['dashboard' => 'home', 'orders' => 'orders', 'invoices' => 'orders', 'receipts' => 'orders', 'quotations' => 'orders', 'tasks' => 'tasks', 'more' => 'more', '' => 'home'];
 $is_tab_root     = isset($tab_roots[$current_url]);
 // Below a tab's first page the bar shows Back: to the section's list when
 // it has one, otherwise to More, where the rest of the app is listed.
@@ -325,7 +325,7 @@ $flash = get_flash();
     <!-- ===== TABS (phones and tablets) ===== -->
     <nav class="nf-tabbar" aria-label="Tabs">
         <ul>
-            <?php foreach ([['home', 'dashboard', 'Home'], ['sales', 'invoices', 'Sales'], ['create', '', ''], ['tasks', 'tasks', 'Tasks'], ['more', 'more', 'More']] as [$key, $url, $label]): ?>
+            <?php foreach ([['home', 'dashboard', 'Home'], ['orders', 'orders', 'Orders'], ['create', '', ''], ['tasks', 'tasks', 'Tasks'], ['more', 'more', 'More']] as [$key, $url, $label]): ?>
                 <li>
                 <?php if ($key === 'create'): ?>
                     <button type="button" class="nf-tab-create" aria-label="Create" aria-haspopup="dialog" data-open="nf-create"><?= nav_icon('plus') ?></button>
@@ -346,9 +346,9 @@ $flash = get_flash();
             <button type="button" class="nf-icon-btn" data-close aria-label="Close"><?= nav_icon('close') ?></button>
         </div>
         <div class="nf-create">
-            <a href="<?= APP_URL ?>/invoices/create"><span class="nf-tile-ic"><?= nav_icon('invoice') ?></span>Create invoice</a>
-            <a href="<?= APP_URL ?>/receipts/create"><span class="nf-tile-ic"><?= nav_icon('payment') ?></span>Record payment</a>
-            <a href="<?= APP_URL ?>/quotations/create"><span class="nf-tile-ic"><?= nav_icon('quote') ?></span>Create quote</a>
+            <a class="is-big" href="<?= APP_URL ?>/orders/create"><span class="nf-tile-ic"><?= nav_icon('orders') ?></span>New order</a>
+            <a class="is-big" href="<?= APP_URL ?>/orders/quick"><span class="nf-tile-ic"><?= nav_icon('bolt') ?></span>Quick sale</a>
+            <a href="<?= APP_URL ?>/quotations/create"><span class="nf-tile-ic"><?= nav_icon('quote') ?></span>New quote</a>
             <a href="<?= APP_URL ?>/tasks?new=task"><span class="nf-tile-ic"><?= nav_icon('task') ?></span>Add task</a>
             <a href="<?= APP_URL ?>/customers/create"><span class="nf-tile-ic"><?= nav_icon('customer') ?></span>Add customer</a>
             <a href="<?= APP_URL ?>/products/create"><span class="nf-tile-ic"><?= nav_icon('stock') ?></span><?= $business_type === 'service' ? 'Add service' : 'Add product' ?></a>
@@ -356,6 +356,17 @@ $flash = get_flash();
                 <a href="<?= APP_URL ?>/expenses/create"><span class="nf-tile-ic"><?= nav_icon('expense') ?></span>Add expense</a>
             <?php endif; ?>
         </div>
+    </dialog>
+
+    <!-- ===== INFO: the longer words behind an (i), filled by shell.js (nf_info() in app/helpers/ui.php) ===== -->
+    <dialog class="nf-sheet nf-info-sheet" id="nf-info" aria-labelledby="nf-info-h">
+        <div class="nf-grab"></div>
+        <div class="nf-sheet-h">
+            <h2 id="nf-info-h" data-info-title></h2>
+            <button type="button" class="nf-icon-btn" data-close aria-label="Close"><?= nav_icon('close') ?></button>
+        </div>
+        <p class="nf-info-text" data-info-text></p>
+        <div class="nf-actions"><button type="button" class="nf-btn nf-btn-primary" data-close>Got it</button></div>
     </dialog>
 
     <!-- ===== INSTALL (shown by shell.js after sign-in, on a phone) ===== -->

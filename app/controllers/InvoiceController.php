@@ -44,8 +44,9 @@ class InvoiceController {
         $params = [$this->biz_id];
 
         if ($search !== '') {
-            $where[]  = "(i.doc_number LIKE ? OR c.full_name LIKE ?)";
+            $where[]  = "(i.doc_number LIKE ? OR c.full_name LIKE ? OR o.order_number LIKE ?)";
             $like     = "%{$search}%";
+            $params[] = $like;
             $params[] = $like;
             $params[] = $like;
         }
@@ -69,16 +70,18 @@ class InvoiceController {
         };
 
         // Count
-        $stmtC = $this->db->prepare("SELECT COUNT(*) FROM invoices i LEFT JOIN customers c ON c.id = i.customer_id WHERE {$where_sql}");
+        $stmtC = $this->db->prepare("SELECT COUNT(*) FROM invoices i LEFT JOIN customers c ON c.id = i.customer_id
+                                     LEFT JOIN orders o ON o.id = i.order_id AND o.business_id = i.business_id WHERE {$where_sql}");
         $stmtC->execute($params);
         $total_items = (int)$stmtC->fetchColumn();
         $total_pages = max(1, ceil($total_items / $per_page));
 
         // Fetch
         $stmtQ = $this->db->prepare("
-            SELECT i.*, c.full_name as customer_name, c.phone as customer_phone
+            SELECT i.*, c.full_name as customer_name, c.phone as customer_phone, o.order_number
             FROM invoices i
             LEFT JOIN customers c ON c.id = i.customer_id
+            LEFT JOIN orders o ON o.id = i.order_id AND o.business_id = i.business_id
             WHERE {$where_sql}
             ORDER BY {$order}
             LIMIT {$per_page} OFFSET {$offset}
@@ -114,23 +117,10 @@ class InvoiceController {
      *  CREATE — invoice builder
      * ────────────────────────────────────────── */
     public function create() {
-        $user     = auth_user();
-        $business = auth_business();
-
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            csrf_verify();
-            return $this->save_invoice(null);
-        }
-
-        $invoice   = [];
-        $items     = [];
-        $editing   = false;
-        $customers = $this->get_customers();
-        $banks     = $this->get_bank_accounts();
-
-        $title     = "New Invoice";
-        $view_file = BASE_PATH . '/views/invoices/form.php';
-        require_once BASE_PATH . '/views/layouts/app.php';
+        // Every sale starts as an order now: its invoice is made when it is
+        // confirmed (docs/ORDERS_HUB.md). Old links land on New order.
+        $customer = (int)($_GET['customer_id'] ?? 0);
+        redirect('orders/create' . ($customer ? '?customer=' . $customer : ''));
     }
 
     /* ──────────────────────────────────────────
@@ -142,6 +132,10 @@ class InvoiceController {
 
         $invoice = $this->find_invoice($id);
         if (!$invoice) { not_found(); return; }
+
+        if ($order = order_by_invoice($this->db, $this->biz_id, (int)$invoice['id'])) {
+            redirect(is_boss() ? 'orders/edit/' . $order['id'] : 'orders/view/' . $order['id']);
+        }
 
         if (!in_array($invoice['status'], ['draft', 'sent'])) {
             flash('error', 'This invoice can no longer be edited.');
@@ -227,6 +221,7 @@ class InvoiceController {
         }
 
         $public_url = APP_URL . '/doc/' . $invoice['token'];
+        $order = order_by_invoice($this->db, $this->biz_id, (int)$invoice['id']);
 
         // A signed delivery note also counts as delivered.
         $stmtDn = $this->db->prepare("SELECT 1 FROM deliveries WHERE invoice_id = ? AND business_id = ? AND deleted_at IS NULL AND status IN ('delivered','signed_off') LIMIT 1");
@@ -347,6 +342,25 @@ class InvoiceController {
         if (!in_array($method, $valid_methods)) $method = 'cash';
         $symbol = auth_business()['currency_symbol'] ?? '₦';
 
+        // An order's invoice: the order records it, makes the receipt and
+        // tells the team (app/helpers/orders.php)
+        if ($order = order_by_invoice($this->db, $this->biz_id, (int)$id)) {
+            try {
+                $done = order_record_payment($this->db, $this->biz_id, (int)$order['id'], $amount, $payment_date, $method,
+                                             $reference ?: null, $note ?: null, (int)$user['id'], $symbol);
+            } catch (\DomainException $e) {
+                if (is_ajax()) { json_response(['error' => $e->getMessage()], 422); }
+                flash('error', $e->getMessage());
+                redirect('invoices/view/' . $id);
+            }
+            flash('success', planner_money(money2($amount), $symbol) . ' recorded, receipt made.' . ($done['new_balance'] <= 0 ? ' The invoice is fully paid.' : ''));
+            if (is_ajax()) {
+                json_response(['success' => true, 'payment_id' => $done['payment_id'], 'balance_due' => $done['new_balance'],
+                               'fully_paid' => $done['new_balance'] <= 0, 'receipt_url' => APP_URL . '/receipts/view/' . $done['receipt_id']]);
+            }
+            redirect('invoices/view/' . $id);
+        }
+
         $this->db->beginTransaction();
         try {
             // Locks the invoice, checks what is still owed, and keeps its debt
@@ -410,6 +424,12 @@ class InvoiceController {
         $invoice = $this->find_invoice($id);
         if (!$invoice) { not_found(); return; }
 
+        // An order's money goes back from the order, so the customer gets a refund slip
+        if ($order = order_by_invoice($this->db, $this->biz_id, (int)$id)) {
+            flash('info', 'Give the money back from order ' . $order['order_number'] . ', so ' . planner_first_name($order['customer_name']) . ' gets a refund slip.');
+            redirect('orders/view/' . $order['id'] . '#money');
+        }
+
         $method = trim($_POST['method'] ?? 'cash');
         if (!in_array($method, ['cash','bank_transfer','pos','mobile_money','cheque','other'], true)) $method = 'cash';
         $symbol = auth_business()['currency_symbol'] ?? '₦';
@@ -441,6 +461,14 @@ class InvoiceController {
             flash('error', 'Invoice is already cancelled.');
             redirect('invoices/view/' . $id);
             return;
+        }
+
+        // An order's invoice is cancelled with its order: the shopper is told and it goes on the Log
+        if ($order = order_by_invoice($this->db, $this->biz_id, (int)$id)) {
+            require_boss('cancel an order');
+            $problem = order_cancel($this->db, $this->biz_id, (int)$order['id'], (int)auth_user()['id']);
+            flash($problem === '' ? 'success' : 'error', $problem === '' ? 'Order ' . $order['order_number'] . ' and ' . $invoice['doc_number'] . ' cancelled. Stock restored.' : $problem);
+            redirect('invoices/view/' . $id);
         }
 
         $this->db->beginTransaction();
@@ -490,10 +518,11 @@ class InvoiceController {
         }
 
         $public_url = APP_URL . '/doc/' . $invoice['token'];
+        $order = order_by_invoice($this->db, $this->biz_id, (int)$invoice['id']);
         $wa_text = urlencode(
             "Hello " . ($customer['full_name'] ?? '') . ",\n\n"
             . "This is a friendly reminder regarding your outstanding invoice from *{$business['name']}*:\n\n"
-            . "Invoice: *{$invoice['doc_number']}*\n"
+            . "Invoice: *{$invoice['doc_number']}*" . ($order ? " for your order *{$order['order_number']}*" : '') . "\n"
             . "Total: *{$currency}" . number_format((float)$invoice['total'], 2) . "*\n"
             . "Balance Due: *{$currency}" . number_format((float)$invoice['balance_due'], 2) . "*" . $days_overdue . "\n"
             . ($invoice['due_date'] ? "Due Date: " . fmt_date($invoice['due_date'], 'd M Y') . "\n" : '')
@@ -532,8 +561,18 @@ class InvoiceController {
         // A job plan's delivery step follows the invoice's new date, with its
         // reminder and the job's finish date (P6)
         planner_move_delivery($this->db, $this->biz_id, (int)$invoice['id'], $delivery['deliver_by']);
-        if ($delivery['delivered_at']) {
-            planner_invoice_delivered($this->db, $this->biz_id, (int)$invoice['id'], false, (int)auth_user()['id']);
+        // An order's invoice: the day and the handover go through its order,
+        // so its delivery note, its Log and the customer's message follow
+        $order = order_by_invoice($this->db, $this->biz_id, (int)$invoice['id']);
+        try {
+            if ($delivery['delivered_at']) {
+                order_from_invoice_delivered($this->db, $this->biz_id, (int)$invoice['id'], false, (int)auth_user()['id']);
+            } elseif ($order && $delivery['deliver_mode'] === 'date' && $delivery['deliver_by']) {
+                order_set_when($this->db, $this->biz_id, (int)$order['id'], $delivery['deliver_by'], (int)auth_user()['id']);
+            }
+        } catch (DomainException $e) {
+            flash('error', $e->getMessage());
+            redirect('invoices/view/' . $invoice['id']);
         }
 
         flash('success', $delivery['delivered_at'] ? 'Saved as delivered.' : 'Delivery date saved. It is on your Tasks & Calendar.');
@@ -552,7 +591,7 @@ class InvoiceController {
         // The promise, its delivery step and its job move together
         // (app/helpers/planner.php)
         $undo = !empty($_POST['undo']);
-        planner_invoice_delivered($this->db, $this->biz_id, (int)$invoice['id'], $undo, (int)auth_user()['id']);
+        order_from_invoice_delivered($this->db, $this->biz_id, (int)$invoice['id'], $undo, (int)auth_user()['id']);
 
         flash('success', $undo ? 'Marked as not delivered yet.' : 'Marked delivered.');
         redirect('invoices/view/' . $invoice['id']);
@@ -823,7 +862,7 @@ class InvoiceController {
     private function get_customers(): array {
         $stmt = $this->db->prepare("
             SELECT id, full_name, phone, email FROM customers
-            WHERE business_id = ? AND deleted_at IS NULL AND is_active = 1
+            WHERE business_id = ? AND deleted_at IS NULL AND is_active = 1 AND is_walk_in = 0
             ORDER BY full_name ASC
         ");
         $stmt->execute([$this->biz_id]);
@@ -858,6 +897,11 @@ class InvoiceController {
         $stmt->execute([$this->biz_id]);
 
         foreach ($stmt->fetchAll() as $inv) {
+            // An order's invoice: its one "Balance on order" debt, with its order
+            if ($order = order_by_invoice($this->db, $this->biz_id, (int)$inv['id'])) {
+                order_sync_debt($this->db, $this->biz_id, (int)$order['id']);
+                continue;
+            }
             // Create debt
             $this->db->prepare("
                 INSERT INTO debts (business_id, customer_id, user_id, type, source, invoice_id, description, counterparty_name, counterparty_phone, total_amount, amount_settled, balance, due_date, status)

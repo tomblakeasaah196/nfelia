@@ -5,24 +5,18 @@
  *
  * Available from controller:
  *   $user, $business, $receipt, $customer, $invoice, $items,
- *   $payment, $public_url, $is_standalone
+ *   $payment, $public_url, $is_standalone, $order
  */
 $currency = $business['currency_symbol'] ?? '₦';
 
-// WhatsApp share
-$wa_number = $customer ? ($customer['whatsapp'] ?? $customer['phone'] ?? '') : '';
-$wa_number = preg_replace('/[^0-9]/', '', $wa_number);
-if (str_starts_with($wa_number, '0')) $wa_number = '234' . substr($wa_number, 1);
-$wa_text = urlencode(
-    "Hello" . ($customer ? ' ' . $customer['full_name'] : '') . "!\n\n"
-    . "Here is your *Payment Acknowledgement* from *{$business['name']}*:\n\n"
-    . "{$receipt['doc_number']}\n"
-    . "Amount: {$currency}" . number_format((float)$receipt['amount'], 2) . "\n"
-    . "Date: " . fmt_date($receipt['issue_date'], 'd M Y') . "\n"
-    . "Method: " . ucfirst(str_replace('_', ' ', $receipt['method'])) . "\n"
-    . ($receipt['balance_remaining'] > 0 ? "Balance Remaining: {$currency}" . number_format((float)$receipt['balance_remaining'], 2) . "\n" : '')
-    . "\nView & download here:\n{$public_url}\n\n"
-    . "_Sent via Nfelia — nfelia.com_"
+// WhatsApp share: the receipt leads, its order is named
+$wa_number = wa_digits($customer && empty($customer['is_walk_in']) ? (($customer['whatsapp'] ?? '') ?: ($customer['phone'] ?? '')) : '', $business);
+$wa_text = rawurlencode(
+    "Hello" . ($customer && empty($customer['is_walk_in']) ? ' ' . planner_first_name($customer['full_name']) : '') . ",\n\n"
+    . "Thank you for your payment of " . planner_money((float)$receipt['amount'], $currency) . ". Here is receipt *{$receipt['doc_number']}*"
+    . ($order ? " for your order {$order['order_number']}" : '') . " from *{$business['name']}*.\n"
+    . ((float)$receipt['balance_remaining'] > 0 ? "Balance: " . planner_money((float)$receipt['balance_remaining'], $currency) . "\n" : '')
+    . "\nSee it here: {$public_url}"
 );
 $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
 ?>
@@ -43,7 +37,7 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
         <span class="nf-tag <?= $is_standalone ? 'is-accent' : 'is-in' ?>"><?= $is_standalone ? 'Paid on the spot' : 'Invoice payment' ?></span>
     </p>
     <p class="nf-doc-amt is-in"><?= planner_money((float)$receipt['amount'], $currency) ?></p>
-    <p class="nf-doc-meta"><?= e($receipt['doc_number']) ?> · <?= e(screen_date($receipt['issue_date'])) ?> · <?= e(screen_method($receipt['method'])) ?></p>
+    <p class="nf-doc-meta"><?= e($receipt['doc_number']) ?><?php if ($order): ?> · order <a href="<?= APP_URL ?>/orders/view/<?= (int)$order['id'] ?>" data-prefetch><?= e($order['order_number']) ?></a><?php endif; ?> · <?= e(screen_date($receipt['issue_date'])) ?> · <?= e($receipt['method'] === 'kept' ? 'Kept money' : screen_method($receipt['method'])) ?></p>
     <?php if ($invoice): ?>
         <p class="nf-doc-meta">
             For <a href="<?= APP_URL ?>/invoices/view/<?= (int)$invoice['id'] ?>" data-prefetch><?= e($invoice['doc_number']) ?></a>:
@@ -126,11 +120,12 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
             </div>
 
             <div class="text-right">
-                <h1 class="font-heading font-extrabold text-2xl uppercase tracking-wider" style="color: <?= e($business['primary_color'] ?? '#8B004A') ?>;">Payment Acknowledgement</h1>
+                <h1 class="font-heading font-extrabold text-2xl uppercase tracking-wider" style="color: <?= e($business['primary_color'] ?? '#8B004A') ?>;">Receipt</h1>
                 <div class="data-text text-sm font-bold text-gray-700 mt-1"><?= e($receipt['doc_number']) ?></div>
+                <?php if ($order): ?><div class="data-text text-xs text-gray-600 mt-0.5">Order: <?= e($order['order_number']) ?></div><?php endif; ?>
                 <div class="text-[10px] text-gray-500 mt-2 space-y-0.5">
                     <div>Date: <?= fmt_date($receipt['issue_date'], 'd M Y') ?></div>
-                    <div>Method: <?= ucfirst(str_replace('_', ' ', $receipt['method'])) ?></div>
+                    <div>Method: <?= $receipt['method'] === 'kept' ? 'Kept money' : ucfirst(str_replace('_', ' ', $receipt['method'])) ?></div>
                 </div>
             </div>
         </div>
@@ -252,10 +247,12 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
     <div class="nf-menu-sheet">
         <a class="nf-row" href="<?= e($public_url) ?>?format=pdf" download="<?= e(preg_replace('/[^A-Za-z0-9._-]+/', '-', $receipt['doc_number'])) ?>.pdf"><span class="nf-tile-ic"><?= nav_icon('download') ?></span>Download PDF</a>
         <a class="nf-row" href="<?= e($public_url) ?>" target="_blank" rel="noopener"><span class="nf-tile-ic"><?= nav_icon('open') ?></span>Open the customer's page</a>
+        <?php if (empty($order)): // an order's receipt stays with its payment ?>
         <form method="POST" action="<?= APP_URL ?>/receipts/delete/<?= (int)$receipt['id'] ?>"
-              onsubmit="return confirm('Delete receipt <?= e($receipt['doc_number']) ?>? <?= $invoice ? 'The payment stays recorded on ' . e($invoice['doc_number']) . '.' : 'The stock it took off your shelves is not put back.' ?>');">
+              onsubmit="return confirm('Delete receipt <?= e($receipt['doc_number']) ?>? <?= $invoice ? 'The payment stays recorded on ' . e($invoice['doc_number']) . '.' : 'What it sold goes back on your shelves.' ?>');">
             <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
             <button class="nf-row is-danger"><span class="nf-tile-ic"><?= nav_icon('trash') ?></span>Delete the receipt</button>
         </form>
+        <?php endif; ?>
     </div>
 </dialog>

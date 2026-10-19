@@ -256,6 +256,14 @@ class DeliveryController {
         $statuses  = self::STATUSES;
         $providers = self::PROVIDERS;
 
+        // The order it belongs to: its own order_id, the order pointing at it, or its invoice's
+        $order = !empty($delivery['order_id']) ? order_find($this->db, $this->biz_id, (int)$delivery['order_id']) : null;
+        if (!$order) {
+            $stmt = $this->db->prepare("SELECT * FROM orders WHERE delivery_id = ? AND business_id = ? LIMIT 1");
+            $stmt->execute([(int)$delivery['id'], $this->biz_id]);
+            $order = $stmt->fetch() ?: ($delivery['invoice_id'] ? order_by_invoice($this->db, $this->biz_id, (int)$delivery['invoice_id']) : null);
+        }
+
         $title     = e($delivery['doc_number']);
         $view_file = BASE_PATH . '/views/deliveries/view.php';
         require_once BASE_PATH . '/views/layouts/app.php';
@@ -337,13 +345,10 @@ class DeliveryController {
             planner_invoice_delivered($this->db, $this->biz_id, (int)$delivery['invoice_id'], false, (int)auth_user()['id']);
         }
 
-        // A shop order on its way, or delivered: the shopper hears.
-        if (in_array($new_status, ['dispatched', 'in_transit', 'delivered'], true)) {
-            $stmt = $this->db->prepare("SELECT id FROM orders WHERE delivery_id = ? AND business_id = ? LIMIT 1");
-            $stmt->execute([$id, $this->biz_id]);
-            if ($order_id = (int)$stmt->fetchColumn()) {
-                shop_order_tell($this->db, $order_id, $new_status === 'delivered' ? 'delivered' : 'on_the_way');
-            }
+        // Its order follows: on its way, or delivered (with the shopper told,
+        // the review asked for and the Log written by app/helpers/orders.php)
+        if (in_array($new_status, ['dispatched', 'in_transit', 'delivered', 'signed_off'], true)) {
+            order_sync_from_delivery($this->db, $this->biz_id, (int)$id);
         }
 
         flash('success', 'Status updated to ' . self::STATUSES[$new_status]['label'] . '.');
@@ -429,7 +434,7 @@ class DeliveryController {
         if (strlen($q) < 2) { json_response([]); return; }
         $stmt = $this->db->prepare("
             SELECT id, full_name, phone, address
-            FROM customers WHERE business_id = ? AND deleted_at IS NULL AND is_active = 1
+            FROM customers WHERE business_id = ? AND deleted_at IS NULL AND is_active = 1 AND is_walk_in = 0
               AND (full_name LIKE ? OR phone LIKE ?)
             ORDER BY full_name ASC LIMIT 10
         ");
