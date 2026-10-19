@@ -14,7 +14,7 @@
  * sends X-Nfelia-Page). Never kept: anything but GET, /api, sign-in pages,
  * documents shared with customers (/doc) and downloads.
  */
-var VERSION = '2026-10-22.1';
+var VERSION = '2026-10-23.1';
 var FILES = 'nf-files-' + VERSION; // the app's own files, replaced with each version
 var PAGES = 'nf-pages';            // pages someone opened, kept for offline reading
 var SLOW_MS = 8000;                // after this long, show the kept copy instead of waiting
@@ -204,9 +204,42 @@ function file(event) {
     });
 }
 
-// The page asks for the files it used before this worker was in charge.
+// What this phone keeps for notifications (assets/js/push.js hands it over
+// when alerts are turned on or re-saved): Nfelia's public key, so a lost
+// subscription can be made again, and a device token that says whose phone
+// this is, so the new subscription can be saved with Nfelia closed.
+var PUSH_STORE = 'nf-push';
+var PUSH_KEY = new URL('__push-config', scope).href;
+function savePushConfig(cfg) {
+    return caches.open(PUSH_STORE).then(function (cache) {
+        return cache.put(PUSH_KEY, new Response(JSON.stringify(cfg), { headers: { 'Content-Type': 'application/json' } }));
+    }).catch(function () {});
+}
+function readPushConfig() {
+    return caches.open(PUSH_STORE).then(function (cache) {
+        return cache.match ? cache.match(PUSH_KEY) : null;
+    }).then(function (res) { return res ? res.json() : null; }).catch(function () { return null; });
+}
+function keyBytes(b64) {
+    var pad = '='.repeat((4 - b64.length % 4) % 4);
+    var raw = atob((b64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
+    var out = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+    return out;
+}
+
 self.addEventListener('message', function (event) {
     var data = event.data || {};
+    if (data.type === 'nf-push-config' && typeof data.token === 'string') {
+        // One token per person who turned alerts on here (a shared phone).
+        event.waitUntil(readPushConfig().then(function (cfg) {
+            var tokens = (cfg && cfg.tokens && typeof cfg.tokens === 'object') ? cfg.tokens : {};
+            tokens[String(data.user || 0)] = data.token;
+            return savePushConfig({ tokens: tokens, key: typeof data.key === 'string' && data.key ? data.key : (cfg && cfg.key) || '' });
+        }));
+        return;
+    }
+    // The page asks for the files it used before this worker was in charge.
     if (data.type !== 'nf-warm' || !Array.isArray(data.urls)) return;
     event.waitUntil(caches.open(FILES).then(function (cache) {
         return Promise.all(data.urls.slice(0, 30).map(function (href) {
@@ -302,18 +335,24 @@ self.addEventListener('notificationclick', function (event) {
 
 // The browser replaced this phone's subscription (they expire, or the push
 // service rotates them). Save the new one in place of the old, so alerts
-// keep arriving without anyone opening Nfelia first.
+// keep arriving without anyone opening Nfelia first. Chrome often gives no
+// old subscription: then the kept key makes a new one and the kept device
+// token says whose phone it is.
 self.addEventListener('pushsubscriptionchange', function (event) {
     var old = event.oldSubscription;
-    event.waitUntil(Promise.resolve(event.newSubscription || (old && old.options
-        ? self.registration.pushManager.subscribe(old.options) : null)
-    ).then(function (sub) {
-        if (!sub || !old) return;
-        return fetch(new URL('api/notifications?action=resubscribe', scope).href, {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ old_endpoint: old.endpoint, subscription: sub.toJSON() })
+    event.waitUntil(readPushConfig().then(function (cfg) {
+        var tokens = [];
+        if (cfg && cfg.tokens && typeof cfg.tokens === 'object') { for (var k in cfg.tokens) { if (typeof cfg.tokens[k] === 'string') tokens.push(cfg.tokens[k]); } }
+        // Nfelia's own key first (it may have changed since the old subscription was made), the old one's otherwise.
+        var options = (cfg && cfg.key ? { userVisibleOnly: true, applicationServerKey: keyBytes(cfg.key) } : null) || (old && old.options) || null;
+        return Promise.resolve(event.newSubscription || (options ? self.registration.pushManager.subscribe(options) : null)).then(function (sub) {
+            if (!sub || (!old && !tokens.length)) return;
+            return fetch(new URL('api/notifications?action=resubscribe', scope).href, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ old_endpoint: old ? old.endpoint : null, tokens: tokens, subscription: sub.toJSON() })
+            });
         });
     }).catch(function () {}));
 });

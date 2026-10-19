@@ -393,6 +393,23 @@ $flash = get_flash();
         </div>
     </dialog>
 
+    <!-- ===== PHONE ALERTS (assets/js/bell.js nfPushOffer): once, after signing in on a phone ===== -->
+    <?php if (push_enabled()): ?>
+    <dialog class="nf-sheet" id="nf-push-offer" aria-labelledby="nf-push-offer-h">
+        <div class="nf-grab"></div>
+        <div class="nf-pk-offer">
+            <span class="nf-pk-badge"><?= nav_icon('bell') ?></span>
+            <h2 id="nf-push-offer-h">Get alerts on this phone</h2>
+            <p>New orders, payments and your reminders reach this phone the moment they happen, even with Nfelia closed. You choose what buzzes in More › Notifications.</p>
+            <p class="nf-lock-err" data-push-err role="alert" hidden></p>
+        </div>
+        <div class="nf-actions">
+            <button type="button" class="nf-btn nf-btn-ghost" data-push-later>Not now</button>
+            <button type="button" class="nf-btn nf-btn-primary" data-push-go>Turn on</button>
+        </div>
+    </dialog>
+    <?php endif; ?>
+
     <!-- ===== LOCK (assets/js/lock.js): after <?= e($lock_words) ?> without use ===== -->
     <dialog class="nf-lock" id="nf-lock" aria-labelledby="nf-lock-h">
         <div class="nf-lock-card">
