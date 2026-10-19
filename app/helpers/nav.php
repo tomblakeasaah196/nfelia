@@ -97,7 +97,7 @@ function nav_groups(string $role, string $business_type, int $business_id): arra
             ['Quotations', 'quotations', 'quote', $all],
             ['Invoices', 'invoices', 'invoice', $all],
             ['Receipts', 'receipts', 'payment', $all],
-            [$business_type === 'service' ? 'Services' : 'Stock', 'products', 'stock', $all],
+            ['Catalogue', 'products', 'stock', $all],
             ['Clients', 'customers', 'clients', $all],
             ['Suppliers', 'suppliers', 'supplier', $all],
             ['Deliveries', 'deliveries', 'delivery', $all],

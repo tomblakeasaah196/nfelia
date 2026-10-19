@@ -70,10 +70,10 @@ $units = [
     <a href="<?= APP_URL ?>/products" class="text-brand-plum/40 hover:text-brand-plum transition-colors">
         <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
     </a>
-    <h1 class="font-heading font-extrabold text-2xl text-brand-plum tracking-tight"><?= $editing ? 'Edit Product' : 'Add New Item' ?></h1>
+    <h1 class="font-heading font-extrabold text-2xl text-brand-plum tracking-tight"><?= $editing ? 'Edit item' : 'Add New Item' ?></h1>
 </div>
 
-<form method="POST" enctype="multipart/form-data"
+<form method="POST" enctype="multipart/form-data" id="catalogue-form" data-no-spin
       action="<?= APP_URL ?>/products/<?= $editing ? 'edit/' . (int)$product['id'] : 'create' ?>"
       x-data="{
           isService: <?= $p_service ? 'true' : 'false' ?>,
@@ -367,7 +367,7 @@ $units = [
             <!-- Action Buttons -->
             <div class="space-y-3">
                 <button type="submit" class="w-full btn-primary text-white py-3.5 rounded-xl text-[11px] font-bold uppercase tracking-widest shadow-sm hover:shadow-md transition-all">
-                    <?= $editing ? 'Save Changes' : 'Add to Inventory' ?>
+                    <?= $editing ? 'Save Changes' : 'Add to Catalogue' ?>
                 </button>
                 <a href="<?= APP_URL ?>/products<?= $editing ? '/view/' . (int)$product['id'] : '' ?>"
                    class="block w-full text-center bg-brand-cream border border-brand-sand text-brand-plum py-3.5 rounded-xl text-[11px] font-bold uppercase tracking-widest hover:border-brand-gold transition-all">
@@ -387,3 +387,92 @@ $units = [
         </div>
     </div>
 </form>
+
+<!-- Upload progress: fills 0 → 100% while the pictures go up, then the next page confirms with a toast. -->
+<div class="nf-upload" id="nf-upload" hidden role="status" aria-live="polite">
+    <div class="nf-upload-card">
+        <h3 id="nf-upload-title"><?= $editing ? 'Saving changes…' : 'Adding to your catalogue…' ?></h3>
+        <p id="nf-upload-sub">Uploading your pictures. Keep this page open.</p>
+        <div class="nf-upload-track"><div class="nf-upload-bar" id="nf-upload-bar"></div></div>
+        <div class="nf-upload-pct" id="nf-upload-pct">0%</div>
+    </div>
+</div>
+
+<script>
+(function () {
+    var form = document.getElementById('catalogue-form');
+    if (!form || !window.FormData || !window.XMLHttpRequest) return;   // old browser: plain POST still works
+
+    var overlay = document.getElementById('nf-upload');
+    var bar     = document.getElementById('nf-upload-bar');
+    var pct     = document.getElementById('nf-upload-pct');
+    var sub     = document.getElementById('nf-upload-sub');
+    var sending = false;
+
+    function setPct(n) {
+        n = Math.max(0, Math.min(100, Math.round(n)));
+        if (bar) bar.style.width = n + '%';
+        if (pct) pct.textContent = n + '%';
+    }
+    function toast(msg, type) {
+        if (window.nfToast) window.nfToast(msg, type); else if (type === 'error') alert(msg);
+    }
+
+    form.addEventListener('submit', function (e) {
+        // "Duplicate" posts to a different address (formaction) — let it submit normally.
+        if (e.submitter && e.submitter.getAttribute('formaction')) return;
+        if (sending) { e.preventDefault(); return; }
+        // If the browser would block the submit for a missing field, let it show the hints.
+        if (form.checkValidity && !form.checkValidity()) return;
+
+        e.preventDefault();
+        sending = true;
+
+        var submitBtn = form.querySelector('button[type="submit"]:not([formaction])');
+        if (window.nfSpinButton && submitBtn) window.nfSpinButton(submitBtn);
+
+        if (overlay) { overlay.hidden = false; overlay.classList.remove('is-done', 'is-working'); }
+        setPct(0);
+
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', form.action, true);
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+
+        xhr.upload.addEventListener('progress', function (ev) {
+            if (ev.lengthComputable) setPct(ev.loaded / ev.total * 100);
+        });
+        // Bytes are all sent; the server is now saving and resizing the images.
+        xhr.upload.addEventListener('load', function () {
+            setPct(100);
+            if (overlay) overlay.classList.add('is-working');
+            if (sub) sub.textContent = 'Finishing up…';
+        });
+
+        xhr.addEventListener('load', function () {
+            if (overlay) overlay.classList.remove('is-working');
+            var res = null;
+            try { res = JSON.parse(xhr.responseText); } catch (err) {}
+            if (xhr.status >= 200 && xhr.status < 300 && res && res.success && res.redirect) {
+                setPct(100);
+                if (overlay) overlay.classList.add('is-done');
+                if (sub) sub.textContent = 'Done.';
+                // The page we land on shows the green success toast.
+                window.location.assign(res.redirect);
+                return;
+            }
+            fail(res && res.message ? res.message : 'Could not save this. Check the form and try again.');
+        });
+        xhr.addEventListener('error', function () { fail('Upload failed. Check your connection and try again.'); });
+        xhr.addEventListener('abort', function () { fail('Upload stopped.'); });
+
+        function fail(msg) {
+            sending = false;
+            if (overlay) { overlay.hidden = true; overlay.classList.remove('is-working', 'is-done'); }
+            if (window.unspinBtn && submitBtn) window.unspinBtn(submitBtn);
+            toast(msg, 'error');
+        }
+
+        xhr.send(new FormData(form));
+    });
+})();
+</script>

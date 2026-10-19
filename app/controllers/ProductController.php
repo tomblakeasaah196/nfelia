@@ -173,12 +173,15 @@ class ProductController {
             if ($dup->fetch()) $errors[] = 'A product with this name already exists.';
 
             if (!empty($errors)) {
+                if (is_ajax()) {
+                    json_response(['success' => false, 'message' => implode(' ', $errors)], 422);
+                }
                 flash('error', implode(' ', $errors));
                 // Re-render form with old input
                 $product   = $_POST;
                 $editing   = false;
                 $categories_list = $this->get_categories();
-                $title     = "Add Product";
+                $title     = "Add to catalogue";
                 $view_file = BASE_PATH . '/views/products/form.php';
                 require_once BASE_PATH . '/views/layouts/app.php';
                 return;
@@ -218,7 +221,10 @@ class ProductController {
                 $this->log_movement($product_id, 'stock_in', $stock_qty, 0, $stock_qty, $cost_price, 'Initial stock on product creation');
             }
 
-            flash('success', "{$name} added to inventory.");
+            flash('success', "{$name} added to your catalogue.");
+            if (is_ajax()) {
+                json_response(['success' => true, 'redirect' => APP_URL . '/products/view/' . $product_id]);
+            }
             redirect('products/view/' . $product_id);
         }
 
@@ -228,7 +234,7 @@ class ProductController {
         $categories_list = $this->get_categories();
         $product_images = [];
         $variant_groups = [];
-        $title     = "Add Product";
+        $title     = "Add to catalogue";
         $view_file = BASE_PATH . '/views/products/form.php';
         require_once BASE_PATH . '/views/layouts/app.php';
     }
@@ -268,6 +274,9 @@ class ProductController {
             if ($dup->fetch()) $errors[] = 'Another product with this name already exists.';
 
             if (!empty($errors)) {
+                if (is_ajax()) {
+                    json_response(['success' => false, 'message' => implode(' ', $errors)], 422);
+                }
                 flash('error', implode(' ', $errors));
                 $product   = array_merge($product, $_POST);
                 $editing   = true;
@@ -313,6 +322,9 @@ class ProductController {
             } catch (\Throwable $e) {
                 $this->db->rollBack();
                 error_log('Product save error: ' . $e->getMessage());
+                if (is_ajax()) {
+                    json_response(['success' => false, 'message' => 'Could not save ' . $name . '. Please try again.'], 500);
+                }
                 flash('error', 'Could not save ' . $name . '. Please try again.');
                 redirect('products/edit/' . $id);
             }
@@ -327,6 +339,9 @@ class ProductController {
             $this->save_booking_fields((int)$id);
 
             flash('success', "{$name} updated.");
+            if (is_ajax()) {
+                json_response(['success' => true, 'redirect' => APP_URL . '/products/view/' . $id]);
+            }
             redirect('products/view/' . $id);
         }
 

@@ -9,18 +9,18 @@ $sections = [
         'title' => 'Getting Started',
         'steps' => [
             ['title' => 'Set Up Your Business', 'text' => 'After signing up, head to <strong>Settings → Business</strong> to add your business name, logo, contact details, and brand colours. These details appear on all your documents (invoices, receipts, quotations).'],
-            ['title' => 'Add Your Products', 'text' => 'Go to <strong>Products</strong> and add the items or services you sell. Set names, prices, and categories. Products auto-populate when you create invoices and receipts.'],
+            ['title' => 'Add Your Catalogue', 'text' => 'Go to <strong>Catalogue</strong> and add the products or services you sell. Set names, prices, and categories. They auto-populate when you create invoices and receipts.'],
             ['title' => 'Create Your First Document', 'text' => 'Head to <strong>Invoices</strong>, <strong>Receipts</strong>, or <strong>Quotations</strong> to create your first professional document. Add line items, your customer details, and generate a branded PDF you can share instantly.'],
         ],
     ],
     [
         'id'    => 'products',
         'icon'  => '<path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"/>',
-        'title' => 'Products',
+        'title' => 'Catalogue',
         'steps' => [
-            ['title' => 'Adding Products', 'text' => 'Click <strong>New Product</strong>, fill in the name, selling price, cost price (optional), and category. Cost price helps Nfelia calculate your profit margins.'],
-            ['title' => 'Categories', 'text' => 'Organise products into categories to keep things tidy. Filter by category on the products list to find items quickly.'],
-            ['title' => 'Editing & Deleting', 'text' => 'Click any product to edit its details. Products used in existing documents won\'t lose their history — only future documents use the updated info.'],
+            ['title' => 'Adding Items', 'text' => 'Click <strong>Add item</strong>, fill in the name, selling price, cost price (optional), and category. Mark it as a service if it carries no stock. Cost price helps Nfelia calculate your profit margins.'],
+            ['title' => 'Categories', 'text' => 'Organise your catalogue into categories to keep things tidy. Filter by category on the catalogue list to find items quickly.'],
+            ['title' => 'Editing & Deleting', 'text' => 'Click any item to edit its details. Items used in existing documents won\'t lose their history — only future documents use the updated info.'],
         ],
     ],
     [

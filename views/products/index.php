@@ -23,7 +23,7 @@ $qty_text  = fn(float $q) => rtrim(rtrim(number_format($q, 2), '0'), '.');
 ?>
 <div class="nf-page">
 <div class="nf-head">
-    <h1 class="nf-large-title"><?= $services ? 'Services' : 'Stock' ?></h1>
+    <h1 class="nf-large-title">Catalogue</h1>
     <a class="nf-btn nf-btn-primary" href="<?= APP_URL ?>/products/create"><?= nav_icon('plus') ?>Add item</a>
 </div>
 

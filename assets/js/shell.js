@@ -149,9 +149,11 @@
         t.innerHTML = svg(ICONS[type]) + '<span></span><button type="button" class="x" aria-label="Dismiss">' + X + '</button>';
         t.querySelector('span').textContent = message;
         toasts.appendChild(t);
-        arm(t, 4000);
+        // Success says "done" and gets out of the way in 3s; a problem stays
+        // longer so it can be read.
+        arm(t, type === 'success' ? 3000 : 4500);
     };
-    if (toasts) toasts.querySelectorAll('[data-toast]').forEach(function (t) { if (kept) t.remove(); else arm(t, 4500); });
+    if (toasts) toasts.querySelectorAll('[data-toast]').forEach(function (t) { if (kept) t.remove(); else arm(t, t.classList.contains('is-success') ? 3000 : 4500); });
 
     // ---------- Network banner ----------
     // Offline, or slow enough to feel broken: say so, then get out of the way
@@ -224,6 +226,61 @@
     });
     window.addEventListener('pageshow', function () {
         document.querySelectorAll('form[data-sent]').forEach(function (f) { f.removeAttribute('data-sent'); });
+    });
+
+    // ---------- Submit buttons: lock and spin while the page works ----------
+    // Any form's submit button disables and turns into a spinner the moment the
+    // form is sent, so no one taps twice and there is clear feedback while the
+    // next page loads. Most forms then navigate, and the success toast lands on
+    // the page they open. Opt out with data-no-spin on the form or the button —
+    // forms that stay on the page (AJAX) carry their own spinner instead.
+    function spinBtn(btn) {
+        if (!btn || btn.dataset.nfSpin === '1') return;
+        btn.dataset.nfSpin = '1';
+        var rect = btn.getBoundingClientRect();
+        if (rect.width) btn.style.minWidth = Math.ceil(rect.width) + 'px';
+        btn.classList.add('is-spinning');
+        btn.setAttribute('aria-busy', 'true');
+        if (btn.tagName === 'BUTTON') {
+            btn.dataset.nfLabel = btn.innerHTML;
+            btn.innerHTML = '<span class="nf-spin"></span>';
+        } else if (btn.tagName === 'INPUT') {
+            btn.dataset.nfLabel = btn.value;
+            btn.value = '…';
+        }
+        // Disabling is deferred so the submit this button is part of still goes.
+        setTimeout(function () { try { btn.disabled = true; } catch (e) {} }, 0);
+        // Safety net: if the page never navigates (a download, a quiet failure),
+        // give the button back after a while.
+        btn._nfSpinTimer = setTimeout(function () { unspinBtn(btn); }, 20000);
+    }
+    window.nfSpinButton = spinBtn;
+    window.unspinBtn = function unspinBtn(btn) {
+        if (!btn || btn.dataset.nfSpin !== '1') return;
+        clearTimeout(btn._nfSpinTimer);
+        btn.dataset.nfSpin = '';
+        try { btn.disabled = false; } catch (e) {}
+        btn.classList.remove('is-spinning');
+        btn.removeAttribute('aria-busy');
+        btn.style.minWidth = '';
+        if ('nfLabel' in btn.dataset) {
+            if (btn.tagName === 'BUTTON') btn.innerHTML = btn.dataset.nfLabel; else btn.value = btn.dataset.nfLabel;
+            delete btn.dataset.nfLabel;
+        }
+    };
+    var unspinBtn = window.unspinBtn;
+    document.addEventListener('submit', function (e) {
+        var form = e.target;
+        // Skip when another handler stopped the submit (validation, AJAX): the
+        // page is staying, so a stuck spinner would be wrong.
+        if (e.defaultPrevented || !form.hasAttribute || form.hasAttribute('data-no-spin')) return;
+        var btn = e.submitter || form.querySelector('button[type="submit"], input[type="submit"], button:not([type])');
+        if (!btn || btn.hasAttribute('data-no-spin')) return;
+        spinBtn(btn);
+    });
+    // Back/forward cache can restore the page with the button still spinning.
+    window.addEventListener('pageshow', function () {
+        document.querySelectorAll('[data-nf-spin="1"], .is-spinning').forEach(unspinBtn);
     });
 
     // ---------- Text size and background (this device) ----------

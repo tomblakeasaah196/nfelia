@@ -26,7 +26,7 @@ function nfToast(message, type = 'success') {
     toast.className = 'nf-toast is-' + (['error', 'warning'].includes(type) ? type : 'success');
     toast.textContent = message;
     box.appendChild(toast);
-    setTimeout(() => toast.remove(), 4000);
+    setTimeout(() => toast.remove(), type === 'success' ? 3000 : 4500);
 }
 
 // ---- LIVE PRODUCT SEARCH (Invoice / Quotation builder) ----
