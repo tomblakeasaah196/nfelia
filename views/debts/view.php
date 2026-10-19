@@ -42,7 +42,7 @@ if ($wa_link && $debt['type'] === 'receivable' && $is_open) {
         <div>
             <h1 class="font-heading font-extrabold text-xl text-brand-plum tracking-tight"><?= e($order ? 'Balance on order ' . $order['order_number'] : $debt['description']) ?></h1>
             <?php if ($order): ?>
-                <a href="<?= APP_URL ?>/orders/view/<?= (int)$order['id'] ?>#money" class="inline-flex items-center min-h-[44px] text-sm font-semibold text-brand-burgundy">Open order <?= e($order['order_number']) ?></a>
+                <a href="<?= APP_URL ?>/orders/view/<?= (int)$order['id'] ?>#money" class="inline-flex items-center min-h-[44px] text-sm font-semibold text-accent-text">Open order <?= e($order['order_number']) ?></a>
             <?php endif; ?>
             <div class="flex items-center gap-2 mt-0.5">
                 <span class="data-text text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded <?= $debt['type'] === 'receivable' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600' ?>">
@@ -175,8 +175,8 @@ if ($wa_link && $debt['type'] === 'receivable' && $is_open) {
 
     <!-- Quick amount buttons -->
     <div class="flex gap-2 mt-3">
-        <button type="button" @click="amount = <?= (float)$debt['balance'] ?>" class="text-[9px] font-bold text-brand-gold uppercase tracking-widest hover:text-brand-burgundy">Full Balance</button>
-        <button type="button" @click="amount = Math.round(<?= (float)$debt['balance'] ?> / 2 * 100) / 100" class="text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest hover:text-brand-burgundy">Half</button>
+        <button type="button" @click="amount = <?= (float)$debt['balance'] ?>" class="text-[9px] font-bold text-brand-gold uppercase tracking-widest hover:text-accent-text">Full Balance</button>
+        <button type="button" @click="amount = Math.round(<?= (float)$debt['balance'] ?> / 2 * 100) / 100" class="text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest hover:text-accent-text">Half</button>
     </div>
 
     <!-- Reference + Note (collapsible) -->

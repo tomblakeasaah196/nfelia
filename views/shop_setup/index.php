@@ -82,7 +82,7 @@ $look_fonts_url = 'https://fonts.googleapis.com/css2?' . implode('&', array_uniq
                 <?php endif; ?>
 
                 <label for="shop-name" class="block mt-4 text-sm font-semibold">Shop name</label>
-                <div class="mt-1 flex items-stretch rounded-xl border-2 bg-white focus-within:ring-2 focus-within:ring-brand-burgundy/30"
+                <div class="mt-1 flex items-stretch rounded-xl border-2 bg-white focus-within:ring-2 focus-within:ring-accent/30"
                      :class="borderClass">
                     <input id="shop-name" name="shop_name" type="text" required
                            autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="40"
@@ -99,7 +99,7 @@ $look_fonts_url = 'https://fonts.googleapis.com/css2?' . implode('&', array_uniq
                     <div class="mt-2 flex flex-wrap gap-2">
                         <template x-for="s in otherSuggestions" :key="s">
                             <button type="button" @click="pick(s)"
-                                    class="h-11 px-4 rounded-xl border border-brand-sand bg-white text-sm font-semibold hover:border-brand-burgundy"
+                                    class="h-11 px-4 rounded-xl border border-brand-sand bg-white text-sm font-semibold hover:border-accent"
                                     x-text="s"></button>
                         </template>
                     </div>
@@ -130,11 +130,11 @@ $look_fonts_url = 'https://fonts.googleapis.com/css2?' . implode('&', array_uniq
                         $button_shape = $look['shape'] === '50%' ? '9999px' : $look['shape'];
                     ?>
                     <div class="flex flex-col gap-1">
-                    <label class="relative block cursor-pointer rounded-xl border border-brand-sand bg-white p-2 hover:border-brand-burgundy/50
-                                  has-[:checked]:border-brand-burgundy has-[:checked]:ring-2 has-[:checked]:ring-brand-burgundy
-                                  has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-brand-burgundy">
+                    <label class="relative block cursor-pointer rounded-xl border border-brand-sand bg-white p-2 hover:border-accent/50
+                                  has-[:checked]:border-accent has-[:checked]:ring-2 has-[:checked]:ring-accent
+                                  has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-accent">
                         <input type="radio" name="look" value="<?= e($key) ?>" class="peer sr-only" required <?= $key === $current_look ? 'checked' : '' ?>>
-                        <span class="absolute top-3 right-3 hidden peer-checked:flex h-6 w-6 items-center justify-center rounded-full bg-brand-burgundy text-white" aria-hidden="true">
+                        <span class="absolute top-3 right-3 hidden peer-checked:flex h-6 w-6 items-center justify-center rounded-full bg-accent text-on-accent" aria-hidden="true">
                             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
                         </span>
 
@@ -153,7 +153,7 @@ $look_fonts_url = 'https://fonts.googleapis.com/css2?' . implode('&', array_uniq
                         <span class="block mt-2 px-1 text-sm font-semibold"><?= e($look['name']) ?></span>
                         <span class="block px-1 pb-1 text-xs text-[#5B4650] leading-snug"><?= e($look['for']) ?></span>
                     </label>
-                    <button type="button" class="min-h-[44px] px-2 rounded-xl text-sm font-semibold text-brand-burgundy underline underline-offset-4 hover:text-[#5E0032]"
+                    <button type="button" class="min-h-[44px] px-2 rounded-xl text-sm font-semibold text-accent-text underline underline-offset-4 hover:text-[#1F0A14]"
                             data-look-preview="<?= e($key) ?>" data-look-name="<?= e($look['name']) ?>">See it full size<span class="sr-only">: <?= e($look['name']) ?></span></button>
                     </div>
                     <?php endforeach; ?>
@@ -166,7 +166,7 @@ $look_fonts_url = 'https://fonts.googleapis.com/css2?' . implode('&', array_uniq
                 <a href="<?= APP_URL ?>/landing-page" class="h-12 px-5 inline-flex items-center justify-center rounded-xl text-base font-semibold text-[#5B4650] hover:text-[#1F0A14]">Back to Shop Studio</a>
             <?php endif; ?>
             <button type="submit" <?= $live_name ? '' : ':disabled="!canSubmit"' ?>
-                    class="h-12 px-6 rounded-xl bg-brand-burgundy text-white text-base font-bold hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed">
+                    class="h-12 px-6 rounded-xl bg-accent text-on-accent text-base font-bold hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed">
                 Save my shop
             </button>
         </div>
@@ -175,12 +175,12 @@ $look_fonts_url = 'https://fonts.googleapis.com/css2?' . implode('&', array_uniq
 
 <!-- One look, full size, with the owner's own shop -->
 <dialog id="look-preview" aria-labelledby="look-preview-title"
-        class="m-0 p-0 w-full h-full max-w-none max-h-none bg-[#F1E8EC] backdrop:bg-black/50 sm:m-auto sm:w-[min(980px,94vw)] sm:h-[90vh] sm:rounded-2xl">
+        class="m-0 p-0 w-full h-full max-w-none max-h-none bg-accent-soft backdrop:bg-black/50 sm:m-auto sm:w-[min(980px,94vw)] sm:h-[90vh] sm:rounded-2xl">
     <div class="flex flex-col h-full">
         <div class="flex items-center gap-2 px-3 py-2 bg-white border-b border-brand-sand">
             <h2 id="look-preview-title" class="flex-1 min-w-0 font-heading font-bold text-base truncate px-1">Look</h2>
-            <button type="button" data-look-use class="h-11 px-4 rounded-xl bg-brand-burgundy text-white text-sm font-bold">Use this look</button>
-            <button type="button" data-look-close class="h-11 w-11 inline-flex items-center justify-center rounded-xl text-[#1F0A14] hover:bg-[#F8EEF3]" aria-label="Close the preview">
+            <button type="button" data-look-use class="h-11 px-4 rounded-xl bg-accent text-on-accent text-sm font-bold">Use this look</button>
+            <button type="button" data-look-close class="h-11 w-11 inline-flex items-center justify-center rounded-xl text-[#1F0A14] hover:bg-accent-soft" aria-label="Close the preview">
                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
             </button>
         </div>

@@ -90,6 +90,6 @@
         <button type="submit" class="btn-primary text-white px-6 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-sm hover:shadow-md transition-all">
             <?= $editing ? 'Update Supplier' : 'Add Supplier' ?>
         </button>
-        <a href="<?= APP_URL ?>/suppliers" class="text-[10px] font-bold text-brand-plum/40 uppercase tracking-widest hover:text-brand-burgundy">Cancel</a>
+        <a href="<?= APP_URL ?>/suppliers" class="text-[10px] font-bold text-brand-plum/40 uppercase tracking-widest hover:text-accent-text">Cancel</a>
     </div>
 </form>

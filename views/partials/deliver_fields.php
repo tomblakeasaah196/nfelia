@@ -22,13 +22,13 @@ $df_date = $df['date'] ?? '';
     <fieldset>
         <legend class="<?= !empty($df['legend_hidden']) ? 'sr-only' : 'text-sm font-semibold text-brand-plum mb-2' ?>">When will the customer get it?</legend>
         <div class="flex flex-wrap gap-2">
-            <label class="h-11 px-4 inline-flex items-center rounded-full border text-sm font-semibold cursor-pointer focus-within:ring-2 focus-within:ring-brand-burgundy"
-                   :class="mode === 'immediate' ? 'border-brand-burgundy bg-[#F8EEF3] text-brand-burgundy' : 'border-brand-sand text-brand-plum/70'">
+            <label class="h-11 px-4 inline-flex items-center rounded-full border text-sm font-semibold cursor-pointer focus-within:ring-2 focus-within:ring-accent"
+                   :class="mode === 'immediate' ? 'border-accent bg-accent-soft text-accent-text' : 'border-brand-sand text-brand-plum/70'">
                 <input type="radio" name="deliver_mode" value="immediate" x-model="mode" class="sr-only" required <?= $df_mode === 'immediate' ? 'checked' : '' ?>>
                 Immediate
             </label>
-            <label class="h-11 px-4 inline-flex items-center rounded-full border text-sm font-semibold cursor-pointer focus-within:ring-2 focus-within:ring-brand-burgundy"
-                   :class="mode === 'date' ? 'border-brand-burgundy bg-[#F8EEF3] text-brand-burgundy' : 'border-brand-sand text-brand-plum/70'">
+            <label class="h-11 px-4 inline-flex items-center rounded-full border text-sm font-semibold cursor-pointer focus-within:ring-2 focus-within:ring-accent"
+                   :class="mode === 'date' ? 'border-accent bg-accent-soft text-accent-text' : 'border-brand-sand text-brand-plum/70'">
                 <input type="radio" name="deliver_mode" value="date" x-model="mode" class="sr-only" <?= $df_mode === 'date' ? 'checked' : '' ?>>
                 Pick a date
             </label>
@@ -43,13 +43,13 @@ $df_date = $df['date'] ?? '';
 
     <?php if (!empty($df['handed'])): ?>
     <label x-show="mode === 'immediate'" <?= $df_mode === 'immediate' ? '' : 'style="display:none"' ?> class="flex items-center gap-2 min-h-[44px] text-sm text-brand-plum cursor-pointer">
-        <input type="checkbox" name="delivered_now" value="1" class="w-5 h-5 accent-[#8B004A]">
+        <input type="checkbox" name="delivered_now" value="1" class="w-5 h-5 accent-[var(--accent)]">
         The customer has it already
     </label>
     <?php endif; ?>
 
     <label class="flex items-center gap-2 min-h-[44px] text-sm text-brand-plum cursor-pointer">
-        <input type="checkbox" name="deliver_show" value="1" class="w-5 h-5 accent-[#8B004A]" <?= !empty($df['show']) ? 'checked' : '' ?>>
+        <input type="checkbox" name="deliver_show" value="1" class="w-5 h-5 accent-[var(--accent)]" <?= !empty($df['show']) ? 'checked' : '' ?>>
         Show the delivery date on the customer's invoice
     </label>
     <p class="text-xs text-brand-plum/60">It goes on your Tasks &amp; Calendar with a countdown until you mark it delivered.</p>

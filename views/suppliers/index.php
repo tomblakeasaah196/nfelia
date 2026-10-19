@@ -71,7 +71,7 @@ $currency = $business['currency_symbol'] ?? '₦';
         </select>
         <button type="submit" class="btn-primary text-white px-4 py-2.5 rounded-lg text-[10px] font-bold uppercase tracking-widest">Filter</button>
         <?php if ($search || $filter || $sort !== 'name'): ?>
-            <a href="<?= APP_URL ?>/suppliers" class="text-[10px] font-bold text-brand-plum/40 uppercase tracking-widest hover:text-brand-burgundy">Clear</a>
+            <a href="<?= APP_URL ?>/suppliers" class="text-[10px] font-bold text-brand-plum/40 uppercase tracking-widest hover:text-accent-text">Clear</a>
         <?php endif; ?>
     </div>
 </form>
@@ -99,7 +99,7 @@ $currency = $business['currency_symbol'] ?? '₦';
                     ?>
                         <tr class="hover:bg-brand-cream/30 transition-colors <?= $has_unpaid ? 'bg-red-50/30' : '' ?>">
                             <td class="px-5 py-4">
-                                <a href="<?= APP_URL ?>/suppliers/view/<?= $s['id'] ?>" class="text-xs font-bold text-brand-plum hover:text-brand-burgundy"><?= e($s['full_name']) ?></a>
+                                <a href="<?= APP_URL ?>/suppliers/view/<?= $s['id'] ?>" class="text-xs font-bold text-brand-plum hover:text-accent-text"><?= e($s['full_name']) ?></a>
                                 <?php if ($s['business_name']): ?>
                                     <div class="text-[10px] text-brand-plum/50"><?= e($s['business_name']) ?></div>
                                 <?php endif; ?>
@@ -127,7 +127,7 @@ $currency = $business['currency_symbol'] ?? '₦';
                                 <?php endif; ?>
                             </td>
                             <td class="px-5 py-4 text-right">
-                                <a href="<?= APP_URL ?>/suppliers/view/<?= $s['id'] ?>" class="text-[10px] font-bold text-brand-gold uppercase tracking-widest hover:text-brand-burgundy">Profile</a>
+                                <a href="<?= APP_URL ?>/suppliers/view/<?= $s['id'] ?>" class="text-[10px] font-bold text-brand-gold uppercase tracking-widest hover:text-accent-text">Profile</a>
                             </td>
                         </tr>
                     <?php endforeach; ?>

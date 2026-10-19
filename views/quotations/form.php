@@ -66,7 +66,7 @@ if (empty($items_json)) {
                             <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
                             Pick from Contacts
                         </button>
-                        <button type="button" @click="showNewClient = !showNewClient" class="text-[10px] font-bold text-brand-gold uppercase tracking-widest hover:text-brand-burgundy transition-colors">
+                        <button type="button" @click="showNewClient = !showNewClient" class="text-[10px] font-bold text-brand-gold uppercase tracking-widest hover:text-accent-text transition-colors">
                             <span x-text="showNewClient ? 'Cancel' : '+ New Client'"></span>
                         </button>
                     </div>
@@ -107,7 +107,7 @@ if (empty($items_json)) {
             <div class="bg-brand-white border border-brand-sand rounded-xl shadow-sm overflow-hidden">
                 <div class="px-6 py-4 border-b border-brand-sand flex items-center justify-between">
                     <h2 class="font-heading font-bold text-xs text-brand-plum uppercase tracking-widest">Line Items</h2>
-                    <button type="button" @click="addItem()" class="text-[10px] font-bold text-brand-gold uppercase tracking-widest hover:text-brand-burgundy flex items-center gap-1">
+                    <button type="button" @click="addItem()" class="text-[10px] font-bold text-brand-gold uppercase tracking-widest hover:text-accent-text flex items-center gap-1">
                         <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
                         Add Line
                     </button>

@@ -120,7 +120,7 @@ $current_staff_count = count($staff);
         <div class="mt-4 pt-4 border-t border-brand-sand/50">
             <p class="text-[10px] text-brand-plum/50 mb-2">No logo? We can generate one from your business initials:</p>
             <a href="javascript:void(0)" onclick="document.getElementById('auto-logo-form').submit()"
-               class="text-[10px] font-bold text-brand-gold uppercase tracking-widest hover:text-brand-burgundy">Generate Auto-Logo</a>
+               class="text-[10px] font-bold text-brand-gold uppercase tracking-widest hover:text-accent-text">Generate Auto-Logo</a>
         </div>
         <?php endif; ?>
     </div>
@@ -571,7 +571,7 @@ foreach (['ORD' => 'Order', 'INV' => 'Invoice', 'REC' => 'Receipt', 'DEL' => 'De
                         <form method="POST" action="<?= APP_URL ?>/settings/send-staff-reset/<?= (int)$member['id'] ?>" class="inline"
                               onsubmit="return confirm(<?= e(json_encode('Email ' . $member['full_name'] . ' a link to set a new password?', JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_TAG | JSON_HEX_AMP)) ?>)">
                             <?= csrf_field() ?>
-                            <button type="submit" class="text-[10px] font-bold text-brand-plum/50 uppercase tracking-widest hover:text-brand-burgundy">Send reset link</button>
+                            <button type="submit" class="text-[10px] font-bold text-brand-plum/50 uppercase tracking-widest hover:text-accent-text">Send reset link</button>
                         </form>
                     <?php endif; ?>
                     <?php if ((int)$member['id'] !== (int)$user['id'] && $member['role'] !== 'owner'): ?>
@@ -735,8 +735,8 @@ async function updateRole(memberId, newRole, selectEl) {
             <?php endif; ?>
         </div>
         <div class="mt-4 flex gap-4">
-            <a href="mailto:support@nfelia.com" class="text-brand-burgundy font-bold hover:underline tracking-widest uppercase text-[10px]">Email support</a>
-            <a href="https://wa.me/2348169789106" target="_blank" rel="noopener" class="text-brand-burgundy font-bold hover:underline tracking-widest uppercase text-[10px]">WhatsApp us</a>
+            <a href="mailto:support@nfelia.com" class="text-accent-text font-bold hover:underline tracking-widest uppercase text-[10px]">Email support</a>
+            <a href="https://wa.me/2348169789106" target="_blank" rel="noopener" class="text-accent-text font-bold hover:underline tracking-widest uppercase text-[10px]">WhatsApp us</a>
         </div>
     </div>
     <?php else: ?>
@@ -751,7 +751,7 @@ async function updateRole(memberId, newRole, selectEl) {
         <fieldset class="mb-4">
             <div class="flex items-center justify-between mb-2">
                 <legend class="text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest">Who does this month cover?</legend>
-                <button type="button" @click="covered = <?= e(json_encode(array_map('intval', array_column($team, 'id')))) ?>" class="text-[10px] font-bold text-brand-burgundy uppercase tracking-widest hover:underline">All</button>
+                <button type="button" @click="covered = <?= e(json_encode(array_map('intval', array_column($team, 'id')))) ?>" class="text-[10px] font-bold text-accent-text uppercase tracking-widest hover:underline">All</button>
             </div>
             <p class="text-[10px] text-brand-plum/50 mb-2">You are always covered. Anyone you leave unticked is switched off when the payment goes through.</p>
             <div class="space-y-1.5">

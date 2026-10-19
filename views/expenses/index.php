@@ -88,7 +88,7 @@ $currency = $business['currency_symbol'] ?? '₦';
         </select>
         <button type="submit" class="btn-primary text-white px-4 py-2.5 rounded-lg text-[10px] font-bold uppercase tracking-widest">Filter</button>
         <?php if ($search || $category || $status || $sort !== 'newest'): ?>
-            <a href="<?= APP_URL ?>/expenses" class="text-[10px] font-bold text-brand-plum/40 uppercase tracking-widest hover:text-brand-burgundy">Clear</a>
+            <a href="<?= APP_URL ?>/expenses" class="text-[10px] font-bold text-brand-plum/40 uppercase tracking-widest hover:text-accent-text">Clear</a>
         <?php endif; ?>
     </div>
 </form>
@@ -120,7 +120,7 @@ $currency = $business['currency_symbol'] ?? '₦';
                     ?>
                         <tr class="hover:bg-brand-cream/30 transition-colors <?= $exp['payment_status'] === 'unpaid' ? 'bg-red-50/30' : '' ?>">
                             <td class="px-5 py-4">
-                                <a href="<?= APP_URL ?>/expenses/view/<?= $exp['id'] ?>" class="data-text text-xs font-bold text-brand-plum hover:text-brand-burgundy"><?= e($exp['doc_number']) ?></a>
+                                <a href="<?= APP_URL ?>/expenses/view/<?= $exp['id'] ?>" class="data-text text-xs font-bold text-brand-plum hover:text-accent-text"><?= e($exp['doc_number']) ?></a>
                             </td>
                             <td class="px-5 py-4">
                                 <span class="data-text text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-brand-cream text-brand-plum/60"><?= ucfirst(str_replace('_', ' ', $exp['category'])) ?></span>

@@ -124,7 +124,7 @@ $threshold = (float)$product['low_stock_threshold'];
      x-data="{ adjOpen: false, adjType: 'stock_in' }">
     <div class="flex items-center justify-between">
         <h2 class="font-heading font-bold text-xs text-brand-plum uppercase tracking-widest">Stock Adjustment</h2>
-        <button @click="adjOpen = !adjOpen" class="text-[10px] font-bold text-brand-gold uppercase tracking-widest hover:text-brand-burgundy transition-colors flex items-center gap-1">
+        <button @click="adjOpen = !adjOpen" class="text-[10px] font-bold text-brand-gold uppercase tracking-widest hover:text-accent-text transition-colors flex items-center gap-1">
             <svg class="w-3.5 h-3.5" :class="adjOpen ? 'rotate-45' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
             <span x-text="adjOpen ? 'Close' : 'Adjust Stock'"></span>
         </button>

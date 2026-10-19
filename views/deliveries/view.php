@@ -52,7 +52,7 @@ $public_url  = APP_URL . '/delivery/' . $delivery['token'];
             </div>
             <p class="text-xs text-brand-plum/50 font-medium mt-1">Created <?= fmt_date($delivery['created_at'], 'd M Y, H:i') ?></p>
             <?php if (!empty($order)): ?>
-                <a href="<?= APP_URL ?>/orders/view/<?= (int)$order['id'] ?>" class="inline-flex items-center min-h-[44px] text-sm font-semibold text-brand-burgundy">For order <?= e($order['order_number']) ?></a>
+                <a href="<?= APP_URL ?>/orders/view/<?= (int)$order['id'] ?>" class="inline-flex items-center min-h-[44px] text-sm font-semibold text-accent-text">For order <?= e($order['order_number']) ?></a>
             <?php endif; ?>
         </div>
     </div>

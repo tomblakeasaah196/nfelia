@@ -124,7 +124,7 @@ $quo_status_badge = function($s) {
 <div class="bg-brand-white border border-brand-sand rounded-xl shadow-sm mb-6 overflow-hidden">
     <div class="flex items-center justify-between gap-3 px-5 pt-4 pb-2">
         <h2 class="font-heading font-bold text-base text-brand-plum">Coming up with <?= e(planner_first_name($customer['full_name'])) ?></h2>
-        <a href="<?= APP_URL ?>/tasks?new=task&customer=<?= $customer['id'] ?>" class="h-11 px-2 inline-flex items-center text-sm font-semibold text-brand-burgundy">Add a task</a>
+        <a href="<?= APP_URL ?>/tasks?new=task&customer=<?= $customer['id'] ?>" class="h-11 px-2 inline-flex items-center text-sm font-semibold text-accent-text">Add a task</a>
     </div>
     <ul class="divide-y divide-brand-sand">
         <?php foreach (array_slice($upcoming, 0, 6) as $it): ?>
@@ -143,7 +143,7 @@ $quo_status_badge = function($s) {
         <?php endforeach; ?>
     </ul>
     <?php if (count($upcoming) > 6): ?>
-        <a href="<?= APP_URL ?>/tasks?tab=calendar" class="block px-5 py-3 text-sm font-semibold text-brand-burgundy border-t border-brand-sand">See all <?= count($upcoming) ?> on the calendar</a>
+        <a href="<?= APP_URL ?>/tasks?tab=calendar" class="block px-5 py-3 text-sm font-semibold text-accent-text border-t border-brand-sand">See all <?= count($upcoming) ?> on the calendar</a>
     <?php endif; ?>
 </div>
 <?php endif; ?>
@@ -248,7 +248,7 @@ $quo_status_badge = function($s) {
                 <tbody class="divide-y divide-brand-sand/50">
                     <?php foreach ($invoices as $inv): ?>
                         <tr class="hover:bg-brand-cream/30 <?= $inv['status'] === 'overdue' ? 'bg-red-50/30' : '' ?>">
-                            <td class="px-5 py-3"><a href="<?= APP_URL ?>/invoices/view/<?= $inv['id'] ?>" class="data-text text-xs font-bold text-brand-plum hover:text-brand-burgundy"><?= e($inv['doc_number']) ?></a></td>
+                            <td class="px-5 py-3"><a href="<?= APP_URL ?>/invoices/view/<?= $inv['id'] ?>" class="data-text text-xs font-bold text-brand-plum hover:text-accent-text"><?= e($inv['doc_number']) ?></a></td>
                             <td class="px-5 py-3 data-text text-[10px] text-brand-plum/60"><?= fmt_date($inv['issue_date'], 'd M Y') ?></td>
                             <td class="px-5 py-3 data-text text-[10px] <?= $inv['status'] === 'overdue' ? 'text-red-600 font-bold' : 'text-brand-plum/60' ?>"><?= $inv['due_date'] ? fmt_date($inv['due_date'], 'd M Y') : '—' ?></td>
                             <td class="px-5 py-3 data-text text-xs font-bold text-brand-plum text-right"><?= money((float)$inv['total'], $currency) ?></td>
@@ -280,7 +280,7 @@ $quo_status_badge = function($s) {
                 <tbody class="divide-y divide-brand-sand/50">
                     <?php foreach ($quotations as $q): ?>
                         <tr class="hover:bg-brand-cream/30">
-                            <td class="px-5 py-3"><a href="<?= APP_URL ?>/quotations/view/<?= $q['id'] ?>" class="data-text text-xs font-bold text-brand-plum hover:text-brand-burgundy"><?= e($q['doc_number']) ?></a></td>
+                            <td class="px-5 py-3"><a href="<?= APP_URL ?>/quotations/view/<?= $q['id'] ?>" class="data-text text-xs font-bold text-brand-plum hover:text-accent-text"><?= e($q['doc_number']) ?></a></td>
                             <td class="px-5 py-3 data-text text-[10px] text-brand-plum/60"><?= fmt_date($q['issue_date'], 'd M Y') ?></td>
                             <td class="px-5 py-3 data-text text-xs font-bold text-brand-plum text-right"><?= money((float)$q['total'], $currency) ?></td>
                             <td class="px-5 py-3 text-center"><span class="data-text text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded <?= $quo_status_badge($q['status']) ?>"><?= ucfirst(str_replace('_', ' ', $q['status'])) ?></span></td>
@@ -343,7 +343,7 @@ $quo_status_badge = function($s) {
                 <tbody class="divide-y divide-brand-sand/50">
                     <?php foreach ($receipts as $r): ?>
                         <tr class="hover:bg-brand-cream/30">
-                            <td class="px-5 py-3"><a href="<?= APP_URL ?>/receipts/view/<?= $r['id'] ?>" class="data-text text-xs font-bold text-brand-plum hover:text-brand-burgundy"><?= e($r['doc_number']) ?></a></td>
+                            <td class="px-5 py-3"><a href="<?= APP_URL ?>/receipts/view/<?= $r['id'] ?>" class="data-text text-xs font-bold text-brand-plum hover:text-accent-text"><?= e($r['doc_number']) ?></a></td>
                             <td class="px-5 py-3 data-text text-[10px] text-brand-plum/60"><?= fmt_date($r['issue_date'], 'd M Y') ?></td>
                             <td class="px-5 py-3 data-text text-xs font-bold text-green-600 text-right"><?= money((float)$r['amount'], $currency) ?></td>
                             <td class="px-5 py-3"><span class="data-text text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-gray-100 text-gray-600"><?= ucfirst(str_replace('_', ' ', $r['method'])) ?></span></td>

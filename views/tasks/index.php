@@ -54,10 +54,10 @@
     <div role="tablist" aria-label="Tasks and calendar" class="inline-flex p-1 rounded-xl bg-white border border-brand-sand mb-5">
         <button type="button" role="tab" :aria-selected="tab === 'tasks'" @click="setTab('tasks')"
                 class="h-11 px-5 rounded-lg text-sm font-semibold"
-                :class="tab === 'tasks' ? 'bg-brand-burgundy text-white' : 'text-[#5B4650] hover:text-[#1F0A14]'">Tasks</button>
+                :class="tab === 'tasks' ? 'bg-accent text-on-accent' : 'text-[#5B4650] hover:text-[#1F0A14]'">Tasks</button>
         <button type="button" role="tab" :aria-selected="tab === 'calendar'" @click="setTab('calendar')"
                 class="h-11 px-5 rounded-lg text-sm font-semibold"
-                :class="tab === 'calendar' ? 'bg-brand-burgundy text-white' : 'text-[#5B4650] hover:text-[#1F0A14]'">Calendar</button>
+                :class="tab === 'calendar' ? 'bg-accent text-on-accent' : 'text-[#5B4650] hover:text-[#1F0A14]'">Calendar</button>
     </div>
 
     <!-- ═════════ TASKS TAB: add, jobs ═════════ -->
@@ -67,33 +67,33 @@
             <div class="flex gap-2">
                 <input id="pl-quick" type="text" x-model="quick.title" maxlength="200" autocomplete="off"
                        placeholder="e.g. Buy 3 bundles from the supplier"
-                       class="flex-1 min-w-0 h-12 px-4 text-base bg-brand-cream border border-brand-sand rounded-xl focus:outline-none focus:border-brand-burgundy placeholder-[#5B4650]/70">
-                <button type="submit" class="h-12 px-5 rounded-xl bg-brand-burgundy text-white text-sm font-semibold disabled:opacity-50" :disabled="busy">Add</button>
+                       class="flex-1 min-w-0 h-12 px-4 text-base bg-brand-cream border border-brand-sand rounded-xl focus:outline-none focus:border-accent placeholder-[#5B4650]/70">
+                <button type="submit" class="h-12 px-5 rounded-xl bg-accent text-on-accent text-sm font-semibold disabled:opacity-50" :disabled="busy">Add</button>
             </div>
             <div class="mt-3 flex flex-wrap items-center gap-2" role="radiogroup" aria-labelledby="pl-quick-when">
                 <span id="pl-quick-when" class="text-sm text-[#5B4650] mr-1">When?</span>
                 <template x-for="c in quickChips()" :key="c.value">
                     <button type="button" role="radio" :aria-checked="quick.when === c.value" @click="quick.when = c.value"
                             class="h-11 px-4 rounded-full border text-sm font-semibold"
-                            :class="quick.when === c.value ? 'border-brand-burgundy bg-[#F8EEF3] text-brand-burgundy' : 'border-brand-sand text-[#5B4650]'"
+                            :class="quick.when === c.value ? 'border-accent bg-accent-soft text-accent-text' : 'border-brand-sand text-[#5B4650]'"
                             x-text="c.label"></button>
                 </template>
                 <input x-show="quick.when === 'pick'" type="date" x-model="quick.date" :min="today" aria-labelledby="pl-quick-when"
-                       class="h-11 px-3 text-sm bg-brand-cream border border-brand-sand rounded-xl focus:outline-none focus:border-brand-burgundy">
+                       class="h-11 px-3 text-sm bg-brand-cream border border-brand-sand rounded-xl focus:outline-none focus:border-accent">
                 <button type="button" @click="openEditor({ title: quick.title, date: quickDate(), fromQuick: true })"
-                        class="h-11 px-2 text-sm font-semibold text-brand-burgundy underline underline-offset-4 ml-auto">Add details</button>
+                        class="h-11 px-2 text-sm font-semibold text-accent-text underline underline-offset-4 ml-auto">Add details</button>
             </div>
         </form>
 
         <div class="flex flex-wrap gap-2 mb-6">
             <button type="button" @click="openEditor({ kind: 'appointment' })"
                     class="h-11 px-4 inline-flex items-center gap-2 rounded-xl border border-brand-sand bg-white text-sm font-semibold hover:border-brand-gold">
-                <svg class="w-5 h-5 text-brand-burgundy" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5m-9-6h.008v.008H12v-.008zM12 15h.008v.008H12V15zm0 2.25h.008v.008H12v-.008z"/></svg>
+                <svg class="w-5 h-5 text-accent-text" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5m-9-6h.008v.008H12v-.008zM12 15h.008v.008H12V15zm0 2.25h.008v.008H12v-.008z"/></svg>
                 Book appointment
             </button>
             <button type="button" @click="openPlan()"
                     class="h-11 px-4 inline-flex items-center gap-2 rounded-xl border border-brand-sand bg-white text-sm font-semibold hover:border-brand-gold">
-                <svg class="w-5 h-5 text-brand-burgundy" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"/></svg>
+                <svg class="w-5 h-5 text-accent-text" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"/></svg>
                 Plan a job
             </button>
             <div x-show="staff.length" class="inline-flex p-1 rounded-xl bg-white border border-brand-sand ml-auto" role="radiogroup" aria-label="Whose tasks">
@@ -117,7 +117,7 @@
                                 <span x-show="j.countdown" class="shrink-0 px-2 py-1 rounded-full text-xs font-semibold" :class="toneClass(j.countdown && j.countdown.tone)" x-text="j.countdown && j.countdown.label"></span>
                             </span>
                             <span class="mt-3 block h-2 rounded-full bg-brand-cream overflow-hidden" aria-hidden="true">
-                                <span class="block h-full rounded-full bg-brand-burgundy" :style="'width:' + jobPct(j) + '%'"></span>
+                                <span class="block h-full rounded-full bg-accent" :style="'width:' + jobPct(j) + '%'"></span>
                             </span>
                             <span class="mt-2 flex items-center justify-between gap-2 text-sm text-[#5B4650]">
                                 <span class="shrink-0" x-text="j.steps.done + ' of ' + j.steps.total + ' done'"></span>
@@ -153,10 +153,10 @@
                 <template x-for="d in gridDays()" :key="d.date">
                     <button type="button" @click="selectDay(d.date)" role="gridcell" :aria-selected="selected === d.date"
                             :aria-label="dayAria(d)"
-                            class="relative bg-white min-h-[52px] sm:min-h-[96px] p-1.5 text-left flex flex-col focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-burgundy focus-visible:ring-inset"
-                            :class="{ 'bg-brand-cream/60': !d.inMonth, 'ring-2 ring-inset ring-brand-burgundy': selected === d.date }">
+                            class="relative bg-white min-h-[52px] sm:min-h-[96px] p-1.5 text-left flex flex-col focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset"
+                            :class="{ 'bg-brand-cream/60': !d.inMonth, 'ring-2 ring-inset ring-accent': selected === d.date }">
                         <span class="w-7 h-7 inline-flex items-center justify-center rounded-full text-sm font-semibold"
-                              :class="d.date === today ? 'bg-brand-burgundy text-white' : (d.inMonth ? '' : 'text-[#5B4650]/60')" x-text="d.day"></span>
+                              :class="d.date === today ? 'bg-accent text-on-accent' : (d.inMonth ? '' : 'text-[#5B4650]/60')" x-text="d.day"></span>
                         <!-- phone: dots -->
                         <span class="sm:hidden mt-auto flex gap-1 justify-center pb-0.5" aria-hidden="true">
                             <template x-for="(it, i) in dayItems(d.date).slice(0, 3)" :key="i"><span class="w-1.5 h-1.5 rounded-full" :class="dotClass(it)"></span></template>
@@ -175,7 +175,7 @@
                 </template>
             </div>
             <ul class="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[#5B4650]" aria-label="Colour key">
-                <li class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-brand-burgundy"></span>Appointment</li>
+                <li class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-accent"></span>Appointment</li>
                 <li class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-[#5B4650]"></span>Task</li>
                 <li class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-[#B54708]"></span>Delivery</li>
                 <li class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-[#00764A]"></span>Money</li>
@@ -187,7 +187,7 @@
         <div>
             <div x-show="tab === 'calendar'" class="flex items-center justify-between gap-2 mb-2">
                 <h2 class="font-heading font-bold text-lg" x-text="dayHeading(selected)"></h2>
-                <button type="button" @click="openEditor({ date: selected })" class="h-11 px-4 rounded-xl bg-brand-burgundy text-white text-sm font-semibold">Add to this day</button>
+                <button type="button" @click="openEditor({ date: selected })" class="h-11 px-4 rounded-xl bg-accent text-on-accent text-sm font-semibold">Add to this day</button>
             </div>
 
             <template x-for="g in groups()" :key="g.key">
@@ -198,13 +198,13 @@
                             <span class="ml-1 text-sm font-semibold text-[#5B4650]" x-text="g.items.length ? '(' + g.items.length + ')' : ''"></span>
                         </h2>
                         <button type="button" x-show="g.key === 'done'" @click="showDone = !showDone" :aria-expanded="showDone"
-                                class="h-11 px-3 text-sm font-semibold text-brand-burgundy" x-text="showDone ? 'Hide' : 'Show'"></button>
+                                class="h-11 px-3 text-sm font-semibold text-accent-text" x-text="showDone ? 'Hide' : 'Show'"></button>
                     </div>
 
                     <div x-show="g.empty" class="bg-white border border-brand-sand rounded-2xl p-5 text-base text-[#5B4650]">
                         <p x-text="g.empty"></p>
                         <button type="button" x-show="g.key === 'today'" @click="startTask()"
-                                class="mt-3 h-11 px-4 rounded-xl bg-brand-burgundy text-white text-sm font-semibold">Add a task for today</button>
+                                class="mt-3 h-11 px-4 rounded-xl bg-accent text-on-accent text-sm font-semibold">Add a task for today</button>
                     </div>
 
                     <ul x-show="g.items.length && (g.key !== 'done' || showDone)" class="bg-white border border-brand-sand rounded-2xl divide-y divide-brand-sand overflow-hidden">
@@ -236,7 +236,7 @@
                                         </span>
                                         <span class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-[#5B4650]">
                                             <span x-show="it.time" class="font-semibold text-[#1F0A14]" x-text="timeRange(it)"></span>
-                                            <span x-show="it.kind === 'appointment'" class="text-brand-burgundy font-semibold">Appointment</span>
+                                            <span x-show="it.kind === 'appointment'" class="text-accent-text font-semibold">Appointment</span>
                                             <span x-show="it.countdown" class="px-2 py-0.5 rounded-full text-xs font-semibold" :class="toneClass(it.countdown && it.countdown.tone)" x-text="it.countdown && it.countdown.label"></span>
                                             <span x-show="it.subtitle" class="break-words" x-text="it.subtitle"></span>
                                             <span x-show="it.repeat" class="inline-flex items-center gap-1" x-text="repeatLabel(it.repeat)"></span>
@@ -298,7 +298,7 @@
                             <input id="pl-title" type="text" x-model="form.title" maxlength="200" @blur="touch('title')" @input="clearErr('title')"
                                    :placeholder="form.kind === 'appointment' ? 'e.g. Fitting with Ada' : 'e.g. Buy 3 bundles from supplier'"
                                    :aria-invalid="!!err.title" aria-describedby="pl-title-err"
-                                   class="w-full h-12 px-4 text-base bg-brand-cream border rounded-xl focus:outline-none focus:border-brand-burgundy" :class="err.title ? 'border-[#B42318]' : 'border-brand-sand'">
+                                   class="w-full h-12 px-4 text-base bg-brand-cream border rounded-xl focus:outline-none focus:border-accent" :class="err.title ? 'border-[#B42318]' : 'border-brand-sand'">
                             <p id="pl-title-err" x-show="err.title" class="mt-1.5 text-sm text-[#B42318]" x-text="err.title"></p>
                         </div>
 
@@ -308,24 +308,24 @@
                                 <template x-for="c in dateChips()" :key="c.value">
                                     <button type="button" role="radio" :aria-checked="dateChoice() === c.value" @click="pickDate(c.value)"
                                             class="h-11 px-4 rounded-full border text-sm font-semibold"
-                                            :class="dateChoice() === c.value ? 'border-brand-burgundy bg-[#F8EEF3] text-brand-burgundy' : 'border-brand-sand text-[#5B4650]'"
+                                            :class="dateChoice() === c.value ? 'border-accent bg-accent-soft text-accent-text' : 'border-brand-sand text-[#5B4650]'"
                                             x-text="c.label"></button>
                                 </template>
                             </div>
                             <input x-show="dateChoice() === 'pick'" type="date" x-model="form.date" aria-labelledby="pl-when" @change="clearErr('date')"
                                    :aria-invalid="!!err.date" aria-describedby="pl-date-err"
-                                   class="mt-2 h-11 px-3 text-sm bg-brand-cream border rounded-xl focus:outline-none focus:border-brand-burgundy" :class="err.date ? 'border-[#B42318]' : 'border-brand-sand'">
+                                   class="mt-2 h-11 px-3 text-sm bg-brand-cream border rounded-xl focus:outline-none focus:border-accent" :class="err.date ? 'border-[#B42318]' : 'border-brand-sand'">
                             <p id="pl-date-err" x-show="err.date" class="mt-1.5 text-sm text-[#B42318]" x-text="err.date"></p>
                         </div>
 
                         <div x-show="form.date" class="grid grid-cols-2 gap-3">
                             <div>
                                 <label for="pl-time" class="block text-sm font-semibold mb-1.5" x-text="form.kind === 'appointment' ? 'From' : 'Time (optional)'"></label>
-                                <input id="pl-time" type="time" x-model="form.time" @change="timeChanged()" class="w-full h-11 px-3 text-sm bg-brand-cream border border-brand-sand rounded-xl focus:outline-none focus:border-brand-burgundy">
+                                <input id="pl-time" type="time" x-model="form.time" @change="timeChanged()" class="w-full h-11 px-3 text-sm bg-brand-cream border border-brand-sand rounded-xl focus:outline-none focus:border-accent">
                             </div>
                             <div x-show="form.kind === 'appointment'">
                                 <label for="pl-end" class="block text-sm font-semibold mb-1.5">To (optional)</label>
-                                <input id="pl-end" type="time" x-model="form.end_time" @change="checkEnd()" @input="clearErr('end_time')" :aria-invalid="!!err.end_time" class="w-full h-11 px-3 text-sm bg-brand-cream border rounded-xl focus:outline-none focus:border-brand-burgundy" :class="err.end_time ? 'border-[#B42318]' : 'border-brand-sand'">
+                                <input id="pl-end" type="time" x-model="form.end_time" @change="checkEnd()" @input="clearErr('end_time')" :aria-invalid="!!err.end_time" class="w-full h-11 px-3 text-sm bg-brand-cream border rounded-xl focus:outline-none focus:border-accent" :class="err.end_time ? 'border-[#B42318]' : 'border-brand-sand'">
                                 <p x-show="err.end_time" class="mt-1.5 text-sm text-[#B42318]" x-text="err.end_time"></p>
                             </div>
                         </div>
@@ -345,7 +345,7 @@
                             <div x-show="!form.customer_id" class="relative">
                                 <input id="pl-cust" type="search" x-model="custQuery" placeholder="Type a name or phone number"
                                        role="combobox" :aria-expanded="custMatches().length > 0" aria-controls="pl-cust-list" autocomplete="off"
-                                       class="w-full h-12 px-4 text-base bg-brand-cream border border-brand-sand rounded-xl focus:outline-none focus:border-brand-burgundy">
+                                       class="w-full h-12 px-4 text-base bg-brand-cream border border-brand-sand rounded-xl focus:outline-none focus:border-accent">
                                 <ul id="pl-cust-list" role="listbox" x-show="custMatches().length" class="absolute z-10 left-0 right-0 mt-1 bg-white border border-brand-sand rounded-xl overflow-hidden shadow-[0_8px_24px_rgba(31,10,20,.07)]">
                                     <template x-for="c in custMatches()" :key="c.id">
                                         <li role="option"><button type="button" @click="form.customer_id = c.id; custQuery = ''" class="w-full text-left px-4 py-3 text-base hover:bg-brand-cream" x-text="c.name"></button></li>
@@ -357,14 +357,14 @@
                         <div x-show="form.date" class="grid sm:grid-cols-2 gap-3">
                             <div>
                                 <label for="pl-remind" class="block text-sm font-semibold mb-1.5">Remind me</label>
-                                <select id="pl-remind" x-model="form.remind_before" class="w-full h-11 px-3 text-sm bg-brand-cream border border-brand-sand rounded-xl focus:outline-none focus:border-brand-burgundy">
+                                <select id="pl-remind" x-model="form.remind_before" class="w-full h-11 px-3 text-sm bg-brand-cream border border-brand-sand rounded-xl focus:outline-none focus:border-accent">
                                     <option value="">No reminder</option>
                                     <template x-for="o in remindOptions()" :key="o.value"><option :value="o.value" :selected="String(form.remind_before) === String(o.value)" x-text="o.label"></option></template>
                                 </select>
                             </div>
                             <div x-show="!form.parent_id">
                                 <label for="pl-repeat" class="block text-sm font-semibold mb-1.5">Repeat</label>
-                                <select id="pl-repeat" x-model="form.repeat" class="w-full h-11 px-3 text-sm bg-brand-cream border border-brand-sand rounded-xl focus:outline-none focus:border-brand-burgundy">
+                                <select id="pl-repeat" x-model="form.repeat" class="w-full h-11 px-3 text-sm bg-brand-cream border border-brand-sand rounded-xl focus:outline-none focus:border-accent">
                                     <option value="">Never</option>
                                     <option value="day">Every day</option>
                                     <option value="week">Every week</option>
@@ -375,7 +375,7 @@
 
                         <div x-show="staff.length">
                             <label for="pl-assign" class="block text-sm font-semibold mb-1.5">Who is doing it?</label>
-                            <select id="pl-assign" x-model="form.assigned_to" class="w-full h-11 px-3 text-sm bg-brand-cream border border-brand-sand rounded-xl focus:outline-none focus:border-brand-burgundy">
+                            <select id="pl-assign" x-model="form.assigned_to" class="w-full h-11 px-3 text-sm bg-brand-cream border border-brand-sand rounded-xl focus:outline-none focus:border-accent">
                                 <option value="">Anyone</option>
                                 <template x-for="s in staff" :key="s.id"><option :value="s.id" :selected="String(form.assigned_to) === String(s.id)" x-text="s.id === me.id ? s.name + ' (me)' : s.name"></option></template>
                             </select>
@@ -383,7 +383,7 @@
 
                         <div>
                             <label for="pl-notes" class="block text-sm font-semibold mb-1.5">Notes (optional)</label>
-                            <textarea id="pl-notes" x-model="form.notes" rows="3" class="w-full px-4 py-3 text-base bg-brand-cream border border-brand-sand rounded-xl focus:outline-none focus:border-brand-burgundy resize-y"></textarea>
+                            <textarea id="pl-notes" x-model="form.notes" rows="3" class="w-full px-4 py-3 text-base bg-brand-cream border border-brand-sand rounded-xl focus:outline-none focus:border-accent resize-y"></textarea>
                         </div>
 
                         <button type="button" @click="form.starred = !form.starred" :aria-pressed="form.starred"
@@ -399,7 +399,7 @@
                         </a>
                     </div>
                     <div class="px-5 py-4 border-t border-brand-sand flex items-center gap-3">
-                        <button type="submit" class="h-12 flex-1 rounded-xl bg-brand-burgundy text-white text-sm font-semibold disabled:opacity-50" :disabled="busy" x-text="form.id ? 'Save changes' : (form.kind === 'appointment' ? 'Add appointment' : 'Add task')"></button>
+                        <button type="submit" class="h-12 flex-1 rounded-xl bg-accent text-on-accent text-sm font-semibold disabled:opacity-50" :disabled="busy" x-text="form.id ? 'Save changes' : (form.kind === 'appointment' ? 'Add appointment' : 'Add task')"></button>
                         <button type="button" x-show="form.id && canDelete(form)" @click="askDelete()" class="h-12 px-4 rounded-xl border border-[#F3C5C0] text-[#B42318] text-sm font-semibold">Delete</button>
                     </div>
                 </form>
@@ -419,7 +419,7 @@
                         <p class="text-base text-[#5B4650] mb-4">Pick a plan. Nfelia adds the steps with dates, counted back from when you must finish. You can change any of them.</p>
                         <ul class="space-y-2">
                             <template x-for="t in templates" :key="t.key">
-                                <li><button type="button" @click="chooseTemplate(t.key)" class="w-full text-left p-4 rounded-xl border border-brand-sand hover:border-brand-burgundy">
+                                <li><button type="button" @click="chooseTemplate(t.key)" class="w-full text-left p-4 rounded-xl border border-brand-sand hover:border-accent">
                                     <span class="block font-semibold text-base" x-text="t.label"></span>
                                     <span class="block text-sm text-[#5B4650]" x-text="t.hint"></span>
                                 </button></li>
@@ -439,7 +439,7 @@
                             <div x-show="!plan.customer_id" class="relative">
                                 <input id="pl-plan-cust-q" type="search" x-model="custQuery" placeholder="Type a name or phone number" autocomplete="off"
                                        role="combobox" :aria-expanded="custMatches().length > 0" aria-controls="pl-plan-cust"
-                                       class="w-full h-12 px-4 text-base bg-brand-cream border border-brand-sand rounded-xl focus:outline-none focus:border-brand-burgundy">
+                                       class="w-full h-12 px-4 text-base bg-brand-cream border border-brand-sand rounded-xl focus:outline-none focus:border-accent">
                                 <ul id="pl-plan-cust" role="listbox" x-show="custMatches().length" class="absolute z-10 left-0 right-0 mt-1 bg-white border border-brand-sand rounded-xl overflow-hidden shadow-[0_8px_24px_rgba(31,10,20,.07)]">
                                     <template x-for="c in custMatches()" :key="c.id">
                                         <li role="option"><button type="button" @click="setPlanCustomer(c.id)" class="w-full text-left px-4 py-3 text-base hover:bg-brand-cream" x-text="c.name"></button></li>
@@ -450,7 +450,7 @@
 
                         <div x-show="planInvoices().length">
                             <label for="pl-plan-inv" class="block text-sm font-semibold mb-1.5">Invoice (optional)</label>
-                            <select id="pl-plan-inv" x-model="plan.invoice_id" @change="planInvoiceChanged()" class="w-full h-11 px-3 text-sm bg-brand-cream border border-brand-sand rounded-xl focus:outline-none focus:border-brand-burgundy">
+                            <select id="pl-plan-inv" x-model="plan.invoice_id" @change="planInvoiceChanged()" class="w-full h-11 px-3 text-sm bg-brand-cream border border-brand-sand rounded-xl focus:outline-none focus:border-accent">
                                 <option value="">Not linked</option>
                                 <template x-for="inv in planInvoices()" :key="inv.id"><option :value="inv.id" :selected="String(plan.invoice_id) === String(inv.id)" x-text="inv.label"></option></template>
                             </select>
@@ -461,12 +461,12 @@
                             <div>
                                 <label for="pl-plan-finish" class="block text-sm font-semibold mb-1.5" x-text="templateOf(plan.template).finish"></label>
                                 <input id="pl-plan-finish" type="date" x-model="plan.finish" :min="today" @change="recalcPlan(); clearErr('finish')" :aria-invalid="!!err.finish"
-                                       class="w-full h-11 px-3 text-sm bg-brand-cream border rounded-xl focus:outline-none focus:border-brand-burgundy" :class="err.finish ? 'border-[#B42318]' : 'border-brand-sand'">
+                                       class="w-full h-11 px-3 text-sm bg-brand-cream border rounded-xl focus:outline-none focus:border-accent" :class="err.finish ? 'border-[#B42318]' : 'border-brand-sand'">
                                 <p x-show="err.finish" class="mt-1.5 text-sm text-[#B42318]" x-text="err.finish"></p>
                             </div>
                             <div x-show="staff.length">
                                 <label for="pl-plan-assign" class="block text-sm font-semibold mb-1.5">Who is doing it?</label>
-                                <select id="pl-plan-assign" x-model="plan.assigned_to" class="w-full h-11 px-3 text-sm bg-brand-cream border border-brand-sand rounded-xl focus:outline-none focus:border-brand-burgundy">
+                                <select id="pl-plan-assign" x-model="plan.assigned_to" class="w-full h-11 px-3 text-sm bg-brand-cream border border-brand-sand rounded-xl focus:outline-none focus:border-accent">
                                     <option value="">Anyone</option>
                                     <template x-for="s in staff" :key="s.id"><option :value="s.id" x-text="s.name"></option></template>
                                 </select>
@@ -477,7 +477,7 @@
                             <label for="pl-plan-name" class="block text-sm font-semibold mb-1.5">Job name</label>
                             <input id="pl-plan-name" type="text" x-model="plan.title" maxlength="200" @input="plan.titleTouched = true; clearErr('title')"
                                    @blur="if (!plan.title.trim()) setErr('title', 'Give the job a name.')" :aria-invalid="!!err.title"
-                                   class="w-full h-12 px-4 text-base bg-brand-cream border rounded-xl focus:outline-none focus:border-brand-burgundy" :class="err.title ? 'border-[#B42318]' : 'border-brand-sand'">
+                                   class="w-full h-12 px-4 text-base bg-brand-cream border rounded-xl focus:outline-none focus:border-accent" :class="err.title ? 'border-[#B42318]' : 'border-brand-sand'">
                             <p x-show="err.title" class="mt-1.5 text-sm text-[#B42318]" x-text="err.title"></p>
                         </div>
 
@@ -489,28 +489,28 @@
                                         <div class="flex items-center gap-2">
                                             <span :id="'pl-step-' + s.uid" class="w-6 text-sm font-semibold text-[#5B4650]" x-text="(i + 1) + '.'"></span>
                                             <input type="text" x-model="s.title" maxlength="200" :aria-labelledby="'pl-steps pl-step-' + s.uid" placeholder="e.g. Take measurements" @input="clearErr('steps')" :aria-invalid="!!err.steps && !s.title.trim()"
-                                                   class="flex-1 min-w-0 h-11 px-3 text-base bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-burgundy">
+                                                   class="flex-1 min-w-0 h-11 px-3 text-base bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent">
                                             <button type="button" @click="plan.steps.splice(i, 1)" :aria-label="'Remove step ' + (i + 1)" data-tip="Remove step" data-tip-side="left" class="w-11 h-11 shrink-0 inline-flex items-center justify-center rounded-full text-[#5B4650] hover:bg-brand-cream">
                                                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
                                             </button>
                                         </div>
                                         <div class="mt-2 pl-8 flex flex-wrap items-center gap-2">
-                                            <input type="date" x-model="s.date" @change="s.touched = true; clearErr('steps')" :aria-invalid="!!err.steps && !s.date" :aria-label="'Date for step ' + (i + 1)" class="h-11 px-3 text-sm bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-burgundy">
-                                            <input x-show="s.kind === 'appointment'" type="time" x-model="s.time" :aria-label="'Time for step ' + (i + 1)" class="h-11 px-3 text-sm bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-burgundy">
-                                            <span x-show="s.kind === 'appointment'" class="text-sm font-semibold text-brand-burgundy">Appointment</span>
+                                            <input type="date" x-model="s.date" @change="s.touched = true; clearErr('steps')" :aria-invalid="!!err.steps && !s.date" :aria-label="'Date for step ' + (i + 1)" class="h-11 px-3 text-sm bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent">
+                                            <input x-show="s.kind === 'appointment'" type="time" x-model="s.time" :aria-label="'Time for step ' + (i + 1)" class="h-11 px-3 text-sm bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent">
+                                            <span x-show="s.kind === 'appointment'" class="text-sm font-semibold text-accent-text">Appointment</span>
                                             <span x-show="s.deliver && plan.invoice_id" class="text-sm font-semibold text-[#B54708]">Marks the invoice delivered</span>
                                         </div>
                                     </li>
                                 </template>
                             </ol>
                             <p x-show="err.steps" class="mt-2 text-sm text-[#B42318]" x-text="err.steps"></p>
-                            <button type="button" id="pl-add-step" @click="addStep(); clearErr('steps')" class="mt-3 h-11 px-4 rounded-xl border border-dashed border-brand-sand text-sm font-semibold text-brand-burgundy">Add a step</button>
+                            <button type="button" id="pl-add-step" @click="addStep(); clearErr('steps')" class="mt-3 h-11 px-4 rounded-xl border border-dashed border-brand-sand text-sm font-semibold text-accent-text">Add a step</button>
                         </div>
                     </div>
 
                     <div x-show="plan.template" class="px-5 py-4 border-t border-brand-sand flex items-center gap-3">
                         <button type="button" @click="plan.template = null" class="h-12 px-4 rounded-xl border border-brand-sand text-sm font-semibold">Back</button>
-                        <button type="submit" class="h-12 flex-1 rounded-xl bg-brand-burgundy text-white text-sm font-semibold disabled:opacity-50" :disabled="busy">Save job plan</button>
+                        <button type="submit" class="h-12 flex-1 rounded-xl bg-accent text-on-accent text-sm font-semibold disabled:opacity-50" :disabled="busy">Save job plan</button>
                     </div>
                 </form>
             </template>
@@ -578,7 +578,7 @@
                             <p x-show="pushState === 'blocked'" class="mt-3 text-sm text-[#B42318]">Notifications are blocked for Nfelia. Allow them in your browser's site settings, then come back.</p>
                             <p x-show="pushState === 'unavailable'" class="mt-3 text-sm text-[#5B4650]">Coming soon. Until then, reminders arrive by bell and email.</p>
                             <div class="mt-3 flex flex-wrap gap-2">
-                                <button type="button" x-show="pushState === 'off'" @click="pushOn()" :disabled="busy" class="h-11 px-4 rounded-xl bg-brand-burgundy text-white text-sm font-semibold disabled:opacity-50">Turn on for this phone</button>
+                                <button type="button" x-show="pushState === 'off'" @click="pushOn()" :disabled="busy" class="h-11 px-4 rounded-xl bg-accent text-on-accent text-sm font-semibold disabled:opacity-50">Turn on for this phone</button>
                                 <button type="button" x-show="pushState === 'on'" @click="pushTest()" :disabled="busy" class="h-11 px-4 rounded-xl border border-brand-sand text-sm font-semibold">Send me a test</button>
                                 <button type="button" x-show="pushState === 'on'" @click="pushOff()" :disabled="busy" class="h-11 px-4 rounded-xl border border-brand-sand text-sm font-semibold text-[#5B4650]">Turn off</button>
                             </div>
@@ -589,7 +589,7 @@
                                 <span class="block font-semibold text-base">Morning plan by email</span>
                                 <span class="block text-sm text-[#5B4650] mt-0.5">At 7am: today's appointments, tasks, deliveries and money due. Only on days with something on.</span>
                             </span>
-                            <input type="checkbox" x-model="prefs.morning_email" @change="savePrefs()" class="mt-1 w-6 h-6 accent-[#8B004A] shrink-0">
+                            <input type="checkbox" x-model="prefs.morning_email" @change="savePrefs()" class="mt-1 w-6 h-6 accent-[var(--accent)] shrink-0">
                         </label>
 
                         <label class="flex items-start justify-between gap-3 p-4 rounded-xl border border-brand-sand cursor-pointer">
@@ -597,7 +597,7 @@
                                 <span class="block font-semibold text-base">Reminder emails</span>
                                 <span class="block text-sm text-[#5B4650] mt-0.5">An email at the time you chose on a task or appointment.</span>
                             </span>
-                            <input type="checkbox" x-model="prefs.reminder_email" @change="savePrefs()" class="mt-1 w-6 h-6 accent-[#8B004A] shrink-0">
+                            <input type="checkbox" x-model="prefs.reminder_email" @change="savePrefs()" class="mt-1 w-6 h-6 accent-[var(--accent)] shrink-0">
                         </label>
                     </div>
                 </div>
@@ -630,4 +630,4 @@
     </div>
 </div>
 
-<script src="<?= APP_URL ?>/assets/js/planner.js?v=1"></script>
+<script src="<?= APP_URL ?>/assets/js/planner.js?v=2"></script>

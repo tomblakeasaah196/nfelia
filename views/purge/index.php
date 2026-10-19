@@ -199,7 +199,7 @@ $currency = $business["currency_symbol"] ?? "₦"; ?>
 
             <div class="mt-6 pt-4 border-t border-brand-sand flex items-center justify-between">
                 <span class="text-xs font-semibold text-brand-plum/60">
-                    Selected <strong class="text-brand-burgundy font-bold" x-text="getSelectedIds().length"></strong> candidates for annihilation.
+                    Selected <strong class="text-accent-text font-bold" x-text="getSelectedIds().length"></strong> candidates for annihilation.
                 </span>
                 <button type="button" @click="openBriefingCard()" :disabled="getSelectedIds().length === 0"
                         class="bg-[#ff0000] hover:bg-[#cc0000] text-white px-8 py-3 rounded-xl text-xs font-extrabold uppercase tracking-widest disabled:opacity-40 transition-all shadow-md active:scale-95">

@@ -52,7 +52,7 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
         
         <!-- NEW AUTHORIZE BUTTON STARTS HERE -->
         <?php if (empty($quotation['owner_signature_data'])): ?>
-            <button onclick="document.getElementById('ownerSignModal').classList.remove('hidden')" class="flex items-center gap-1.5 bg-brand-plum text-white px-3 py-2 rounded-lg hover:bg-brand-burgundy transition-all">
+            <button onclick="document.getElementById('ownerSignModal').classList.remove('hidden')" class="flex items-center gap-1.5 bg-brand-plum text-white px-3 py-2 rounded-lg hover:bg-accent hover:text-on-accent transition-all">
                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
                 <span class="text-[10px] font-bold uppercase tracking-widest">Authorize</span>
             </button>
@@ -392,7 +392,7 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
             </div>
 
             <div class="p-5 border-t border-gray-100 flex gap-3 bg-white">
-                <button type="submit" class="w-full py-3 text-xs font-bold text-white bg-brand-plum rounded-lg uppercase tracking-widest shadow-md hover:bg-brand-burgundy transition-colors">
+                <button type="submit" class="w-full py-3 text-xs font-bold text-white bg-brand-plum rounded-lg uppercase tracking-widest shadow-md hover:bg-accent hover:text-on-accent transition-colors">
                     Save Signature
                 </button>
             </div>

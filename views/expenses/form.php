@@ -153,7 +153,7 @@ $currency = $business['currency_symbol'] ?? '₦';
     <div x-show="category === 'stock_purchase'" x-transition class="bg-brand-white border border-brand-sand rounded-xl p-6 shadow-sm space-y-4 mb-6">
         <div class="flex items-center justify-between">
             <h2 class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest">Purchase Items</h2>
-            <button type="button" @click="addItem()" class="text-[10px] font-bold text-brand-gold uppercase tracking-widest hover:text-brand-burgundy">+ Add Item</button>
+            <button type="button" @click="addItem()" class="text-[10px] font-bold text-brand-gold uppercase tracking-widest hover:text-accent-text">+ Add Item</button>
         </div>
 
         <template x-for="(item, idx) in items" :key="idx">
@@ -268,7 +268,7 @@ $currency = $business['currency_symbol'] ?? '₦';
         <button type="submit" class="btn-primary text-white px-6 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-sm hover:shadow-md transition-all">
             <?= $editing ? 'Update Expense' : 'Save Expense' ?>
         </button>
-        <a href="<?= APP_URL ?>/expenses" class="text-[10px] font-bold text-brand-plum/40 uppercase tracking-widest hover:text-brand-burgundy">Cancel</a>
+        <a href="<?= APP_URL ?>/expenses" class="text-[10px] font-bold text-brand-plum/40 uppercase tracking-widest hover:text-accent-text">Cancel</a>
     </div>
 </form>
 

@@ -164,7 +164,7 @@ $pay_status_badge = function($s) {
                 <tbody class="divide-y divide-brand-sand/50">
                     <?php foreach ($expenses as $exp): ?>
                         <tr class="hover:bg-brand-cream/30 <?= $exp['payment_status'] === 'unpaid' ? 'bg-red-50/30' : '' ?>">
-                            <td class="px-5 py-3"><a href="<?= APP_URL ?>/expenses/view/<?= $exp['id'] ?>" class="data-text text-xs font-bold text-brand-plum hover:text-brand-burgundy"><?= e($exp['doc_number']) ?></a></td>
+                            <td class="px-5 py-3"><a href="<?= APP_URL ?>/expenses/view/<?= $exp['id'] ?>" class="data-text text-xs font-bold text-brand-plum hover:text-accent-text"><?= e($exp['doc_number']) ?></a></td>
                             <td class="px-5 py-3"><span class="data-text text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-brand-cream text-brand-plum/60"><?= ucfirst(str_replace('_', ' ', $exp['category'])) ?></span></td>
                             <td class="px-5 py-3 text-xs text-brand-plum/70 max-w-[200px] truncate"><?= e($exp['description']) ?></td>
                             <td class="px-5 py-3 data-text text-[10px] text-brand-plum/60"><?= fmt_date($exp['expense_date'], 'd M Y') ?></td>
@@ -198,7 +198,7 @@ $pay_status_badge = function($s) {
                 <tbody class="divide-y divide-brand-sand/50">
                     <?php foreach ($purchases as $p): ?>
                         <tr class="hover:bg-brand-cream/30">
-                            <td class="px-5 py-3"><a href="<?= APP_URL ?>/expenses/view/<?= $p['id'] ?>" class="data-text text-xs font-bold text-brand-plum hover:text-brand-burgundy"><?= e($p['doc_number']) ?></a></td>
+                            <td class="px-5 py-3"><a href="<?= APP_URL ?>/expenses/view/<?= $p['id'] ?>" class="data-text text-xs font-bold text-brand-plum hover:text-accent-text"><?= e($p['doc_number']) ?></a></td>
                             <td class="px-5 py-3 text-xs text-brand-plum/70 max-w-[200px] truncate"><?= e($p['description']) ?></td>
                             <td class="px-5 py-3 data-text text-[10px] text-brand-plum/60"><?= fmt_date($p['expense_date'], 'd M Y') ?></td>
                             <td class="px-5 py-3 data-text text-xs font-bold text-brand-plum text-right"><?= money((float)$p['amount'], $currency) ?></td>

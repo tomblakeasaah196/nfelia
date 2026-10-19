@@ -772,7 +772,7 @@ function planner() {
 
         dotClass: function (it) {
             var c = 'bg-[#5B4650]';
-            if (it.kind === 'appointment') c = 'bg-brand-burgundy';
+            if (it.kind === 'appointment') c = 'bg-accent';
             else if (it.source === 'deliver' || it.source === 'delivery') c = 'bg-[#B54708]';
             else if (it.source === 'invoice_due' || it.source === 'debt_in') c = 'bg-[#00764A]';
             else if (it.source === 'debt_out') c = 'bg-[#B42318]';
@@ -816,7 +816,7 @@ function planner() {
         sourceColor: function (it) {
             return {
                 deliver: 'text-[#B54708]', delivery: 'text-[#B54708]', invoice_due: 'text-[#00764A]', debt_in: 'text-[#00764A]',
-                debt_out: 'text-[#B42318]', order: 'text-brand-burgundy', restock: 'text-[#5B4650]', quote: 'text-[#026AA2]'
+                debt_out: 'text-[#B42318]', order: 'text-accent-text', restock: 'text-[#5B4650]', quote: 'text-[#026AA2]'
             }[it.source] || 'text-[#5B4650]';
         },
 

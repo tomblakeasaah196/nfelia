@@ -128,7 +128,7 @@ if (empty($initial_items)) {
         <div class="flex items-center justify-between mb-4">
             <h2 class="font-heading font-bold text-sm text-brand-plum uppercase tracking-wider">Items Being Dispatched</h2>
             <button type="button" @click="addItem()"
-                    class="text-[10px] font-bold text-brand-gold uppercase tracking-widest hover:text-brand-burgundy flex items-center gap-1">
+                    class="text-[10px] font-bold text-brand-gold uppercase tracking-widest hover:text-accent-text flex items-center gap-1">
                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
                 Add Item
             </button>
@@ -274,7 +274,7 @@ if (empty($initial_items)) {
 
     <!-- Actions -->
     <div class="flex items-center justify-between">
-        <a href="<?= APP_URL ?>/deliveries" class="text-[10px] font-bold text-brand-plum/40 uppercase tracking-widest hover:text-brand-burgundy">Cancel</a>
+        <a href="<?= APP_URL ?>/deliveries" class="text-[10px] font-bold text-brand-plum/40 uppercase tracking-widest hover:text-accent-text">Cancel</a>
         <button type="submit" class="btn-primary text-white px-8 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-sm hover:shadow-md transition-all">
             <?= $editing ? 'Update Delivery' : 'Create Delivery' ?>
         </button>
