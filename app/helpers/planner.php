@@ -156,10 +156,18 @@ function planner_initials(?string $name): string {
     return $out;
 }
 
-/** wa.me link with a ready message. No number: WhatsApp asks who to send to. */
-function planner_wa_link(?string $phone, string $text): string {
-    $num = preg_replace('/\D/', '', (string)$phone);
-    if (str_starts_with($num, '0')) $num = '234' . substr($num, 1);
+/**
+ * wa.me link with a ready message. No number: WhatsApp asks who to send to.
+ * With the business, a local number gets its country's code (wa_digits()),
+ * so a Ghanaian shop's customers are not dialled in Nigeria.
+ */
+function planner_wa_link(?string $phone, string $text, ?array $business = null): string {
+    if ($business && function_exists('wa_digits')) {
+        $num = wa_digits($phone, $business);
+    } else {
+        $num = preg_replace('/\D/', '', (string)$phone);
+        if (str_starts_with($num, '0')) $num = '234' . substr($num, 1);
+    }
     return 'https://wa.me/' . $num . '?text=' . rawurlencode($text);
 }
 
@@ -285,7 +293,8 @@ function planner_task_item(array $t, string $today, array $business, ?array $nex
         $when = planner_when($t['due_date'], $today) . ($time ? ' at ' . planner_fmt_time($time) : '');
         $wa = planner_wa_link(
             $t['customer_phone'],
-            "Hello {$first}, this is a reminder of your appointment with {$business['name']} {$when}: {$t['title']}. See you then."
+            "Hello {$first}, this is a reminder of your appointment with {$business['name']} {$when}: {$t['title']}. See you then.",
+            $business
         );
     }
 
@@ -387,12 +396,15 @@ function planner_auto_items(PDO $db, int $biz_id, ?string $from, string $to, arr
     [$cond, $p] = $range('i.deliver_by');
     $stmt = $db->prepare("
         SELECT i.id, i.doc_number, i.deliver_by, i.deliver_mode, i.token,
+               o.id AS oid, o.order_number, o.fulfillment_type,
                c.id AS cid, c.full_name, COALESCE(NULLIF(c.whatsapp, ''), c.phone) AS phone,
                (SELECT ii.description FROM invoice_items ii WHERE ii.invoice_id = i.id ORDER BY ii.sort_order, ii.id LIMIT 1) AS first_item,
                (SELECT COUNT(*) FROM invoice_items ii WHERE ii.invoice_id = i.id) AS item_count
         FROM invoices i
         LEFT JOIN customers c ON c.id = i.customer_id
+        LEFT JOIN orders o ON o.id = i.order_id AND o.business_id = i.business_id
         WHERE i.business_id = ? AND i.deliver_by IS NOT NULL AND i.delivered_at IS NULL
+          AND (o.id IS NULL OR o.status NOT IN ('fulfilled','cancelled','rejected'))
           AND i.status <> 'cancelled' AND {$cond}
           AND NOT EXISTS (SELECT 1 FROM deliveries d WHERE d.invoice_id = i.id AND d.deleted_at IS NULL AND d.status IN ('delivered','signed_off'))
           AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.invoice_id = i.id AND t.step_key = 'deliver' AND t.deleted_at IS NULL)
@@ -402,15 +414,33 @@ function planner_auto_items(PDO $db, int $biz_id, ?string $from, string $to, arr
         $first = planner_first_name($r['full_name']);
         $what = (string)$r['first_item'];
         if ((int)$r['item_count'] > 1) $what .= ' +' . ((int)$r['item_count'] - 1) . ' more';
+        $when = planner_when($r['deliver_by'], $today);
+        // An order's promise speaks in the order's number, and the customer
+        // hears about their order; a standalone invoice names the invoice
+        if ($r['oid']) {
+            $pickup = $r['fulfillment_type'] !== 'delivery';
+            $title = $pickup ? ($r['full_name'] ?: 'Customer') . ' collects' : 'Deliver to ' . ($r['full_name'] ?: 'customer');
+            $subtitle = trim($r['order_number'] . ' · ' . $what, ' ·');
+            $url = 'orders/view/' . $r['oid'];
+            $text = $pickup
+                ? "Hello {$first}, your order {$r['order_number']} from {$business['name']} will be ready {$when}. You can pick it up at our shop."
+                : "Hello {$first}, this is {$business['name']}. Your order {$r['order_number']} will be delivered {$when}.";
+        } else {
+            $pickup = false;
+            $title = 'Deliver to ' . ($r['full_name'] ?: 'customer');
+            $subtitle = trim($what . ' · ' . $r['doc_number'], ' ·');
+            $url = 'invoices/view/' . $r['id'];
+            $text = "Hello {$first}, this is {$business['name']}. Your order on invoice {$r['doc_number']} will be delivered {$when}.";
+        }
         $items[] = planner_item([
             'id' => 'auto:deliver:' . $r['id'], 'kind' => 'auto', 'source' => 'deliver',
-            'title' => 'Deliver to ' . ($r['full_name'] ?: 'customer'),
-            'subtitle' => trim($what . ' · ' . $r['doc_number'], ' ·'),
+            'title' => $title,
+            'subtitle' => $subtitle,
             'date' => $r['deliver_by'],
             'customer' => $r['cid'] ? ['id' => (int)$r['cid'], 'name' => $r['full_name']] : null,
-            'countdown' => planner_countdown($r['deliver_by'], $today, 'Deliver'),
-            'url' => 'invoices/view/' . $r['id'], 'invoice_id' => (int)$r['id'],
-            'wa' => $r['phone'] ? planner_wa_link($r['phone'], "Hello {$first}, your order {$r['doc_number']} from {$business['name']} is on its way. We will deliver " . planner_when($r['deliver_by'], $today) . '.') : null,
+            'countdown' => planner_countdown($r['deliver_by'], $today, $pickup ? 'Ready' : 'Deliver'),
+            'url' => $url, 'invoice_id' => (int)$r['id'], 'order_id' => $r['oid'] ? (int)$r['oid'] : null,
+            'wa' => $r['phone'] ? planner_wa_link($r['phone'], $text, $business) : null,
             'wa_label' => $r['phone'] ? 'Update ' . $first : null,
             'tick' => 'delivered', 'pressure' => true,
         ]);
@@ -420,13 +450,15 @@ function planner_auto_items(PDO $db, int $biz_id, ?string $from, string $to, arr
     // a promise (that one is shown above).
     [$cond, $p] = $range('DATE(d.estimated_delivery)');
     $stmt = $db->prepare("
-        SELECT d.id, d.doc_number, d.recipient_name, d.estimated_delivery, d.customer_id
+        SELECT d.id, d.doc_number, d.recipient_name, d.estimated_delivery, d.customer_id, o.id AS oid, o.order_number
         FROM deliveries d
         LEFT JOIN invoices i ON i.id = d.invoice_id
+        LEFT JOIN orders o ON o.id = d.order_id AND o.business_id = d.business_id
         WHERE d.business_id = ? AND d.deleted_at IS NULL
           AND d.status IN ('pending_dispatch','dispatched','in_transit')
           AND d.estimated_delivery IS NOT NULL AND {$cond}
           AND (i.id IS NULL OR i.deliver_by IS NULL OR i.delivered_at IS NOT NULL)
+          AND (o.id IS NULL OR o.status NOT IN ('fulfilled','cancelled','rejected'))
         ORDER BY d.estimated_delivery LIMIT 100");
     $stmt->execute(array_merge([$biz_id], $p));
     foreach ($stmt->fetchAll() as $r) {
@@ -437,10 +469,10 @@ function planner_auto_items(PDO $db, int $biz_id, ?string $from, string $to, arr
         $items[] = planner_item([
             'id' => 'auto:' . $key, 'kind' => 'auto', 'source' => 'delivery',
             'title' => 'Delivery to ' . $r['recipient_name'],
-            'subtitle' => $r['doc_number'],
+            'subtitle' => $r['doc_number'] . ($r['oid'] ? ' · order ' . $r['order_number'] : ''),
             'date' => $date, 'time' => $time !== '00:00' ? $time : null,
             'countdown' => $date < $today ? planner_countdown($date, $today) : null,
-            'url' => 'deliveries/view/' . $r['id'], 'tick' => 'dismiss',
+            'url' => $r['oid'] ? 'orders/view/' . $r['oid'] . '#delivery' : 'deliveries/view/' . $r['id'], 'tick' => 'dismiss',
         ]);
     }
 
@@ -448,10 +480,11 @@ function planner_auto_items(PDO $db, int $biz_id, ?string $from, string $to, arr
         // Invoices with money still to come in.
         [$cond, $p] = $range('i.due_date');
         $stmt = $db->prepare("
-            SELECT i.id, i.doc_number, i.due_date, i.total, i.balance_due, i.token,
+            SELECT i.id, i.doc_number, i.due_date, i.total, i.balance_due, i.token, o.id AS oid, o.order_number,
                    c.id AS cid, c.full_name, COALESCE(NULLIF(c.whatsapp, ''), c.phone) AS phone
             FROM invoices i
             LEFT JOIN customers c ON c.id = i.customer_id
+            LEFT JOIN orders o ON o.id = i.order_id AND o.business_id = i.business_id
             WHERE i.business_id = ? AND i.status IN ('sent','partially_paid','overdue')
               AND i.balance_due > 0 AND i.due_date IS NOT NULL AND {$cond}
             ORDER BY i.due_date LIMIT 100");
@@ -464,15 +497,17 @@ function planner_auto_items(PDO $db, int $biz_id, ?string $from, string $to, arr
             $items[] = planner_item([
                 'id' => 'auto:' . $key, 'kind' => 'auto', 'source' => 'invoice_due',
                 'title' => $bal . ' due from ' . ($r['full_name'] ?: 'customer'),
-                'subtitle' => 'Invoice ' . $r['doc_number'],
+                'subtitle' => 'Invoice ' . $r['doc_number'] . ($r['oid'] ? ' · order ' . $r['order_number'] : ''),
                 'date' => $r['due_date'],
                 'customer' => $r['cid'] ? ['id' => (int)$r['cid'], 'name' => $r['full_name']] : null,
                 'countdown' => $r['due_date'] <= $today ? planner_countdown($r['due_date'], $today) : null,
-                'url' => 'invoices/view/' . $r['id'], 'invoice_id' => (int)$r['id'], 'amount' => (float)$r['balance_due'],
+                'url' => $r['oid'] ? 'orders/view/' . $r['oid'] . '#money' : 'invoices/view/' . $r['id'],
+                'invoice_id' => (int)$r['id'], 'amount' => (float)$r['balance_due'],
                 'wa' => planner_wa_link($r['phone'],
-                    "Hello {$first}, a gentle reminder from {$business['name']}: {$bal} is due on invoice {$r['doc_number']}"
-                    . ($r['due_date'] < $today ? ' (it was due ' . planner_fmt_day_inline($r['due_date'], $today) . ')' : '')
-                    . ".\n\nView it here: " . APP_URL . '/doc/' . $r['token'] . "\n\nThank you!"),
+                    "Hello {$first}, a gentle reminder from {$business['name']}: {$bal} is due on "
+                    . ($r['oid'] ? "your order {$r['order_number']} (invoice {$r['doc_number']})" : "invoice {$r['doc_number']}")
+                    . ($r['due_date'] < $today ? ', it was due ' . planner_fmt_day_inline($r['due_date'], $today) : '')
+                    . ".\n\nView it here: " . APP_URL . '/doc/' . $r['token'] . "\n\nThank you!", $business),
                 'wa_label' => 'Remind ' . ($first ?: 'customer'),
                 'tick' => 'dismiss',
             ]);
@@ -508,7 +543,7 @@ function planner_auto_items(PDO $db, int $biz_id, ?string $from, string $to, arr
                 'countdown' => $r['due_date'] <= $today ? planner_countdown($r['due_date'], $today) : null,
                 'url' => 'debts/view/' . $r['id'], 'amount' => (float)$r['balance'],
                 'wa' => $in && $r['phone'] ? planner_wa_link($r['phone'], "Hello {$first}, a gentle reminder from {$business['name']} about the balance of {$bal}"
-                    . ($r['description'] ? ' for ' . $r['description'] : '') . '. Kindly let me know when you send it. Thank you!') : null,
+                    . ($r['description'] ? ' for ' . $r['description'] : '') . '. Kindly let me know when you send it. Thank you!', $business) : null,
                 'wa_label' => $in && $r['phone'] ? 'Remind ' . $first : null,
                 'tick' => 'dismiss',
             ]);
@@ -548,7 +583,7 @@ function planner_auto_items(PDO $db, int $biz_id, ?string $from, string $to, arr
             'url' => 'quotations/view/' . $r['id'],
             'wa' => planner_wa_link($r['phone'], "Hello {$first}, just checking in on the quote {$r['doc_number']} from {$business['name']}."
                 . ($expires ? ' It is valid until ' . planner_fmt_day($r['expiry_date'], $today) . '.' : '')
-                . "\n\n" . APP_URL . '/doc/' . $r['token'] . "\n\nAny questions? I'm happy to help."),
+                . "\n\n" . APP_URL . '/doc/' . $r['token'] . "\n\nAny questions? I'm happy to help.", $business),
             'wa_label' => 'Follow up',
             'tick' => 'dismiss',
         ]);

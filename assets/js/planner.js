@@ -88,13 +88,13 @@ function planner() {
             } else if (p.plan || (p.invoice && !p.new)) {
                 this.openPlan(p);
             } else if (p.new) {
-                this.openEditor({ kind: p.new, date: p.date || this.today, customer_id: p.customer });
+                this.openEditor({ kind: p.new, date: p.date || this.today, customer_id: p.customer, order: p.order });
             } else if (p.reminders) {
                 this.openPanel('reminders');
             } else {
                 this.restoreDraft();
             }
-            if (p.task || p.plan || p.new || p.invoice || p.customer || p.date || p.reminders) {
+            if (p.task || p.plan || p.new || p.invoice || p.customer || p.date || p.reminders || p.order) {
                 history.replaceState(null, '', BASE + '/tasks' + (this.tab === 'calendar' ? '?tab=calendar' : ''));
             }
             if (this.tab === 'calendar') this.loadMonth();
@@ -429,6 +429,7 @@ function planner() {
                 time: src.time || '',
                 end_time: src.end_time || '',
                 customer_id: src.customer ? src.customer.id : (src.customer_id || null),
+                order: src.order || null,
                 assigned_to: src.assignee ? src.assignee.id : '',
                 remind_before: isNew ? (kind === 'appointment' ? 0 : '') : (src.remind_before === null || src.remind_before === undefined ? '' : src.remind_before),
                 repeat: src.repeat || '',
@@ -530,7 +531,7 @@ function planner() {
             var parent = f.parent_id;
             this.api('save', {
                 id: f.id, kind: f.kind, title: f.title.trim(), date: f.date, time: f.date ? f.time : '',
-                end_time: f.end_time, customer_id: f.customer_id, assigned_to: f.assigned_to,
+                end_time: f.end_time, customer_id: f.customer_id, assigned_to: f.assigned_to, order_id: f.order ? f.order.id : null,
                 remind_before: f.remind_before, repeat: f.date ? f.repeat : '', notes: f.notes, starred: f.starred
             }).then(function (d) {
                 self.clearDraft();

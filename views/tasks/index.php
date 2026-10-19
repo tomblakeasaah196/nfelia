@@ -330,6 +330,10 @@
                             </div>
                         </div>
 
+                        <p x-show="form.order" class="flex items-center gap-2 px-4 py-3 rounded-xl bg-brand-cream text-sm">
+                            <span class="text-[#5B4650]">For order</span> <b x-text="form.order ? form.order.number : ''"></b>
+                        </p>
+
                         <div>
                             <label for="pl-cust" class="block text-sm font-semibold mb-1.5">Customer (optional)</label>
                             <div x-show="form.customer_id" class="flex items-center justify-between gap-2 h-12 pl-4 pr-1 rounded-xl border border-brand-sand bg-brand-cream">
