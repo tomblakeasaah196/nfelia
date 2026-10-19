@@ -207,7 +207,7 @@ eq(count(mails_to(EMAIL[CHIDI])), 1, 'arrives');
 $c->json('tasks/push-test', []);
 eq($c->data()['message'] ?? null, 'Sent. Check your phone.', 'the Tasks page\'s test uses the same path');
 
-section('A phone renews its subscription, and signing out forgets the phone');
+section('A phone renews its subscription, and signing out keeps the phone');
 $old = (string)q("SELECT endpoint FROM push_subscriptions WHERE user_id = ?", [CHIDI]);
 $sw = new Http();   // the service worker: no session, no token
 $sw->json('api/notifications?action=resubscribe', ['old_endpoint' => $old, 'subscription' => [
@@ -219,7 +219,7 @@ $sw->json('api/notifications?action=resubscribe', ['old_endpoint' => 'https://pu
 eq($sw->data()['success'] ?? null, false, 'an endpoint Nfelia never had changes nothing');
 $leaving = signin(EMAIL[CHIDI]);   // a session of its own: the others stay signed in
 $leaving->post('logout', ['push_endpoint' => 'https://push.example.test/renewed']);
-eq((int)q("SELECT COUNT(*) FROM push_subscriptions WHERE user_id = ?", [CHIDI]), 0, 'signing out with the phone\'s subscription: that phone stops getting Chidi\'s alerts');
+eq((int)q("SELECT COUNT(*) FROM push_subscriptions WHERE user_id = ?", [CHIDI]), 1, 'signing out keeps the phone: Chidi still hears about new orders');
 
 section('Tasks open on the task itself');
 $a = as_(ADA);

@@ -521,19 +521,9 @@ class AuthController {
         }
         csrf_verify();
 
-        // This phone stops getting this person's notifications. The browser
-        // keeps its subscription; whoever signs in next takes it over.
-        if (isset($_COOKIE[PUSH_COOKIE]) && is_logged_in()) {
-            get_db()->prepare("DELETE FROM push_subscriptions WHERE endpoint_hash = ? AND user_id = ?")
-                    ->execute([(string)$_COOKIE[PUSH_COOKIE], (int)auth_user()['id']]);
-        }
-
-        // This phone stops getting this person's alerts (assets/js/bell.js
-        // sends its subscription with the sign-out).
-        if (!empty($_POST['push_endpoint']) && is_logged_in()) {
-            get_db()->prepare("DELETE FROM push_subscriptions WHERE endpoint_hash = ? AND user_id = ?")
-                    ->execute([hash('sha256', (string)$_POST['push_endpoint']), (int)auth_user()['id']]);
-        }
+        // The phone keeps this person's alerts: signing out never silences a
+        // shop. A phone stops only from More > Notifications, or when someone
+        // else turns alerts on there (TasksController::push_subscribe).
 
         // Delete the sessions table row if remember-me was active
         if (isset($_COOKIE[REMEMBER_COOKIE])) {

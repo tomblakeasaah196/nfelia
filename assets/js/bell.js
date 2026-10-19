@@ -124,29 +124,4 @@
             if (had) try { localStorage.setItem('nf.pushSynced.' + N.lock.user, String(Date.now())); } catch (e) {}
         }).catch(function () {});
     });
-
-    // ---------- Signing out ----------
-    // The server forgets this phone for this person, and the browser drops
-    // the subscription, so the next person to sign in here chooses for
-    // themselves. Never holds sign-out up for more than a moment.
-    document.addEventListener('submit', function (e) {
-        var form = e.target;
-        if (!form.action || !/\/logout$/.test(form.action) || form.dataset.pushChecked) return;
-        if (!('serviceWorker' in navigator) || !window.PushManager) return;
-        e.preventDefault();
-        form.dataset.pushChecked = '1';
-        var go = function () { form.submit(); };
-        var timer = setTimeout(go, 1500);
-        navigator.serviceWorker.getRegistration().then(function (reg) {
-            return reg ? reg.pushManager.getSubscription() : null;
-        }).then(function (sub) {
-            if (!sub) return;
-            var input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = 'push_endpoint';
-            input.value = sub.endpoint;
-            form.appendChild(input);
-            return sub.unsubscribe();
-        }).catch(function () {}).then(function () { clearTimeout(timer); go(); });
-    }, true);
 })();

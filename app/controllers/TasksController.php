@@ -472,12 +472,6 @@ class TasksController {
             )
         ")->execute([$user['id'], $user['id']]);
 
-        // Remember which subscription this browser has, so signing out here
-        // stops this person's notifications on this phone (AuthController::logout)
-        setcookie(PUSH_COOKIE, hash('sha256', $endpoint), [
-            'expires' => time() + 365 * 86400, 'path' => '/', 'secure' => true, 'httponly' => true, 'samesite' => 'Lax',
-        ]);
-
         json_response(['success' => true, 'message' => 'Notifications are on for this phone.']);
     }
 

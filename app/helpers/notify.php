@@ -572,6 +572,7 @@ function notify(string $event, int $business_id, array $data = [], array $opts =
             INSERT IGNORE INTO notifications (business_id, user_id, type, event, title, message, action_url, data, dedupe_key)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
         $made = [];
+        $emails = [];   // queued after every push, so no phone waits on a mail server
 
         foreach ($people as $person) {
             $uid  = (int)$person['id'];
@@ -614,7 +615,7 @@ function notify(string $event, int $business_id, array $data = [], array $opts =
                 if (array_diff($def['needs'] ?? [], array_keys($opts['vars'] ?? []))) {
                     $template = 'notification';
                 }
-                notify_queue($db, [
+                $emails[] = [
                     'business_id' => $business_id, 'notification_id' => $nid, 'user_id' => $uid, 'event' => $event,
                     'channel' => 'email', 'recipient' => $person['email'], 'recipient_name' => $person['full_name'],
                     'payload' => [
@@ -633,8 +634,11 @@ function notify(string $event, int $business_id, array $data = [], array $opts =
                             'always'       => $topic === null || !empty(NOTIFY_TOPICS[$topic]['locked']),
                         ], $opts['vars'] ?? []),
                     ],
-                ]);
+                ];
             }
+        }
+        foreach ($emails as $email) {
+            notify_queue($db, $email);
         }
         return $made;
     } catch (Throwable $e) {
