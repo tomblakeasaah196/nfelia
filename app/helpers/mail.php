@@ -65,9 +65,11 @@ function render_email(string $template, array $vars = [], array $business = []):
  * @param string $body       Plain text or HTML body
  * @param bool   $is_html    Set true to send HTML
  * @param array  $headers    Extra headers, name => value
+ * @param string $from_name  The name the inbox shows, still from MAIL_FROM_ADDRESS
+ * @param string $reply_to   Where a reply goes, when not to MAIL_FROM_ADDRESS
  * @return bool
  */
-function send_mail(string $to_email, string $to_name, string $subject, string $body, bool $is_html = false, array $headers = []): bool {
+function send_mail(string $to_email, string $to_name, string $subject, string $body, bool $is_html = false, array $headers = [], string $from_name = '', string $reply_to = ''): bool {
     $mail = new PHPMailer(true);
 
     try {
@@ -99,7 +101,11 @@ function send_mail(string $to_email, string $to_name, string $subject, string $b
         // here is UTF-8: without this, "—" arrives as "â€”" and "₦" as junk.
         $mail->CharSet = PHPMailer::CHARSET_UTF8;
 
-        $mail->setFrom(MAIL_FROM_ADDRESS, MAIL_FROM_NAME);
+        $from_name = trim(preg_replace('/[\r\n\t]+/', ' ', $from_name));
+        $mail->setFrom(MAIL_FROM_ADDRESS, $from_name !== '' ? mb_substr($from_name, 0, 70) : MAIL_FROM_NAME);
+        if ($reply_to !== '' && filter_var($reply_to, FILTER_VALIDATE_EMAIL)) {
+            $mail->addReplyTo($reply_to, $from_name);
+        }
         $mail->addAddress($to_email, $to_name);
 
         // e.g. List-Unsubscribe on campaign emails (app/ops/sales.php)

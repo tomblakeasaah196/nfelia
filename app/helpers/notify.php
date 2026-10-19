@@ -879,7 +879,11 @@ function notify_send_email(PDO $db, array $row): array
     if (str_starts_with($html, 'Error: email template')) {
         return ['failed', mb_substr($html, 0, 255)];
     }
-    return send_mail($row['recipient'], (string)$row['recipient_name'], (string)($p['subject'] ?? 'Nfelia'), $html, true, (array)($p['headers'] ?? []))
+    // A shop's own customer sees the shop's name, and a reply reaches the
+    // shop. People signed up to Nfelia, and Ops, hear from Nfelia.
+    $shopper = $brand && empty($row['user_id']) && empty($row['staff_id']);
+    return send_mail($row['recipient'], (string)$row['recipient_name'], (string)($p['subject'] ?? 'Nfelia'), $html, true, (array)($p['headers'] ?? []),
+                     $shopper ? (string)$brand['name'] : '', $shopper ? (string)($brand['email'] ?? '') : '')
         ? ['sent', null]
         : ['retry', 'the mail server did not accept it'];
 }
