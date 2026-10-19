@@ -1036,23 +1036,12 @@ class PublicController
                 ]);
             $this->db->commit();
             $committed = true;
-            // The whole team hears about it (staff without the amount), by
-            // phone and email. Anyone can place an order, so past 30 in an
-            // hour the rest wait quietly in the bell.
-            notify("order.new", $business_id, [
-                "order_id" => $order_id, "order_number" => $order_number, "customer" => $customer_name,
-                "phone" => $customer_phone, "items" => array_sum(array_column($order_items, "quantity")),
-                "total" => (float) $subtotal, "channel" => $channel, "fulfillment" => $fulfillment,
-                "address" => $delivery_address, "note" => $customer_note,
-            ], [
-                "business" => $business, "dedupe" => (string) $order_id,
-                "channels" => throttle_allows("order_alert", (string) $business_id, 30, 60) ? ["push", "email"] : [],
-            ]);
             $order_url = $business["subdomain"]
                 ? shop_url($business["subdomain"], "/order/" . $public_token)
                 : null;
             /* The shopper's copy of the order and its link, sent after they have
-               their answer, so the mail server never holds up the checkout */
+               their answer, so the mail server never holds up the checkout.
+               Queued first, so it goes before the team's alerts */
             if ($customer_email !== "" && $order_url !== null) {
                 $mail_vars = [
                     "first_name" => mail_first_name($customer_name),
@@ -1074,6 +1063,18 @@ class PublicController
                 notify_email($business_id, $customer_email, $customer_name, "Your order " . $order_number . " from " . $business["name"],
                     "order_received", $mail_vars, "order-received:" . $order_id, "shopper.order_received");
             }
+            // The whole team hears about it (staff without the amount), by
+            // phone and email. Anyone can place an order, so past 30 in an
+            // hour the rest wait quietly in the bell.
+            notify("order.new", $business_id, [
+                "order_id" => $order_id, "order_number" => $order_number, "customer" => $customer_name,
+                "phone" => $customer_phone, "items" => array_sum(array_column($order_items, "quantity")),
+                "total" => (float) $subtotal, "channel" => $channel, "fulfillment" => $fulfillment,
+                "address" => $delivery_address, "note" => $customer_note,
+            ], [
+                "business" => $business, "dedupe" => (string) $order_id,
+                "channels" => throttle_allows("order_alert", (string) $business_id, 30, 60) ? ["push", "email"] : [],
+            ]);
             json_response([
                 "success" => true,
                 "order_number" => $order_number,
