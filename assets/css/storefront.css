@@ -263,6 +263,9 @@ p, h1, h2, h3, figure, dl, dd { margin: 0; }
 }
 .sf-choice input:checked + span { border-color: var(--sf-accent); background: var(--sf-accent); color: var(--sf-on); font-weight: 700; }
 .sf-choice input:focus-visible + span { outline: 2px solid var(--sf-ink); outline-offset: 2px; }
+.sf-choice__delta { margin-left: 6px; font-size: .82em; font-weight: 600; opacity: .72; }
+.sf-choice input:checked + span .sf-choice__delta { opacity: .9; }
+.sf-buy__chosen { margin: 2px 0 0; font-size: 15px; font-weight: 700; color: var(--sf-ink); }
 
 /* ── Sections ─────────────────────────────────────── */
 
