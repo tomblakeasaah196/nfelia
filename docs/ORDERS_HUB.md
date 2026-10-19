@@ -308,9 +308,12 @@ The shop's name and logo, "RN Afriluxe will send you ₦10,000 for order RNA-ORD
 [Bank account] [Mobile money]; account name, bank or network, number; Send. Then a thank-you. Once paid, the same link
 shows the refund slip: number, order, amount, method, reference, date, and the proof when there is one.
 
-## 8. Wave B file ownership
+## 8. Wave B file ownership (historical)
 
-Each agent changes only its own files. New CSS goes into a marked section at the end of `assets/css/src/pages.css`
+Kept for the record only. Tom chose a lean build (one agent, step by step), so the screens were built
+in sequence and these lanes were never used. What was built is in `docs/handoff/Orders hub.md`.
+
+The plan was: each agent changes only its own files. New CSS goes into a marked section at the end of `assets/css/src/pages.css`
 named after the agent; run `npm run build:css` and commit `assets/css/app.css` only from the merge (the lead rebuilds).
 
 | Agent | Owns |
