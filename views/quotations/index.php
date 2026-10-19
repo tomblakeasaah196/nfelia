@@ -21,10 +21,8 @@ $sorts    = ['newest' => 'Newest first', 'oldest' => 'Oldest first', 'total_desc
 <?php require BASE_PATH . '/views/partials/orders_head.php'; ?>
 
 <?php if (!empty($open_requests)): ?>
-<a class="nf-card" href="<?= APP_URL ?>/quotations/requests" style="display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit">
-    <span class="nf-tile-ic"><?= nav_icon('chat') ?></span>
-    <span style="flex:1"><b><?= $open_requests ?> quote request<?= $open_requests === 1 ? '' : 's' ?> from your shop</b><br>
-        <small style="color:var(--ink-2)">People waiting for a price.</small></span>
+<a class="nf-owed-line is-ask" href="<?= APP_URL ?>/quotations/requests" data-prefetch>
+    <span><b><?= $open_requests ?> quote request<?= $open_requests === 1 ? '' : 's' ?></b> waiting for a price</span>
     <?= nav_icon('chevron') ?>
 </a>
 <?php endif; ?>
