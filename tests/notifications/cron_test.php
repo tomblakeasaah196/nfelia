@@ -44,7 +44,10 @@ exec_sql("INSERT INTO tasks (business_id, kind, title, remind_at, assigned_to, c
           (2, 'task', 'Two days late', ?, 22, 20), (2, 'task', 'For Dayo', ?, 23, 20)",
          [$day(-2) . ' 10:00:00', "{$today} 12:00:00"]);
 cron_at('13:05');
-eq(count(rows("SELECT id FROM notifications WHERE event = 'task.reminder'")), 0, 'a reminder two days late, or for someone who left, is dropped');
+$late = rows("SELECT message FROM notifications WHERE event = 'task.reminder'");
+eq(count($late), 1, 'a reminder two days late is not buzzed or emailed hours late, but lands in the bell; one for someone who left goes nowhere');
+ok(str_starts_with((string)($late[0]['message'] ?? ''), 'Missed reminder'), 'marked as missed: ' . ($late[0]['message'] ?? ''));
+eq(count(outbox('task.reminder')), 0, 'nothing to the phone or inbox for it');
 ok((int)q("SELECT COUNT(*) FROM tasks WHERE reminded_at IS NULL AND title IN ('Two days late', 'For Dayo')") === 0, 'and stamped, so it never comes back');
 
 section('The morning plan');
@@ -201,7 +204,7 @@ exec_sql("INSERT INTO notifications (business_id, user_id, type, event, title, m
     (2, 20, 'x', 'x', 'old, unread', '', 0, NOW() - INTERVAL 7 MONTH),
     (2, 20, 'x', 'x', 'ancient', '', 0, NOW() - INTERVAL 13 MONTH)");
 exec_sql("INSERT INTO notify_outbox (event, channel, payload, status, created_at) VALUES ('x', 'email', '{}', 'sent', NOW() - INTERVAL 2 MONTH)");
-cron_at('03:10');
+cron_at('03:02');
 eq(array_column(rows("SELECT title FROM notifications WHERE event = 'x'"), 'title'), ['old, unread'], 'read alerts go after 6 months, all after a year');
 eq((int)q("SELECT COUNT(*) FROM notify_outbox WHERE event = 'x'"), 0, 'the record of sends after a month');
 

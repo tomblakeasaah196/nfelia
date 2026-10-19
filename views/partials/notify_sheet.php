@@ -30,6 +30,11 @@ $switch = function (string $name, string $title, string $hint, bool $on, string 
             <button type="button" class="nf-btn nf-btn-ghost" data-test="push">Send a test</button>
             <button type="button" class="nf-btn nf-btn-ghost" data-push-off>Turn off</button>
         </div>
+        <!-- Every phone with this person's alerts on, and how the last phone alert went (api/ajax/notifications.php?action=device). -->
+        <div class="nf-devices" data-devices hidden>
+            <p class="nf-notify-note" data-last-push hidden></p>
+            <ul class="nf-device-list" data-device-list aria-label="Phones with alerts on"></ul>
+        </div>
 
         <h3 class="nf-notify-h">What reaches you</h3>
         <p class="nf-notify-note">Everything shows in the bell. Choose what also reaches your phone and your email.</p>

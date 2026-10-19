@@ -265,6 +265,25 @@ dialog.nf-sheet.is-closing { animation: nf-sheet-out 200ms var(--ease-in) forwar
 @keyframes nf-net-out { to { opacity: 0; transform: translateY(-6px); } }
 @media (min-width: 1024px) { .nf-net { left: calc(var(--side-w) + 12px); } }
 
+/* The alert banner (assets/js/bell.js): a notification that arrives while
+   Nfelia is open. One at a time, under the app bar, gone by itself after
+   3 seconds unless a finger is on it. Tapping it opens the alert's page. */
+.nf-alert { position: fixed; z-index: 76; top: calc(var(--bar-h) + var(--safe-t) + 6px); left: 12px; right: 12px; margin-inline: auto;
+  max-width: 480px; display: flex; align-items: center; gap: 2px; min-height: 56px; padding: 4px 2px 4px 6px; border-radius: 18px;
+  background: var(--surface); color: var(--ink); box-shadow: var(--shadow-2), 0 0 0 1px var(--line); animation: nf-net-in 300ms var(--ease-out); }
+.nf-alert .body { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; min-height: 48px; padding: 2px 6px 2px 2px; border-radius: 14px; color: inherit; text-decoration: none; }
+.nf-alert .body:focus-visible { outline: 2px solid var(--accent-text); outline-offset: -2px; }
+.nf-alert .ic { width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent-text); flex: none; }
+.nf-alert .ic svg { width: 18px; height: 18px; }
+.nf-alert .txt { min-width: 0; display: grid; gap: 1px; }
+.nf-alert b { font: 600 .875rem/1.3 var(--font-body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nf-alert small { font: 400 .8125rem/1.35 var(--font-body); color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nf-alert .x { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: none; border: 0; color: var(--ink-3); cursor: pointer; flex: none; }
+.nf-alert .x:hover { background: rgb(31 10 20 / .05); color: var(--ink); }
+.nf-alert .x svg { width: 16px; height: 16px; }
+.nf-alert.is-leaving { animation: nf-net-out 200ms var(--ease-in) forwards; }
+@media (min-width: 1024px) { .nf-alert { left: calc(var(--side-w) + 12px); } }
+
 /* ---------- Text size and background (views/partials/appearance.php) ---------- */
 .nf-field { border: 0; margin: 0 0 20px; padding: 0; min-width: 0; }
 .nf-field legend { padding: 0; margin-bottom: 10px; font: 600 .9375rem/1.3 var(--font-body); color: var(--ink); }
@@ -356,6 +375,13 @@ html[data-bg="cream"] dialog.nf-lock::backdrop { background: rgb(247 243 234 / .
 .nf-phone-on { display: flex; gap: 8px; margin-top: 8px; }
 .nf-phone-on .nf-btn { flex: 1; min-height: 44px; }
 .nf-notify-h { margin: 22px 0 2px; font: 600 .8125rem/1.3 var(--font-body); color: var(--ink-3); }
+.nf-devices { margin-top: 8px; }
+.nf-device-list { list-style: none; margin: 0; padding: 0; }
+.nf-device-list li { display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.nf-device-list .txt { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.nf-device-list b { font: 600 .9375rem/1.3 var(--font-body); }
+.nf-device-list small { font: 400 .8125rem/1.4 var(--font-body); color: var(--ink-2); }
+.nf-device-list .nf-btn { flex: none; min-height: 44px; }
 .nf-switch-row { display: flex; align-items: center; gap: 14px; min-height: 64px; padding: 10px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
 .nf-switch-row .txt { flex: 1; min-width: 0; display: grid; gap: 2px; }
 .nf-switch-row b { font: 600 .9375rem/1.3 var(--font-body); }
@@ -451,7 +477,7 @@ html:active-view-transition-type(tab)::view-transition-new(root) { animation: 20
 @media (prefers-reduced-motion: reduce) {
   @view-transition { navigation: none; }
   dialog.nf-sheet[open], dialog.nf-sheet[open]::backdrop, dialog.nf-sheet.is-closing,
-  .nf-toast, .nf-toast.is-leaving, .nf-net, .nf-net.is-leaving { animation: none; }
+  .nf-toast, .nf-toast.is-leaving, .nf-net, .nf-net.is-leaving, .nf-alert, .nf-alert.is-leaving { animation: none; }
   .nf-appbar::before { transition: none; }
   dialog.nf-lock[open] { animation: none; }
   input[role="switch"]::after { transition: none; }

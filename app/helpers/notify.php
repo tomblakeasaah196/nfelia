@@ -10,7 +10,8 @@
  * 2. The bell: one row per person, always, with their own read and unread.
  * 3. Phone and email: as each person chose for the event's topic
  *    (More > Notifications; NOTIFY_TOPICS has the defaults). No phone buzz
- *    in their quiet hours. Billing and security emails always go.
+ *    in their quiet hours: it waits and goes when they end, unless it would
+ *    be too late to be useful by then. Billing and security emails always go.
  * 4. Phone and email wait in notify_outbox: sent straight after the page
  *    has answered, retried by cron/planner.php when a send fails, and given
  *    up on after a few tries, with the reason kept.
@@ -606,6 +607,16 @@ function notify_events(): array
             'private' => 'Your role changed',
         ],
 
+        /* ── A phone that stopped getting alerts ──────────────── */
+        'push.lost' => [
+            'topic' => 'account', 'to' => 'user', 'brand' => 'nfelia',
+            'url' => fn($d) => 'more#notifications', 'tag' => fn($d) => 'push-lost',
+            'text' => fn($d, $m) => ['Phone alerts stopped on ' . $d['device'],
+                                     'That phone no longer gets Nfelia alerts (the browser dropped them). Open Nfelia on it: alerts come back on by themselves, or tap Turn on in More › Notifications.'],
+            'private' => 'Phone alerts stopped',
+            'button' => 'Open notification settings',
+        ],
+
         /* ── Checking it works (More > Notifications) ─────────── */
         'system.test' => [
             'topic' => null, 'to' => 'user', 'urgency' => 'high', 'ttl' => 600,
@@ -676,9 +687,10 @@ function notify(string $event, int $business_id, array $data = [], array $opts =
             INSERT IGNORE INTO notifications (business_id, user_id, type, event, title, message, action_url, data, dedupe_key)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
         $made = [];
-        $emails = [];   // queued after every push, so no phone waits on a mail server
+        $trouble = null;   // one person's failure never silences the others
 
         foreach ($people as $person) {
+          try {
             $uid  = (int)$person['id'];
             $sees = in_array($person['role'], NOTIFY_BOSS, true);
             [$title, $body] = ($def['text'])($data, $sees ? $money : null);
@@ -695,6 +707,15 @@ function notify(string $event, int $business_id, array $data = [], array $opts =
             $open = 'notifications/open/' . $nid;
             $want = $topic === null ? ['push' => true, 'email' => true] : $prefs[$uid][$topic] ?? notify_topic_default($topic);
 
+            if (in_array('push', $channels, true) && !$want['push'] && push_enabled()) {
+                // Off for this kind, by their choice: written down as skipped,
+                // so "why didn't my phone buzz?" (More > Notifications) can say so.
+                notify_queue($db, [
+                    'business_id' => $business_id, 'notification_id' => $nid, 'user_id' => $uid, 'event' => $event, 'channel' => 'push',
+                    'payload' => ['title' => $title], 'urgency' => $def['urgency'] ?? 'normal', 'ttl' => $def['ttl'] ?? 86400,
+                    'status' => 'skipped', 'error' => 'phone alerts for ' . strtolower((string)(NOTIFY_TOPICS[$topic]['label'] ?? $topic)) . ' are off',
+                ]);
+            }
             if (in_array('push', $channels, true) && $want['push'] && push_enabled()) {
                 $hide = !empty($person['hide_amounts']);
                 $message = [
@@ -704,12 +725,19 @@ function notify(string $event, int $business_id, array $data = [], array $opts =
                     'tag'   => $tag,
                     'id'    => $nid,
                 ];
-                $quiet = empty($opts['loud']) && notify_quiet($person);
+                // In their quiet hours the phone stays silent now, and buzzes
+                // once when they end, unless by then it would be too late to
+                // be useful (a reminder is for a moment).
+                $ttl  = (int)($def['ttl'] ?? 86400);
+                $hold = empty($opts['loud']) ? notify_quiet_until($person) : null;
+                $late = $hold !== null && $hold->getTimestamp() >= planner_now()->getTimestamp() + $ttl;
                 notify_queue($db, [
                     'business_id' => $business_id, 'notification_id' => $nid, 'user_id' => $uid, 'event' => $event,
                     'channel' => 'push', 'payload' => $message, 'urgency' => $def['urgency'] ?? 'normal',
-                    'ttl' => $def['ttl'] ?? 86400,
-                    'status' => $quiet ? 'skipped' : 'pending', 'error' => $quiet ? 'quiet hours' : null,
+                    'ttl' => $ttl,
+                    'status' => $late ? 'skipped' : 'pending',
+                    'error'  => $late ? 'quiet hours' : ($hold ? 'held for quiet hours' : null),
+                    'next_attempt_at' => $hold && !$late ? $hold->format('Y-m-d H:i:s') : null,
                 ]);
             }
 
@@ -719,9 +747,14 @@ function notify(string $event, int $business_id, array $data = [], array $opts =
                 if (array_diff($def['needs'] ?? [], array_keys($opts['vars'] ?? []))) {
                     $template = 'notification';
                 }
-                $emails[] = [
+                // Queued after this person's push: notify_flush() sends every
+                // phone before any email, so no phone waits on a mail server.
+                $wait = (int)($opts['email_after'] ?? 0);
+                notify_queue($db, [
                     'business_id' => $business_id, 'notification_id' => $nid, 'user_id' => $uid, 'event' => $event,
                     'channel' => 'email', 'recipient' => $person['email'], 'recipient_name' => $person['full_name'],
+                    'next_attempt_at' => $wait > 0 ? planner_now()->modify('+' . $wait . ' seconds')->format('Y-m-d H:i:s') : null,
+                    'error' => $wait > 0 ? 'waiting ' . intdiv($wait, 3600) . ' h' : null,
                     'payload' => [
                         'subject'  => $title,
                         'template' => $template,
@@ -738,16 +771,28 @@ function notify(string $event, int $business_id, array $data = [], array $opts =
                             'always'       => $topic === null || !empty(NOTIFY_TOPICS[$topic]['locked']),
                         ], $opts['vars'] ?? []),
                     ],
-                ];
+                ]);
             }
+          } catch (Throwable $e) {
+            $trouble = $e;
+          }
         }
-        foreach ($emails as $email) {
-            notify_queue($db, $email);
+        if ($trouble) {
+            notify_trouble($event, $trouble);
         }
         return $made;
     } catch (Throwable $e) {
-        error_log("Nfelia notify {$event}: " . $e->getMessage());
+        notify_trouble($event, $e);
         return [];
+    }
+}
+
+/** A failure inside notify(): logged, and written down for the Nfelia team when the error log is on. */
+function notify_trouble(string $event, Throwable $e): void
+{
+    error_log("Nfelia notify {$event}: " . $e->getMessage());
+    if (function_exists('errors_report_throwable')) {
+        try { errors_report_throwable($e, ['job' => 'notify ' . $event]); } catch (Throwable $ignored) {}
     }
 }
 
@@ -811,20 +856,21 @@ function notify_queue(PDO $db, array $row): ?int
 {
     $status = $row['status'] ?? 'pending';
     $ttl    = (int)($row['ttl'] ?? 0);
+    $later  = !empty($row['next_attempt_at']) ? (string)$row['next_attempt_at'] : null;   // Lagos time, the database's own
     $db->prepare("
         INSERT IGNORE INTO notify_outbox
             (business_id, notification_id, user_id, staff_id, event, channel, recipient, recipient_name, dedupe_key,
-             payload, urgency, status, last_error, expires_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, " . ($ttl > 0 ? "NOW() + INTERVAL {$ttl} SECOND" : 'NULL') . ")
-    ")->execute([
+             payload, urgency, status, last_error, expires_at, next_attempt_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, " . ($ttl > 0 ? "NOW() + INTERVAL {$ttl} SECOND" : 'NULL') . ", " . ($later ? '?' : 'NOW()') . ")
+    ")->execute(array_merge([
         $row['business_id'] ?? null, $row['notification_id'] ?? null, $row['user_id'] ?? null, $row['staff_id'] ?? null, $row['event'],
         $row['channel'], $row['recipient'] ?? null, $row['recipient_name'] ?? null,
         isset($row['dedupe_key']) ? mb_substr($row['dedupe_key'], 0, 150) : null,
         json_encode($row['payload'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
         $row['urgency'] ?? 'normal', $status, $row['error'] ?? null,
-    ]);
+    ], $later ? [$later] : []));
     $id = (int)$db->lastInsertId();
-    if ($id && $status === 'pending') {
+    if ($id && $status === 'pending' && !$later) {
         notify_flush_later($id);
     }
     return $id ?: null;
@@ -846,16 +892,19 @@ function notify_flush_later(int $id): void
 
 /** How long to wait before trying again, by attempts made so far. */
 const NOTIFY_RETRY_MINUTES = [1 => 2, 2 => 10, 3 => 30, 4 => 120, 5 => 360];
+/** Tries before giving up. A push with time left (expires_at) goes on past its number, up to NOTIFY_PUSH_MOST. */
 const NOTIFY_MAX_ATTEMPTS  = ['push' => 4, 'email' => 6];
+const NOTIFY_PUSH_MOST     = 10;
 
 /**
  * Send waiting pushes and emails: these ids, or everything due. Each row is
  * claimed first, so the page's own send and the cron never both send it.
  * Returns counts by outcome.
  */
-function notify_flush(?array $ids = null, int $limit = 200): array
+function notify_flush(?array $ids = null, int $limit = 200, int $seconds = 240): array
 {
     $done = ['sent' => 0, 'retry' => 0, 'failed' => 0, 'skipped' => 0];
+    $until = time() + max(10, $seconds);   // the rest waits for the next run, not for a slow mail server
     try {
         $db = get_db();
         if ($ids === null) {
@@ -871,25 +920,35 @@ function notify_flush(?array $ids = null, int $limit = 200): array
         $claim = $db->prepare("
             UPDATE notify_outbox SET status = 'sending', attempts = attempts + 1, next_attempt_at = NOW() + INTERVAL 10 MINUTE
             WHERE id = ? AND status IN ('pending', 'sending') AND next_attempt_at <= NOW()");
-        $load = $db->prepare("SELECT o.*, (o.expires_at IS NOT NULL AND o.expires_at < NOW()) AS expired FROM notify_outbox o WHERE id = ?");
+        $load = $db->prepare("SELECT o.*, (o.expires_at IS NOT NULL AND o.expires_at < NOW()) AS expired,
+                                     IF(o.expires_at IS NULL, NULL, TIMESTAMPDIFF(SECOND, NOW(), o.expires_at)) AS ttl_left
+                              FROM notify_outbox o WHERE id = ?");
 
         foreach (array_unique(array_map('intval', $ids)) as $id) {
-            $claim->execute([$id]);
-            if ($claim->rowCount() !== 1) continue;
-            $load->execute([$id]);
-            $row = $load->fetch();
-            if (!$row) continue;
-            if ($row['expired']) {
-                notify_outcome($db, $row, 'skipped', 'too late to be useful');
-                $done['skipped']++;
-                continue;
-            }
+            if (time() > $until) break;
             try {
-                [$outcome, $error] = $row['channel'] === 'push' ? notify_send_push($db, $row) : notify_send_email($db, $row);
+                $claim->execute([$id]);
+                if ($claim->rowCount() !== 1) continue;
+                $load->execute([$id]);
+                $row = $load->fetch();
+                if (!$row) continue;
+                if ($row['expired']) {
+                    // A push some phones took before the time ran out was sent.
+                    $reached = $row['channel'] === 'push' && !empty((json_decode((string)$row['payload'], true) ?: [])['_done']);
+                    $done[notify_outcome($db, $row, $reached ? 'sent' : 'skipped', $reached ? 'the other phones were too late' : 'too late to be useful')]++;
+                    continue;
+                }
+                try {
+                    [$outcome, $error] = $row['channel'] === 'push' ? notify_send_push($db, $row) : notify_send_email($db, $row);
+                } catch (Throwable $e) {
+                    [$outcome, $error] = ['retry', mb_substr($e->getMessage(), 0, 255)];
+                }
+                $done[notify_outcome($db, $row, $outcome, $error)]++;
             } catch (Throwable $e) {
-                [$outcome, $error] = ['retry', mb_substr($e->getMessage(), 0, 255)];
+                // One row's trouble (the database going away mid-send) never
+                // stops the rest; its claim lapses and it is tried again.
+                error_log('Nfelia notify_flush #' . $id . ': ' . $e->getMessage());
             }
-            $done[notify_outcome($db, $row, $outcome, $error)]++;
         }
     } catch (Throwable $e) {
         error_log('Nfelia notify_flush: ' . $e->getMessage());
@@ -904,6 +963,7 @@ function notify_flush(?array $ids = null, int $limit = 200): array
  */
 function notify_outcome(PDO $db, array $row, string $outcome, ?string $error): string
 {
+    $error    = $error === null ? null : mb_substr($error, 0, 255);   // the column's width: never a failed write over a long reason
     if ($outcome === 'bounced') {
         $db->prepare("UPDATE notify_outbox SET status = 'failed', last_error = ? WHERE id = ?")->execute([$error, $row['id']]);
         require_once __DIR__ . '/bounces.php';
@@ -911,12 +971,22 @@ function notify_outcome(PDO $db, array $row, string $outcome, ?string $error): s
         return 'failed';
     }
     $attempts = (int)$row['attempts'];   // already counts this try
-    if ($outcome === 'retry' && $attempts >= NOTIFY_MAX_ATTEMPTS[$row['channel']]) {
-        $outcome = 'failed';
+    $push     = $row['channel'] === 'push';
+    // A push is worth trying while its time has not run out (the push
+    // service would hold it that long too), so a network or push-service
+    // outage of an hour doesn't lose it; past its time, the flush skips it.
+    $time_left = $push && !empty($row['expires_at']) && isset($row['ttl_left']) && (int)$row['ttl_left'] > 120 && $attempts < NOTIFY_PUSH_MOST;
+    if ($outcome === 'retry' && $attempts >= NOTIFY_MAX_ATTEMPTS[$row['channel']] && !$time_left) {
+        // A push some phones took, and one phone never did: it was sent.
+        $outcome = $push && str_starts_with((string)$error, 'sent to ') ? 'sent' : 'failed';
     }
     if ($outcome === 'retry') {
         $wait = NOTIFY_RETRY_MINUTES[$attempts] ?? 360;
-        $db->prepare("UPDATE notify_outbox SET status = 'pending', next_attempt_at = NOW() + INTERVAL {$wait} MINUTE, last_error = ? WHERE id = ?")
+        $db->prepare("UPDATE notify_outbox SET status = 'pending', last_error = ?,
+                          next_attempt_at = " . ($push && !empty($row['expires_at'])
+                              ? "LEAST(NOW() + INTERVAL {$wait} MINUTE, expires_at - INTERVAL 1 MINUTE)"
+                              : "NOW() + INTERVAL {$wait} MINUTE") . "
+                      WHERE id = ?")
            ->execute([$error, $row['id']]);
     } else {
         $db->prepare("UPDATE notify_outbox SET status = ?, last_error = ?, sent_at = IF(? = 'sent', NOW(), sent_at) WHERE id = ?")
@@ -930,8 +1000,13 @@ function notify_outcome(PDO $db, array $row, string $outcome, ?string $error): s
 
 /**
  * One push to every device the person turned notifications on for.
- * Sent if any device took it. A device that has gone (404/410) is
- * forgotten; one that keeps refusing is forgotten after 5 refusals.
+ * Sent once every live device took it. A device that has gone (404/410),
+ * or whose subscription can't be used, is forgotten; one that keeps
+ * refusing is forgotten after 5 refusals. A fault on our side (the push
+ * service rejects Nfelia's key: 401/403) is never held against a phone:
+ * the send is retried and the Nfelia team is told. A device the network
+ * failed to reach is tried again while the others are not sent twice
+ * (the row's payload keeps `_done`).
  */
 function notify_send_push(PDO $db, array $row): array
 {
@@ -946,43 +1021,178 @@ function notify_send_push(PDO $db, array $row): array
     $stmt->execute([$ops ? $row['staff_id'] : $row['user_id']]);
     $subs = $stmt->fetchAll();
     if (!$subs) {
+        // Kept as skipped, and sent after all if a phone turns alerts on
+        // while this is still worth sending (notify_push_revive()).
         return ['skipped', 'no phone has notifications on'];
     }
 
     $message = json_decode($row['payload'], true) ?: [];
+    $done    = array_map('intval', (array)($message['_done'] ?? []));   // devices that took it on an earlier try
+    unset($message['_done']);
     $message['badge'] = $ops ? ops_alerts_unread($db, (int)$row['staff_id']) : notify_unread_count($db, (int)$row['user_id']);
-    $ttl = $row['expires_at'] ? max(60, strtotime($row['expires_at']) - time()) : 86400;
+    // Seconds the push service may hold it: from the row's expiry, on the
+    // database's clock, the same one that decides "too late to be useful".
+    $ttl = isset($row['ttl_left']) ? max(60, (int)$row['ttl_left']) : 86400;
 
-    $sent = 0;
+    $sent = count($done);
     $errors = [];
+    $transient = [];
+    $ours = null;
+    $lost = [];   // people whose phone row went in this send (push_device_dead)
     foreach ($subs as $sub) {
-        $status = webpush_send($sub, $message, $row['urgency'], $ttl);
+        if (in_array((int)$sub['id'], $done, true)) continue;
+        $detail = null;
+        $status = webpush_send($sub, $message, $row['urgency'], $ttl, $detail);
+        $why    = $detail !== null && $detail !== '' ? ' (' . $detail . ')' : '';
         if ($status >= 200 && $status < 300) {
             $sent++;
+            $done[] = (int)$sub['id'];
             $db->prepare("UPDATE {$table} SET failures = 0, last_sent_at = NOW() WHERE id = ?")->execute([$sub['id']]);
         } elseif ($status === 404 || $status === 410) {
-            $db->prepare("DELETE FROM {$table} WHERE id = ?")->execute([$sub['id']]);
+            $lost = array_merge($lost, $ops ? [] : push_device_dead($db, (string)$sub['endpoint_hash'], 'the phone unsubscribed (' . $status . ')'));
+            if ($ops) $db->prepare("DELETE FROM {$table} WHERE id = ?")->execute([$sub['id']]);
             $errors[] = 'a phone turned notifications off';
-        } elseif ($status === 0 || $status === 429 || $status >= 500) {
+        } elseif ($status === PUSH_NOT_ALLOWED || $status === PUSH_BAD_KEYS) {
+            // Nothing will ever reach this row: forget it, and say why.
+            $lost = array_merge($lost, $ops ? [] : push_device_dead($db, (string)$sub['endpoint_hash'], 'unusable: ' . (string)$detail));
+            if ($ops) $db->prepare("DELETE FROM {$table} WHERE id = ?")->execute([$sub['id']]);
+            $errors[] = "a phone's subscription could not be used" . $why;
+        } elseif ($status === PUSH_OUR_FAULT || $status === 401 || $status === 403) {
+            // Our key or our server, not the phone: try again, and tell the team.
+            $ours = ($status > 0 ? "the push service rejected Nfelia's key ({$status})" : 'Nfelia could not sign the push') . $why;
+            $transient[] = $ours;
+        } elseif ($status === 0 || $status === 408 || $status === 429 || $status >= 500) {
             // Our network, or the push service is busy: not the phone's fault, try again.
-            $errors[] = $status === 0 ? 'push service unreachable' : "push service answered {$status}";
+            $transient[] = ($status === 0 ? 'push service unreachable' : "push service answered {$status}") . $why;
+        } elseif ($status === 400 && preg_match('/unauthorized|vapid|authorization|mismatch/i', (string)$detail)) {
+            // FCM's way of saying this subscription was made for another key
+            // (Nfelia's VAPID key changed): the phone makes a new one next time.
+            $lost = array_merge($lost, $ops ? [] : push_device_dead($db, (string)$sub['endpoint_hash'], 'made for another key (400)'));
+            if ($ops) $db->prepare("DELETE FROM {$table} WHERE id = ?")->execute([$sub['id']]);
+            $errors[] = "a phone's subscription was made for another key" . $why;
         } else {
             $db->prepare("UPDATE {$table} SET failures = failures + 1 WHERE id = ?")->execute([$sub['id']]);
-            $db->prepare("DELETE FROM {$table} WHERE id = ? AND failures >= 5")->execute([$sub['id']]);
-            $errors[] = "push service refused it ({$status})";
+            if ((int)$sub['failures'] + 1 >= 5) {
+                $lost = array_merge($lost, $ops ? [] : push_device_dead($db, (string)$sub['endpoint_hash'], 'refused 5 times (' . $status . ')'));
+                if ($ops) $db->prepare("DELETE FROM {$table} WHERE id = ?")->execute([$sub['id']]);
+            }
+            $errors[] = "push service refused it ({$status})" . $why;
         }
     }
-    if ($sent > 0) {
-        return ['sent', $errors ? implode('; ', array_unique($errors)) : null];
+    if ($ours !== null) {
+        notify_push_trouble($db, $ours);
     }
-    $transient = array_filter($errors, fn($e) => str_starts_with($e, 'push service unreachable') || str_starts_with($e, 'push service answered'));
-    return [$transient ? 'retry' : 'failed', implode('; ', array_unique($errors)) ?: 'no phone took it'];
+    if ($lost) {
+        notify_push_lost($db, $lost);
+    }
+    $all = array_values(array_unique(array_merge($transient, $errors)));
+    if ($transient) {
+        // Some device may still take it: keep what was done, try the rest again.
+        $message['_done'] = array_values(array_unique($done));
+        $db->prepare("UPDATE notify_outbox SET payload = ? WHERE id = ?")
+           ->execute([json_encode($message, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), $row['id']]);
+        return ['retry', ($sent ? 'sent to ' . $sent . ' of ' . ($sent + count($transient)) . ' phones; ' : '') . implode('; ', $all)];
+    }
+    if ($sent > 0) {
+        return ['sent', $all ? implode('; ', $all) : null];
+    }
+    // Every phone it had is gone: the same as having none, so a phone that
+    // comes back in time still gets it (notify_push_revive()).
+    $left = $db->prepare("SELECT COUNT(*) FROM {$table} WHERE " . ($ops ? 'staff_id' : 'user_id') . " = ?");
+    $left->execute([$ops ? $row['staff_id'] : $row['user_id']]);
+    if ((int)$left->fetchColumn() === 0) {
+        return ['skipped', 'no phone has notifications on'];
+    }
+    return ['failed', implode('; ', $all) ?: 'no phone took it'];
+}
+
+/**
+ * The push service won't take Nfelia's pushes at all (the VAPID keys, the
+ * subject, the server's clock): logged, and the Nfelia Ops team hears once
+ * a day, because no phone will buzz until it is fixed.
+ */
+function notify_push_trouble(PDO $db, string $why): void
+{
+    static $said = false;
+    if ($said) return;
+    $said = true;
+    error_log('Nfelia push: ' . $why);
+    try {
+        if (!function_exists('ops_alert')) require_once BASE_PATH . '/app/ops/alerts.php';
+        ops_alert($db, 'health.push', 'Phone notifications are failing', $why . '. Check VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY and VAPID_SUBJECT in .env, and the server clock.',
+                  'health/sends?channel=push', 'push-trouble:' . date('Y-m-d'));
+    } catch (Throwable $e) {
+        error_log('Nfelia push trouble alert: ' . $e->getMessage());
+    }
+}
+
+/**
+ * A phone's subscription is gone for good (the push service said so, or it
+ * could not be used). Everyone who had alerts on it and now has no phone
+ * left is told: a bell row at once (the app's banner shows it, and the app
+ * turns the phone back on by itself where it can), an email a day later if
+ * no phone has come back by then, and the Nfelia team sees it in Ops.
+ */
+function notify_push_lost(PDO $db, array $lost): void
+{
+    try {
+        $any = $db->prepare("SELECT COUNT(*) FROM push_subscriptions WHERE user_id = ?");
+        foreach ($lost as $who) {
+            $uid = (int)$who['user_id'];
+            $any->execute([$uid]);
+            if ((int)$any->fetchColumn() > 0) continue;   // another phone still buzzes
+            $device = push_device_label($who['user_agent'] ?? null);
+            notify('push.lost', (int)$who['business_id'], ['device' => $device], [
+                'users' => [$uid], 'dedupe' => $uid . ':' . date('Y-m-d'), 'channels' => ['email'], 'email_after' => 24 * 3600,
+            ]);
+            if (!function_exists('ops_alert')) require_once BASE_PATH . '/app/ops/alerts.php';
+            ops_alert($db, 'health.push_lost', 'A phone stopped getting alerts', $device . ' of person #' . $uid . ': ' . (string)($who['reason'] ?? 'the push service declared it gone')
+                      . '. The app turns it back on when opened; if this keeps happening, look for a pattern.',
+                      'health/sends?channel=push', 'push-lost:' . $uid . ':' . date('Y-m-d'), ['push' => false]);
+        }
+    } catch (Throwable $e) {
+        error_log('Nfelia notify_push_lost: ' . $e->getMessage());
+    }
+}
+
+/**
+ * A phone just turned alerts on (or came back): pushes for this person that
+ * were skipped for want of a phone, and are still worth sending, go now.
+ * Returns the outbox ids revived. Only recent ones, and only a few: a first
+ * phone must not be met with a day's worth of buzzing.
+ */
+function notify_push_revive(PDO $db, int $user_id): array
+{
+    try {
+        $stmt = $db->prepare("
+            SELECT id FROM notify_outbox
+            WHERE user_id = ? AND channel = 'push' AND status = 'skipped' AND last_error = 'no phone has notifications on'
+              AND (expires_at IS NULL OR expires_at > NOW()) AND created_at > NOW() - INTERVAL 6 HOUR
+            ORDER BY id DESC LIMIT 10");
+        $stmt->execute([$user_id]);
+        $ids = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+        if (!$ids) return [];
+        $db->prepare("UPDATE notify_outbox SET status = 'pending', attempts = 0, next_attempt_at = NOW(), last_error = 'a phone turned alerts on'
+                      WHERE id IN (" . implode(',', $ids) . ") AND status = 'skipped'")->execute();
+        foreach ($ids as $id) notify_flush_later($id);
+        return $ids;
+    } catch (Throwable $e) {
+        error_log('Nfelia notify_push_revive: ' . $e->getMessage());
+        return [];
+    }
 }
 
 /** One email, rendered now from what was queued. */
 function notify_send_email(PDO $db, array $row): array
 {
     $p = json_decode($row['payload'], true) ?: [];
+    // "Your phone stopped getting alerts" waits a day: if a phone is back by
+    // then (the app turns one on by itself), there is nothing to say.
+    if ($row['event'] === 'push.lost' && !empty($row['user_id'])) {
+        $stmt = $db->prepare("SELECT COUNT(*) FROM push_subscriptions WHERE user_id = ?");
+        $stmt->execute([(int)$row['user_id']]);
+        if ((int)$stmt->fetchColumn() > 0) return ['skipped', 'a phone is back on'];
+    }
     $brand = [];
     if (!empty($p['brand'])) {
         $stmt = $db->prepare("SELECT id, name, logo_path, primary_color, tagline, email FROM businesses WHERE id = ?");
@@ -1109,6 +1319,18 @@ function notify_set_pref(PDO $db, int $user_id, string $topic, ?bool $push, ?boo
        ->execute([$user_id, $topic, (int)$push, (int)$email]);
 }
 
+/** When this person's quiet hours end, if they cover this moment (Lagos time); null when they don't. */
+function notify_quiet_until(array $user, ?DateTimeImmutable $now = null): ?DateTimeImmutable
+{
+    $now = $now ?? planner_now();
+    if (!notify_quiet($user, $now)) {
+        return null;
+    }
+    $to  = substr((string)$user['quiet_to'], 0, 8);
+    $end = new DateTimeImmutable($now->format('Y-m-d') . ' ' . $to, planner_tz());
+    return $end > $now ? $end : $end->modify('+1 day');
+}
+
 /** Whether this person's quiet hours cover this moment (Lagos time). */
 function notify_quiet(array $user, ?DateTimeImmutable $now = null): bool
 {
@@ -1143,6 +1365,19 @@ function notify_visible_sql(int $business_id, int $user_id, string $role): array
             OR (event IS NULL AND ? = 1 AND (user_id IS NULL OR type <> 'general')))",
         [$business_id, $user_id, $boss],
     ];
+}
+
+/**
+ * For the page's own checks (assets/js/bell.js, push.js): this person's
+ * phones and the phones the push service has declared dead, each by the
+ * first part of its endpoint's hash. The page compares its own phone and
+ * saves or renews it when it should.
+ */
+function notify_phones_for_page(PDO $db, int $user_id): array
+{
+    $stmt = $db->prepare("SELECT LEFT(endpoint_hash, 16) FROM push_subscriptions WHERE user_id = ?");
+    $stmt->execute([$user_id]);
+    return ['devices' => $stmt->fetchAll(PDO::FETCH_COLUMN), 'dead' => push_dead_hashes($db)];
 }
 
 /** Unread bell rows of the engine, for the number on the app icon. */
@@ -1205,4 +1440,45 @@ function notify_excerpt(string $text, int $max = 120): string
 function notify_when_text(int $days): string
 {
     return $days <= 0 ? 'today' : ($days === 1 ? 'tomorrow' : "in {$days} days");
+}
+
+/** "Just now", "12 min ago", "Today, 11:47am", "Yesterday, 9:05am", "3 Oct, 9:05am". */
+function notify_when_ago(string $at): string
+{
+    $then = new DateTimeImmutable($at, planner_tz());
+    $now  = planner_now();
+    $secs = $now->getTimestamp() - $then->getTimestamp();
+    if ($secs < 60)   return 'Just now';
+    if ($secs < 3600) return intdiv($secs, 60) . ' min ago';
+    $days = planner_days_between($then->format('Y-m-d'), $now->format('Y-m-d'));
+    if ($days === 0) return 'Today, ' . strtolower($then->format('g:ia'));
+    if ($days === 1) return 'Yesterday, ' . strtolower($then->format('g:ia'));
+    return $then->format('j M') . ', ' . strtolower($then->format('g:ia'));
+}
+
+/**
+ * How a phone alert went, in plain words for the person it was for
+ * (More > Notifications): the outbox row's status and reason.
+ */
+function notify_push_words(array $o): string
+{
+    $why = (string)($o['last_error'] ?? '');
+    return match ($o['status'] ?? '') {
+        'sent'    => 'Sent to your phone' . ($why !== '' ? ' (' . $why . ')' : ''),
+        'skipped' => match (true) {
+            $why === 'quiet hours'                      => 'Not sent: your quiet hours, and it would have been too late by the end of them',
+            $why === 'no phone has notifications on'    => 'Not sent: no phone had alerts on',
+            $why === 'too late to be useful'            => 'Not sent: it was too late to be useful by the time it could go',
+            $why === 'a phone is back on'               => 'Not needed: a phone is back on',
+            str_starts_with($why, 'phone alerts for ')  => 'Not sent: ' . $why . ' (More › Notifications)',
+            default                                     => 'Not sent' . ($why !== '' ? ': ' . $why : ''),
+        },
+        'failed'  => 'Not delivered after ' . (int)($o['attempts'] ?? 0) . ' tries' . ($why !== '' ? ': ' . $why : ''),
+        'pending', 'sending' => match (true) {
+            $why === 'held for quiet hours'      => 'Held back until your quiet hours end',
+            (int)($o['attempts'] ?? 0) > 0       => 'Not delivered yet' . ($why !== '' ? ' (' . $why . ')' : '') . '. Nfelia will try again.',
+            default                              => 'On its way',
+        },
+        default   => (string)($o['status'] ?? ''),
+    };
 }

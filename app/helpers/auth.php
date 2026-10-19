@@ -329,6 +329,11 @@ function after_response(callable $job): void {
         if (session_status() === PHP_SESSION_ACTIVE) {
             session_write_close();
         }
+        // The person has their page; what follows (pushes, emails, a cache
+        // purge) must not be cut short by the page's time limit or by the
+        // browser going away.
+        @ignore_user_abort(true);
+        @set_time_limit(120);
         $job();
     });
 }

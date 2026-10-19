@@ -58,7 +58,8 @@ class TasksController {
 
         // The same choices as More > Notifications (app/helpers/notify.php).
         $mine  = notify_prefs_for($this->db, [(int)$user['id']])[(int)$user['id']];
-        $prefs = ['morning_email' => $mine['morning']['email'], 'reminder_email' => $mine['reminders']['email']];
+        $prefs = ['morning_email' => $mine['morning']['email'], 'reminder_email' => $mine['reminders']['email'],
+                  'morning_push' => $mine['morning']['push'], 'reminder_push' => $mine['reminders']['push']];
 
         $data = [
             'today'     => $today,
@@ -70,7 +71,8 @@ class TasksController {
             'templates' => $this->templates_for_page(),
             'remind'    => ['timed' => planner_remind_options(true), 'untimed' => planner_remind_options(false)],
             'me'        => ['id' => (int)$user['id'], 'manager' => planner_is_manager($user), 'name' => $user['full_name']],
-            'prefs'     => ['morning_email' => (bool)$prefs['morning_email'], 'reminder_email' => (bool)$prefs['reminder_email']],
+            'prefs'     => ['morning_email' => (bool)$prefs['morning_email'], 'reminder_email' => (bool)$prefs['reminder_email'],
+                            'morning_push' => (bool)$prefs['morning_push'], 'reminder_push' => (bool)$prefs['reminder_push']],
             'push'      => ['enabled' => push_enabled(), 'key' => VAPID_PUBLIC_KEY],
             'prefill'   => $prefill,
             'business'  => ['name' => $business['name']],
@@ -463,8 +465,9 @@ class TasksController {
     public function prefs() {
         $in   = $this->json_in();
         $user = auth_user();
-        notify_set_pref($this->db, (int)$user['id'], 'morning', null, !empty($in['morning_email']));
-        notify_set_pref($this->db, (int)$user['id'], 'reminders', null, !empty($in['reminder_email']));
+        // Phone and email for each, the same switches as More > Notifications.
+        notify_set_pref($this->db, (int)$user['id'], 'morning', array_key_exists('morning_push', $in) ? !empty($in['morning_push']) : null, !empty($in['morning_email']));
+        notify_set_pref($this->db, (int)$user['id'], 'reminders', array_key_exists('reminder_push', $in) ? !empty($in['reminder_push']) : null, !empty($in['reminder_email']));
         json_response(['success' => true, 'message' => 'Saved.']);
     }
 
@@ -472,44 +475,6 @@ class TasksController {
      *  JSON: phone notifications on this device
      *  (The PWA uses the same endpoints.)
      * ────────────────────────────────────────── */
-    public function push_subscribe() {
-        $in   = $this->json_in();
-        $user = auth_user();
-        $endpoint = (string)($in['endpoint'] ?? '');
-        $p256dh   = (string)($in['keys']['p256dh'] ?? '');
-        $auth     = (string)($in['keys']['auth'] ?? '');
-
-        if (!push_enabled()) json_response(['error' => 'Phone notifications are not switched on for Nfelia yet.'], 409);
-        if (!preg_match('#^https://[^\s]{10,2000}$#', $endpoint) || !push_endpoint_allowed($endpoint)
-            || strlen(b64url_decode($p256dh)) !== 65 || strlen(b64url_decode($auth)) !== 16) {
-            json_response(['error' => 'This browser sent an unusable subscription. Try again.'], 422);
-        }
-
-        $this->db->prepare("
-            INSERT INTO push_subscriptions (business_id, user_id, endpoint, endpoint_hash, p256dh, auth, user_agent)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            ON DUPLICATE KEY UPDATE business_id = VALUES(business_id), user_id = VALUES(user_id),
-                p256dh = VALUES(p256dh), auth = VALUES(auth), user_agent = VALUES(user_agent), failures = 0
-        ")->execute([$this->biz_id, $user['id'], $endpoint, hash('sha256', $endpoint), $p256dh, $auth,
-                     mb_substr((string)($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 255)]);
-
-        // At most PUSH_MAX_DEVICES phones each: the oldest go first
-        $this->db->prepare("
-            DELETE FROM push_subscriptions WHERE user_id = ? AND id NOT IN (
-                SELECT id FROM (SELECT id FROM push_subscriptions WHERE user_id = ? ORDER BY id DESC LIMIT " . PUSH_MAX_DEVICES . ") newest
-            )
-        ")->execute([$user['id'], $user['id']]);
-
-        json_response(['success' => true, 'message' => 'Notifications are on for this phone.']);
-    }
-
-    public function push_unsubscribe() {
-        $in = $this->json_in();
-        $this->db->prepare("DELETE FROM push_subscriptions WHERE endpoint_hash = ? AND user_id = ?")
-                 ->execute([hash('sha256', (string)($in['endpoint'] ?? '')), auth_user()['id']]);
-        json_response(['success' => true, 'message' => 'Notifications are off for this phone.']);
-    }
-
     public function push_test() {
         $this->json_in();
         if (!throttle_allows('push_test', (string)auth_user()['id'], 5, 60)) {
