@@ -20,6 +20,8 @@
 .nf-owed-line b { font-weight: 600; font-variant-numeric: tabular-nums; }
 .nf-owed-line .is-owed { color: var(--owed); }
 .nf-owed-line svg { width: 18px; height: 18px; flex: none; color: var(--owed); }
+.nf-owed-line.is-ask { background: var(--accent-soft); }
+.nf-owed-line.is-ask svg { color: var(--accent-text); }
 .nf-orow { flex: 1; min-width: 0; display: grid; gap: 4px; }
 .nf-orow-1, .nf-orow-2 { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0; }
 .nf-orow-1 b { min-width: 0; font: 600 1rem/1.3 var(--font-body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

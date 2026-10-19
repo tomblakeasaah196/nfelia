@@ -75,7 +75,8 @@ function nav_icon(string $name): string
         'minus'     => '<path d="M5 12h14"/>',
         'filter'    => '<path d="M4 5h16l-6.2 7.4V19l-3.6-1.8v-4.8Z"/>',
     ];
-    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">'
+    // width/height are a fallback; page CSS sizes each icon and overrides them.
+    return '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">'
         . ($paths[$name] ?? '') . '</svg>';
 }
 
