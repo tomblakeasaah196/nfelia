@@ -420,7 +420,7 @@ You are fixing production errors in **Nfelia** (live at nfelia.com), in the GitH
 4. **Ask the owner 2 questions, then wait.** Use the **AskUserQuestion** tool, exactly as `CLAUDE.md` says: 2 to 4 concrete options per question, each with a one-line trade-off, your recommendation first with "(Recommended)" in its label and why in its description. Ask the 2 questions whose answers most change the fix: behaviour the owner will notice, a trade-off that is theirs, how far the fix should go. Never ask what the code, the history or this file can answer. 2 is the standard. Go up to 6 (no more than 4 in one call) only when the problems are separate enough that 2 cannot cover them, and say why you need more. If the AskUserQuestion tool is not available to you, ask in the same shape in chat. Do not change code until the owner has answered.
 
 5. **Fix it.** The smallest change that removes the cause, written like the code around it (naming, comment density, plain words in anything a person reads). The rules this repo has learned the hard way:
-   - Never pin a server-specific collation (`utf8mb4_0900_*`). CI fails the build if it appears.
+   - Never pin a server-specific collation (the MySQL 8 only ones; see "Configuration" in README.md). CI fails the build if one appears.
    - Schema changes are new files in `db/migrations/` (`YYYYMMDDhhmmss_description.sql`): small, idempotent, forward-only. Update `db/schema.sql` only if the change itself requires it.
    - Styles: edit `assets/css/src/` and rebuild with `npm run build:css`. The compiled `assets/css/app.css` is committed. `assets/css/ops.css` is hand-written.
    - Never commit `.env`, keys or database dumps. Secrets live only in the server's `.env`.
