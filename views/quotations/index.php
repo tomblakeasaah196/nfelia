@@ -13,7 +13,7 @@ $waiting  = (int)($summary['waiting_count'] ?? 0);
 $accepted = (int)($summary['accepted_count'] ?? 0);
 $today    = planner_today();
 $keep     = ['q' => $search, 'status' => $status, 'sort' => $sort !== 'newest' ? $sort : ''];
-$filters  = ['' => 'All', 'waiting' => 'Waiting', 'accepted' => 'Accepted', 'draft' => 'Drafts', 'converted' => 'Invoiced'];
+$filters  = ['' => 'All', 'waiting' => 'Waiting', 'accepted' => 'Accepted', 'draft' => 'Drafts', 'converted' => 'Ordered'];
 $counts   = ['waiting' => $waiting, 'accepted' => $accepted, 'draft' => (int)($summary['draft_count'] ?? 0)];
 $sorts    = ['newest' => 'Newest first', 'oldest' => 'Oldest first', 'total_desc' => 'Biggest first', 'total_asc' => 'Smallest first'];
 ?>
@@ -110,14 +110,14 @@ $sorts    = ['newest' => 'Newest first', 'oldest' => 'Oldest first', 'total_desc
                 'waiting'   => 'No quote is waiting',
                 'accepted'  => 'No accepted quotes',
                 'draft'     => 'No drafts',
-                'converted' => 'No quote made into an invoice yet',
+                'converted' => 'No quote has become an order yet',
                 default     => 'No quotes here',
             } ?></h2>
             <p><?= match ($status) {
                 'waiting'   => 'Quotes you send wait here until the customer answers.',
                 'accepted'  => 'When a customer accepts a quote, make it an invoice from here.',
                 'draft'     => 'Quotes you save without sending wait here.',
-                'converted' => 'Accepted quotes you turn into invoices show here.',
+                'converted' => 'Accepted quotes become orders, and show here.',
                 default     => 'No quote has this status right now.',
             } ?></p>
         <?php endif; ?>

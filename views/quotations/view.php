@@ -16,7 +16,7 @@ $status_cfg = match($quotation['status']) {
     'accepted'  => ['bg-green-100 text-green-700 border-green-300', 'Accepted', 'green'],
     'declined'  => ['bg-red-100 text-red-700 border-red-300', 'Declined', 'red'],
     'expired'   => ['bg-amber-100 text-amber-700 border-amber-300', 'Expired', 'amber'],
-    'converted' => ['bg-purple-100 text-purple-700 border-purple-300', 'Converted to Invoice', 'purple'],
+    'converted' => ['bg-purple-100 text-purple-700 border-purple-300', !empty($quote_order) ? 'Ordered' : 'Converted to Invoice', 'purple'],
     default     => ['bg-gray-100 text-gray-700 border-gray-300', ucfirst($quotation['status']), 'gray'],
 };
 
@@ -87,7 +87,7 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
                 <input type="hidden" name="status" value="accepted">
                 <button class="flex items-center gap-1.5 bg-green-500 text-white px-3 py-2 rounded-lg hover:bg-green-600 transition-all">
                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-                    <span class="text-[10px] font-bold uppercase tracking-widest">Accept</span>
+                    <span class="text-[10px] font-bold uppercase tracking-widest">Accept and make the order</span>
                 </button>
             </form>
             <form method="POST" action="<?= APP_URL ?>/quotations/update-status/<?= $quotation['id'] ?>" class="inline">
@@ -99,15 +99,17 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
             </form>
         <?php endif; ?>
 
-        <?php if (in_array($quotation['status'], ['accepted', 'sent']) && $quotation['status'] !== 'converted'): ?>
-            <form method="POST" action="<?= APP_URL ?>/quotations/convert/<?= $quotation['id'] ?>" class="inline"
-                  onsubmit="return confirm('Convert this quotation to an invoice? The quotation will be marked as converted.');">
+        <?php if (!empty($quote_order)): ?>
+            <a href="<?= APP_URL ?>/orders/view/<?= (int)$quote_order['id'] ?>" class="flex items-center gap-1.5 btn-primary text-white px-3 py-2 rounded-lg transition-all min-h-[44px]">
+                <span class="text-sm font-semibold">Open order <?= e($quote_order['order_number']) ?></span>
+            </a>
+        <?php elseif (in_array($quotation['status'], ['accepted', 'in_negotiation', 'pending_signature'], true)): ?>
+            <form method="POST" action="<?= APP_URL ?>/quotations/convert/<?= $quotation['id'] ?>" class="inline">
                 <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
-                <button class="flex items-center gap-1.5 bg-purple-500 text-white px-3 py-2 rounded-lg hover:bg-purple-600 transition-all">
+                <button class="flex items-center gap-1.5 bg-purple-500 text-white px-3 py-2 rounded-lg hover:bg-purple-600 transition-all min-h-[44px]">
                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
-                    <span class="text-[10px] font-bold uppercase tracking-widest">Convert to Invoice</span>
+                    <span class="text-sm font-semibold">Make it an order</span>
                 </button>
-                
             </form>
         <?php endif; ?>
     </div>

@@ -257,7 +257,7 @@ function order_create(PDO $db, int $biz, array $in, int $user_id): array {
 
         // Nobody can chase a walk-in, or someone without a phone, for a balance
         $kept = (!empty($in['use_kept']) && !$walk_in) ? min(kept_balance($db, $biz, (int)$customer['id']), money2($total - $paid_now)) : 0.0;
-        if (money2($total - $paid_now - $kept) > 0 && ($walk_in || preg_replace('/\D/', '', $phone) === '')) {
+        if (money2($total - $paid_now - $kept) > 0 && ($walk_in || (empty($in['customer_id']) && preg_replace('/\D/', '', $phone) === ''))) {
             throw new DomainException('Pay later or part payment needs the customer\'s name and phone, so the balance can be followed up. Add them, or take the full amount now.');
         }
 
@@ -313,6 +313,65 @@ function order_create(PDO $db, int $biz, array $in, int $user_id): array {
             order_set_stage($db, $biz, $order_id, 'done', $user_id);
         }
         return order_find($db, $biz, $order_id);
+    });
+}
+
+/**
+ * An accepted quote becomes its order, once: the quote's customer and lines
+ * (its tax as a line of its own, its discounts taken off the total), to be
+ * collected unless the owner sets a delivery, with the balance in Debts.
+ * The quote is marked converted. Asking again returns the same order.
+ * Throws DomainException when the quote can't become an order.
+ */
+function order_from_quote(PDO $db, int $biz, int $quotation_id, int $user_id): array {
+    return order__tx($db, function () use ($db, $biz, $quotation_id, $user_id) {
+        $stmt = $db->prepare("SELECT * FROM quotations WHERE id = ? AND business_id = ? FOR UPDATE");
+        $stmt->execute([$quotation_id, $biz]);
+        $quote = $stmt->fetch();
+        if (!$quote) {
+            throw new DomainException('That quote isn\'t here any more.');
+        }
+        $stmt = $db->prepare("SELECT * FROM orders WHERE quotation_id = ? AND business_id = ? ORDER BY id DESC LIMIT 1");
+        $stmt->execute([$quotation_id, $biz]);
+        if ($existing = $stmt->fetch()) {
+            return $existing;
+        }
+        if (!in_array($quote['status'], ['sent', 'in_negotiation', 'pending_signature', 'accepted'], true)) {
+            throw new DomainException(match ($quote['status']) {
+                'draft'     => 'Send the quote first. It becomes an order when the customer accepts it.',
+                'converted' => 'This quote was already made into an invoice.',
+                default     => 'This quote was ' . $quote['status'] . ', so it can\'t become an order.',
+            });
+        }
+        $stmt = $db->prepare("SELECT * FROM quotation_items WHERE quotation_id = ? ORDER BY sort_order, id");
+        $stmt->execute([$quotation_id]);
+        $items = [];
+        $line_discounts = 0.0;
+        foreach ($stmt->fetchAll() as $qi) {
+            $items[] = ['product_id' => $qi['product_id'] ?: null, 'name' => (string)$qi['description'],
+                        'quantity' => (float)$qi['quantity'], 'unit_price' => (float)$qi['unit_price']];
+            $line_discounts += money2((float)$qi['quantity'] * (float)$qi['unit_price']) - (float)$qi['subtotal'];
+        }
+        if (!$items) {
+            // A quote with only a total (made before quotes had lines): one line for all of it
+            $items[] = ['name' => 'As quoted in ' . $quote['doc_number'], 'quantity' => 1,
+                        'unit_price' => money2((float)$quote['total'] - (float)$quote['tax_amount'] + (float)$quote['discount_amount'])];
+        }
+        if ((float)$quote['tax_amount'] > 0) {
+            $items[] = ['name' => 'Tax' . ((float)$quote['tax_rate'] > 0 ? ' (' . rtrim(rtrim(number_format((float)$quote['tax_rate'], 2), '0'), '.') . '%)' : ''),
+                        'quantity' => 1, 'unit_price' => (float)$quote['tax_amount']];
+        }
+        $order = order_create($db, $biz, [
+            'channel' => 'quote', 'quotation_id' => $quotation_id, 'customer_id' => (int)$quote['customer_id'],
+            'items' => $items, 'discount' => money2(max(0, $line_discounts) + (float)$quote['discount_amount']),
+            'fulfillment' => 'pickup', 'paid_now' => 0, 'method' => 'cash',
+        ], $user_id);
+        $db->prepare("UPDATE quotations SET status = 'converted' WHERE id = ? AND business_id = ?")->execute([$quotation_id, $biz]);
+        $db->prepare("
+            INSERT INTO quotation_activities (business_id, quotation_id, actor_type, user_id, action, old_status, new_status, message)
+            VALUES (?, ?, 'business', ?, 'status_changed', ?, 'converted', ?)
+        ")->execute([$biz, $quotation_id, $user_id ?: null, $quote['status'], 'Order ' . $order['order_number'] . ' made from this quote.']);
+        return $order;
     });
 }
 

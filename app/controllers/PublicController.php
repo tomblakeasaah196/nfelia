@@ -211,6 +211,18 @@ class PublicController
                 throw new Exception("Invalid action requested.");
             }
             $db->commit();
+            /* Signed: the quote becomes its order, with its invoice and the
+               balance in Debts. If that fails the signature still stands, and
+               the owner makes the order from the quote's page */
+            if ($action === "sign") {
+                try {
+                    $made = order_from_quote($db, (int)$quotation["business_id"], (int)$quotation["id"], (int)$quotation["user_id"]);
+                    $tell[1]["order_id"] = (int)$made["id"];
+                    $tell[1]["order_number"] = $made["order_number"];
+                } catch (\Throwable $e) {
+                    error_log("Order from signed quote " . $quotation["id"] . " failed: " . $e->getMessage());
+                }
+            }
             if ($tell) {
                 [$event, $extra, $opts] = $tell;
                 notify($event, (int)$quotation["business_id"], $extra + [

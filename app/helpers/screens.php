@@ -50,7 +50,7 @@ function screen_quote_tag(string $status): array
         'accepted'          => ['Accepted', 'is-in'],
         'declined'          => ['Declined', 'is-owed'],
         'expired'           => ['Expired', 'is-line'],
-        'converted'         => ['Invoiced', 'is-accent'],
+        'converted'         => ['Ordered', 'is-accent'],
         default             => [ucfirst(str_replace('_', ' ', $status)), ''],
     };
 }
