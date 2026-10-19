@@ -267,11 +267,14 @@ eq($grace->status, 200, 'Referrals opens');
 $grace->get(o('countries'));
 ok(str_contains($grace->body, 'Ghana'), 'Countries lists them');
 $grace->post(o('countries/2'), ['monthly_price' => '200', 'extra_seat_price' => '80', 'trial_days' => '21', 'payment_method' => 'mobile_money', 'currency_symbol' => 'GH₵', 'momo_number' => '0240000000', 'payment_instructions' => 'Send to MTN']);
-eq([(float)q("SELECT monthly_price FROM countries WHERE id = 2"), (int)q("SELECT trial_days FROM countries WHERE id = 2")], [200.0, 21], 'Ghana\'s price and trial are changed');
+eq([(float)q("SELECT monthly_price FROM countries WHERE id = 2"), (int)q("SELECT trial_days FROM countries WHERE id = 2")], [150.0, 21], 'Ghana\'s trial is changed, not its price: that is under Prices, with notice');
 $grace->post(o('countries/1/toggle'));
 eq((int)q("SELECT is_active FROM countries WHERE id = 1"), 1, 'Nigeria cannot be switched off');
-$grace->post(o('countries'), ['name' => 'Kenya', 'iso_code' => 'ke', 'currency_code' => 'kes', 'currency_symbol' => 'KSh', 'monthly_price' => '1500', 'payment_method' => 'mobile_money', 'is_active' => '1']);
-eq((string)q("SELECT currency_code FROM countries WHERE iso_code = 'KE'"), 'KES', 'a country is added');
+$kenya = ['name' => 'Kenya', 'iso_code' => 'ke', 'currency_code' => 'kes', 'currency_symbol' => 'KSh', 'monthly_price' => '1500', 'payment_method' => 'mobile_money', 'is_active' => '1'];
+$grace->post(o('countries'), $kenya);
+eq((int)q("SELECT COUNT(*) FROM countries WHERE iso_code = 'KE'"), 0, 'a country needs all three prices');
+$grace->post(o('countries'), $kenya + ['extra_seat_price' => '700', 'book_price' => '1100']);
+eq([(string)q("SELECT currency_code FROM countries WHERE iso_code = 'KE'"), (float)q("SELECT book_price FROM countries WHERE iso_code = 'KE'")], ['KES', 1100.0], 'a country is added, with its prices');
 foreach (['finance', 'referrals', 'countries'] as $page) {
     $sam->get(o($page));
     eq($sam->status, 403, 'Support cannot open ' . $page);

@@ -2,7 +2,7 @@
 /**
  * Nfelia — MoMo Checkout View
  * Phase 4 — Mobile Money (Cameroon) payment screen
- * Injected variables: $country, $subscription, $amount_due, $kind, $extra_seats, $covered, $user, $business
+ * Injected variables: $country, $subscription, $amount_due, $kind, $extra_seats, $covered, $book_id, $user, $business
  */
 $covered_names = [];
 foreach (billing_team(get_db(), (int)$business['id']) as $member) {
@@ -20,7 +20,7 @@ foreach (billing_team(get_db(), (int)$business['id']) as $member) {
             <span class="data-text text-xs font-bold text-brand-plum/50 uppercase tracking-widest"><?= e($country['name']) ?> · Mobile Money</span>
         </div>
         <h1 class="font-heading font-bold text-2xl text-brand-plum">Complete Your Payment</h1>
-        <p class="text-sm text-brand-plum/60 mt-1">We check every payment by hand, usually within a few hours. Nfelia opens <?= $kind === 'seats' ? 'the new seats' : 'the month' ?> as soon as it is approved.</p>
+        <p class="text-sm text-brand-plum/60 mt-1">We check every payment by hand, usually within a few hours. <?= $kind === 'book' ? 'We make your Records Book' : 'Nfelia opens ' . ($kind === 'seats' ? 'the new seats' : 'the month') ?> as soon as it is approved.</p>
     </div>
 
     <!-- Payment Instructions Card -->
@@ -67,6 +67,7 @@ foreach (billing_team(get_db(), (int)$business['id']) as $member) {
             <input type="hidden" name="kind" value="<?= e($kind) ?>">
             <input type="hidden" name="seats" value="<?= (int)$extra_seats ?>">
             <input type="hidden" name="covered" value="<?= e(implode(',', $covered)) ?>">
+            <?php if ($kind === 'book'): ?><input type="hidden" name="book" value="<?= (int)$book_id ?>"><?php endif; ?>
 
             <!-- Receipt Upload -->
             <div>
@@ -111,7 +112,9 @@ foreach (billing_team(get_db(), (int)$business['id']) as $member) {
                 </div>
                 <div class="text-right">
                     <p class="text-[10px] font-bold text-brand-plum/50 uppercase tracking-widest">For</p>
-                    <?php if ($kind === 'seats'): ?>
+                    <?php if ($kind === 'book'): ?>
+                        <p class="text-xs font-semibold text-brand-plum">A Records Book</p>
+                    <?php elseif ($kind === 'seats'): ?>
                         <p class="text-xs font-semibold text-brand-plum"><?= (int)$extra_seats ?> more seat<?= $extra_seats > 1 ? 's' : '' ?> this month</p>
                     <?php else: ?>
                         <p class="text-xs font-semibold text-brand-plum">A month of Nfelia</p>

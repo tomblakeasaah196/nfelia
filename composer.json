@@ -1,6 +1,8 @@
 {
     "require": {
         "dompdf/dompdf": "^3.1",
-        "lbuchs/webauthn": "^2.2"
+        "lbuchs/webauthn": "^2.2",
+        "phpoffice/phpspreadsheet": "^5.10",
+        "chillerlan/php-qrcode": "^6.0"
     }
 }

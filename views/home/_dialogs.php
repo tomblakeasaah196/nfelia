@@ -4,6 +4,7 @@
  * and the sign-up page. Native <dialog>: Escape and focus handling come
  * from the browser. Opened by any [data-dialog="<id>"] button (home.js).
  */
+require_once BASE_PATH . '/app/helpers/prices.php';
 ?>
 <dialog class="sheet" id="terms" aria-labelledby="terms-title">
     <div class="sheet-head">
@@ -15,7 +16,7 @@
         <h3>1. The agreement</h3>
         <p>By initializing a workspace on Nfelia, you agree to these structural terms. Nfelia provides the digital architecture, document generation pipeline, and tracking modules for your micro-business. We provide the packaging; you provide the operations.</p>
         <h3>2. Subscription</h3>
-        <p>The Nfelia MVP standard protocol is capped at ₦10,000 per month. Billing is recurring. In the event of payment failure, your workspace will enter a 3-day grace period, after which access to generation modules will be restricted until arrears are cleared. Your historical data will remain intact.</p>
+        <p>The Nfelia MVP standard protocol is capped at ₦<?= number_format(prices_site()['month']) ?> per month. Billing is recurring. In the event of payment failure, your workspace will enter a 3-day grace period, after which access to generation modules will be restricted until arrears are cleared. Your historical data will remain intact.</p>
         <h3>3. Data ownership</h3>
         <p>You retain absolute ownership of all inventory, client CRM, and financial data inputted into your workspace. Nfelia acts solely as the processor and custodian of this data to generate your commercial documents.</p>
         <h3>4. Liability</h3>

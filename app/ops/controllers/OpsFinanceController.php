@@ -47,10 +47,12 @@ class OpsFinanceController
             FROM admin_expenses")->fetch();
         $expenses = $db->query("SELECT * FROM admin_expenses WHERE expense_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01') - INTERVAL 2 MONTH ORDER BY expense_date DESC, id DESC")->fetchAll();
         $recurring = (float)$spend['monthly_recurring'];
+        require_once BASE_PATH . '/app/helpers/prices.php';
+        $month_price = prices_now($db, prices_country($db, 'NG'))['month'];   // what a new client in Nigeria pays
         $model = [
             'profit'    => $mrr - $recurring,
             'margin'    => $mrr > 0 ? round(($mrr - $recurring) / $mrr * 100, 1) : 0,
-            'breakeven' => $recurring > 0 ? (int)ceil($recurring / 10000) : 0,
+            'breakeven' => $recurring > 0 ? (int)ceil($recurring / $month_price) : 0,
             'paying'    => (int)($plans['active'] ?? 0),
         ];
         ops_render('finance', compact('card', 'momo', 'mrr', 'plans', 'signups', 'months', 'spend', 'expenses', 'model') + ['categories' => self::CATEGORIES], 'Finance');

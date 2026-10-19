@@ -261,3 +261,48 @@ a.nf-item:active { background: rgb(31 10 20 / .05); }
 @media (prefers-reduced-motion: reduce) {
   .nf-paper > summary svg { transition: none; }
 }
+
+/* Your records: the Records Book, with a small picture of its cover in the
+   business's own colour, what it costs them now, and what goes in it. */
+.nf-rb-hero { display: grid; grid-template-columns: 76px minmax(0, 1fr); grid-template-areas: "cover title" "text text"; gap: 12px 16px; align-items: center; }
+.nf-rb-cover { grid-area: cover; }
+.nf-rb-copy { display: contents; }
+.nf-rb-copy h2 { grid-area: title; }
+.nf-rb-copy p { grid-area: text; }
+.nf-rb-cover { position: relative; display: grid; align-content: end; gap: 2px; height: 100px; padding: 12px 10px; border-radius: 6px 12px 12px 6px; overflow: hidden;
+  background: var(--surface); box-shadow: inset 4px 0 0 var(--accent), 0 1px 2px rgb(31 10 20 / .08), 0 6px 16px rgb(31 10 20 / .08), inset 0 0 0 1px var(--line); }
+.nf-rb-cover b { font: 700 .75rem/1.15 var(--font-heading); color: var(--accent-text); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+.nf-rb-cover small { font: 600 .625rem/1.2 var(--font-body); color: var(--ink-2); }
+.nf-rb-cover i { position: absolute; left: 10px; right: 10px; top: 14px; height: 2px; border-radius: 1px;
+  background: repeating-linear-gradient(90deg, var(--stitch) 0 4px, transparent 4px 8px), var(--accent); background-size: auto, 100% 2px; }
+.nf-rb-mark { position: absolute; right: 8px; top: 24px; width: 16px; height: 16px; border-radius: 3px;
+  background: repeating-conic-gradient(var(--ink) 0 25%, transparent 0 50%) 0 0 / 6px 6px; opacity: .55; }
+.nf-rb-copy h2 { margin: 2px 0 6px; font: 600 1.1875rem/1.3 var(--font-heading); }
+.nf-rb-copy p { margin: 0; font: 400 .9375rem/1.5 var(--font-body); color: var(--ink-2); }
+.nf-rb .nf-banner { margin: 16px 0 0; }
+.nf-rb-form { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+.nf-rb-offer { margin: 0 0 8px; font: 400 .9375rem/1.5 var(--font-body); color: var(--ink-2); }
+.nf-rb-offer b { color: var(--ink); font-weight: 600; }
+.nf-rb-pick { margin: 0 0 8px; }
+.nf-rb-pick > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; cursor: pointer; list-style: none;
+  font: 600 .9375rem/1.3 var(--font-body); color: var(--accent-text); }
+.nf-rb-pick > summary::-webkit-details-marker { display: none; }
+.nf-rb-pick > summary small { font: 500 .8125rem/1.2 var(--font-body); color: var(--ink-2); }
+.nf-rb-pick fieldset { margin: 0 0 14px; padding: 0; border: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: 4px 12px; }
+.nf-rb-pick legend { margin: 0 0 6px; padding: 0; font: 600 .8125rem/1.3 var(--font-body); color: var(--ink); }
+.nf-rb-pick label { display: flex; align-items: center; gap: 10px; min-height: 44px; font: 400 .9375rem/1.3 var(--font-body); color: var(--ink); cursor: pointer; }
+.nf-rb-pick label small { color: var(--ink-2); font-size: .8125rem; }
+.nf-rb-pick input[type=checkbox], .nf-rb-pick input[type=radio] { width: 20px; height: 20px; margin: 0; flex: none; accent-color: var(--accent); }
+.nf-rb-dates { grid-column: 1 / -1; display: none; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.nf-rb-period:has(input[value=custom]:checked) .nf-rb-dates { display: grid; }
+.nf-rb-dates label { display: grid; gap: 6px; font-weight: 600; font-size: .875rem; }
+.nf-rb-dates input { min-height: 48px; padding: 0 12px; border-radius: 12px; border: 0; background: var(--surface); box-shadow: inset 0 0 0 1px var(--line-2);
+  font: 400 1rem/1.2 var(--font-body); color: var(--ink); }
+.nf-rb .nf-actions-flush { display: grid; gap: 8px; }
+.nf-rb-list .nf-item-main small { white-space: normal; }
+@media (max-width: 639px) { .nf-rb-mark { display: none; } }
+.nf-rb .nf-actions-flush .nf-wide { margin: 0; }
+@media (min-width: 640px) {
+  .nf-rb-hero { grid-template-columns: 104px minmax(0, 1fr); grid-template-areas: "cover title" "cover text"; gap: 6px 20px; align-items: start; }
+  .nf-rb-cover { height: 136px; }
+}

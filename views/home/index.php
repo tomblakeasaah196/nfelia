@@ -27,8 +27,13 @@ $wa_messages = [
 // Set this to the YouTube video ID once the setup video is published.
 $onboarding_video_id = '';
 
-$plan_price  = (int)(PLAN_BASE_PRICE / 100);           // ₦ per month
-$seat_price  = (int)(PLAN_EXTRA_SEAT_PRICE / 100);     // ₦ per extra person
+// Prices as Ops → Prices has them (app/helpers/prices.php), so a change
+// there is the price here from the day it starts.
+require_once BASE_PATH . '/app/helpers/prices.php';
+$site_prices = prices_site();
+$plan_price  = (int)round($site_prices['month']);     // ₦ per month
+$seat_price  = (int)round($site_prices['seat']);      // ₦ per extra person
+$book_price  = (int)round($site_prices['book']);      // ₦ for a Records Book outside a paid month
 $per_day     = (int)(floor($plan_price / 30 / 10) * 10);
 $naira       = fn(int $n) => '₦' . number_format($n);
 
@@ -151,6 +156,17 @@ $cards = [
         'shots' => [['Tasks: a job with 2 days left, payments and a delivery that are late, and deliveries due today', 'Today, and what is late'],
                     ['Calendar for October with appointments, deliveries and money due marked on each day', 'Your month']],
     ],
+    // Last and wide: the newest, and the one that says the records are theirs
+    'records' => [
+        'icon'  => 'sheet', 'site' => false, 'shot' => 'records', 'wide' => true, 'chip' => 'New',
+        'pain'  => '“Bring your records for the loan.”',
+        'fix'   => 'Your Records Book, ready to show',
+        'title' => 'Your records, ready for the bank',
+        'lead'  => 'Everything you record in Nfelia, in one Excel workbook in your colours. Whoever you show it to can check it is genuine at nfelia.com/verify.',
+        'ticks' => ['Customers, sales, money and stock, with totals and a chart of every month', 'A code on every invoice and receipt that anyone can check', 'Free in every month you pay for. Your plain copy is always free'],
+        'shots' => [['Your records in Nfelia: the Records Book, free this month, with a Make my Records Book button', 'Made in one tap'],
+                    ['nfelia.com/verify showing Invoice IVL-INV-281 from Ivie Luxe Hair as genuine, with its order, amount and status', 'Anyone can check it']],
+    ],
 ];
 
 $flash = get_flash();
@@ -182,7 +198,7 @@ $flash = get_flash();
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700&family=Caveat:wght@600&family=Plus+Jakarta+Sans:wght@400;600&display=swap">
-    <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/home.css?v=5">
+    <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/home.css?v=6">
     <?php if ($hero_img): ?>
     <link rel="preload" as="image" imagesrcset="<?= $img ?>/hero-640.webp 640w, <?= $img ?>/hero-1024.webp 1024w" imagesizes="(min-width: 960px) 492px, 92vw" fetchpriority="high">
     <?php endif; ?>
@@ -353,11 +369,11 @@ $flash = get_flash();
         </div>
         <ul class="see-cards" data-reveal-group>
             <?php foreach ($cards as $id => $c): ?>
-            <li>
+            <li<?= !empty($c['wide']) ? ' class="is-wide"' : '' ?>>
                 <a class="see-card" href="#<?= $id ?>" data-see="<?= $id ?>" aria-haspopup="dialog">
                     <span class="see-top">
                         <span class="see-icon"><?= nf_icon($c['icon']) ?></span>
-                        <?php if ($c['site']): ?><span class="see-chip">Your website</span><?php endif; ?>
+                        <?php if ($c['site'] || !empty($c['chip'])): ?><span class="see-chip"><?= e($c['chip'] ?? 'Your website') ?></span><?php endif; ?>
                     </span>
                     <h3><?= e($c['pain']) ?></h3>
                     <span class="see-fix"><?= e($c['fix']) ?><?= nf_icon('arrow') ?></span>
@@ -367,6 +383,52 @@ $flash = get_flash();
         </ul>
     </div>
     <p class="see-note">Screens show Ivie Luxe Hair and Kemi Events &amp; Décor, example businesses.</p>
+</section>
+
+<!-- The Records Book: their records, in one workbook they keep. Real
+     pictures of the example shop's book (docs/handoff/testkit/shoot_workbook.sh);
+     the sheet buttons are tabs once home.js runs, and all three show without it. -->
+<section class="section books" id="records-book" aria-labelledby="books-title">
+    <div class="wrap books-grid">
+        <div class="section-head books-head" data-reveal>
+            <h2 id="books-title">Your records, in one Excel book</h2>
+            <p>Everything you record in Nfelia, in a workbook made in your colours: customers, sales, money and stock, with totals and a chart of every month. Show it to your bank or your accountant, or take it wherever your business goes next.</p>
+        </div>
+
+        <div class="book-window" data-book-tabs>
+            <div class="book-tabs" role="tablist" aria-label="Sheets of a Records Book">
+                <button type="button" role="tab" id="book-tab-cover" aria-controls="book-cover" aria-selected="true">Cover</button>
+                <button type="button" role="tab" id="book-tab-glance" aria-controls="book-glance" aria-selected="false" tabindex="-1">At a glance</button>
+                <button type="button" role="tab" id="book-tab-receipts" aria-controls="book-receipts" aria-selected="false" tabindex="-1">Receipts</button>
+            </div>
+            <figure class="book-shot" id="book-cover" role="tabpanel" aria-labelledby="book-tab-cover">
+                <a class="book-zoom" href="<?= $img ?>/workbook-cover.webp" target="_blank" rel="noopener"><img src="<?= $img ?>/workbook-cover.webp" width="1130" height="1000" loading="lazy" decoding="async"
+                     alt="The cover of Ivie Luxe Hair's Records Book, open in a spreadsheet: the Nfelia logo, the shop's name in its colours, how long it has been with Nfelia, its details, its customers, sales, money received and orders, and a QR code to check the book"></a>
+                <figcaption><strong>The cover.</strong> Your name and colours, your figures, and a code anyone can scan to check the book.</figcaption>
+            </figure>
+            <figure class="book-shot" id="book-glance" role="tabpanel" aria-labelledby="book-tab-glance">
+                <a class="book-zoom" href="<?= $img ?>/workbook-glance.webp" target="_blank" rel="noopener"><img src="<?= $img ?>/workbook-glance.webp" width="1130" height="1000" loading="lazy" decoding="async"
+                     alt="The At a glance sheet: totals for sales, money in, spending and what is owed, a table of every month, and a chart of the months"></a>
+                <figcaption><strong>At a glance.</strong> Every month side by side, with totals and a chart, worked out for you.</figcaption>
+            </figure>
+            <figure class="book-shot" id="book-receipts" role="tabpanel" aria-labelledby="book-tab-receipts">
+                <a class="book-zoom" href="<?= $img ?>/workbook-receipts.webp" target="_blank" rel="noopener"><img src="<?= $img ?>/workbook-receipts.webp" width="1130" height="1000" loading="lazy" decoding="async"
+                     alt="The Receipts sheet: 282 receipts, each with its order, date, customer, invoice, amount and how it was paid, an Open link and its own verify code"></a>
+                <figcaption><strong>Every record.</strong> Each receipt, invoice and payment in its own sheet, with a link to it and a code of its own.</figcaption>
+            </figure>
+        </div>
+
+        <div class="books-details">
+            <ul class="site-points books-points" data-reveal-group>
+                <li><?= nf_icon('check-circle') ?><div><strong>Anyone can check it</strong><span>The book, and every invoice and receipt in it, has a code. Scan it or type it at nfelia.com/verify to see it is genuine.</span></div></li>
+                <li><?= nf_icon('sheet') ?><div><strong>Opens anywhere</strong><span>Excel, Google Sheets, LibreOffice or Numbers. Sort and filter any sheet; the totals follow.</span></div></li>
+                <li><?= nf_icon('naira') ?><div><strong>Free in every month you pay for</strong><span>One book each paid month, <?= $naira($book_price) ?> at other times.</span></div></li>
+                <li><?= nf_icon('lock') ?><div><strong>Your plain copy, always free</strong><span>Every record as CSV files, whatever your plan. Your records belong to you.</span></div></li>
+            </ul>
+            <a class="btn btn-primary" href="<?= APP_URL ?>/register">Start free for <?= (int)TRIAL_DAYS ?> days</a>
+            <p class="books-note">Pictures of the Records Book of Ivie Luxe Hair, an example business, opened in LibreOffice.</p>
+        </div>
+    </div>
 </section>
 
 <!-- Example stories (clearly not reviews) -->
@@ -479,6 +541,7 @@ $flash = get_flash();
                     <li><?= nf_icon('check') ?>Monthly profit report</li>
                     <li><?= nf_icon('check') ?>Tasks and calendar with reminders</li>
                     <li><?= nf_icon('check') ?>Delivery notes your customer signs</li>
+                    <li><?= nf_icon('check') ?><span><strong>Your Records Book</strong>, free every month you pay</span></li>
                     <li><?= nf_icon('check') ?>Free setup help on WhatsApp</li>
                 </ul>
                 <p class="price-extra">Need staff on it? <?= $naira($seat_price) ?> a month for each extra person.</p>
@@ -528,7 +591,7 @@ $flash = get_flash();
             </details>
             <details>
                 <summary>Is my business information safe? Can I take it with me?</summary>
-                <p>Your records belong to you. We never sell your data or contact your customers. Download your invoices, receipts and profit report as PDF, and your product list as a spreadsheet, any time.</p>
+                <p>Your records belong to you. We never sell your data or contact your customers. Every month you pay for comes with your <a href="#records-book">Records Book</a>: all your records in one Excel workbook, in your colours, that anyone can check is genuine. Your plain copy (every record as CSV files) is free whenever you ask, whatever your plan, and invoices, receipts and your profit report download as PDF any time.</p>
             </details>
             <details>
                 <summary>I'm a fashion designer. Where do I keep measurements?</summary>
@@ -683,7 +746,7 @@ $flash = get_flash();
     </div>
 </dialog>
 
-<script src="<?= APP_URL ?>/assets/js/home.js?v=6" defer></script>
+<script src="<?= APP_URL ?>/assets/js/home.js?v=7" defer></script>
 <script src="<?= APP_URL ?>/assets/js/wa.js?v=<?= (int)@filemtime(BASE_PATH . '/assets/js/wa.js') ?>" defer></script>
 </body>
 </html>

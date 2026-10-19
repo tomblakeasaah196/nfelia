@@ -324,6 +324,39 @@ h1, h2, h3 {
 .see-fix { margin-top: auto; display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; color: var(--burgundy); font-weight: 600; font-size: .875rem; line-height: 1.4; }
 .see-fix svg { width: 18px; height: 18px; flex: none; margin-bottom: 1px; }
 .see-note { margin-top: 24px; padding: 0 20px; font-size: .75rem; line-height: 1.4; color: var(--ink-2); text-align: center; }
+/* The newest card spans the row, so the grid stays even. */
+.see-cards > li.is-wide { grid-column: 1 / -1; }
+.see-cards > li.is-wide .see-card { min-height: 0; background: linear-gradient(135deg, #fff 55%, var(--burgundy-tint)); }
+
+/* ---------- The Records Book (real pictures of the example shop's book) ---------- */
+.books { background: linear-gradient(#fff, var(--ledger)); overflow-x: clip; }
+.books-grid { display: grid; gap: 32px; }
+.books-head { margin-bottom: 0; }
+.book-window { min-width: 0; }
+.book-tabs { display: none; }
+.book-shot { margin: 0 0 24px; }
+.book-shot img {
+    width: 100%; border-radius: var(--radius-m); border: 1px solid var(--border);
+    box-shadow: var(--shadow-device); background: #fff;
+}
+.book-zoom { display: block; border-radius: var(--radius-m); cursor: zoom-in; }
+.book-shot figcaption { margin-top: 12px; font-size: .875rem; line-height: 1.5; color: var(--ink-2); }
+.book-shot figcaption strong { color: var(--ink); }
+/* With home.js the sheets are tabs, like the workbook's own. */
+.book-window.is-tabs .book-tabs {
+    display: inline-flex; gap: 4px; padding: 4px; margin-bottom: 16px; max-width: 100%; overflow-x: auto;
+    border: 1px solid var(--line); border-radius: 999px; background: #fff;
+}
+.book-tabs [role=tab] {
+    min-height: 40px; padding: 8px 16px; border: 0; border-radius: 999px; background: transparent; cursor: pointer;
+    font: 600 .875rem/1.2 var(--font-body); color: var(--ink-2); white-space: nowrap;
+}
+.book-tabs [role=tab]:hover { color: var(--burgundy); }
+.book-tabs [role=tab][aria-selected="true"] { background: var(--burgundy); color: #fff; }
+.book-window.is-tabs .book-shot[hidden] { display: none; }
+.books-points { margin-top: 0; padding-top: 0; border-top: 0; }
+.books-details > .btn { margin-top: 32px; }
+.books-note { margin-top: 16px; font-size: .75rem; line-height: 1.4; color: var(--ink-2); }
 
 /* ---------- The sheet behind each card ---------- */
 dialog.see-sheet {
@@ -625,6 +658,11 @@ dialog.sheet-small { width: min(440px, calc(100vw - 32px)); }
     .site-visual .tag-order { right: -40px; }
     .site-visual .tag-saved { left: -64px; }
     .site-points { grid-template-columns: 1fr 1fr; gap: 24px 32px; }
+    .books-grid { grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); grid-template-areas: "head window" "details window"; column-gap: clamp(40px, 6vw, 80px); row-gap: 32px; align-items: start; }
+    .books-head { grid-area: head; }
+    .books-details { grid-area: details; }
+    .book-window { grid-area: window; position: sticky; top: 96px; }
+    .books-points { grid-template-columns: 1fr; gap: 20px; }
     .see-grid { grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: clamp(40px, 6vw, 80px); }
     .see-side { position: sticky; top: 96px; }
     .see-cards { gap: 16px; }
