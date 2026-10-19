@@ -614,7 +614,7 @@ class TasksController {
     private function customers(): array {
         $stmt = $this->db->prepare("
             SELECT id, full_name AS name, COALESCE(NULLIF(whatsapp, ''), phone) AS phone
-            FROM customers WHERE business_id = ? AND deleted_at IS NULL AND is_active = 1
+            FROM customers WHERE business_id = ? AND deleted_at IS NULL AND is_active = 1 AND is_walk_in = 0
             ORDER BY full_name LIMIT 2000");
         $stmt->execute([$this->biz_id]);
         return array_map(fn($c) => ['id' => (int)$c['id'], 'name' => $c['name'], 'phone' => (string)$c['phone']], $stmt->fetchAll());

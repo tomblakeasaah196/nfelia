@@ -59,18 +59,8 @@ class DashboardController {
         $day   = planner_day_for_user($this->db, $user, $business, $today);
         $plan  = array_merge($day['late'], $day['today'], $day['soon']);
 
-        // The latest invoices.
-        $stmtRecent = $this->db->prepare("
-            SELECT i.id, i.doc_number, i.status, i.total, i.issue_date, i.due_date, i.balance_due,
-                   c.full_name as customer_name
-            FROM invoices i
-            LEFT JOIN customers c ON c.id = i.customer_id
-            WHERE i.business_id = ?
-            ORDER BY i.created_at DESC
-            LIMIT 5
-        ");
-        $stmtRecent->execute([$this->biz_id]);
-        $recent_invoices = $stmtRecent->fetchAll();
+        // The latest orders: every sale starts as one.
+        $recent_orders = order_rows($this->db, $this->biz_id, [], 5);
 
         $hour = (int)$now->format('G');
         $greeting = $hour < 12 ? 'Good morning' : ($hour < 17 ? 'Good afternoon' : 'Good evening');
@@ -102,7 +92,7 @@ class DashboardController {
         $stmtC = $this->db->prepare("
             SELECT id, full_name, phone
             FROM customers
-            WHERE business_id = ? AND deleted_at IS NULL AND (full_name LIKE ? OR phone LIKE ?)
+            WHERE business_id = ? AND deleted_at IS NULL AND is_walk_in = 0 AND (full_name LIKE ? OR phone LIKE ?)
             LIMIT 3
         ");
         $stmtC->execute([$this->biz_id, $like_q, $like_q]);
@@ -130,6 +120,16 @@ class DashboardController {
                 'sub'  => planner_money((float)$row['sell_price'], auth_business()['currency_symbol'] ?? '₦')
                         . ($row['is_service'] ? '' : ' · ' . (float)$row['stock_qty'] . ' in stock'),
                 'url'  => APP_URL . '/products/view/' . $row['id']
+            ];
+        }
+
+        // Orders: by number, name or phone
+        foreach (order_rows($this->db, $this->biz_id, ['q' => $q], 3) as $row) {
+            $results[] = [
+                'type' => 'Order',
+                'text' => $row['order_number'] . ' — ' . ($row['customer_name'] ?: 'Walk-in customer'),
+                'sub'  => planner_money((float)$row['total'], auth_business()['currency_symbol'] ?? '₦'),
+                'url'  => APP_URL . '/orders/view/' . $row['id']
             ];
         }
 

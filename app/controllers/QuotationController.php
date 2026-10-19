@@ -782,7 +782,7 @@ public function update_status($id = null) {
     private function get_customers(): array {
         $stmt = $this->db->prepare("
             SELECT id, full_name, phone, email FROM customers
-            WHERE business_id = ? AND deleted_at IS NULL AND is_active = 1
+            WHERE business_id = ? AND deleted_at IS NULL AND is_active = 1 AND is_walk_in = 0
             ORDER BY full_name ASC
         ");
         $stmt->execute([$this->biz_id]);

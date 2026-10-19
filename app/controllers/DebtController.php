@@ -411,7 +411,7 @@ class DebtController {
         if (strlen($q) < 2) { json_response([]); return; }
         $stmt = $this->db->prepare("
             SELECT id, full_name, business_name, phone
-            FROM customers WHERE business_id = ? AND deleted_at IS NULL AND is_active = 1
+            FROM customers WHERE business_id = ? AND deleted_at IS NULL AND is_active = 1 AND is_walk_in = 0
               AND (full_name LIKE ? OR business_name LIKE ? OR phone LIKE ?)
             ORDER BY full_name ASC LIMIT 10
         ");
