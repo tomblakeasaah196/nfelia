@@ -43,6 +43,7 @@ require_once __DIR__ . '/app/helpers/signin.php';
 require_once __DIR__ . '/app/helpers/passkeys.php';
 require_once __DIR__ . '/app/helpers/notify.php';
 require_once __DIR__ . '/app/helpers/screens.php';
+require_once __DIR__ . '/app/helpers/ui.php';
 require_once __DIR__ . '/app/helpers/view_as.php';
 
 // --- GLOBAL EXCEPTION & FATAL ERROR HANDLER ---

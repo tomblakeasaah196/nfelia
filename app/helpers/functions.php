@@ -367,6 +367,33 @@ function send_private_file(?string $rel_path): never {
 }
 
 /**
+ * Send a private proof of payment that may be a PDF as well as a picture
+ * (refund proofs, storage/private/refund_proofs/), and stop. Pictures go
+ * through send_private_file(); a PDF must really be one.
+ */
+function send_private_proof(?string $rel_path): never {
+    $rel = ltrim((string)$rel_path, '/');
+    if (!str_ends_with($rel, '.pdf')) {
+        send_private_file($rel);
+    }
+    $full = str_starts_with($rel, 'storage/private/') ? realpath(BASE_PATH . '/' . $rel) : false;
+    $ok = $full && str_starts_with($full, realpath(BASE_PATH) . '/storage/private/') && is_file($full)
+        && file_get_contents($full, false, null, 0, 5) === '%PDF-';
+    while (ob_get_level()) { ob_end_clean(); }
+    if (!$ok) {
+        http_response_code(404);
+        exit;
+    }
+    header('Content-Type: application/pdf');
+    header('Content-Disposition: inline; filename="refund-proof.pdf"');
+    header('Content-Length: ' . filesize($full));
+    header('Cache-Control: private, no-store');
+    header('X-Content-Type-Options: nosniff');
+    readfile($full);
+    exit;
+}
+
+/**
  * Convert a GIF or video file to a compressed MP4 using FFmpeg.
  * Audio is stripped — this is for silent hero backgrounds.
  *

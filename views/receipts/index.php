@@ -7,7 +7,7 @@
  *   $search, $type, $sort, $page, $total_pages, $total_items
  */
 $currency   = $business['currency_symbol'] ?? '₦';
-$sales_here = 'receipts';
+$orders_here = 'receipts';
 
 $month_value = (float)($summary['month_value'] ?? 0);
 $month_count = (int)($summary['month_count'] ?? 0);
@@ -17,7 +17,7 @@ $counts  = ['invoice' => (int)($summary['invoice_count'] ?? 0), 'standalone' => 
 $sorts   = ['newest' => 'Newest first', 'oldest' => 'Oldest first', 'amount_desc' => 'Biggest first', 'amount_asc' => 'Smallest first'];
 ?>
 <div class="nf-page">
-<?php require BASE_PATH . '/views/partials/sales_head.php'; ?>
+<?php require BASE_PATH . '/views/partials/orders_head.php'; ?>
 
 <section class="nf-money" aria-label="Received this month">
     <p class="nf-money-k">Receipts this month</p>

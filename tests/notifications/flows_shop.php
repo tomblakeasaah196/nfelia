@@ -101,8 +101,12 @@ $b->post('orders/reject/701', ['reason' => 'Out of stock until next week.']);
 deliver();
 ok((bool)array_filter(mails_to('ngozi@example.test'), fn($m) => str_contains($m['text'], 'Out of stock until next week.')), 'not accepted: told why');
 $b->get('orders/view/703');
-ok(str_contains($b->body, 'Send update on WhatsApp') && str_contains($b->body, rawurlencode('thank you for collecting your order ORD-0703')),
-   'the order page offers the same news, ready to send on WhatsApp');
+ok(str_contains($b->body, 'orders/wa/703?m=thanks') && str_contains($b->body, 'Say thank you'),
+   'the order page offers a thank-you, ready to send on WhatsApp');
+$b->get('orders/wa/703?m=thanks');
+ok(str_starts_with($b->to(), 'https://wa.me/') && str_contains(rawurldecode($b->to()), 'thank you for your order ORD-0703'),
+   'it opens WhatsApp with the order number in the message');
+ok((int)q("SELECT COUNT(*) FROM order_events WHERE order_id = 703 AND kind = 'whatsapp'") === 1, 'and the message goes on the order\'s Log');
 
 section('A delivery goes out, and arrives');
 clean_slate();

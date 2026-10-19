@@ -74,6 +74,41 @@
         dlg.addEventListener('click', function (e) { if (e.target.closest('a[href]')) setTimeout(function () { if (dlg.open) dlg.close(); }, 400); });
     });
 
+    // ---------- (i): the longer words behind a figure (nf_info() in app/helpers/ui.php) ----------
+    document.addEventListener('click', function (e) {
+        var info = e.target.closest('[data-info]');
+        if (!info) return;
+        e.preventDefault();
+        var dlg = document.getElementById('nf-info');
+        if (!dlg) return;
+        dlg.querySelector('[data-info-title]').textContent = info.getAttribute('data-info-title') || '';
+        dlg.querySelector('[data-info-text]').textContent = info.getAttribute('data-info') || '';
+        openSheet('nf-info');
+    });
+
+    // ---------- Labels for icon-only buttons on a phone ----------
+    // A hover shows [data-tip]; a finger can't hover, so pressing and holding
+    // shows it instead, and that press doesn't also count as a tap.
+    var tipTimer = null, tipShown = null;
+    document.addEventListener('touchstart', function (e) {
+        var el = e.target.closest('[data-tip]');
+        if (!el) return;
+        clearTimeout(tipTimer);
+        tipTimer = setTimeout(function () {
+            if (tipShown) tipShown.classList.remove('is-tip');
+            tipShown = el;
+            el.classList.add('is-tip');
+            setTimeout(function () { el.classList.remove('is-tip'); if (tipShown === el) tipShown = null; }, 1600);
+        }, 450);
+    }, { passive: true });
+    ['touchend', 'touchmove', 'touchcancel'].forEach(function (type) {
+        document.addEventListener(type, function () { clearTimeout(tipTimer); }, { passive: true });
+    });
+    document.addEventListener('click', function (e) {
+        if (tipShown && e.target.closest('[data-tip]') === tipShown) { e.preventDefault(); e.stopImmediatePropagation(); tipShown = null; }
+    }, true);
+    document.addEventListener('contextmenu', function (e) { if (e.target.closest('[data-tip]')) e.preventDefault(); });
+
     // ---------- Toasts ----------
     var toasts = document.getElementById('nf-toasts');
     function dismiss(t) {

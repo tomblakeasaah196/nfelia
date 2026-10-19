@@ -7,7 +7,7 @@
  *   $search, $status, $sort, $page, $total_pages, $total_items
  */
 $currency   = $business['currency_symbol'] ?? '₦';
-$sales_here = 'quotations';
+$orders_here = 'quotations';
 
 $waiting  = (int)($summary['waiting_count'] ?? 0);
 $accepted = (int)($summary['accepted_count'] ?? 0);
@@ -18,7 +18,7 @@ $counts   = ['waiting' => $waiting, 'accepted' => $accepted, 'draft' => (int)($s
 $sorts    = ['newest' => 'Newest first', 'oldest' => 'Oldest first', 'total_desc' => 'Biggest first', 'total_asc' => 'Smallest first'];
 ?>
 <div class="nf-page">
-<?php require BASE_PATH . '/views/partials/sales_head.php'; ?>
+<?php require BASE_PATH . '/views/partials/orders_head.php'; ?>
 
 <?php if (!empty($open_requests)): ?>
 <a class="nf-card" href="<?= APP_URL ?>/quotations/requests" style="display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit">

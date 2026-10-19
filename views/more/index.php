@@ -3,8 +3,8 @@
  * More. Rendered inside views/layouts/app.php, which provides $nav_groups,
  * $user, $user_role, $selected_country and $all_countries.
  */
-// Already a tab: Home, Tasks, and Sales with its three lists.
-$in_tabs = ['dashboard', 'tasks', 'invoices', 'receipts', 'quotations'];
+// Already a tab: Home, Tasks, and Orders with its four lists.
+$in_tabs = ['dashboard', 'tasks', 'orders', 'invoices', 'receipts', 'quotations'];
 $tiles = array_values(array_filter($nav_groups['Your business'] ?? [], fn($i) => !in_array($i['url'], $in_tabs, true)));
 ?>
 <h1 class="nf-large-title">More</h1>

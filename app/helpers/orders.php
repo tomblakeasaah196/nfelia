@@ -90,6 +90,38 @@ function order_events(PDO $db, int $biz, int $order_id): array {
     return $events;
 }
 
+/**
+ * Orders for a list, newest first, each with its invoice's figures (inv_id,
+ * inv_number, inv_total, inv_paid, inv_balance, inv_status) and its delivery
+ * note's status (delivery_status), as views/partials/order_row.php expects.
+ *   $f: q (number, name or phone), view (confirm | progress | balance | done),
+ *       customer_id
+ */
+function order_rows(PDO $db, int $biz, array $f = [], int $limit = 20, int $offset = 0): array {
+    [$where, $params] = order__list_where($f);
+    $stmt = $db->prepare("SELECT * FROM (" . order__list_sql() . ") x WHERE {$where}
+                          ORDER BY x.created_at DESC, x.id DESC LIMIT " . max(1, $limit) . " OFFSET " . max(0, $offset));
+    $stmt->execute(array_merge([$biz], $params));
+    return $stmt->fetchAll();
+}
+
+/** How many orders order_rows() would list for each view, and the balance left on them: all, confirm, progress, balance, done, balance_total, matching. */
+function order_counts(PDO $db, int $biz, array $f = []): array {
+    [$where, $params] = order__list_where(['view' => ''] + $f);
+    [$view_where, $view_params] = order__list_where($f);
+    $v = order__list_views();
+    $stmt = $db->prepare("
+        SELECT COUNT(*) AS `all`,
+               SUM({$v['confirm']}) AS confirm, SUM({$v['progress']}) AS progress,
+               SUM({$v['balance']}) AS balance, SUM({$v['done']}) AS done,
+               COALESCE(SUM(CASE WHEN {$v['balance']} THEN x.inv_balance END), 0) AS balance_total,
+               SUM({$view_where}) AS matching
+        FROM (" . order__list_sql() . ") x WHERE {$where}");
+    $stmt->execute(array_merge($view_params, [$biz], $params));
+    $row = $stmt->fetch() ?: [];
+    return array_map(fn($n) => $n === null ? 0 : (str_contains((string)$n, '.') ? (float)$n : (int)$n), $row);
+}
+
 /* ══════════════════════════════════════════════════════════════
  *  CUSTOMERS
  * ══════════════════════════════════════════════════════════════ */
@@ -511,6 +543,38 @@ function order_set_pay_by(PDO $db, int $biz, int $order_id, string $date, int $u
         order_sync_debt($db, $biz, $order_id, $date);
         order_log($db, $biz, $order_id, 'pay_by', 'Balance due by ' . date('D j M Y', strtotime($date)) . '.', $user_id,
                   ['from' => $invoice['due_date'], 'to' => $date]);
+    });
+}
+
+/**
+ * When the customer gets it: the day the order is delivered or collected.
+ * It lives on the invoice's delivery promise (Tasks & Calendar count down to
+ * it), the delivery note's planned day and a job plan's delivery step follow.
+ * The balance's pay-by date is left as it is: it is a separate promise.
+ */
+function order_set_when(PDO $db, int $biz, int $order_id, string $date, int $user_id): void {
+    if (!planner_valid_date($date)) {
+        throw new DomainException('Pick the day they get it.');
+    }
+    order__tx($db, function () use ($db, $biz, $order_id, $date, $user_id) {
+        $order   = order__lock($db, $biz, $order_id);
+        $invoice = order_invoice($db, $biz, $order);
+        if (!$invoice || $invoice['status'] === 'cancelled') {
+            throw new DomainException('Confirm the order first, then set the day.');
+        }
+        if (order_stage($order, order__delivery($db, $biz, $order))['key'] === 'done') {
+            throw new DomainException('This order is already done.');
+        }
+        $db->prepare("UPDATE invoices SET deliver_mode = 'date', deliver_by = ? WHERE id = ? AND business_id = ?")
+           ->execute([$date, (int)$invoice['id'], $biz]);
+        planner_move_delivery($db, $biz, (int)$invoice['id'], $date);
+        $db->prepare("
+            UPDATE deliveries SET estimated_delivery = ?
+            WHERE business_id = ? AND (order_id = ? OR id = ?) AND deleted_at IS NULL AND status IN ('pending_dispatch','dispatched','in_transit')
+        ")->execute([$date . ' 00:00:00', $biz, $order_id, (int)($order['delivery_id'] ?? 0)]);
+        $word = ($order['fulfillment_type'] ?? '') === 'delivery' ? 'Delivery' : 'Collection';
+        order_log($db, $biz, $order_id, 'when', $word . ' day set to ' . date('D j M', strtotime($date)) . '.', $user_id,
+                  ['from' => $invoice['deliver_by'], 'to' => $date]);
     });
 }
 
@@ -1539,4 +1603,52 @@ function order__store_proof(array $file, int $biz): string {
         return $rel . '.pdf';
     }
     throw new DomainException('Add a screenshot or photo (JPG, PNG or WebP) or a PDF.');
+}
+
+/** The rows order_rows() and order_counts() read: each order with its invoice and delivery note (business id is the one placeholder). */
+function order__list_sql(): string {
+    return "
+        SELECT o.*, i.id AS inv_id, i.doc_number AS inv_number, i.total AS inv_total, i.amount_paid AS inv_paid,
+               i.balance_due AS inv_balance, i.status AS inv_status, d.status AS delivery_status
+        FROM orders o
+        LEFT JOIN invoices i ON i.id = (SELECT i2.id FROM invoices i2 WHERE i2.business_id = o.business_id
+                                          AND (i2.order_id = o.id OR i2.id = o.invoice_id)
+                                        ORDER BY i2.status = 'cancelled', i2.id DESC LIMIT 1)
+        LEFT JOIN deliveries d ON d.id = (SELECT d2.id FROM deliveries d2 WHERE d2.business_id = o.business_id AND d2.deleted_at IS NULL
+                                            AND (d2.order_id = o.id OR d2.id = o.delivery_id)
+                                          ORDER BY d2.status = 'failed', d2.id DESC LIMIT 1)
+        WHERE o.business_id = ?";
+}
+
+/** Each list view as a condition on order__list_sql()'s rows, matching order_stage() and order_pay_tag(). */
+function order__list_views(): array {
+    $done = "(x.status = 'fulfilled' OR (x.status IN ('approved','processing','ready') AND x.delivery_status IN ('delivered','signed_off')))";
+    return [
+        'confirm'  => "(x.status IN ('pending','pending_verification'))",
+        'progress' => "(x.status IN ('approved','processing','ready') AND NOT {$done})",
+        'balance'  => "(x.inv_id IS NOT NULL AND x.inv_status NOT IN ('cancelled','draft') AND x.inv_balance > 0 AND x.status NOT IN ('cancelled','rejected'))",
+        'done'     => $done,
+    ];
+}
+
+/** The WHERE for a list: [sql, params]. */
+function order__list_where(array $f): array {
+    $where = ['1'];
+    $params = [];
+    $q = trim((string)($f['q'] ?? ''));
+    if ($q !== '') {
+        $where[] = "(x.order_number LIKE ? OR x.customer_name LIKE ? OR x.customer_phone LIKE ? OR x.inv_number LIKE ?)";
+        $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $q) . '%';
+        $digits = preg_replace('/\D/', '', $q);
+        array_push($params, $like, $like, strlen($digits) >= 4 ? '%' . substr($digits, -10) . '%' : $like, $like);
+    }
+    if (!empty($f['customer_id'])) {
+        $where[] = "x.customer_id = ?";
+        $params[] = (int)$f['customer_id'];
+    }
+    $views = order__list_views();
+    if (isset($views[$f['view'] ?? ''])) {
+        $where[] = $views[$f['view']];
+    }
+    return [implode(' AND ', $where), $params];
 }

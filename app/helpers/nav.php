@@ -90,6 +90,7 @@ function nav_groups(string $role, string $business_type, int $business_id): arra
     $groups = [
         'Your business' => [
             ['Home', 'dashboard', 'home', $all],
+            ['Orders', 'orders', 'orders', $all],
             ['Tasks and calendar', 'tasks', 'tasks', $all],
             ['Quotations', 'quotations', 'quote', $all],
             ['Invoices', 'invoices', 'invoice', $all],
@@ -103,7 +104,6 @@ function nav_groups(string $role, string $business_type, int $business_id): arra
             ['Profit and loss', 'reports/profit-loss', 'report', $boss],
         ],
         'Storefront' => [
-            ['Orders', 'orders', 'orders', $all],
             ['Bookings', 'bookings', 'bookings', $all],
             ['News and offers', 'posts', 'news', $boss],
             ['Shop Studio', 'landing-page', 'studio', $boss],
@@ -129,7 +129,7 @@ function nav_tab_for(string $section): string
 {
     return match ($section) {
         'dashboard', '' => 'home',
-        'invoices', 'receipts', 'quotations' => 'sales',
+        'orders', 'invoices', 'receipts', 'quotations' => 'orders',
         'tasks' => 'tasks',
         default => 'more',
     };
