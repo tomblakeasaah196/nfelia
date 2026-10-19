@@ -32,6 +32,9 @@
     window.addEventListener('unhandledrejection', function (e) {
         var r = e.reason;
         if (r && (r.name === 'AbortError' || r.name === 'NotAllowedError')) return;   // a cancelled request or prompt
+        // A page animation the browser dropped: the screen changed size mid-way.
+        // shell.js catches these; some browser versions report them anyway.
+        if (r && r.name === 'InvalidStateError' && /^Transition was aborted/.test(String(r.message))) return;
         send({ kind: 'rejection', message: r && r.message ? String(r.message) : String(r), file: '', line: 0,
                stack: r && r.stack ? String(r.stack) : '' });
     });
