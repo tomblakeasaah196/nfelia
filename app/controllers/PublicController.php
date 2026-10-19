@@ -1200,6 +1200,59 @@ class PublicController
      * A small standalone page for links that don't lead anywhere: missing
      * documents, retired shop links, closed shops. Always noindex.
      */
+    /* ──────────────────────────────────────────
+     * REFUNDS /public/refund/{token}
+     * The customer tells the shop where to send money it is giving back
+     * (refund_ask() in app/helpers/orders.php emails them this link); once
+     * the shop has sent it, the same link is their refund slip.
+     *──────────────────────────────────────────*/
+    public function refund(string $token): void
+    {
+        $refund = $this->refund_by_token($token);
+        if (!$refund || $refund["status"] === "cancelled") {
+            $this->notice([
+                "title" => $refund ? "This refund was called off" : "We couldn't find this refund",
+                "body" => $refund ? "Contact the shop if you have any questions." : "The link may have been copied wrongly. Ask the shop to send it again.",
+            ]);
+            return;
+        }
+        $error = null;
+        $sent = false;
+        if ($_SERVER["REQUEST_METHOD"] === "POST" && $refund["status"] !== "paid") {
+            if (!throttle_allows("refund_details_ip", client_ip(), 20, 60) || !throttle_allows("refund_details", $token, 8, 60)) {
+                $error = "Too many tries for now. Please wait a little, or call the shop.";
+            } else {
+                $error = refund_save_details($this->db, $token, $_POST);
+                if ($error === null) {
+                    $sent = true;
+                    $refund = $this->refund_by_token($token);
+                }
+            }
+        }
+        $business = $this->get_business((int) $refund["business_id"]);
+        $stmt = $this->db->prepare("SELECT order_number, customer_name FROM orders WHERE id = ? AND business_id = ?");
+        $stmt->execute([(int) $refund["order_id"], (int) $refund["business_id"]]);
+        $refund_order = $stmt->fetch() ?: ["order_number" => "", "customer_name" => ""];
+        require BASE_PATH . "/views/public/refund.php";
+    }
+
+    /** /public/refund-proof/{token}: the shop's proof that the refund was sent (a picture or a PDF). */
+    public function refund_proof(string $token): void
+    {
+        $refund = $this->refund_by_token($token);
+        send_private_proof($refund && $refund["status"] === "paid" ? $refund["proof_path"] : null);
+    }
+
+    private function refund_by_token(string $token): ?array
+    {
+        if (!preg_match('/^[a-f0-9]{32}$/', $token)) {
+            return null;
+        }
+        $stmt = $this->db->prepare("SELECT * FROM refunds WHERE token = ? LIMIT 1");
+        $stmt->execute([$token]);
+        return $stmt->fetch() ?: null;
+    }
+
     protected function notice(array $notice): void
     {
         require BASE_PATH . "/views/public/notice.php";

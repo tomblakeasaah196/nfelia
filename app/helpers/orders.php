@@ -1145,7 +1145,9 @@ function refund_save_details(PDO $db, string $token, array $in): ?string {
 
         $order = $refund['order_id'] ? order_find($db, $biz, (int)$refund['order_id']) : null;
         if ($order) {
-            order_log($db, $biz, (int)$order['id'], 'refund_details', 'The customer sent where to send the refund.', null, ['refund_id' => (int)$refund['id']]);
+            order_log($db, $biz, (int)$order['id'], 'refund_details',
+                      ($order['customer_name'] ?: 'The customer') . ' sent where to send the refund: ' . $bank . ' ending ' . substr($number, -4) . '.', null,
+                      ['refund_id' => (int)$refund['id']]);
             $payee = ($kind === 'bank' ? 'Bank: ' : 'Mobile money: ') . $name . ', ' . $bank . ', ' . $number;
             order__after(fn() => notify('refund.details', $biz, [
                 'refund_id' => (int)$refund['id'], 'order_id' => (int)$order['id'], 'order_number' => $order['order_number'],

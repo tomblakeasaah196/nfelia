@@ -846,6 +846,13 @@ class OrderController
                 "text" => "Hello {$first}, thank you for your payment of " . planner_money((float) $last_receipt["amount"], $symbol)
                     . ". Here is receipt {$last_receipt["receipt_number"]} for your order {$num}: " . APP_URL . "/doc/" . $last_receipt["receipt_token"]];
         }
+        $stmt = $this->db->prepare("SELECT * FROM refunds WHERE order_id = ? AND business_id = ? AND status = 'paid' ORDER BY id DESC LIMIT 1");
+        $stmt->execute([(int) $order["id"], $this->biz_id]);
+        if ($refund = $stmt->fetch()) {
+            $list["refund"] = ["label" => "Send the refund slip", "icon" => "refund",
+                "text" => "Hello {$first}, we have sent your " . planner_money((float) $refund["amount"], $symbol) . " refund for order {$num}."
+                    . " Here is refund slip {$refund["doc_number"]}: " . refund_url((string) $refund["token"])];
+        }
         if ($stage["key"] === "done") {
             $list["thanks"] = ["label" => "Say thank you", "icon" => "star",
                 "text" => "Hello {$first}, thank you for your order {$num} from {$shop}."
