@@ -22,7 +22,8 @@ const APP = 'http://localhost:8099';
 const q = (sql) => execSync(`mysql -N smartqaq_nfelia_core -e "${sql}"`).toString().trim();
 const code = q("SELECT code FROM records_books WHERE business_id = 50 AND kind = 'book' AND status = 'ready' ORDER BY id DESC LIMIT 1");
 if (!code) throw new Error('Ivie has no Records Book: make one first (see the comment at the top).');
-const invoice = q("SELECT id FROM invoices WHERE business_id = 50 AND status = 'paid' ORDER BY id DESC LIMIT 1");
+// The newest paid invoice in that book (its order is named on the page too)
+const invoice = q(`SELECT i.id FROM invoices i JOIN records_books b ON b.code = '${code}' WHERE i.business_id = 50 AND i.status = 'paid' AND i.order_id IS NOT NULL AND i.issue_date <= COALESCE(b.date_to, DATE(b.created_at)) ORDER BY i.issue_date DESC, i.id DESC LIMIT 1`);
 // The invoice's own code: the book's, then I and the id in Crockford base32 (records_row_code()).
 const b32 = (n) => { const a = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'; let s = ''; do { s = a[n % 32] + s; n = Math.floor(n / 32); } while (n > 0); return s; };
 

@@ -165,7 +165,7 @@ $cards = [
         'lead'  => 'Everything you record in Nfelia, in one Excel workbook in your colours. Whoever you show it to can check it is genuine at nfelia.com/verify.',
         'ticks' => ['Customers, sales, money and stock, with totals and a chart of every month', 'A code on every invoice and receipt that anyone can check', 'Free in every month you pay for. Your plain copy is always free'],
         'shots' => [['Your records in Nfelia: the Records Book, free this month, with a Make my Records Book button', 'Made in one tap'],
-                    ['nfelia.com/verify showing Invoice IVL-INV-0080 from Ivie Luxe Hair as genuine, with its amount and status', 'Anyone can check it']],
+                    ['nfelia.com/verify showing Invoice IVL-INV-281 from Ivie Luxe Hair as genuine, with its order, amount and status', 'Anyone can check it']],
     ],
 ];
 
@@ -403,7 +403,7 @@ $flash = get_flash();
             </div>
             <figure class="book-shot" id="book-cover" role="tabpanel" aria-labelledby="book-tab-cover">
                 <a class="book-zoom" href="<?= $img ?>/workbook-cover.webp" target="_blank" rel="noopener"><img src="<?= $img ?>/workbook-cover.webp" width="1130" height="1000" loading="lazy" decoding="async"
-                     alt="The cover of Ivie Luxe Hair's Records Book, open in a spreadsheet: the Nfelia logo, the shop's name in its colours, how long it has been with Nfelia, its details, its customers, sales and money received, and a QR code to check the book"></a>
+                     alt="The cover of Ivie Luxe Hair's Records Book, open in a spreadsheet: the Nfelia logo, the shop's name in its colours, how long it has been with Nfelia, its details, its customers, sales, money received and orders, and a QR code to check the book"></a>
                 <figcaption><strong>The cover.</strong> Your name and colours, your figures, and a code anyone can scan to check the book.</figcaption>
             </figure>
             <figure class="book-shot" id="book-glance" role="tabpanel" aria-labelledby="book-tab-glance">
@@ -413,7 +413,7 @@ $flash = get_flash();
             </figure>
             <figure class="book-shot" id="book-receipts" role="tabpanel" aria-labelledby="book-tab-receipts">
                 <a class="book-zoom" href="<?= $img ?>/workbook-receipts.webp" target="_blank" rel="noopener"><img src="<?= $img ?>/workbook-receipts.webp" width="1130" height="1000" loading="lazy" decoding="async"
-                     alt="The Receipts sheet: 199 receipts with date, customer, invoice, amount and how it was paid, each with an Open link and its own verify code"></a>
+                     alt="The Receipts sheet: 282 receipts, each with its order, date, customer, invoice, amount and how it was paid, an Open link and its own verify code"></a>
                 <figcaption><strong>Every record.</strong> Each receipt, invoice and payment in its own sheet, with a link to it and a code of its own.</figcaption>
             </figure>
         </div>
