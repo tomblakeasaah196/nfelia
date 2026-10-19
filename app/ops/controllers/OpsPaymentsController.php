@@ -4,7 +4,8 @@
  * uploaded, approved or turned down with a reason. Nothing opens until it is
  * approved (Tom's decision). Approving a month starts it when the current
  * paid month ends and switches off staff the owner didn't tick; approving
- * seats adds them to the month already paid (app/helpers/billing.php).
+ * seats adds them to the month already paid (app/helpers/billing.php);
+ * approving a Records Book makes it (app/helpers/records.php).
  *
  *   GET  payments                  waiting, oldest first, then the last 20 decided
  *   GET  payments/{id}/receipt     the uploaded receipt
@@ -82,6 +83,21 @@ class OpsPaymentsController
             $stmt->execute([$p['business_id']]);
             $sub = $stmt->fetch() ?: ['status' => null, 'extra_seats' => 0];
 
+            if (($p['kind'] ?? 'month') === 'book') {
+                // A Records Book: it is made now (app/helpers/records.php)
+                $db->prepare("UPDATE records_books SET status = 'queued', payment_ref = ?, amount = ?, currency_code = ? WHERE id = ? AND business_id = ? AND status = 'awaiting_payment'")
+                   ->execute(['MOMO_' . $p['id'], $p['amount'], $p['currency_code'], (int)$p['book_id'], $p['business_id']]);
+                $db->commit();
+                require_once BASE_PATH . '/app/helpers/records.php';
+                records_build_later((int)$p['book_id']);
+                notify('records.paid', (int)$p['business_id'], ['amount_text' => $p['currency_symbol'] . number_format((float)$p['amount'], 0) . ' ' . $p['currency_code']],
+                       ['dedupe' => 'momo:' . $p['id']]);
+                ops_audit('payment.approved', 'Approved ' . $p['business_name'] . '\'s mobile money payment of ' . $p['currency_symbol'] . number_format((float)$p['amount'], 0) . ' for a Records Book',
+                          ['business' => (int)$p['business_id'], 'type' => 'payment', 'id' => (int)$p['id']]);
+                ops_flash('success', 'Approved. ' . $p['business_name'] . '\'s Records Book is being made, and they have been told.');
+                ops_redirect('payments');
+            }
+
             if (($p['kind'] ?? 'month') === 'seats') {
                 // More seats in the month already paid for
                 $db->prepare("UPDATE subscriptions SET extra_seats = LEAST(?, extra_seats + ?), last_payment_ref = ?, updated_at = NOW() WHERE business_id = ?")
@@ -139,6 +155,10 @@ class OpsPaymentsController
                 $db->rollBack();
                 ops_flash('error', 'Someone else decided this payment a moment ago.');
                 ops_redirect('payments');
+            }
+            // A Records Book waiting on it is called off
+            if (($p['kind'] ?? '') === 'book' && $p['book_id']) {
+                $db->prepare("UPDATE records_books SET status = 'cancelled' WHERE id = ? AND status = 'awaiting_payment'")->execute([(int)$p['book_id']]);
             }
             // A receipt no longer changes the subscription, so there is
             // nothing to undo. One sent before that change left it

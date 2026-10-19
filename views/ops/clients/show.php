@@ -1,7 +1,8 @@
 <?php
 /**
  * One client (detail): $b, $people, $use, $payments, $plan_log, $reviews, $referred_by, $referred,
- * $errors (null: role can't), $tickets (null: role can't), $notes, $views, $history (null: role can't), $plans.
+ * $errors (null: role can't), $tickets (null: role can't), $notes, $views, $history (null: role can't), $plans,
+ * $books (their Records Books; null: role can't), $asks (requests for their records; null: role can't).
  */
 $act    = ops_can('clients.act');
 $owner  = array_values(array_filter($people, fn($p) => $p['role'] === 'owner'))[0] ?? ($people[0] ?? null);
@@ -162,6 +163,27 @@ $day    = fn(?string $d) => $d ? date('j M Y', strtotime($d)) : '—';
             </form>
             <?php endif; ?>
         </div></section>
+
+        <?php if ($books !== null): ?>
+        <section class="ops-card" id="records"><div class="ops-card-body">
+            <h2>Records Books</h2>
+            <?php if ($books): ?>
+            <ul class="ops-plain"><?php foreach ($books as $bk): ?>
+                <li><a href="<?= e(ops_url('records/' . (int)$bk['id'])) ?>"><?= e($day($bk['created_at'])) ?></a>
+                    <span class="muted"><?= e(['ready' => ['free' => 'free', 'paid' => 'bought', 'team' => 'by the team'][$bk['charge']] ?? 'ready', 'queued' => 'being made', 'building' => 'being made',
+                                              'awaiting_payment' => 'waiting for payment', 'failed' => 'failed', 'expired' => 'no longer kept'][$bk['status']] ?? $bk['status']) ?></span></li>
+            <?php endforeach; ?></ul>
+            <?php else: ?><p class="muted">None yet.</p><?php endif; ?>
+            <a class="ops-btn ops-btn-secondary ops-btn-sm" style="margin-top:10px" href="<?= e(ops_url('records/new?client=' . (int)$b['id'])) ?>"><?= ops_icon('download') ?> Make a Records Book</a>
+            <?php if ($asks): ?>
+                <h3 style="margin-top:14px">Asked for a record</h3>
+                <ul class="ops-plain"><?php foreach ($asks as $rq): ?>
+                    <li><a class="ops-break" href="<?= e(ops_url('requests/' . (int)$rq['id'])) ?>"><?= e($rq['organisation'] ?: $rq['name']) ?></a>
+                        <span class="muted"><?= e(['new' => 'to look at', 'asked' => 'with the owner', 'approved' => 'shared', 'declined' => 'declined', 'expired' => 'no answer'][$rq['status']] ?? $rq['status']) ?></span></li>
+                <?php endforeach; ?></ul>
+            <?php endif; ?>
+        </div></section>
+        <?php endif; ?>
 
         <section class="ops-card"><div class="ops-card-body">
             <h2>Referrals</h2>

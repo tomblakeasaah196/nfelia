@@ -39,11 +39,14 @@ const OPS_ROLES = [
  *   clients.view_as  open a client's Nfelia read-only (logged, owner told)
  *   support          support tickets, feedback and reviews
  *   errors           the error monitor and system health
- *   exports          send a client their data
+ *   exports          make a client's Records Book; it goes to the owner
+ *   exports.download download a client's Records Book (Admins only)
+ *   requests         requests for a record's full document, from
+ *                    nfelia.com/verify (Admins only)
  *   sales            leads and the pipeline
  *   campaigns        email campaigns
  *   finance          Nfelia's own revenue, expenses and referrals
- *   settings         countries, prices and payment details
+ *   settings         countries, prices (and telling clients) and payment details
  *   team, audit      the Ops team, and everything done in Ops
  */
 const OPS_PERMISSIONS = [
@@ -502,6 +505,8 @@ function ops_nav(array $staff): array
             ['clients',    'Clients',      'shop',   null, 'clients'],
             ['payments',   'Payments to check', 'chart', ops_can('clients.act', $staff) ? $count("SELECT COUNT(*) FROM subscription_payments WHERE status = 'pending_verification'") : null, 'clients.act'],
             ['shop-names', 'Shop names',   'target', ops_can('clients.act', $staff) ? $count("SELECT COUNT(*) FROM businesses WHERE subdomain_status = 'pending' AND subdomain_requested IS NOT NULL") : null, 'clients.act'],
+            ['records',    'Records Books', 'download', null, 'exports'],
+            ['requests',   'Document requests', 'eye', ops_can('requests', $staff) ? $count("SELECT COUNT(*) FROM record_requests WHERE status = 'new'") : null, 'requests'],
             ['support',    'Support',      'chat',   ops_can('support', $staff) ? $count("SELECT COUNT(*) FROM support_tickets WHERE status = 'open'") : null, 'support'],
             ['reviews',    'Reviews',      'eye',    null, 'support'],
             ['feedback',   'Feedback',     'mail',   null, 'support'],
@@ -509,6 +514,7 @@ function ops_nav(array $staff): array
         'Nfelia' => [
             ['finance',   'Finance',   'chart', null, 'finance'],
             ['referrals', 'Referrals', 'users', null, 'finance'],
+            ['prices',    'Prices',    'chart', null, 'settings'],
             ['countries', 'Countries', 'home',  null, 'settings'],
             ['team',      'Team',      'users', null, 'team'],
             ['audit',     'Audit log', 'list',  null, 'audit'],

@@ -260,6 +260,42 @@ const watch = (page, who) => page.on('pageerror', (e) => errors.push(`${who}: ${
   ok(campOver <= 0, 'a campaign fits a phone (overflow ' + campOver + 'px)');
   await page.screenshot({ path: path.join(OUT, 'campaign-phone.png'), fullPage: true });
 
+  console.log('\nRecords Books, document requests, prices');
+  await wide.goto(`${OPS}/records/new?client=2`);
+  await wide.addStyleTag({ content: still });
+  await wide.screenshot({ path: path.join(OUT, 'records-new-computer.png'), fullPage: true });
+  await wide.fill('#r-why', 'Ada asked on WhatsApp for her records, for a bank loan');
+  wide.once('dialog', (d) => d.accept());
+  await Promise.all([wide.waitForNavigation(), wide.click('form[action$="/records"] button[type=submit]')]);
+  ok(/\/records\/\d+$/.test(wide.url()), 'the wizard makes the book and opens it: ' + wide.url().replace(OPS, ''));
+  await wide.waitForSelector('.ops-chip-ok', { timeout: 30000 }).catch(() => null);
+  ok(await wide.locator('.ops-chip-ok', { hasText: 'Ready' }).count() === 1, 'it is ready, with what is in it');
+  await wide.addStyleTag({ content: still });
+  await wide.screenshot({ path: path.join(OUT, 'records-book-computer.png'), fullPage: true });
+  for (const [where, name] of [[wide.url().replace(OPS, ''), 'records-book'], ['/records', 'records'], ['/requests', 'requests'], ['/prices', 'prices']]) {
+    await page.goto(OPS + where);
+    await page.addStyleTag({ content: still });
+    const over = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    ok(over <= 0, name + ' fits a phone (overflow ' + over + 'px)');
+    await page.screenshot({ path: path.join(OUT, name + '-phone.png'), fullPage: true });
+  }
+  await page.click('[data-ops-dialog="change-1"]');
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: path.join(OUT, 'prices-change-phone.png') });
+  await page.fill('#p-month-1', '12000');
+  await page.fill('#rs-1', 'To add delivery tracking and more ways to get paid.');
+  await Promise.all([page.waitForNavigation(), page.click('#change-1 button[type=submit]')]);
+  ok(/\/prices\/\d+$/.test(page.url()), 'a price change is saved from a phone, and opens');
+  const notice = page.frameLocator('iframe.ops-preview');
+  ok(await notice.locator('text=₦12,000').count() > 0, 'with the email clients will get, at the new price');
+  await page.addStyleTag({ content: still });
+  const priceOver = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  ok(priceOver <= 0, 'the change fits a phone (overflow ' + priceOver + 'px)');
+  await page.screenshot({ path: path.join(OUT, 'price-change-phone.png'), fullPage: true });
+  await wide.goto(page.url());
+  await wide.addStyleTag({ content: still });
+  await wide.screenshot({ path: path.join(OUT, 'price-change-computer.png'), fullPage: true });
+
   ok(errors.length === 0, 'no script errors on any page' + (errors.length ? ': ' + errors.join(' | ') : ''));
   await browser.close();
   console.log(`\nScreenshots: ${OUT}`);

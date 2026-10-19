@@ -406,6 +406,66 @@ function notify_events(): array
             'button' => 'Open billing',
         ],
 
+        'billing.price_change' => [
+            'topic' => 'billing', 'to' => 'owner', 'brand' => 'nfelia',
+            'url' => fn($d) => 'settings?tab=billing', 'tag' => fn($d) => 'billing',
+            'text' => fn($d, $m) => [!empty($d['up']) ? 'Your Nfelia price changes on ' . $day($d['from']) : 'Nfelia costs less from ' . $day($d['from']),
+                                     implode('. ', array_map(fn($l) => $l['what'] . ': ' . $l['old'] . ' → ' . $l['new'], (array)($d['lines'] ?? []))) . '.'
+                                     . (!empty($d['up']) ? ' Months that start before then stay at today\'s price.' : '')],
+            'private' => 'News about your Nfelia price',
+            'button' => 'Open billing',
+        ],
+
+        /* ── Your records (the Records Book) ──────────────────── */
+        'records.paid' => [
+            'topic' => 'billing', 'to' => 'owner', 'brand' => 'nfelia',
+            'url' => fn($d) => 'records', 'tag' => fn($d) => 'records',
+            'text' => fn($d, $m) => ['Payment received for your Records Book', (!empty($d['amount_text']) ? $d['amount_text'] . ' received. ' : '') . 'We are making it now, and will tell you when it is ready.'],
+            'private' => 'Payment received',
+            'button' => 'Open Your records',
+        ],
+        'records.ready' => [
+            'topic' => 'account', 'to' => 'owner', 'brand' => 'nfelia',
+            'url' => fn($d) => 'records', 'tag' => fn($d) => 'records-' . (int)$d['book_id'],
+            'text' => fn($d, $m) => ['Your Records Book is ready', 'All your records in one Excel workbook, in your colours, with a code anyone can check. Download it from Your records.'],
+            'private' => 'Your Records Book is ready',
+            'button' => 'Download it',
+        ],
+        'records.raw_ready' => [
+            'topic' => 'account', 'to' => 'owner', 'brand' => 'nfelia',
+            'url' => fn($d) => 'records', 'tag' => fn($d) => 'records-' . (int)$d['book_id'],
+            'text' => fn($d, $m) => ['Your plain copy is ready', 'Your records as CSV files in a ZIP. Download it from Your records within ' . (defined('RECORDS_RAW_DAYS') ? RECORDS_RAW_DAYS : 7) . ' days.'],
+            'private' => 'Your plain copy is ready',
+            'button' => 'Download it',
+        ],
+        'records.failed' => [
+            'topic' => 'account', 'to' => 'owner', 'brand' => 'nfelia',
+            'url' => fn($d) => 'records', 'tag' => fn($d) => 'records-' . (int)$d['book_id'],
+            'text' => fn($d, $m) => ['Your Records Book needs another try', !empty($d['big'])
+                ? 'You have a lot of records! Choose a shorter period (a year, say) and make it again. Nothing was charged for this one.'
+                : 'Something went wrong while we made it. The Nfelia team has been told and is on it.'],
+            'private' => 'Your Records Book needs another try',
+            'button' => 'Open Your records',
+        ],
+        'records.team_built' => [
+            'topic' => 'security', 'to' => 'owner', 'brand' => 'nfelia', 'urgency' => 'high',
+            'url' => fn($d) => 'records', 'tag' => fn($d) => 'records-' . (int)$d['book_id'],
+            'text' => fn($d, $m) => ['Nfelia made a Records Book of your records',
+                                     $d['staff'] . ' from Nfelia made it: ' . notify_excerpt($d['reason'], 160) . '.'
+                                     . (!empty($d['sent']) ? ' It is in Your records for you to download.' : ' Questions? Reply to support.')],
+            'private' => 'Nfelia made a Records Book of your records',
+            'button' => 'Open Your records',
+        ],
+        'records.request' => [
+            'topic' => 'security', 'to' => 'owner', 'brand' => 'nfelia', 'urgency' => 'high',
+            'url' => fn($d) => 'records/request/' . (int)$d['request_id'], 'tag' => fn($d) => 'record-request-' . (int)$d['request_id'],
+            'text' => fn($d, $m) => [$d['who'] . ' asked for your records',
+                                     'They want ' . $d['what'] . ': ' . notify_excerpt($d['reason'], 160) . '. Nothing is shared unless you say yes.'],
+            'private' => 'Someone asked for your records',
+            'lines' => fn($d, $m) => ['Who' => $d['who'], 'They are' => $d['role'], 'Their email' => $d['email'], 'They want' => $d['what'], 'Why' => $d['reason']],
+            'button' => 'Approve or decline',
+        ],
+
         /* ── Your shop and Nfelia ─────────────────────────────── */
         'shop.link_live' => [
             'topic' => 'account', 'to' => 'boss', 'brand' => 'nfelia',

@@ -173,7 +173,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
-          extensions: pdo_mysql, curl, openssl, mbstring, gd, intl
+          extensions: pdo_mysql, curl, openssl, mbstring, gd, intl, zip, xmlreader, xmlwriter, fileinfo, iconv
           coverage: none
 
       - name: Tools the tests use (faketime for the cron's clock, the mysql client)
@@ -218,8 +218,8 @@ jobs:
           for i in $(seq 50); do curl -sf -o /dev/null http://localhost:8099/login && exit 0; sleep 0.2; done
           echo "::error::the app did not start"; cat "$RUNNER_TEMP/app.log"; exit 1
 
-      - name: Engine, every trigger over HTTP, the cron, the service worker, Nfelia Ops
-        run: bash tests/notifications/run.sh engine flows cron sw ops/foundation ops/monitor ops/clients ops/sales
+      - name: Engine, every trigger over HTTP, the cron, the service worker, Nfelia Ops, the Records Book
+        run: bash tests/notifications/run.sh engine flows cron sw ops/foundation ops/monitor ops/clients ops/sales ops/records
 
       - name: Browser for the UI checks
         id: browser

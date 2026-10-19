@@ -96,6 +96,7 @@ function nav_groups(string $role, string $business_type, int $business_id): arra
             ['Referrals', 'referrals', 'gift', $all],
         ],
         'Data' => [
+            ['Your records', 'records', 'book', ['owner']],
             ['Purge data', 'purge', 'trash', ['owner']],
         ],
     ];

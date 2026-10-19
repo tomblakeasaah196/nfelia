@@ -29,6 +29,7 @@ const FX_TABLES = [
     'users', 'businesses', 'countries', 'ops_audit', 'ops_tokens', 'ops_passkeys', 'ops_staff',
     'error_notes', 'error_events', 'error_groups', 'ops_heartbeats', 'ops_settings', 'ops_alerts', 'ops_push_subscriptions',
     'ops_view_as', 'ops_notes', 'leads', 'campaigns', 'campaign_sends', 'email_opt_outs',
+    'records_books', 'record_requests', 'price_notices', 'price_changes',
 ];
 
 const T_OPS_PASSWORD = 'OpsPass1234';
@@ -47,9 +48,9 @@ function fixture_reset(): void
     $tok   = fn(int $n = 32) => bin2hex(random_bytes($n / 2));
     $pw    = password_hash(T_PASSWORD, PASSWORD_BCRYPT, ['cost' => 4]);
 
-    $db->exec("INSERT INTO countries (id, name, iso_code, flag_emoji, currency_name, currency_code, currency_symbol, payment_method, monthly_price, extra_seat_price, trial_days, is_active)
-               VALUES (1, 'Nigeria', 'NG', '🇳🇬', 'Nigerian Naira', 'NGN', '₦', 'paystack', 10000, 5000, 14, 1),
-                      (2, 'Ghana', 'GH', '🇬🇭', 'Ghana Cedi', 'GHS', 'GH₵', 'mobile_money', 150, 75, 14, 1)");
+    $db->exec("INSERT INTO countries (id, name, iso_code, flag_emoji, currency_name, currency_code, currency_symbol, payment_method, monthly_price, extra_seat_price, book_price, trial_days, is_active)
+               VALUES (1, 'Nigeria', 'NG', '🇳🇬', 'Nigerian Naira', 'NGN', '₦', 'paystack', 10000, 5000, 7500, 14, 1),
+                      (2, 'Ghana', 'GH', '🇬🇭', 'Ghana Cedi', 'GHS', 'GH₵', 'mobile_money', 150, 75, 110, 14, 1)");
 
     $biz = $db->prepare("INSERT INTO businesses (id, name, slug, doc_prefix, subdomain, subdomain_status, storefront_look, landing_enabled, primary_color,
                             secondary_color, email, phone, whatsapp, email_verified_at, currency_symbol, country_id, onboarding_complete, onboarding_step, is_active)

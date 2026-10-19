@@ -70,10 +70,15 @@ class MoMoController {
 
         [$kind, $extra_seats, $covered, $amount_due] = $this->order($_GET, $subscription ?: null, $prices);
         if ($kind === null) {
+            if (($_GET['kind'] ?? '') === 'book') {
+                flash('error', 'That Records Book is not waiting to be paid for. Start again from Your records.');
+                redirect('records');
+            }
             flash('error', 'Choose at least one new seat, up to ' . (MAX_SEATS - 1) . ' staff in all, for a month that is already paid.');
             redirect('settings?tab=billing');
             return;
         }
+        $book_id = $kind === 'book' ? (int)$_GET['book'] : null;
 
         $title     = 'Complete Payment';
         $view_file = BASE_PATH . '/views/billing/momo_checkout.php';
@@ -111,12 +116,13 @@ class MoMoController {
         $sub = $stmt->fetch() ?: null;
         [$kind, $extra_seats, $covered, $amount_due] = $this->order($_POST, $sub, $prices);
         if ($kind === null) {
-            flash('error', 'Choose at least one new seat, for a month that is already paid.');
-            redirect('settings?tab=billing');
+            flash('error', ($_POST['kind'] ?? '') === 'book' ? 'That Records Book is not waiting to be paid for.' : 'Choose at least one new seat, for a month that is already paid.');
+            redirect(($_POST['kind'] ?? '') === 'book' ? 'records' : 'settings?tab=billing');
             return;
         }
+        $book_id = $kind === 'book' ? (int)$_POST['book'] : null;
         $reference_num = mb_substr(trim($_POST['reference_number'] ?? ''), 0, 255);
-        $back = 'momo/checkout?' . http_build_query(['kind' => $kind, 'seats' => $extra_seats, 'covered' => implode(',', $covered)]);
+        $back = 'momo/checkout?' . http_build_query(['kind' => $kind, 'seats' => $extra_seats, 'covered' => implode(',', $covered)] + ($book_id ? ['book' => $book_id] : []));
 
         // One transaction reference pays once
         if ($reference_num !== '') {
@@ -195,12 +201,12 @@ class MoMoController {
             $this->db->prepare("
                 INSERT INTO subscription_payments
                     (business_id, subscription_id, country_id, amount, currency_code,
-                     payment_method, kind, extra_seats, covered_user_ids, reference_number, receipt_path, status, submitted_at)
-                VALUES (?, ?, ?, ?, ?, 'mobile_money', ?, ?, ?, ?, ?, 'pending_verification', NOW())
+                     payment_method, kind, extra_seats, covered_user_ids, book_id, reference_number, receipt_path, status, submitted_at)
+                VALUES (?, ?, ?, ?, ?, 'mobile_money', ?, ?, ?, ?, ?, ?, 'pending_verification', NOW())
             ")->execute([
                 $this->biz_id, $sub_id, $country['id'],
                 $amount_due, $country['currency_code'],
-                $kind, $extra_seats, $kind === 'month' ? implode(',', $covered) : null,
+                $kind, $extra_seats, $kind === 'month' ? implode(',', $covered) : null, $book_id,
                 $reference_num ?: null, $stored_path,
             ]);
             $payment_id = (int)$this->db->lastInsertId();
@@ -225,6 +231,10 @@ class MoMoController {
                   'payments#payment-' . $payment_id, 'payment:' . $payment_id, ['permission' => 'clients.act', 'email' => true]);
         notify('billing.momo_submitted', $this->biz_id, ['amount_text' => $amount_text], ['dedupe' => (string)$payment_id]);
 
+        if ($kind === 'book') {
+            flash('success', 'Receipt sent. We are checking it now, and make your Records Book as soon as it is approved.');
+            redirect('records');
+        }
         flash('success', 'Receipt sent. We are checking it now, and Nfelia opens the month as soon as it is approved.');
         redirect('settings?tab=billing');
     }
@@ -260,15 +270,22 @@ class MoMoController {
     /**
      * What is being paid for, from the checkout link or form:
      * [kind, extra_seats, covered staff ids, amount], or kind null when it
-     * makes no sense (seats for a month that isn't paid, or none to add).
+     * makes no sense (seats for a month that isn't paid, or none to add, or
+     * a Records Book that isn't waiting to be paid for).
      */
     private function order(array $in, ?array $sub, array $prices): array {
+        if (($in['kind'] ?? 'month') === 'book') {
+            $stmt = $this->db->prepare("SELECT amount FROM records_books WHERE id = ? AND business_id = ? AND kind = 'book' AND status = 'awaiting_payment'");
+            $stmt->execute([(int)($in['book'] ?? 0), $this->biz_id]);
+            $amount = $stmt->fetchColumn();
+            return $amount === false ? [null, 0, [], 0] : ['book', 0, [], (float)$amount];
+        }
         if (($in['kind'] ?? 'month') === 'seats') {
             $add = max(0, min(MAX_SEATS - 1 - (int)($sub['extra_seats'] ?? 0), (int)($in['seats'] ?? 0)));
             if ($add < 1 || ($sub['status'] ?? '') !== 'active' || billing_access($sub) !== 'paid') {
                 return [null, 0, [], 0];
             }
-            return ['seats', $add, [], $add * $prices['seat']];
+            return ['seats', $add, [], $add * $prices['seat_now']];
         }
         $covered = billing_covered_from_post($this->db, $this->biz_id, $in['covered'] ?? '');
         $seats   = max(count($covered), min(MAX_SEATS - 1, max(0, (int)($in['seats'] ?? 0))));

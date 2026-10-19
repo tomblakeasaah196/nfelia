@@ -178,16 +178,34 @@ function billing_covered_from_post(PDO $db, int $biz_id, $posted): array {
     return array_slice(array_values(array_intersect($team, $ids)), 0, MAX_SEATS - 1);
 }
 
-/** Prices for a business's country: monthly, per extra seat, currency. */
+/**
+ * What a business pays, in its country's money: a month (the one paying now
+ * would buy) and each extra seat with it, the month already running and a
+ * seat added to it (monthly_now, seat_now), a Records Book. From prices_for()
+ * (app/helpers/prices.php): a price changed in Ops → Prices applies to a
+ * business that was already here from the notice date it was given, and a
+ * month that started before then keeps the old price.
+ */
 function billing_prices(PDO $db, int $biz_id): array {
     require_once BASE_PATH . '/app/controllers/CountryController.php';
+    require_once __DIR__ . '/prices.php';
     $country = CountryController::get_country_for_business($db, $biz_id);
+    $stmt = $db->prepare("SELECT b.created_at AS joined, s.* FROM businesses b LEFT JOIN subscriptions s ON s.business_id = b.id WHERE b.id = ?");
+    $stmt->execute([$biz_id]);
+    $row    = $stmt->fetch() ?: [];
+    $joined = (string)($row['joined'] ?? date('Y-m-d H:i:s'));
+    [$month_starts] = billing_next_period(!empty($row['status']) ? $row : null);
+    $running_from = !empty($row['current_period_start']) ? substr((string)$row['current_period_start'], 0, 10) : null;
     return [
         'country'  => $country,
         'method'   => $country['payment_method'] ?? 'paystack',
         'currency' => $country['currency_code'] ?? 'NGN',
         'symbol'   => $country['currency_symbol'] ?? '₦',
-        'monthly'  => (float)($country['monthly_price'] ?? 0) > 0 ? (float)$country['monthly_price'] : PLAN_BASE_PRICE / 100,
-        'seat'     => (float)($country['extra_seat_price'] ?? 0) > 0 ? (float)$country['extra_seat_price'] : PLAN_EXTRA_SEAT_PRICE / 100,
+        'monthly'  => prices_for($db, $country, 'month', $joined, $month_starts),
+        'monthly_now' => prices_for($db, $country, 'month', $joined, $running_from),
+        'seat'     => prices_for($db, $country, 'seat', $joined, $month_starts),
+        'seat_now' => prices_for($db, $country, 'seat', $joined, $running_from),
+        'book'     => prices_for($db, $country, 'book', $joined),
+        'coming'   => prices_coming($db, $country, $joined),
     ];
 }

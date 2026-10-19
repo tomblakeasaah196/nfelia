@@ -607,9 +607,9 @@ async function updateRole(memberId, newRole, selectEl) {
         <div class="flex items-start justify-between mb-4">
             <div>
                 <h2 class="font-heading font-bold text-sm text-brand-plum uppercase tracking-wider">Current Plan</h2>
-                <div class="text-2xl font-extrabold text-brand-plum mt-1"><?= e($country_pricing['currency_symbol']) ?><?= number_format($country_pricing['monthly_price'], 0) ?><span class="text-sm font-medium text-brand-plum/40">/month</span></div>
+                <div class="text-2xl font-extrabold text-brand-plum mt-1"><?= e($prices['symbol']) ?><?= number_format($prices['monthly_now'], 0) ?><span class="text-sm font-medium text-brand-plum/40">/month</span></div>
                 <?php if (($subscription['extra_seats'] ?? 0) > 0): ?>
-                    <div class="text-xs text-brand-plum/50 mt-0.5">+ <?= e($country_pricing['currency_symbol']) ?><?= number_format($subscription['extra_seats'] * $country_pricing['extra_seat_price'], 0) ?> for <?= $subscription['extra_seats'] ?> extra seat<?= $subscription['extra_seats'] > 1 ? 's' : '' ?></div>
+                    <div class="text-xs text-brand-plum/50 mt-0.5">+ <?= e($prices['symbol']) ?><?= number_format($subscription['extra_seats'] * $prices['seat_now'], 0) ?> for <?= $subscription['extra_seats'] ?> extra seat<?= $subscription['extra_seats'] > 1 ? 's' : '' ?></div>
                 <?php endif; ?>
             </div>
             <span class="text-[9px] font-bold uppercase tracking-wider px-3 py-1 rounded-full
@@ -652,6 +652,17 @@ async function updateRole(memberId, newRole, selectEl) {
             </div>
         <?php endif; ?>
     </div>
+
+    <?php if (!empty($prices['coming'])): ?>
+    <!-- A price change still to come for them (Ops → Prices), so nobody is surprised -->
+    <div class="bg-brand-cream/60 border border-brand-sand rounded-xl p-5 text-xs text-brand-plum/80 leading-relaxed" role="note">
+        <strong class="text-brand-plum">Our prices are changing.</strong>
+        <?php foreach ($prices['coming'] as $item => $c): ?>
+            <?= e(ucfirst(PRICE_ITEMS[$item]['short'])) ?>: <?= e($prices['symbol']) ?><?= number_format($c['amount'], 0) ?> from <?= fmt_date($c['from'], 'j M Y') ?> (now <?= e($prices['symbol']) ?><?= number_format($c['now'], 0) ?>).
+        <?php endforeach; ?>
+        A month that starts before then stays at today's price.
+    </div>
+    <?php endif; ?>
 
     <!-- Paying: a month (with the staff it covers), or more seats now -->
     <?php
@@ -743,7 +754,7 @@ async function updateRole(memberId, newRole, selectEl) {
             <button type="button" @click="add = Math.max(1, add - 1)" aria-label="One seat fewer" class="w-8 h-8 rounded-lg bg-brand-cream border border-brand-sand flex items-center justify-center hover:border-brand-gold">−</button>
             <span class="data-text text-lg font-extrabold text-brand-plum w-8 text-center" x-text="add"></span>
             <button type="button" @click="add = Math.min(<?= $room ?>, add + 1)" aria-label="One seat more" class="w-8 h-8 rounded-lg bg-brand-cream border border-brand-sand flex items-center justify-center hover:border-brand-gold">+</button>
-            <span class="text-xs text-brand-plum/50" x-text="money(add * <?= $seat_cost ?>)"></span>
+            <span class="text-xs text-brand-plum/50" x-text="money(add * <?= (float)($prices['seat_now'] ?? $seat_cost) ?>)"></span>
         </div>
         <button type="button" @click="pay({ kind: 'seats', add_seats: add })" :disabled="loading"
                 class="w-full bg-brand-cream border border-brand-sand text-brand-plum py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:border-brand-gold transition-all disabled:opacity-50">
@@ -815,6 +826,16 @@ async function updateRole(memberId, newRole, selectEl) {
             <?php endforeach; ?>
         </div>
     </div>
+
+    <!-- Your records: the Records Book, free in every month paid for -->
+    <a href="<?= APP_URL ?>/records" class="flex items-center gap-4 bg-brand-white border border-brand-sand rounded-xl p-5 shadow-sm hover:border-brand-gold transition-colors">
+        <span class="shrink-0 w-10 h-10 rounded-lg bg-brand-cream border border-brand-sand flex items-center justify-center text-brand-burgundy" aria-hidden="true"><?= nav_icon('book') ?></span>
+        <span class="grow">
+            <span class="block font-heading font-bold text-sm text-brand-plum uppercase tracking-wider">Your records</span>
+            <span class="block text-xs text-brand-plum/60 mt-1">Every month you pay for comes with a free Records Book: all your records in one Excel workbook, in your colours, with a code anyone can check. Your plain copy is free, always.</span>
+        </span>
+        <svg class="w-4 h-4 text-brand-plum/40 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 6 6 6-6 6"/></svg>
+    </a>
 
     <!-- Payment History -->
     <?php if (!empty($payment_history)): ?>

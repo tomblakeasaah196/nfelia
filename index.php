@@ -205,6 +205,14 @@ if ($controller === 'unsubscribe') {
     exit;
 }
 
+// nfelia.com/verify: anyone checks a Records Book, or one record in it, and
+// can ask the business for the full document (app/controllers/VerifyController.php).
+if ($controller === 'verify') {
+    require_once __DIR__ . '/app/controllers/VerifyController.php';
+    (new VerifyController())->handle((string)$action, $param);
+    exit;
+}
+
 // ---- ROUTE TABLE ----
 // Public routes (no auth required)
 $public_routes = ['login', 'register', 'verify', 'forgot-password', 'reset-password', 'recovery-sent', 'login-link', 'signin', 'biz', 'doc', 'sign', 'public-feedback', 'public', 'delivery', 'verify-email', 'deed'];
@@ -383,6 +391,7 @@ function dispatch_app(string $controller, string $action, ?string $param): void 
         'landing-page'    => 'LandingPageController',
         'settings'        => 'SettingsController',
         'referrals'        => 'ReferralController',
+        'records'         => 'RecordsController',   // Your records: the Records Book and the plain copy
         'resend-verification' => 'AuthController',
         
         // Admin & System
