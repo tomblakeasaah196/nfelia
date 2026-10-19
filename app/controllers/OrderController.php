@@ -103,9 +103,7 @@ class OrderController
         $kept_total = 0.0;
         if ($customer && !(int) $customer["is_walk_in"]) {
             $kept_total = kept_balance($this->db, $this->biz_id, (int) $customer["id"]);
-            $stmt = $this->db->prepare("SELECT COALESCE(SUM(amount), 0) FROM kept_money WHERE business_id = ? AND customer_id = ? AND order_id = ?");
-            $stmt->execute([$this->biz_id, (int) $customer["id"], $oid]);
-            $kept_here = money2(min(max(0, (float) $stmt->fetchColumn()), $kept_total));
+            $kept_here = kept_from_order($this->db, $this->biz_id, (int) $customer["id"], $oid);
         }
 
         $debt = null;
@@ -180,6 +178,9 @@ class OrderController
         if (!in_array($stage["key"], ["new", "confirmed", "ready"], true)) {
             $this->back($order, "error", "This order is " . strtolower($stage["words"]) . ", so its items can't change.");
         }
+        if ($stage["key"] === "new" && !empty($order["payment_proof_path"])) {
+            $this->back($order, "error", ORDER_EDIT_AFTER_PROOF);
+        }
         $old = [
             "discount" => (float) $order["discount_amount"] > 0 ? $order["discount_amount"] : "",
             "items" => array_map(fn($l) => [
@@ -194,6 +195,10 @@ class OrderController
     public function save()
     {
         $this->post_only("orders/create");
+        if (form_once_used()) {
+            flash("info", "That was already saved.");
+            redirect("orders");
+        }
         $mode = ($_POST["mode"] ?? "") === "quick" ? "quick" : "new";
         $in = $this->order_input($_POST, $mode);
         try {
@@ -310,6 +315,9 @@ class OrderController
     {
         $this->post_only("orders/view/" . (int) $id);
         $order = $this->order_or_back($id);
+        if (form_once_used()) {
+            $this->back($order, "info", "That payment was already saved.", "money");
+        }
         $method = (string) ($_POST["method"] ?? "cash");
         if (!in_array($method, ["cash", "bank_transfer", "mobile_money", "pos", "other"], true)) {
             $method = "cash";
@@ -366,7 +374,9 @@ class OrderController
         $amount = order_unkeep($this->db, $this->biz_id, (int) $order["id"], $this->user_id(), $this->symbol());
         $this->back($order, $amount > 0 ? "success" : "info", $amount > 0
             ? "Not kept any more. Give the " . planner_money($amount, $this->symbol()) . " back from Money."
-            : "That money was already used on another order.", "money");
+            : ((order_invoice($this->db, $this->biz_id, $order)["status"] ?? "") === "cancelled"
+                ? "This order is cancelled, so the money stays kept for the next order."
+                : "That money was already used on another order."), "money");
     }
 
     /** POST orders/use_kept/{id}: money kept for this customer pays this order. */
@@ -408,6 +418,9 @@ class OrderController
         $this->post_only("orders/view/" . (int) $id);
         require_boss("give money back");
         $order = $this->order_or_back($id);
+        if (form_once_used()) {
+            $this->back($order, "info", "That refund was already saved.", "money");
+        }
         $file = $_FILES["proof"] ?? null;
         try {
             $refund = refund_record($this->db, $this->biz_id, (int) $order["id"], [
@@ -421,6 +434,16 @@ class OrderController
             $this->back($order, "error", $e->getMessage(), "money");
         }
         $this->back($order, "success", "Refund " . $refund["doc_number"] . " saved. Send " . (planner_first_name($order["customer_name"]) ?: "the customer") . " the slip.", "money");
+    }
+
+    /** POST orders/refund_off/{id}: the asked refund is not going ahead. */
+    public function refund_off($id = null)
+    {
+        $this->post_only("orders/view/" . (int) $id);
+        require_boss("give money back");
+        $order = $this->order_or_back($id);
+        $off = refund_call_off($this->db, $this->biz_id, (int) $order["id"], $this->user_id());
+        $this->back($order, $off ? "success" : "info", $off ? "Refund called off." : "There was no refund waiting.", "money");
     }
 
     /** GET orders/refund_proof/{refund id}: the picture or PDF of a refund (owners and admins). */
@@ -720,8 +743,9 @@ class OrderController
             $items[] = [
                 "product_id" => (int) ($row["product_id"] ?? 0) ?: null,
                 "name" => (string) ($row["name"] ?? ""),
-                "quantity" => $this->amount($row["quantity"] ?? "0"),
-                "unit_price" => $this->amount($row["unit_price"] ?? "0"),
+                // Rounded as the order stores them, so "Paid now" matches its total
+                "quantity" => round($this->amount($row["quantity"] ?? "0"), 2),
+                "unit_price" => round($this->amount($row["unit_price"] ?? "0"), 2),
                 "note" => (string) ($row["note"] ?? ""),
             ];
         }

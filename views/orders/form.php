@@ -72,7 +72,7 @@ $action = $is_edit ? APP_URL . '/orders/update/' . (int)$order['id'] : APP_URL .
 <?php endif; ?>
 
 <form method="POST" action="<?= $action ?>" @submit="submit($event)" novalidate>
-    <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
+    <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>"><?= $is_edit ? '' : form_once() ?>
     <input type="hidden" name="mode" value="<?= e($form_mode) ?>">
     <?php if ($error !== ''): ?><p class="nf-err" role="alert"><?= e($error) ?></p><?php endif; ?>
     <p class="nf-err" role="alert" x-show="problem" x-text="problem"></p>

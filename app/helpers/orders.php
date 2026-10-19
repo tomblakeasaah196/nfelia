@@ -558,12 +558,16 @@ function order__sync_debt(PDO $db, int $biz, array $order, ?string $pay_by): voi
     $customer = order__customer($db, $biz, (int)$invoice['customer_id'], true);
 
     $stmt = $db->prepare("
-        SELECT id FROM debts
-        WHERE invoice_id = ? AND business_id = ? AND type = 'receivable' AND status <> 'written_off'
+        SELECT id, status FROM debts
+        WHERE invoice_id = ? AND business_id = ? AND type = 'receivable'
         ORDER BY id DESC LIMIT 1
     ");
     $stmt->execute([(int)$invoice['id'], $biz]);
-    $debt_id = (int)$stmt->fetchColumn();
+    $debt = $stmt->fetch() ?: null;
+    if ($debt && $debt['status'] === 'written_off') {
+        return;   // the owner wrote it off in Debts: it stays off, and no second one is made
+    }
+    $debt_id = (int)($debt['id'] ?? 0);
     $fields = [(int)$invoice['customer_id'], $order_id, 'Balance on order ' . $order['order_number'],
                $customer['full_name'] ?? null, isset($customer['phone']) ? mb_substr((string)$customer['phone'], 0, 20) : null,
                $total, $settled, $balance, $due, $status];
@@ -860,6 +864,9 @@ function order_cancel(PDO $db, int $biz, int $order_id, int $user_id, string $re
  *  CHANGING THE ITEMS, AND MONEY PAID OVER
  * ══════════════════════════════════════════════════════════════ */
 
+/** Why a shop order sent with payment proof can't change before it is confirmed. */
+const ORDER_EDIT_AFTER_PROOF = 'The customer already paid for this order as it is. Confirm it with their payment first, then change its items.';
+
 /**
  * Change an order's items or discount, any time before it is done. A new
  * order only changes its lines and totals. A confirmed one also changes its
@@ -879,6 +886,11 @@ function order_update_lines(PDO $db, int $biz, int $order_id, array $items, floa
                 'cancelled' => 'This order was cancelled, so its items can\'t change.',
                 default     => 'This order was turned down, so its items can\'t change.',
             });
+        }
+        // The shopper paid for what they asked for: confirm that payment first,
+        // so a change afterwards shows any difference to give back or collect
+        if ($stage === 'new' && !empty($order['payment_proof_path'])) {
+            throw new DomainException(ORDER_EDIT_AFTER_PROOF);
         }
         $lines    = order__clean_items($db, $biz, $items);
         $subtotal = money2(array_sum(array_column($lines, 'line_total')));
@@ -921,6 +933,13 @@ function order_update_lines(PDO $db, int $biz, int $order_id, array $items, floa
             order_sync_debt($db, $biz, $order_id);
             customer_refresh_totals($db, $biz, (int)$invoice['customer_id']);
             $overpaid = money2(max(0, $paid - $total));
+            // A refund asked for earlier is never more than what is now paid over
+            $asked = refund_open($db, $biz, $order_id);
+            if ($asked && $overpaid <= 0) {
+                order__refund_off($db, $biz, $order_id, $asked, $user_id, 'Refund called off: after the change nothing was paid over.');
+            } elseif ($asked && (float)$asked['amount'] > $overpaid) {
+                $db->prepare("UPDATE refunds SET amount = ? WHERE id = ? AND business_id = ?")->execute([$overpaid, (int)$asked['id'], $biz]);
+            }
         }
 
         order_log($db, $biz, $order_id, 'edited',
@@ -978,6 +997,21 @@ function kept_balance(PDO $db, int $biz, int $customer_id): float {
 }
 
 /**
+ * What this order kept for the customer that is still there to give back:
+ * what it kept, less what it gave back, never more than the customer still
+ * has kept. Kept money this order itself used up (from an earlier order)
+ * doesn't count against it.
+ */
+function kept_from_order(PDO $db, int $biz, int $customer_id, int $order_id): float {
+    $stmt = $db->prepare("SELECT COALESCE(SUM(amount), 0) FROM kept_money WHERE business_id = ? AND customer_id = ? AND order_id = ? AND note NOT LIKE ?");
+    $stmt->execute([$biz, $customer_id, $order_id, KEPT_USED_NOTE . '%']);
+    return money2(min(max(0, (float)$stmt->fetchColumn()), kept_balance($db, $biz, $customer_id)));
+}
+
+/** How a kept_money line that pays an order starts (see order__apply_kept()). */
+const KEPT_USED_NOTE = 'Used on order ';
+
+/**
  * "Use it": money kept for this customer pays what it can of this order (a
  * 'kept' payment, with its receipt). Returns the amount used.
  */
@@ -1001,9 +1035,7 @@ function order_unkeep(PDO $db, int $biz, int $order_id, int $user_id, string $sy
         }
         $customer_id = (int)$invoice['customer_id'];
         $db->prepare("SELECT id FROM customers WHERE id = ? AND business_id = ? FOR UPDATE")->execute([$customer_id, $biz]);
-        $stmt = $db->prepare("SELECT COALESCE(SUM(amount), 0) FROM kept_money WHERE business_id = ? AND customer_id = ? AND order_id = ?");
-        $stmt->execute([$biz, $customer_id, $order_id]);
-        $amount = money2(min((float)$stmt->fetchColumn(), kept_balance($db, $biz, $customer_id)));
+        $amount = kept_from_order($db, $biz, $customer_id, $order_id);
         if ($amount <= 0) {
             return 0.0;
         }
@@ -1027,6 +1059,30 @@ function refund_open(PDO $db, int $biz, int $order_id): ?array {
     $stmt = $db->prepare("SELECT * FROM refunds WHERE business_id = ? AND order_id = ? AND status IN ('asked', 'details_in') ORDER BY id DESC LIMIT 1");
     $stmt->execute([$biz, $order_id]);
     return $stmt->fetch() ?: null;
+}
+
+/**
+ * "Call it off": a refund that was asked for and not yet paid is cancelled
+ * (the customer chose to keep the money with the shop, or it was a
+ * mistake). Its link then says so. Returns false when none was open.
+ */
+function refund_call_off(PDO $db, int $biz, int $order_id, int $user_id): bool {
+    return order__tx($db, function () use ($db, $biz, $order_id, $user_id) {
+        order__lock($db, $biz, $order_id);
+        $open = refund_open($db, $biz, $order_id);
+        if (!$open) {
+            return false;
+        }
+        order__refund_off($db, $biz, $order_id, $open, $user_id, 'Refund called off.');
+        return true;
+    });
+}
+
+/** Cancel an open refund and log why. The order row is locked by the caller. */
+function order__refund_off(PDO $db, int $biz, int $order_id, array $refund, int $user_id, string $why): void {
+    $db->prepare("UPDATE refunds SET status = 'cancelled' WHERE id = ? AND business_id = ? AND status IN ('asked', 'details_in')")
+       ->execute([(int)$refund['id'], $biz]);
+    order_log($db, $biz, $order_id, 'refund', $why, $user_id, ['refund_id' => (int)$refund['id']]);
 }
 
 /**
@@ -1191,7 +1247,7 @@ function refund_record(PDO $db, int $biz, int $order_id, array $in, ?array $file
                 $stmt->execute([(int)$in['refund_id'], $biz, $order_id]);
                 $refund = $stmt->fetch() ?: null;
                 if (!$refund || !in_array($refund['status'], ['asked', 'details_in'], true)) {
-                    throw new DomainException('That refund is already recorded.');
+                    throw new DomainException(($refund['status'] ?? '') === 'cancelled' ? 'That refund was called off.' : 'That refund is already recorded.');
                 }
             } else {
                 $refund = refund_open($db, $biz, $order_id);
@@ -1523,7 +1579,7 @@ function order__apply_kept(PDO $db, int $biz, array $order, int $user_id, string
     }
     $paid = order__payment($db, $biz, $order, $amount, planner_today(), 'kept', null, 'Paid from money kept for them', $user_id, $symbol, false, $sync_debt);
     $db->prepare("INSERT INTO kept_money (business_id, customer_id, order_id, payment_id, amount, note, user_id) VALUES (?, ?, ?, ?, ?, ?, ?)")
-       ->execute([$biz, $customer_id, (int)$order['id'], $paid['payment_id'], -$amount, 'Used on order ' . $order['order_number'], $user_id]);
+       ->execute([$biz, $customer_id, (int)$order['id'], $paid['payment_id'], -$amount, KEPT_USED_NOTE . $order['order_number'], $user_id]);
     return $amount;
 }
 
@@ -1683,7 +1739,7 @@ function order__list_sql(): string {
 
 /** Each list view as a condition on order__list_sql()'s rows, matching order_stage() and order_pay_tag(). */
 function order__list_views(): array {
-    $done = "(x.status = 'fulfilled' OR (x.status IN ('approved','processing','ready') AND x.delivery_status IN ('delivered','signed_off')))";
+    $done = "(x.status = 'fulfilled' OR (x.status IN ('approved','processing','ready') AND COALESCE(x.delivery_status, '') IN ('delivered','signed_off')))";
     return [
         'confirm'  => "(x.status IN ('pending','pending_verification'))",
         'progress' => "(x.status IN ('approved','processing','ready') AND NOT {$done})",

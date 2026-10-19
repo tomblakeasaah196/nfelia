@@ -23,7 +23,8 @@ $total       = $invoice ? (float)$invoice['total'] : (float)$order['total'];
 $balance     = $pay['balance'];
 $paid        = $pay['paid'];
 $closed      = in_array($stage['key'], ['cancelled', 'turned_down'], true);
-$can_edit    = $is_boss && in_array($stage['key'], ['new', 'confirmed', 'ready'], true);
+$can_edit    = $is_boss && in_array($stage['key'], ['new', 'confirmed', 'ready'], true)
+               && !($stage['key'] === 'new' && !empty($order['payment_proof_path']));   // paid as it is: confirm first
 $wa_list     = $messages['list'];
 $wa_phone    = $messages['phone'];
 $call_phone  = $walk_in ? '' : preg_replace('/[^0-9+]/', '', (string)($order['customer_phone'] ?? ''));
@@ -201,6 +202,10 @@ $event_icons = ['created' => 'plus', 'confirmed' => 'check', 'payment' => 'money
                     <button type="button" class="nf-btn nf-btn-ghost" data-copy="<?= e(refund_url((string)$refund_open['token'])) ?>"><?= nav_icon('copy') ?>Copy link</button>
                 <?php endif; ?>
             </div>
+            <form method="POST" action="<?= APP_URL ?>/orders/refund_off/<?= $oid ?>"
+                  onsubmit="return confirm('Call off this refund?<?= $walk_in ? '' : ' Then you can keep the money for the next order instead.' ?>');"><?= $csrf ?>
+                <button class="nf-link">Call it off</button>
+            </form>
         <?php endif; ?>
     </section>
 <?php endif; ?>
@@ -298,7 +303,7 @@ $event_icons = ['created' => 'plus', 'confirmed' => 'check', 'payment' => 'money
             <?php if ($kept_here > 0): ?>
                 <div class="nf-kept-note">
                     <p><b><?= planner_money($kept_here, $currency) ?></b> from this order is kept for <?= e($first) ?>'s next order.</p>
-                    <?php if ($is_boss): ?>
+                    <?php if ($is_boss && $invoice && $invoice['status'] !== 'cancelled'): ?>
                         <form method="POST" action="<?= APP_URL ?>/orders/unkeep/<?= $oid ?>"><?= $csrf ?><button class="nf-link">Give it back instead</button></form>
                     <?php endif; ?>
                 </div>
@@ -446,7 +451,7 @@ $event_icons = ['created' => 'plus', 'confirmed' => 'check', 'payment' => 'money
 <dialog class="nf-sheet" id="nf-confirm" aria-labelledby="nf-confirm-h">
     <div class="nf-grab"></div>
     <div class="nf-sheet-h"><h2 id="nf-confirm-h">Confirm order</h2><button type="button" class="nf-icon-btn" data-close aria-label="Close"><?= nav_icon('close') ?></button></div>
-    <form method="POST" action="<?= APP_URL ?>/orders/confirm/<?= $oid ?>" class="nf-form" x-data="{ paid: <?= $has_proof ? 'true' : 'false' ?>, when: '' }"><?= $csrf ?>
+    <form method="POST" action="<?= APP_URL ?>/orders/confirm/<?= $oid ?>" class="nf-form" x-data="{ paid: <?= $has_proof ? 'true' : 'false' ?>, when: '', day: '' }"><?= $csrf ?>
         <?php if ($has_proof): ?>
             <a class="nf-proof" href="<?= APP_URL ?>/orders/proof/<?= $oid ?>" target="_blank" rel="noopener">
                 <img src="<?= APP_URL ?>/orders/proof/<?= $oid ?>" alt="<?= e($first) ?>'s payment screenshot" loading="lazy">
@@ -462,8 +467,8 @@ $event_icons = ['created' => 'plus', 'confirmed' => 'check', 'payment' => 'money
                 <label><input type="radio" name="when_pick" value="pick" x-model="when"><span>Pick a day</span></label>
                 <label><input type="radio" name="when_pick" value="" x-model="when"><span>Not sure</span></label>
             </div>
-            <input type="hidden" name="deliver_by" :value="when === 'pick' ? $refs.day.value : when">
-            <input type="date" x-ref="day" x-show="when === 'pick'" x-cloak min="<?= e($today) ?>" aria-label="The day <?= e($first) ?> gets it">
+            <input type="hidden" name="deliver_by" :value="when === 'pick' ? day : when">
+            <input type="date" x-model="day" x-show="when === 'pick'" x-cloak min="<?= e($today) ?>" aria-label="The day <?= e($first) ?> gets it">
         </fieldset>
         <label x-show="!paid">Balance due by <small>Debts follows it, with a reminder that day. Empty: the day they get it, or a week from today.</small>
             <input type="date" name="pay_by" min="<?= e($today) ?>">
@@ -492,7 +497,7 @@ $event_icons = ['created' => 'plus', 'confirmed' => 'check', 'payment' => 'money
 <dialog class="nf-sheet" id="nf-pay" aria-labelledby="nf-pay-h">
     <div class="nf-grab"></div>
     <div class="nf-sheet-h"><h2 id="nf-pay-h">Record payment</h2><button type="button" class="nf-icon-btn" data-close aria-label="Close"><?= nav_icon('close') ?></button></div>
-    <form method="POST" action="<?= APP_URL ?>/orders/pay/<?= $oid ?>" class="nf-form" x-data="{ amount: '<?= e(fmt_qty($balance)) ?>' }"><?= $csrf ?>
+    <form method="POST" action="<?= APP_URL ?>/orders/pay/<?= $oid ?>" class="nf-form" data-once x-data="{ amount: '<?= e(fmt_qty($balance)) ?>' }"><?= $csrf ?><?= form_once() ?>
         <label>How much <small>Balance <?= planner_money($balance, $currency) ?></small>
             <span class="nf-amount"><span><?= e($currency) ?></span><input type="text" name="amount" inputmode="decimal" x-model="amount" required autocomplete="off"></span>
         </label>
@@ -524,7 +529,7 @@ $event_icons = ['created' => 'plus', 'confirmed' => 'check', 'payment' => 'money
         </fieldset>
 
         <!-- Cash: straight away, no proof -->
-        <form method="POST" action="<?= APP_URL ?>/orders/refund/<?= $oid ?>" x-show="how === 'cash'" class="nf-form is-inner"><?= $csrf ?>
+        <form method="POST" action="<?= APP_URL ?>/orders/refund/<?= $oid ?>" x-show="how === 'cash'" class="nf-form is-inner" data-once><?= $csrf ?><?= form_once() ?>
             <input type="hidden" name="method" value="cash">
             <?php if ($refund_open): ?><input type="hidden" name="refund_id" value="<?= (int)$refund_open['id'] ?>"><?php endif; ?>
             <label>How much <small>At most <?= planner_money($paid, $currency) ?></small>
@@ -546,7 +551,7 @@ $event_icons = ['created' => 'plus', 'confirmed' => 'check', 'payment' => 'money
                     <button type="button" class="nf-link" @click="sent = true">I already know where to send it</button>
                 </form>
             <?php endif; ?>
-            <form method="POST" action="<?= APP_URL ?>/orders/refund/<?= $oid ?>" enctype="multipart/form-data" class="nf-form is-inner nf-step" x-show="sent"<?= $refund_open && $refund_open['status'] === 'details_in' ? '' : ' x-cloak' ?>><?= $csrf ?>
+            <form method="POST" action="<?= APP_URL ?>/orders/refund/<?= $oid ?>" enctype="multipart/form-data" class="nf-form is-inner nf-step" data-once x-show="sent"<?= $refund_open && $refund_open['status'] === 'details_in' ? '' : ' x-cloak' ?>><?= $csrf ?><?= form_once() ?>
                 <p class="nf-step-h"><span>2</span>Record it once you've sent it</p>
                 <?php if ($refund_open): ?><input type="hidden" name="refund_id" value="<?= (int)$refund_open['id'] ?>"><?php endif; ?>
                 <label>How much

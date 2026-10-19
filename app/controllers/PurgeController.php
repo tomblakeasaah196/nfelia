@@ -639,6 +639,21 @@ class PurgeController
             }
             $this->purge_invoice($target_id, $impact["identifier"], $files);
         } elseif ($module === "orders") {
+            // Money it kept for the customer that another order already used
+            // would leave that order paid from nothing: purge that one first
+            $stmtK = $this->db->prepare("
+                SELECT k.customer_id, SUM(k.amount) AS here,
+                       (SELECT SUM(a.amount) FROM kept_money a WHERE a.business_id = k.business_id AND a.customer_id = k.customer_id) AS everything
+                FROM kept_money k WHERE k.business_id = ? AND k.order_id = ? GROUP BY k.customer_id, k.business_id");
+            $stmtK->execute([$this->biz_id, $target_id]);
+            foreach ($stmtK->fetchAll() as $k) {
+                if ((float) $k["here"] > 0 && (float) $k["everything"] - (float) $k["here"] < -0.004) {
+                    return [
+                        "identifier" => $impact["identifier"],
+                        "skipped" => "money kept from it was used on another order; purge that order first",
+                    ];
+                }
+            }
             // An order takes everything it holds: its invoice (with payments,
             // receipts, deliveries and debt), refunds, kept money and its log
             $stmtI = $this->db->prepare("SELECT id, doc_number FROM invoices WHERE business_id = ? AND (order_id = ? OR id = ?)");

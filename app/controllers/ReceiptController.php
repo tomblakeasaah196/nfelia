@@ -80,11 +80,11 @@ class ReceiptController {
         $stmtS = $this->db->prepare("
             SELECT
                 COUNT(*)                                      AS total_receipts,
-                COALESCE(SUM(amount), 0)                      AS total_value,
+                COALESCE(SUM(CASE WHEN method <> 'kept' THEN amount ELSE 0 END), 0) AS total_value,   -- kept money moved between orders is not new money
                 SUM(CASE WHEN invoice_id IS NOT NULL THEN 1 ELSE 0 END) AS invoice_count,
                 SUM(CASE WHEN invoice_id IS NULL THEN 1 ELSE 0 END)     AS standalone_count,
                 COALESCE(SUM(CASE WHEN invoice_id IS NULL THEN amount ELSE 0 END), 0) AS standalone_value,
-                COALESCE(SUM(CASE WHEN issue_date >= ? THEN amount ELSE 0 END), 0)     AS month_value,
+                COALESCE(SUM(CASE WHEN issue_date >= ? AND method <> 'kept' THEN amount ELSE 0 END), 0) AS month_value,
                 SUM(CASE WHEN issue_date >= ? THEN 1 ELSE 0 END)                       AS month_count
             FROM receipts WHERE business_id = ?
         ");

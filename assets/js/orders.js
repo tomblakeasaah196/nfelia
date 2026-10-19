@@ -84,7 +84,7 @@ function orderForm() {
             if (it.stock < num(it.quantity)) return 'Only ' + this.fmtQty(it.stock) + ' in stock';
             return this.fmtQty(it.stock) + ' in stock';
         },
-        lineTotal: function (it) { return round2(num(it.quantity) * num(it.unit_price)); },
+        lineTotal: function (it) { return round2(round2(num(it.quantity)) * round2(num(it.unit_price))); },   // as the server rounds them
         subtotal: function () { var s = 0, self = this; this.items.forEach(function (it) { s += self.lineTotal(it); }); return round2(s); },
         total: function () { return Math.max(0, round2(this.subtotal() - num(this.old.discount))); },
         kept: function () { return (this.customer && this.old.use_kept) ? Math.min(this.customer.kept || 0, this.total()) : 0; },
@@ -196,6 +196,7 @@ function orderForm() {
             } catch (e) { /* storage full or blocked: the form still works */ }
         },
         submit: function (e) {
+            if (e.defaultPrevented) return;   // offline (shell.js): nothing is sent, so keep the draft
             this.problem = '';
             var named = this.items.filter(function (it) { return (it.name || '').trim() !== ''; });
             if (!named.length) { this.problem = 'Add at least one item.'; e.preventDefault(); return; }

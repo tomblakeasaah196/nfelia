@@ -208,6 +208,17 @@
         e.preventDefault();
         showNet('offline', 'You’re offline', 'Nothing was sent. Your changes are still here.');
     }, true);
+    // A form that records money (data-once) goes once: a second tap while the
+    // first is on its way does nothing. Coming back to the page frees it again.
+    document.addEventListener('submit', function (e) {
+        var form = e.target;
+        if (e.defaultPrevented || !form.hasAttribute || !form.hasAttribute('data-once')) return;
+        if (form.getAttribute('data-sent') === '1') { e.preventDefault(); return; }
+        form.setAttribute('data-sent', '1');
+    });
+    window.addEventListener('pageshow', function () {
+        document.querySelectorAll('form[data-sent]').forEach(function (f) { f.removeAttribute('data-sent'); });
+    });
 
     // ---------- Text size and background (this device) ----------
     document.addEventListener('change', function (e) {

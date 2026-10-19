@@ -492,6 +492,50 @@ exec_sql("UPDATE deliveries SET status = 'dispatched' WHERE id = ?", [$gd]);
 order_sync_from_delivery($db, BIZ, $gd);
 eq(q("SELECT status FROM orders WHERE id = ?", [$g['id']]), 'cancelled', 'a cancelled order never moves');
 
+section('Review fixes: a paid shop order, refunds called off, kept money, write-offs');
+clean_slate();
+exec_sql("INSERT INTO orders (business_id, customer_id, order_number, public_token, channel, fulfillment_type, customer_name, customer_phone,
+            payment_method, payment_proof_path, currency_code, subtotal, total, status)
+          VALUES (2, 200, 'ORD-0730', ?, 'cart_pop', 'pickup', 'Ngozi Eze', '08031110000', 'bank_transfer', 'uploads/order_proofs/2/proof.png', 'NGN', 100000, 100000, 'pending_verification')",
+         [bin2hex(random_bytes(16))]);
+$paid_shop = (int)q("SELECT id FROM orders WHERE order_number = 'ORD-0730'");
+exec_sql("INSERT INTO order_items (order_id, product_name, unit_price, quantity, line_total) VALUES (?, 'Lace front', 100000, 1, 100000)", [$paid_shop]);
+eq(refused(fn() => order_update_lines($db, BIZ, $paid_shop, [['name' => 'Lace front', 'quantity' => 1, 'unit_price' => 80000]], 0, ADA, '₦')),
+   ORDER_EDIT_AFTER_PROOF, 'a shop order paid as it is can\'t change before it is confirmed with that payment');
+order_confirm($db, BIZ, $paid_shop, ADA, ['payment_received' => true]);
+$back = order_update_lines($db, BIZ, $paid_shop, [['name' => 'Lace front', 'quantity' => 1, 'unit_price' => 80000]], 0, ADA, '₦');
+eq($back['overpaid'], 20000.0, 'changed after confirming: the ₦20,000 she paid over shows, to keep or give back');
+
+$ask = refund_ask($db, BIZ, $paid_shop, 20000, 'Changed to the shorter one', ADA);
+order_update_lines($db, BIZ, $paid_shop, [['name' => 'Lace front', 'quantity' => 1, 'unit_price' => 90000]], 0, ADA, '₦');
+eq((float)q("SELECT amount FROM refunds WHERE id = ?", [$ask['id']]), 10000.0, 'changed again: the refund asked for follows what is now paid over');
+eq(refund_call_off($db, BIZ, $paid_shop, ADA), true, '"Call it off"');
+eq([q("SELECT status FROM refunds WHERE id = ?", [$ask['id']]), refund_open($db, BIZ, $paid_shop)], ['cancelled', null], 'the refund is called off, so Keep is offered again');
+eq(order_keep_overpaid($db, BIZ, $paid_shop, ADA, '₦'), 10000.0, 'and the ₦10,000 is kept for her next order');
+$ask2 = refund_ask($db, BIZ, $paid_shop, 5000, '', ADA);
+exec_sql("UPDATE refunds SET amount = 5000 WHERE id = ?", [$ask2['id']]);
+order_update_lines($db, BIZ, $paid_shop, [['name' => 'Lace front', 'quantity' => 1, 'unit_price' => 120000]], 0, ADA, '₦');
+eq(q("SELECT status FROM refunds WHERE id = ?", [$ask2['id']]), 'cancelled', 'when nothing is paid over any more, an asked refund is called off by itself');
+
+// Kept money: what an order kept stays givable back even after it used other kept money
+exec_sql("INSERT INTO customers (id, business_id, full_name, phone) VALUES (262, 2, 'Kemi Kept', '08035550262')");
+$ka = make_order(['customer_id' => 262, 'items' => [['name' => 'Braids', 'quantity' => 1, 'unit_price' => 50000]], 'paid_now' => 50000]);
+order_update_lines($db, BIZ, (int)$ka['id'], [['name' => 'Braids', 'quantity' => 1, 'unit_price' => 30000]], 0, ADA, '₦');
+order_keep_overpaid($db, BIZ, (int)$ka['id'], ADA, '₦');                                  // 20,000 kept from A
+$kb = make_order(['customer_id' => 262, 'items' => [['name' => 'Wig', 'quantity' => 1, 'unit_price' => 50000]], 'paid_now' => 30000, 'use_kept' => true]);
+order_update_lines($db, BIZ, (int)$kb['id'], [['name' => 'Wig', 'quantity' => 1, 'unit_price' => 40000]], 0, ADA, '₦');
+order_keep_overpaid($db, BIZ, (int)$kb['id'], ADA, '₦');                                  // B used 20,000, then kept 10,000
+eq(kept_from_order($db, BIZ, 262, (int)$kb['id']), 10000.0, 'B kept ₦10,000: using earlier kept money doesn\'t hide it');
+eq(order_unkeep($db, BIZ, (int)$kb['id'], ADA, '₦'), 10000.0, 'so it can be given back instead');
+
+// A written-off balance stays written off
+exec_sql("INSERT INTO customers (id, business_id, full_name, phone) VALUES (264, 2, 'Yemi Off', '08035550264')");
+$wo = make_order(['customer_id' => 264, 'items' => [['name' => 'Weave', 'quantity' => 1, 'unit_price' => 30000]], 'paid_now' => 10000, 'pay_by' => $day(3)]);
+exec_sql("UPDATE debts SET status = 'written_off' WHERE order_id = ?", [$wo['id']]);
+order_set_pay_by($db, BIZ, (int)$wo['id'], $day(9), ADA);
+order_record_payment($db, BIZ, (int)$wo['id'], 5000, $today, 'cash', null, null, ADA, '₦');
+eq(array_column(debts_of((int)$wo['id']), 'status'), ['written_off'], 'a new pay-by date or a payment doesn\'t bring back a written-off debt');
+
 section('Alerts about an order\'s money open the order');
 clean_slate();
 $m = make_order(['customer_id' => 200, 'items' => [['name' => 'Wig', 'quantity' => 1, 'unit_price' => 50000]], 'paid_now' => 10000, 'pay_by' => $day(1)]);
