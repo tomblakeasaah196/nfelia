@@ -258,6 +258,18 @@ class OpsErrorsController
         ops_audit('error.export', 'Downloaded ' . count($groups) . ' error' . (count($groups) === 1 ? '' : 's') . ' for AI',
                   ['data' => ['ids' => array_map('intval', array_column($groups, 'id'))]]);
 
+        // Handed to an AI to fix: being handled, by whoever downloaded them unless someone has them already.
+        $open = array_values(array_filter($groups, fn($g) => $g['status'] === 'open'));
+        $this->set_status($open, 'handling');
+        $claim = $this->db->prepare("UPDATE error_groups SET assigned_to = ? WHERE id = ? AND assigned_to IS NULL");
+        foreach ($groups as &$g) {
+            if ($g['status'] === 'open') {
+                $g['status'] = 'handling';
+                $claim->execute([$this->me['id'], $g['id']]);
+            }
+        }
+        unset($g);
+
         $md = ops_errors_markdown($groups, $this->me['full_name'] ?? '', self::KINDS, self::LEVELS, self::STATUSES);
         header('Content-Type: text/markdown; charset=utf-8');
         header('Content-Disposition: attachment; filename="nfelia-errors-' . date('Y-m-d-Hi') . '.md"');
@@ -366,9 +378,11 @@ function ops_error_copy_text(array $g, array $events, array $clients, int $day_e
 }
 
 /**
- * Several problems as one Markdown file for an AI chat: a brief first (find the
- * root cause, ask two questions, then fix), then each problem with its latest
- * occurrences. No client or person names: the file leaves Nfelia.
+ * Several problems as one Markdown file for an AI that has the repo: the brief
+ * first (drop what is already fixed, find the root cause, ask the owner two
+ * questions, fix, open a pull request and drive it to green), then each
+ * problem with its latest occurrences. No client or person names: the file
+ * leaves Nfelia.
  */
 function ops_errors_markdown(array $groups, string $by, array $kinds, array $levels, array $statuses): string
 {
@@ -380,33 +394,65 @@ function ops_errors_markdown(array $groups, string $by, array $kinds, array $lev
     $one_line = fn(string $s): string => trim(preg_replace('/\s+/', ' ', $s));
     $n = count($groups);
 
+    $ids = implode(', ', array_map(fn($g) => '#' . (int)$g['id'], $groups));
     $md = [];
-    $md[] = '# Nfelia errors to fix: ' . $n . ' problem' . ($n === 1 ? '' : 's');
+    $md[] = '# Nfelia errors to fix: ' . $n . ' problem' . ($n === 1 ? '' : 's') . ' (' . $ids . ')';
     $md[] = '';
-    $md[] = 'Downloaded from Nfelia Ops on ' . date('j M Y, H:i') . ' Lagos time' . ($by !== '' ? ' by ' . $by : '') . '. Live release: ' . app_release() . '.';
+    $md[] = 'Downloaded from Nfelia Ops on ' . date('j M Y, H:i') . ' Lagos time' . ($by !== '' ? ' by ' . $by : '') . '. Live release: `' . app_release() . '`.';
+    $md[] = 'Ops marked these "Being handled". This file is the whole brief: work through it to the end without waiting to be told more, except for the questions in step 4.';
     $md[] = '';
-    $md[] = '## How to work on these';
-    $md[] = '';
-    $md[] = 'You are helping fix production errors in Nfelia: PHP 8.3 without a framework (index.php front controller, app/controllers, app/helpers, views), MariaDB 10.11, plain JavaScript and Alpine.js in the browser. Times are Lagos time (UTC+1).';
-    $md[] = '';
-    $md[] = '1. Read every problem below before answering. Several may be one bug showing on different pages or in different ways; say so when they are.';
-    $md[] = '2. Brainstorm the root cause of each: what in the code most likely does this, and why. Cite the file, line, stack trace, page or browser that points to it, and say how sure you are. If the code is not in front of you, say which files you need to see.';
-    $md[] = '3. Before changing anything, ask me exactly 2 clarification questions: the two whose answers would most change the fix. Wait for my answers.';
-    $md[] = '4. Then fix the root cause, not the symptom, with the smallest change that does it. Say which problems (by number and error code) each change resolves, and how I can check it worked.';
+    $md[] = rtrim(<<<'BRIEF'
+## Your job
+
+You are fixing production errors in **Nfelia** (live at nfelia.com), in the GitHub repo `tomblakeasaah196/nfelia`. `main` is production: merging to it deploys. Take each problem below from report to a green pull request:
+
+1. **Get the code.** Work in the repo, on the branch your session gives you, or a new branch from the latest `origin/main`. Read `CLAUDE.md` first and follow it: it says how to ask the owner questions. Read `README.md` and `DEPLOY.md`, and the handoff in `docs/handoff/` for the area a problem is in (`Ops.md` for Nfelia Ops itself, `Orders hub.md`, `PWA app.md` and so on).
+
+2. **Check what is already done.** Before any root-cause work, decide for each problem whether it still needs a fix:
+   - `git fetch origin main`, then `git log --oneline <last release>..origin/main` and `git log -S` / `-G` on the file, function or message. Each problem gives the release (commit) it was last seen on. A later commit that changed that code may have fixed it already.
+   - Search the history for `Fixes-Errors:` naming its number, and the open pull requests for one that already deals with it.
+   - Read the code as it is now on `origin/main` at the file, line and page given. If the line no longer exists or now guards the case, say so.
+   - Sort every problem into one of: **Already fixed** (name the commit or PR, and why you are sure), **Not ours** (a browser extension, a bot, a very old browser, or an old cached copy of a script; say what shows it), or **To fix**.
+   Put this as a short table in your first reply. Work only on **To fix** from here on. If nothing is left to fix, say so and stop.
+
+3. **Find the root cause** of each one left. Several problems are often one bug showing on different pages or in different ways; group them. Follow the stack trace into the code. For a browser problem, read `assets/js/` (including `errors.js`, which reports them), the view that renders the page, `sw.js` (the app keeps scripts on the phone; read the comment at its top) and the browser it happened in. For a server problem, read the file and line, the trace, and the controller and helper behind the page. Reproduce it if you can. Say what causes it, the evidence, and how sure you are. Fix causes, not symptoms: catching and silencing an error is not a fix unless the error is truly harmless, and then say why.
+
+4. **Ask the owner 2 questions, then wait.** Use the **AskUserQuestion** tool, exactly as `CLAUDE.md` says: 2 to 4 concrete options per question, each with a one-line trade-off, your recommendation first with "(Recommended)" in its label and why in its description. Ask the 2 questions whose answers most change the fix: behaviour the owner will notice, a trade-off that is theirs, how far the fix should go. Never ask what the code, the history or this file can answer. 2 is the standard. Go up to 6 (no more than 4 in one call) only when the problems are separate enough that 2 cannot cover them, and say why you need more. If the AskUserQuestion tool is not available to you, ask in the same shape in chat. Do not change code until the owner has answered.
+
+5. **Fix it.** The smallest change that removes the cause, written like the code around it (naming, comment density, plain words in anything a person reads). The rules this repo has learned the hard way:
+   - Never pin a server-specific collation (`utf8mb4_0900_*`). CI fails the build if it appears.
+   - Schema changes are new files in `db/migrations/` (`YYYYMMDDhhmmss_description.sql`): small, idempotent, forward-only. Update `db/schema.sql` only if the change itself requires it.
+   - Styles: edit `assets/css/src/` and rebuild with `npm run build:css`. The compiled `assets/css/app.css` is committed. `assets/css/ops.css` is hand-written.
+   - Never commit `.env`, keys or database dumps. Secrets live only in the server's `.env`.
+   - Add or extend a test that fails without the fix, next to the ones for that area: `tests/ops/`, `tests/orders/`, `tests/notifications/`. Copy their style.
+
+6. **Check it before pushing.** Run `php -l` on every PHP file you changed. If you can run MariaDB 10.11, set up the test copy the way `.github/workflows/deploy.yml` does (the `.env` it writes, then `bash tests/notifications/setup.sh`, then serve with `php -S 127.0.0.1:8099 -t . tests/notifications/router.php`), and run the suites you touched with `bash tests/notifications/run.sh <suite>` (for example `ops/monitor` or `orders/core`). Re-read your diff as a reviewer would.
+
+7. **Commit, and say what it fixes.** End each fixing commit's message with a line of its own:
+
+   `Fixes-Errors: #12, #15`
+
+   using the problem numbers below. When that commit is deployed, `bin/deploy.sh` marks those problems fixed in Ops. If one happens again after that, Ops opens it again and tells the team, so only list a problem the commit really fixes. Put the same line in the pull request description.
+
+8. **Open a pull request to `main`, and drive it to green.** In its description give, for each problem: the root cause, the fix, and how the owner can check it on nfelia.com (which page, what to do, what they should now see). List the problems that were already fixed or not ours, and why. Leave out stack traces, browser strings and anything about clients. Then watch the pull request (subscribe to its activity if you can) and keep going until CI is green: the **Lint, secret sweep, deploy-exclusion proof** and **Notifications and Nfelia Ops, end to end** jobs must pass. Fix every failure your change causes at its root, answer review comments, and never skip or disable a test to get green. **Do not merge:** merging deploys to production, and that is the owner's call.
+
+9. **Report back in a few lines:** the pull request link, what each problem was, what was already fixed or not ours, and anything the owner must do (merge, then check the page). For a problem marked **Not ours**, suggest they press **Ignore** on it in Ops.
+
+BRIEF);
     $md[] = '';
     $md[] = '## The problems';
     $md[] = '';
-    $md[] = '| # | Problem | Kind | Today | In all |';
+    $md[] = '| Number | Problem | Kind | Today | In all |';
     $md[] = '|---|---|---|---|---|';
     foreach ($groups as $i => $g) {
-        $md[] = '| ' . ($i + 1) . ' | ' . str_replace('|', '\|', mb_strimwidth($one_line($g['title']), 0, 90, '…')) . ' | ' . ($kinds[$g['kind']] ?? $g['kind']) . ' | ' . (int)$g['day_events'] . ' | ' . (int)$g['events'] . ' |';
+        $md[] = '| #' . (int)$g['id'] . ' | ' . str_replace('|', '\|', mb_strimwidth($one_line($g['title']), 0, 90, '…')) . ' | ' . ($kinds[$g['kind']] ?? $g['kind']) . ' | ' . (int)$g['day_events'] . ' | ' . (int)$g['events'] . ' |';
     }
 
     foreach ($groups as $i => $g) {
         $md[] = '';
         $md[] = '---';
         $md[] = '';
-        $md[] = '### ' . ($i + 1) . '. ' . mb_strimwidth($one_line($g['title']), 0, 200, '…');
+        $md[] = '### #' . (int)$g['id'] . ' · ' . mb_strimwidth($one_line($g['title']), 0, 200, '…');
         $md[] = '';
         $md[] = '- **What:** ' . ($levels[$g['level']] ?? $g['level']) . ', ' . ($kinds[$g['kind']] ?? $g['kind']) . ' (' . $g['kind'] . '/' . $g['level'] . '). Status: ' . ($statuses[$g['status']] ?? $g['status']) . '.';
         if ($g['file']) $md[] = '- **Where in the code:** `' . $g['file'] . ($g['line'] ? ':' . $g['line'] : '') . '`';

@@ -11,6 +11,7 @@
 #   2. tar repo -> docroot, applying .deployignore
 #   3. composer install --no-dev
 #   4. php db/migrate.php
+#   5. php bin/errors_fixed.php (errors the new commits say they fix)
 #
 # Only one deploy runs at a time (flock). The full log is always mirrored to
 # /home/smartqaq/deploy-nfelia.log so the last run can be reviewed from the
@@ -56,7 +57,8 @@ echo "============================================================"
 
 # --- 1. Refresh the checkout to whatever is on origin/main right now --------
 cd "$REPO"
-echo "[deploy] pre-pull  HEAD: $(git rev-parse HEAD)"
+PRE_HEAD=$(git rev-parse HEAD)
+echo "[deploy] pre-pull  HEAD: $PRE_HEAD"
 git fetch origin main --quiet
 git reset --hard origin/main
 echo "[deploy] post-pull HEAD: $(git rev-parse HEAD)"
@@ -117,6 +119,12 @@ echo "[deploy] composer install done"
 # migrate.php lives in the repo (deploy-ignored, so never in the docroot),
 # but reads the docroot .env so it targets the live database.
 "$PHP" "$REPO/db/migrate.php" --env="$DEPLOYPATH/.env"
+
+# --- 5. Errors this deploy fixed --------------------------------------------
+# A commit with a "Fixes-Errors: #12, #15" line marks those problems fixed in
+# Nfelia Ops now that its code is live. Never fails the deploy.
+"$PHP" "$REPO/bin/errors_fixed.php" --env="$DEPLOYPATH/.env" --repo="$REPO" \
+    --from="$PRE_HEAD" --to="$(git -C "$REPO" rev-parse HEAD)" || true
 
 echo "============================================================"
 echo "[deploy] $(date -Iseconds) OK"

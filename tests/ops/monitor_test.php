@@ -322,15 +322,26 @@ $grace->get(o('errors'));
 $grace->post(o('errors/bulk'), ['ids' => $ids, 'status' => 'fixed']);
 eq((int)q("SELECT COUNT(*) FROM error_groups WHERE kind = 'log' AND status = 'fixed'"), count($ids), count($ids) . ' marked fixed together');
 
-section('Downloading several for an AI');
+section('Downloading several for an AI, and the deploy marking them fixed');
 
+$xref = errors_capture(['bulk' => true, 'kind' => 'php', 'level' => 'error', 'message' => 'Export test: nothing handled it', 'file' => 'app/y.php', 'line' => 7,
+                       'at' => date('Y-m-d H:i:s', time() - 7200)]);   // two hours old: listed, nobody told
+$xg = group_of($xref);
 $grace->get(o('errors'));
 ok(str_contains($grace->body, 'Download for AI'), 'the ticked bar offers a download');
-$grace->post(o('errors/export'), ['ids' => [$fg['id'], group_of($sref)['id']]]);
+$grace->post(o('errors/export'), ['ids' => [$fg['id'], group_of($sref)['id'], $xg['id']]]);
 ok(str_starts_with($grace->headers['content-type'] ?? '', 'text/markdown') && str_contains($grace->headers['content-disposition'] ?? '', '.md"'), 'a Markdown file to save');
-ok(str_contains($grace->body, '# Nfelia errors to fix: 2 problems') && str_contains($grace->body, 'exactly 2 clarification questions'), 'with the brief for the AI');
-ok(str_contains($grace->body, 'Allowed memory size') && str_contains($grace->body, $sref) && str_contains($grace->body, 'Raised the limit on the export'), 'each problem, its error codes and the team\'s notes');
+ok(str_contains($grace->body, '# Nfelia errors to fix: 3 problems') && str_contains($grace->body, 'AskUserQuestion') && str_contains($grace->body, 'Fixes-Errors: #12, #15'), 'with the brief for the AI');
+ok(str_contains($grace->body, '### #' . $xg['id'] . ' ') && str_contains($grace->body, 'Allowed memory size') && str_contains($grace->body, $sref) && str_contains($grace->body, 'Raised the limit on the export'), 'each problem by its number, its error codes and the team\'s notes');
 ok(!str_contains($grace->body, 'Ada\'s Hair'), 'but no client names');
+$xg = group_of($xref);
+ok($xg['status'] === 'handling' && (int)$xg['assigned_to'] === GRACE, 'an open one becomes being handled, by whoever downloaded it');
+
+require_once dirname(__DIR__, 2) . '/bin/errors_fixed.php';
+$done = errors_fixed_apply(get_db(), [['sha' => 'abc1234def', 'subject' => 'Handle the export test', 'body' => "Handle the export test\n\nFixes-Errors: #{$xg['id']}, {$sref}, #999999"]], 'abc1234');
+eq(group_of($xref)['status'], 'fixed', 'a deployed commit saying "Fixes-Errors: #' . $xg['id'] . '" marks it fixed');
+ok(str_contains((string)q("SELECT body FROM error_notes WHERE group_id = ? ORDER BY id DESC LIMIT 1", [$xg['id']]), 'abc1234'), 'with a note naming the commit');
+eq(count($done), group_of($sref)['status'] === 'fixed' ? 2 : 1, 'an error code works too, and an unknown number is passed over');
 
 section('Health, alerts, and who sees them');
 
