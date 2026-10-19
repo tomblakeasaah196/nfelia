@@ -164,6 +164,7 @@ class ReceiptController {
                 $token
             ]);
             $receipt_id = (int)$this->db->lastInsertId();
+            doc_made($this->db, 'receipt', $receipt_id, (int)$user['id']);   // signed or not, as Settings › Signatures say
 
             $this->db->commit();
             flash('success', 'Receipt ' . $doc_number . ' generated.');
@@ -237,6 +238,7 @@ class ReceiptController {
         $is_standalone = !$receipt['invoice_id'];
         $order = !empty($receipt['order_id']) ? order_find($this->db, $this->biz_id, (int)$receipt['order_id'])
                : ($receipt['invoice_id'] ? order_by_invoice($this->db, $this->biz_id, (int)$receipt['invoice_id']) : null);
+        $sign = doc_sign_state($this->db, 'receipt', (int)$receipt['id'], doc_sign_viewer());
 
         $title     = e($receipt['doc_number']);
         $view_file = BASE_PATH . '/views/receipts/view.php';

@@ -277,6 +277,7 @@ class QuotationController {
         $stmtOrd = $this->db->prepare("SELECT id, order_number FROM orders WHERE quotation_id = ? AND business_id = ? ORDER BY id DESC LIMIT 1");
         $stmtOrd->execute([$id, $this->biz_id]);
         $quote_order = $stmtOrd->fetch() ?: null;
+        $sign = doc_sign_state($this->db, 'quote', (int)$quotation['id'], doc_sign_viewer());
 
         $title     = e($quotation['doc_number']);
         $view_file = BASE_PATH . '/views/quotations/view.php';
@@ -433,50 +434,6 @@ public function update_status($id = null) {
         redirect('quotations/view/' . $id);
     }
 
-    /* ──────────────────────────────────────────
-     *  INTERNAL AUTHORIZATION (Owner Signature)
-     * ────────────────────────────────────────── */
-    public function sign_internal($id = null) {
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { redirect('quotations'); return; }
-        csrf_verify();
-
-        $quotation = $this->find_quotation($id);
-        if (!$quotation) { not_found(); return; }
-
-        $signature_data = $_POST['owner_signature_data'] ?? '';
-        $signed_by      = trim($_POST['owner_signed_by_name'] ?? '');
-
-        if (empty($signature_data) || empty($signed_by)) {
-            flash('error', 'Signature and name are required.');
-            redirect('quotations/view/' . $id);
-            return;
-        }
-
-        try {
-            $this->db->prepare("
-                UPDATE quotations 
-                SET owner_signature_data = ?, owner_signed_by_name = ?, owner_signed_at = NOW()
-                WHERE id = ? AND business_id = ?
-            ")->execute([$signature_data, $signed_by, $id, $this->biz_id]);
-
-            // Log the activity to the audit trail
-            $this->db->prepare("
-                INSERT INTO quotation_activities 
-                (business_id, quotation_id, actor_type, user_id, action, message, old_status, new_status) 
-                VALUES (?, ?, 'business', ?, 'quote_authorized', 'Internally authorized and signed by business owner.', ?, ?)
-            ")->execute([
-                $this->biz_id, $id, auth_user()['id'], 
-                $quotation['status'], $quotation['status']
-            ]);
-
-            flash('success', 'Quotation officially authorized.');
-        } catch (\Throwable $e) {
-            flash('error', 'Failed to save signature.');
-        }
-
-        redirect('quotations/view/' . $id);
-    }
-    
     /* ──────────────────────────────────────────
      *  CONVERT TO INVOICE
      * ────────────────────────────────────────── */
@@ -648,6 +605,8 @@ public function update_status($id = null) {
         $tax_amount = money2($subtotal_after_discount * $tax_rate / 100);
         $total      = money2($subtotal_after_discount + $tax_amount);
 
+        $editing_saved = (bool)$id;
+        $was = $id ? ($this->find_quotation($id) ?: []) : [];
         $this->db->beginTransaction();
         try {
             if ($id) {
@@ -708,6 +667,17 @@ public function update_status($id = null) {
                     $li['unit_price'], $li['discount_percent'], $li['discount_amount'],
                     $li['subtotal'], $li['sort_order']
                 ]);
+            }
+
+            // Signed or not, as the form's box says: a new quote is signed
+            // at once by an owner or admin; a change signs it again
+            $box = signing_box($_POST);
+            if (!$editing_saved) {
+                doc_made($this->db, 'quote', $id, (int)$user['id'], $box);
+            } elseif ($box !== null && $box !== !empty($was['sign_on']) && is_boss()) {
+                doc_switch($this->db, $this->biz_id, 'quote', $id, $box, (int)$user['id']);
+            } else {
+                doc_changed($this->db, 'quote', $id, (int)$user['id']);
             }
 
             $this->db->commit();

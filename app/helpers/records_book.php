@@ -40,7 +40,7 @@ const RB_OWED  = 'B42318';   // money owed
 const RB_FIRST_ROW = 5;      // data starts under the title, its sum line, the way back and the header
 
 /** Statuses coloured in their sheet: good news green, money owed red. */
-const RB_GOOD = ['Paid', 'Accepted', 'Invoiced', 'Done', 'Confirmed', 'Cleared', 'Delivered', 'Signed Off', 'Published', 'Approved'];
+const RB_GOOD = ['Paid', 'Accepted', 'Invoiced', 'Done', 'Confirmed', 'Cleared', 'Delivered', 'Received', 'Signed Off', 'Published', 'Approved'];
 const RB_BAD  = ['Overdue', 'Not paid', 'Declined', 'Turned down', 'Failed', 'Cancelled', 'Open'];
 
 final class RecordsBook

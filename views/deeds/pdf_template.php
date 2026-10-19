@@ -2,10 +2,10 @@
 /**
  * Nfelia — Deed of Acquisition PDF Template
  * Rendered by DeedController::download() via dompdf
- * Variables: $deed, $business, $customer, $items
+ * Variables: $deed, $business, $customer, $items, $sign (doc_sign_state)
  *
  * Design: luxury editorial — two-column header, hero story block, financial table,
- * signature line, brand colors injected per business.
+ * the signature when signed and the verify code, brand colors injected per business.
  */
 
 $primary  = $business['primary_color']   ?? '#1B0A11';
@@ -194,18 +194,8 @@ $total = (float)$deed['total_amount'];
             padding-bottom: 12px;
         }
 
-        /* ── Footer / Signatures ── */
+        /* ── Footer ── */
         .footer-table { width: 100%; margin-top: 36px; }
-        .sig-cell { width: 50%; vertical-align: bottom; }
-        .sig-line {
-            border-top: 1px solid <?= $primary ?>;
-            padding-top: 7px;
-            font-size: 9px;
-            letter-spacing: 0.2em;
-            color: <?= $accent ?>;
-            text-transform: uppercase;
-            font-family: Arial, sans-serif;
-        }
         .tagline-cell {
             text-align: right;
             vertical-align: bottom;
@@ -355,14 +345,13 @@ $total = (float)$deed['total_amount'];
         </tbody>
     </table>
 
-    <!-- Signatures + Tagline -->
+    <!-- The signature (when signed) and the verify code -->
+    <?php require BASE_PATH . '/views/partials/doc_signs_pdf.php'; ?>
+
+    <!-- Tagline -->
     <table class="footer-table" cellpadding="0" cellspacing="0">
         <tr>
-            <td class="sig-cell" style="width:45%;">
-                <div style="height:40px;"></div>
-                <div class="sig-line">Authorized By: <?= e($biz_name) ?></div>
-            </td>
-            <td style="width:10%;"></td>
+            <td style="width:55%;"></td>
             <td class="tagline-cell" style="width:45%;">
                 <?php if ($tagline): ?>
                     <div style="font-size:8.5px;letter-spacing:0.28em;color:<?= $accent ?>;text-transform:uppercase;margin-bottom:6px;font-family:Arial,sans-serif;">

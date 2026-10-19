@@ -1,7 +1,7 @@
 <?php
 /**
  * Nfelia — Invoice PDF Template (dompdf)
- * Variables: $business, $customer, $invoice, $items, $bank, $payments
+ * Variables: $business, $customer, $invoice, $items, $bank, $payments, $sign (doc_sign_state)
  */
 $currency = $business['currency_symbol'] ?? '₦';
 $primary  = $business['primary_color']   ?? '#0F172A';
@@ -175,6 +175,8 @@ $status_color = match($invoice['status'] ?? '') {
         <?= nl2br(e($invoice['payment_terms'])) ?>
     </div>
     <?php endif; ?>
+
+    <?php require BASE_PATH . '/views/partials/doc_signs_pdf.php'; ?>
 
     <div class="footer">
         <?= e($business['name']) ?> · Powered by Nfelia · nfelia.com

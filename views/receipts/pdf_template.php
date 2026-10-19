@@ -1,7 +1,7 @@
 <?php
 /**
  * Nfelia — Receipt PDF Template (dompdf)
- * Variables: $business, $customer, $receipt, $items, $invoice
+ * Variables: $business, $customer, $receipt, $items, $invoice, $sign (doc_sign_state)
  */
 $currency = $business['currency_symbol'] ?? '₦';
 $primary  = $business['primary_color']   ?? '#0F172A';
@@ -143,6 +143,8 @@ $method_label = match($receipt['method'] ?? 'cash') {
         <?= nl2br(e($receipt['note'])) ?>
     </div>
     <?php endif; ?>
+
+    <?php require BASE_PATH . '/views/partials/doc_signs_pdf.php'; ?>
 
     <div class="footer">
         <?= e($business['name']) ?> · Powered by Nfelia · nfelia.com

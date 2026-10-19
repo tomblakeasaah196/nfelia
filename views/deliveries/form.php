@@ -8,6 +8,9 @@
  *   $providers, $pre_invoice, $pre_invoice_items, $pre_customer
  */
 $currency = $business['currency_symbol'] ?? '₦';
+// Signed or not: as sent back after a mistake, as saved, else Settings › Signatures
+$d_sign = isset($delivery['sign_box']) ? !empty($delivery['sign_on'])
+        : ($editing ? !empty($delivery['sign_on']) : signing_settings_for(get_db(), (int)$business['id'])['delivery']['on']);
 
 // Build initial items JSON for Alpine
 $initial_items = [];
@@ -271,6 +274,19 @@ if (empty($initial_items)) {
             </div>
         </div>
     </div>
+
+    <!-- Signed or not (the default is in Settings › Signatures). A note
+         already made is switched by an owner or admin only. -->
+    <?php if (!$editing || is_boss()): ?>
+    <label class="flex items-start gap-3 bg-brand-white border border-brand-sand rounded-xl p-4 shadow-sm cursor-pointer">
+        <input type="hidden" name="sign_box" value="1">
+        <input type="checkbox" name="sign_on" value="1" <?= $d_sign ? 'checked' : '' ?> class="mt-0.5 w-4 h-4 accent-[#8B004A] shrink-0">
+        <span>
+            <span class="block text-xs font-bold text-brand-plum">Signed delivery note</span>
+            <span class="block text-[10px] text-brand-plum/50 leading-snug">Signed for your business, and the receiver signs when it arrives. Leave it off and they confirm with one tap.</span>
+        </span>
+    </label>
+    <?php endif; ?>
 
     <!-- Actions -->
     <div class="flex items-center justify-between">

@@ -5,7 +5,8 @@
  *
  * Available from controller:
  *   $user, $business, $receipt, $customer, $invoice, $items,
- *   $payment, $public_url, $is_standalone, $order
+ *   $payment, $public_url, $is_standalone, $order,
+ *   $sign (doc_sign_state(): its signature and verify code)
  */
 $currency = $business['currency_symbol'] ?? '₦';
 
@@ -223,6 +224,9 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
             </p>
         </div>
 
+        <!-- Signature (only when signed) and the verify code -->
+        <?php require BASE_PATH . '/views/partials/doc_signs.php'; ?>
+
         <!-- Footer -->
         <?php if ($business['tagline']): ?>
         <div class="mt-8 text-center">
@@ -247,6 +251,8 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
     <div class="nf-menu-sheet">
         <a class="nf-row" href="<?= e($public_url) ?>?format=pdf" download="<?= e(preg_replace('/[^A-Za-z0-9._-]+/', '-', $receipt['doc_number'])) ?>.pdf"><span class="nf-tile-ic"><?= nav_icon('download') ?></span>Download PDF</a>
         <a class="nf-row" href="<?= e($public_url) ?>" target="_blank" rel="noopener"><span class="nf-tile-ic"><?= nav_icon('open') ?></span>Open the customer's page</a>
+        <?php $sign_row = true; $sign_back = 'receipts/view/' . (int)$receipt['id'];
+              require BASE_PATH . '/views/partials/doc_sign_control.php'; ?>
         <?php if (empty($order)): // an order's receipt stays with its payment ?>
         <form method="POST" action="<?= APP_URL ?>/receipts/delete/<?= (int)$receipt['id'] ?>"
               onsubmit="return confirm('Delete receipt <?= e($receipt['doc_number']) ?>? <?= $invoice ? 'The payment stays recorded on ' . e($invoice['doc_number']) . '.' : 'What it sold goes back on your shelves.' ?>');">

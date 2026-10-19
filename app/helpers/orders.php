@@ -447,6 +447,7 @@ function order_confirm(PDO $db, int $biz, int $order_id, int $user_id, array $op
         $invoice_id = (int)$db->lastInsertId();
         $lines = order_lines($db, $order_id);
         order__invoice_lines($db, $biz, $invoice_id, $lines);
+        doc_made($db, 'invoice', $invoice_id, $user_id);   // signed or not, as Settings › Signatures say
         $db->prepare("UPDATE orders SET customer_id = ?, invoice_id = ? WHERE id = ? AND business_id = ?")
            ->execute([$customer_id, $invoice_id, $order_id, $biz]);
         $order['customer_id'] = $customer_id;
@@ -487,6 +488,7 @@ function order_confirm(PDO $db, int $biz, int $order_id, int $user_id, array $op
             ]);
             $delivery_id = (int)$db->lastInsertId();
             order__delivery_lines($db, $delivery_id, $lines);
+            doc_made($db, 'delivery', $delivery_id, $user_id);
             $db->prepare("UPDATE orders SET delivery_id = ? WHERE id = ? AND business_id = ? AND delivery_id IS NULL")
                ->execute([$delivery_id, $order_id, $biz]);
         }
@@ -603,6 +605,7 @@ function order_set_pay_by(PDO $db, int $biz, int $order_id, string $date, int $u
         }
         $db->prepare("UPDATE invoices SET due_date = ?, status = ? WHERE id = ? AND business_id = ?")
            ->execute([$date, $status, (int)$invoice['id'], $biz]);
+        doc_changed($db, 'invoice', (int)$invoice['id'], $user_id);
         order_sync_debt($db, $biz, $order_id, $date);
         order_log($db, $biz, $order_id, 'pay_by', 'Balance due by ' . date('D j M Y', strtotime($date)) . '.', $user_id,
                   ['from' => $invoice['due_date'], 'to' => $date]);
@@ -926,9 +929,11 @@ function order_update_lines(PDO $db, int $biz, int $order_id, array $items, floa
             $due = (float)$invoice['balance_due'] <= 0 && $balance > 0 ? order__default_pay_by($invoice['deliver_by']) : $invoice['due_date'];
             $db->prepare("UPDATE invoices SET subtotal = ?, discount_amount = ?, total = ?, balance_due = ?, status = ?, due_date = ? WHERE id = ? AND business_id = ?")
                ->execute([$subtotal, $discount, $total, $balance, $status, $due, $invoice_id, $biz]);
+            doc_changed($db, 'invoice', $invoice_id, $user_id);   // signed: signed again, in the name of whoever changed it
             stock_settle($db, $biz, 'invoice', $invoice_id, invoice_stock_target($db, $biz, $invoice_id), 'order ' . $order['order_number'] . ' (changed)');
             if ($delivery && !in_array($delivery['status'], ['delivered', 'signed_off'], true)) {
                 order__delivery_lines($db, (int)$delivery['id'], $rows);
+                doc_changed($db, 'delivery', (int)$delivery['id'], $user_id);
             }
             order_sync_debt($db, $biz, $order_id);
             customer_refresh_totals($db, $biz, (int)$invoice['customer_id']);
@@ -1541,6 +1546,7 @@ function order__payment(PDO $db, int $biz, array $order, float $amount, string $
     $receipt_id = (int)$db->lastInsertId();
     $db->prepare("UPDATE orders SET receipt_id = ? WHERE id = ? AND business_id = ? AND receipt_id IS NULL")
        ->execute([$receipt_id, (int)$order['id'], $biz]);
+    doc_made($db, 'receipt', $receipt_id, $user_id);
 
     if ($sync_debt) {
         order_sync_debt($db, $biz, (int)$order['id']);

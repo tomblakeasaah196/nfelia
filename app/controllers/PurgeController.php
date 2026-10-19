@@ -324,6 +324,9 @@ class PurgeController
                 return;
             }
 
+            // The purged documents' signatures and verify codes go with them
+            $files_to_unlink = array_merge($files_to_unlink, doc_forget_missing($this->db, $this->biz_id));
+
             // Write immutable non-repudiation log
             $admin_ip =
                 $_SERVER["HTTP_X_FORWARDED_FOR"] ??

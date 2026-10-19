@@ -10,6 +10,7 @@
 #   bash tests/notifications/run.sh ui           the browser checks (needs Playwright)
 #   bash tests/notifications/run.sh ops/foundation   Nfelia Ops (tests/ops/), one suite per file
 #   bash tests/notifications/run.sh orders/core      the orders hub (tests/orders/), one suite per file
+#   bash tests/notifications/run.sh docs/sign        signatures and verify codes on documents (tests/docs/)
 #
 # Phones and inboxes are stood in for by push_sink.php and smtp_sink.py,
 # started here on NF_PUSH_PORT (8098) and NF_SMTP_PORT (2525, which the
@@ -56,6 +57,7 @@ for s in "${suites[@]}"; do
         ops/ui) node "$root/tests/ops/ui_test.js" ;;
         ops/*) php "$root/tests/${s}_test.php" ;;
         orders/*) php "$root/tests/${s}_test.php" ;;
+        docs/*) php "$root/tests/${s}_test.php" ;;
         *)   echo "Unknown suite: $s" >&2; false ;;
     esac || failed+=("$s")
 done

@@ -13,6 +13,9 @@ $secondary = $business['secondary_color'] ?? '#c5a55a';
 $font      = $business['font_pairing'] ?? 'Inter';
 $logo_url  = !empty($business['logo_path']) ? APP_URL . '/' . $business['logo_path'] : null;
 $already_signed = ($delivery['status'] === 'signed_off' && $delivery['signoff_name']);
+// A signed delivery note is received by signing it; any other with one tap
+$sign_to_receive = !empty($delivery['sign_on']);
+$was_signed      = !empty($delivery['signoff_signature_path']);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -56,7 +59,7 @@ $already_signed = ($delivery['status'] === 'signed_off' && $delivery['signoff_na
             <div class="bg-green-500 text-white px-6 py-5 text-center">
                 <svg class="w-10 h-10 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                 <h2 class="text-xl font-extrabold">Receipt Confirmed</h2>
-                <p class="text-xs opacity-80 mt-1">This delivery has been signed off.</p>
+                <p class="text-xs opacity-80 mt-1"><?= $was_signed ? 'This delivery was signed for.' : 'This delivery was confirmed received.' ?></p>
             </div>
             <div class="p-6 space-y-4">
                 <div class="grid grid-cols-2 gap-4">
@@ -65,7 +68,7 @@ $already_signed = ($delivery['status'] === 'signed_off' && $delivery['signoff_na
                         <div class="text-sm font-bold text-gray-800"><?= e($delivery['doc_number']) ?></div>
                     </div>
                     <div>
-                        <div class="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Signed By</div>
+                        <div class="text-[9px] font-bold text-gray-400 uppercase tracking-widest"><?= $was_signed ? 'Signed By' : 'Received By' ?></div>
                         <div class="text-sm font-bold text-gray-800"><?= e($delivery['signoff_name']) ?></div>
                     </div>
                     <div class="col-span-2">
@@ -150,7 +153,7 @@ $already_signed = ($delivery['status'] === 'signed_off' && $delivery['signoff_na
 
                 <div class="text-center mb-4">
                     <h2 class="text-sm font-extrabold text-gray-800">Confirm Receipt</h2>
-                    <p class="text-[10px] text-gray-400 mt-1">Please type your name and sign below to confirm you received these items.</p>
+                    <p class="text-[10px] text-gray-400 mt-1"><?= $sign_to_receive ? 'Please type your name and sign below to confirm you received these items.' : 'Please type your name to confirm you received these items.' ?></p>
                 </div>
 
                 <!-- Name Input -->
@@ -160,6 +163,7 @@ $already_signed = ($delivery['status'] === 'signed_off' && $delivery['signoff_na
                            class="w-full px-4 py-3 text-sm font-medium bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-blue-400 text-gray-800 placeholder-gray-300">
                 </div>
 
+                <?php if ($sign_to_receive): ?>
                 <!-- Signature Pad -->
                 <div class="mb-4">
                     <div class="flex items-center justify-between mb-1">
@@ -182,6 +186,7 @@ $already_signed = ($delivery['status'] === 'signed_off' && $delivery['signoff_na
                         </div>
                     </div>
                 </div>
+                <?php endif; ?>
 
                 <!-- Error -->
                 <div x-show="errorMsg" x-cloak class="bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4 text-xs text-red-600 font-medium" x-text="errorMsg"></div>
@@ -202,7 +207,7 @@ $already_signed = ($delivery['status'] === 'signed_off' && $delivery['signoff_na
                         :disabled="submitting"
                         class="w-full py-4 rounded-xl text-sm font-extrabold uppercase tracking-widest text-white shadow-lg transition-all disabled:opacity-50"
                         :class="submitting ? 'bg-gray-400' : 'bg-brand-primary hover:opacity-90 active:scale-[0.98]'">
-                    <span x-show="!submitting">Confirm Receipt</span>
+                    <span x-show="!submitting"><?= $sign_to_receive ? 'Sign and confirm' : 'Confirm received' ?></span>
                     <span x-show="submitting" x-cloak class="flex items-center justify-center gap-2">
                         <svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
                         Confirming...
@@ -222,6 +227,7 @@ $already_signed = ($delivery['status'] === 'signed_off' && $delivery['signoff_na
     function signoffApp() {
         return {
             signoffName: '',
+            needsSignature: <?= $sign_to_receive ? 'true' : 'false' ?>,
             hasSigned: false,
             submitting: false,
             success: false,
@@ -235,6 +241,7 @@ $already_signed = ($delivery['status'] === 'signed_off' && $delivery['signoff_na
 
             init() {
                 this.canvas = document.getElementById('signature-pad');
+                if (!this.canvas) return; // confirmed with one tap: nothing to draw
                 this.ctx = this.canvas.getContext('2d');
                 this.setupCanvas();
             },
@@ -292,7 +299,7 @@ $already_signed = ($delivery['status'] === 'signed_off' && $delivery['signoff_na
                     this.errorMsg = 'Please enter your name.';
                     return;
                 }
-                if (!this.hasSigned) {
+                if (this.needsSignature && !this.hasSigned) {
                     this.errorMsg = 'Please draw your signature.';
                     return;
                 }
@@ -300,12 +307,12 @@ $already_signed = ($delivery['status'] === 'signed_off' && $delivery['signoff_na
                 this.submitting = true;
 
                 try {
-                    // Get signature as base64 PNG
-                    const signatureData = this.canvas.toDataURL('image/png');
-
                     const formData = new FormData();
                     formData.append('signoff_name', this.signoffName.trim());
-                    formData.append('signature_data', signatureData);
+                    if (this.needsSignature) {
+                        // The signature as a PNG
+                        formData.append('signature_data', this.canvas.toDataURL('image/png'));
+                    }
 
                     const res = await fetch('<?= APP_URL ?>/sign/<?= e($delivery['signoff_token']) ?>', {
                         method: 'POST',

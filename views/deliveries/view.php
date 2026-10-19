@@ -5,7 +5,8 @@
  *
  * Available from controller:
  *   $user, $business, $delivery, $items, $customer, $invoice,
- *   $wa_number, $statuses, $providers, $currency
+ *   $wa_number, $statuses, $providers, $currency,
+ *   $sign (doc_sign_state(): its signatures and verify code)
  */
 
 // Status workflow for timeline
@@ -14,7 +15,7 @@ $timeline_steps = [
     'dispatched'       => ['label' => 'Dispatched', 'icon' => '<path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>'],
     'in_transit'       => ['label' => 'In Transit', 'icon' => '<path stroke-linecap="round" stroke-linejoin="round" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a2 2 0 104 0m-4 0a2 2 0 11-4 0"/>'],
     'delivered'        => ['label' => 'Delivered', 'icon' => '<path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>'],
-    'signed_off'       => ['label' => 'Signed Off', 'icon' => '<path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>'],
+    'signed_off'       => ['label' => 'Received', 'icon' => '<path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>'],
 ];
 
 $status_order = array_keys($timeline_steps);
@@ -63,6 +64,8 @@ $public_url  = APP_URL . '/delivery/' . $delivery['token'];
                 Edit
             </a>
         <?php endif; ?>
+        <?php $sign_row = false; $sign_back = 'deliveries/view/' . (int)$delivery['id'];
+              require BASE_PATH . '/views/partials/doc_sign_control.php'; ?>
         <a href="<?= $public_url ?>" target="_blank" class="flex items-center gap-2 text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest hover:text-brand-plum bg-brand-white border border-brand-sand px-4 py-2.5 rounded-xl hover:border-brand-gold transition-colors">
             <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
             Preview
@@ -298,33 +301,20 @@ $public_url  = APP_URL . '/delivery/' . $delivery['token'];
         </div>
         <?php endif; ?>
 
-        <!-- E-Signature Section (if signed) -->
-        <?php if ($delivery['status'] === 'signed_off' && $delivery['signoff_name']): ?>
-        <div class="bg-purple-50 border border-purple-200 rounded-xl p-5 shadow-sm">
-            <h2 class="font-heading font-bold text-sm text-purple-700 mb-4 uppercase tracking-wider flex items-center gap-2">
-                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                Recipient Confirmation
-            </h2>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                    <div class="text-[9px] font-bold text-purple-500 uppercase tracking-widest mb-1">Signed By</div>
-                    <div class="text-sm font-bold text-purple-900"><?= e($delivery['signoff_name']) ?></div>
-                </div>
-                <div>
-                    <div class="text-[9px] font-bold text-purple-500 uppercase tracking-widest mb-1">Signed At</div>
-                    <div class="data-text text-sm text-purple-900"><?= $delivery['signoff_timestamp'] ? fmt_date($delivery['signoff_timestamp'], 'd M Y, H:i') : '—' ?></div>
-                </div>
-                <?php if ($delivery['signoff_signature_path']): ?>
-                <div class="sm:col-span-2">
-                    <div class="text-[9px] font-bold text-purple-500 uppercase tracking-widest mb-2">Signature</div>
-                    <div class="bg-white rounded-lg border border-purple-200 p-3 inline-block">
-                        <img src="<?= APP_URL . '/deliveries/signature/' . (int)$delivery['id'] ?>" alt="Signature" class="max-h-20">
-                    </div>
-                </div>
-                <?php endif; ?>
-            </div>
+        <!-- The receiver's confirmation, the signatures (when signed) and the verify code -->
+        <div class="bg-brand-white border border-brand-sand rounded-xl p-5 shadow-sm">
+            <h2 class="font-heading font-bold text-sm text-brand-plum uppercase tracking-wider">Receipt</h2>
+            <?php if ($delivery['signoff_name'] && $delivery['signoff_timestamp']): ?>
+                <p class="text-xs text-brand-plum/70 mt-2" data-received>
+                    <?= e($delivery['signoff_name']) ?> <?= !empty($sign['customer']) ? 'signed for it' : 'confirmed it arrived' ?> on <?= fmt_date($delivery['signoff_timestamp'], 'd M Y, H:i') ?>.
+                </p>
+            <?php elseif (!in_array($delivery['status'], ['signed_off', 'failed'], true)): ?>
+                <p class="text-xs text-brand-plum/60 mt-2">
+                    <?= !empty($sign['on']) ? 'The receiver signs for it from the sign-off link when it arrives.' : 'The receiver confirms it arrived, with one tap, from the sign-off link.' ?>
+                </p>
+            <?php endif; ?>
+            <?php require BASE_PATH . '/views/partials/doc_signs.php'; ?>
         </div>
-        <?php endif; ?>
 
     </div>
 
@@ -349,7 +339,7 @@ $public_url  = APP_URL . '/delivery/' . $delivery['token'];
         <?php if (!in_array($delivery['status'], ['signed_off', 'failed'])): ?>
         <div class="bg-brand-white border border-brand-sand rounded-xl p-5 shadow-sm" x-data="{ copied: false }">
             <h3 class="font-heading font-bold text-sm text-brand-plum mb-3 uppercase tracking-wider">Sign-Off Link</h3>
-            <p class="text-[10px] text-brand-plum/50 mb-3 leading-relaxed">Share this link with the recipient to collect their e-signature confirming receipt.</p>
+            <p class="text-[10px] text-brand-plum/50 mb-3 leading-relaxed"><?= !empty($sign['on']) ? 'Share this link with the receiver: they sign for the delivery when it arrives.' : 'Share this link with the receiver: they confirm the delivery arrived, with one tap.' ?></p>
 
             <!-- Copy Link -->
             <div class="flex gap-2 mb-3">
@@ -411,7 +401,7 @@ $public_url  = APP_URL . '/delivery/' . $delivery['token'];
                 <div class="flex items-start gap-3">
                     <div class="w-2 h-2 rounded-full bg-purple-400 mt-1.5 shrink-0"></div>
                     <div>
-                        <div class="text-[10px] font-bold text-brand-plum/60">Signed Off</div>
+                        <div class="text-[10px] font-bold text-brand-plum/60">Received</div>
                         <div class="data-text text-xs text-brand-plum"><?= fmt_date($delivery['signoff_timestamp'], 'd M Y, H:i') ?></div>
                     </div>
                 </div>
