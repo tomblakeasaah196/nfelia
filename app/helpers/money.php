@@ -32,12 +32,22 @@ function money_in(PDO $db, int $biz_id, string $from, string $to): float {
 
 /** Money received per month ['2026-10' => amount], from $from to $to inclusive. */
 function money_in_by_month(PDO $db, int $biz_id, string $from, string $to): array {
+    return money_in_by($db, $biz_id, $from, $to, '%Y-%m');
+}
+
+/** Money received per day ['2026-10-19' => amount], from $from to $to inclusive. */
+function money_in_by_day(PDO $db, int $biz_id, string $from, string $to): array {
+    return money_in_by($db, $biz_id, $from, $to, '%Y-%m-%d');
+}
+
+/** money_in() split into DATE_FORMAT($format) buckets. */
+function money_in_by(PDO $db, int $biz_id, string $from, string $to, string $format): array {
     $stmt = $db->prepare("
         SELECT ym, SUM(total) AS total FROM (
-            SELECT DATE_FORMAT(payment_date, '%Y-%m') AS ym, SUM(amount) AS total
+            SELECT DATE_FORMAT(payment_date, '{$format}') AS ym, SUM(amount) AS total
             FROM payments WHERE business_id = ? AND method <> 'kept' AND payment_date BETWEEN ? AND ? GROUP BY ym
             UNION ALL
-            SELECT DATE_FORMAT(issue_date, '%Y-%m') AS ym, SUM(amount) AS total
+            SELECT DATE_FORMAT(issue_date, '{$format}') AS ym, SUM(amount) AS total
             FROM receipts WHERE business_id = ? AND invoice_id IS NULL AND issue_date BETWEEN ? AND ? GROUP BY ym
         ) money GROUP BY ym
     ");

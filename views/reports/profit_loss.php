@@ -4,16 +4,40 @@
  * Renders inside views/layouts/app.php
  *
  * Available from controller:
- *   $user, $business, $currency, $month, $year, $month_label,
+ *   $user, $business, $currency, $period (app/helpers/report_period.php),
+ *   $period_start, $period_end, $month_label (the period in words),
  *   $revenue, $expenses_total, $gross_profit,
+ *   $prev_revenue, $prev_expenses, $prev_profit (the period before),
  *   $expense_categories, $pending_revenue, $pending_count,
  *   $debts_receivable, $debts_receivable_count, $collectable_extra,
  *   $debts_payable, $debts_payable_count,
- *   $trend (array of 6 months), $invoices_issued,
- *   $available_months
+ *   $trend (the period by day or by month), $invoices_issued,
+ *   $available_months, $available_years
  */
 $profit_positive = $gross_profit >= 0;
 $margin_pct = $revenue > 0 ? round(($gross_profit / $revenue) * 100) : 0;
+
+/**
+ * "▲ 12% vs September 2026" under a card. $good says which way is good news:
+ * more money in is, more money out isn't.
+ */
+$compare = function (float $now, float $before, string $good) use ($period, $currency): string {
+    $vs = 'vs ' . e($period['prev_label']);
+    $change = report_period_change($now, $before);
+    if ($change === null) {
+        return '<span class="text-brand-plum/40">' . ($now == 0 ? 'Nothing' : $currency . '0') . ' in ' . e($period['prev_label']) . '</span>';
+    }
+    [$dir, $pct] = $change;
+    if ($dir === 'flat') {
+        return '<span class="text-brand-plum/50">No change ' . $vs . '</span>';
+    }
+    $is_good = $dir === $good;
+    $arrow = $dir === 'up' ? '▲' : '▼';
+    $words = $dir === 'up' ? 'Up' : 'Down';
+    return '<span class="font-semibold ' . ($is_good ? 'text-green-700' : 'text-red-700') . '">'
+         . '<span aria-hidden="true">' . $arrow . '</span><span class="sr-only">' . $words . '</span> ' . $pct
+         . '</span> <span class="text-brand-plum/50">' . $vs . '</span>';
+};
 
 // Category labels
 $cat_labels = [
@@ -36,20 +60,52 @@ $cat_labels = [
         <p class="text-xs text-brand-plum/50 font-medium mt-1">Your business performance for <strong class="text-brand-plum"><?= $month_label ?></strong></p>
     </div>
     <div class="flex items-center gap-2">
-        <!-- Period Selector -->
-        <form method="GET" action="<?= APP_URL ?>/reports/profit-loss" class="flex items-center gap-2">
-            <select name="month" class="text-xs font-semibold text-brand-plum bg-brand-cream border border-brand-sand rounded-lg px-3 py-2.5 focus:outline-none focus:border-brand-gold">
-                <?php foreach ($available_months as $m => $label): ?>
-                    <option value="<?= $m ?>" <?= $m === $month ? 'selected' : '' ?>><?= $label ?></option>
-                <?php endforeach; ?>
-            </select>
-            <select name="year" class="text-xs font-semibold text-brand-plum bg-brand-cream border border-brand-sand rounded-lg px-3 py-2.5 focus:outline-none focus:border-brand-gold">
-                <?php for ($y = (int)date('Y'); $y >= 2022; $y--): ?>
-                    <option value="<?= $y ?>" <?= $y === $year ? 'selected' : '' ?>><?= $y ?></option>
-                <?php endfor; ?>
-            </select>
-            <button type="submit" class="btn-primary text-white px-4 py-2.5 rounded-lg text-[10px] font-bold uppercase tracking-widest">Go</button>
-        </form>
+        <!-- Period: one button, presets and a month range in its menu -->
+        <div class="relative" x-data="{ open: false, range: <?= $period['key'] === 'custom' ? 'true' : 'false' ?>, fm: '<?= substr($period['from'], 5) ?>', fy: '<?= substr($period['from'], 0, 4) ?>', tm: '<?= substr($period['to'], 5) ?>', ty: '<?= substr($period['to'], 0, 4) ?>' }"
+             @click.outside="open = false" @keydown.escape="open = false">
+            <button type="button" @click="open = !open" :aria-expanded="open" aria-haspopup="true"
+                    class="flex items-center gap-2 text-xs font-semibold text-brand-plum bg-brand-cream border border-brand-sand rounded-lg px-3 py-2.5 hover:border-brand-gold focus:outline-none focus:border-brand-gold">
+                <svg class="w-3.5 h-3.5 text-brand-plum/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                <span><?= e($period['button']) ?></span>
+                <svg class="w-3 h-3 text-brand-plum/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+            <div x-show="open" x-cloak x-transition.opacity.duration.150ms class="nf-pop is-period" role="dialog" aria-label="Choose a period">
+                <div class="nf-menu" style="padding:4px 0">
+                    <?php foreach (REPORT_PERIOD_PRESETS as $key => $name): $on = $period['key'] === $key; ?>
+                        <a href="<?= APP_URL ?>/reports/profit-loss?period=<?= $key ?>"<?= $on ? ' aria-current="true"' : '' ?>>
+                            <span style="flex:1"><?= e($name) ?></span>
+                            <?php if ($on): ?><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" style="color:var(--accent-text)"><path d="M5 13l4 4L19 7"/></svg><?php endif; ?>
+                        </a>
+                    <?php endforeach; ?>
+                    <hr>
+                    <button type="button" @click="range = !range" :aria-expanded="range"<?= $period['key'] === 'custom' ? ' aria-current="true"' : '' ?>>
+                        <span style="flex:1">Month range</span>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" :style="range ? 'transform:rotate(180deg)' : ''"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                </div>
+                <form x-show="range" x-cloak method="GET" action="<?= APP_URL ?>/reports/profit-loss" class="px-4 pb-4 pt-1 space-y-3">
+                    <input type="hidden" name="from" :value="fy + '-' + fm">
+                    <input type="hidden" name="to" :value="ty + '-' + tm">
+                    <?php foreach (['From' => ['fm', 'fy'], 'To' => ['tm', 'ty']] as $word => [$mv, $yv]): ?>
+                        <fieldset class="flex items-center gap-2">
+                            <legend class="sr-only"><?= $word ?></legend>
+                            <span class="w-10 text-xs font-semibold text-brand-plum/60" aria-hidden="true"><?= $word ?></span>
+                            <select x-model="<?= $mv ?>" aria-label="<?= $word ?> month" class="flex-1 text-xs font-semibold text-brand-plum bg-brand-cream border border-brand-sand rounded-lg px-3 py-2.5 focus:outline-none focus:border-brand-gold">
+                                <?php foreach ($available_months as $m => $label): ?>
+                                    <option value="<?= sprintf('%02d', $m) ?>"><?= $label ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <select x-model="<?= $yv ?>" aria-label="<?= $word ?> year" class="text-xs font-semibold text-brand-plum bg-brand-cream border border-brand-sand rounded-lg px-3 py-2.5 focus:outline-none focus:border-brand-gold">
+                                <?php foreach ($available_years as $y): ?>
+                                    <option value="<?= $y ?>"><?= $y ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </fieldset>
+                    <?php endforeach; ?>
+                    <button type="submit" class="btn-primary w-full text-white px-4 py-2.5 rounded-lg text-xs font-bold">Show These Months</button>
+                </form>
+            </div>
+        </div>
         <!-- PDF Download -->
         <button onclick="downloadReport()" class="flex items-center gap-2 bg-brand-white border border-brand-sand px-4 py-2.5 rounded-lg hover:border-brand-gold transition-colors">
             <svg class="w-3.5 h-3.5 text-brand-plum/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
@@ -71,7 +127,8 @@ $cat_labels = [
             <div class="text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest">Money In</div>
         </div>
         <div class="font-heading font-extrabold text-2xl text-green-600"><?= $currency ?><?= number_format($revenue, 0) ?></div>
-        <p class="text-[10px] text-brand-plum/40 mt-1">Payments received in <?= date('F', mktime(0,0,0,$month,1)) ?></p>
+        <p class="text-[10px] text-brand-plum/40 mt-1">Payments received in <?= e($month_label) ?></p>
+        <p class="text-[10px] mt-1"><?= $compare($revenue, $prev_revenue, 'up') ?></p>
     </div>
 
     <!-- Expenses -->
@@ -83,7 +140,8 @@ $cat_labels = [
             <div class="text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest">Money Out</div>
         </div>
         <div class="font-heading font-extrabold text-2xl text-red-600"><?= $currency ?><?= number_format($expenses_total, 0) ?></div>
-        <p class="text-[10px] text-brand-plum/40 mt-1">Total spent in <?= date('F', mktime(0,0,0,$month,1)) ?></p>
+        <p class="text-[10px] text-brand-plum/40 mt-1">Total spent in <?= e($month_label) ?></p>
+        <p class="text-[10px] mt-1"><?= $compare($expenses_total, $prev_expenses, 'down') ?></p>
     </div>
 
     <!-- Profit -->
@@ -101,9 +159,10 @@ $cat_labels = [
             <?php if ($revenue > 0): ?>
                 <?= abs($margin_pct) ?>% margin &middot; For every <?= $currency ?>100 earned, you <?= $profit_positive ? 'kept' : 'lost' ?> <?= $currency ?><?= abs($margin_pct) ?>
             <?php else: ?>
-                No revenue recorded this month
+                No revenue recorded in this period
             <?php endif; ?>
         </p>
+        <p class="text-[10px] mt-1"><?= $compare($gross_profit, $prev_profit, 'up') ?></p>
     </div>
 </div>
 
@@ -117,19 +176,19 @@ $cat_labels = [
             <?php if ($revenue == 0 && $expenses_total == 0): ?>
                 <strong class="text-brand-plum">No activity recorded for <?= $month_label ?>.</strong> Revenue and expenses will appear here as you create invoices, record payments, and log expenses.
             <?php elseif ($profit_positive): ?>
-                <strong class="text-brand-plum">Good news!</strong> In <?= $month_label ?>, your business received <strong class="text-green-600"><?= $currency ?><?= number_format($revenue, 0) ?></strong> in payments and spent <strong class="text-red-600"><?= $currency ?><?= number_format($expenses_total, 0) ?></strong>. That means you made a profit of <strong class="text-green-600"><?= $currency ?><?= number_format($gross_profit, 0) ?></strong>.
+                <strong class="text-brand-plum">Good news!</strong> <?= $period['months'] === 1 ? 'In' : 'From' ?> <?= e($month_label) ?>, your business received <strong class="text-green-600"><?= $currency ?><?= number_format($revenue, 0) ?></strong> in payments and spent <strong class="text-red-600"><?= $currency ?><?= number_format($expenses_total, 0) ?></strong>. That means you made a profit of <strong class="text-green-600"><?= $currency ?><?= number_format($gross_profit, 0) ?></strong>.
                 <?php if ($margin_pct >= 50): ?> Your profit margin is strong.<?php elseif ($margin_pct >= 20): ?> Your margin is healthy — keep an eye on costs.<?php else: ?> Your margin is thin — consider reviewing your biggest expenses.<?php endif; ?>
             <?php else: ?>
-                <strong class="text-brand-plum">Heads up.</strong> In <?= $month_label ?>, you spent more (<?= $currency ?><?= number_format($expenses_total, 0) ?>) than you received (<?= $currency ?><?= number_format($revenue, 0) ?>). The gap is <strong class="text-red-600"><?= $currency ?><?= number_format(abs($gross_profit), 0) ?></strong>.
+                <strong class="text-brand-plum">Heads up.</strong> <?= $period['months'] === 1 ? 'In' : 'From' ?> <?= e($month_label) ?>, you spent more (<?= $currency ?><?= number_format($expenses_total, 0) ?>) than you received (<?= $currency ?><?= number_format($revenue, 0) ?>). The gap is <strong class="text-red-600"><?= $currency ?><?= number_format(abs($gross_profit), 0) ?></strong>.
                 <?php if ($pending_revenue > 0): ?> However, you have <?= $currency ?><?= number_format($pending_revenue, 0) ?> in unpaid invoices — collecting those would help.<?php endif; ?>
             <?php endif; ?>
         </div>
     </div>
 </div>
 
-<!-- 6-Month Trend Chart -->
+<!-- Trend Chart: the period by day (a month or less) or by month -->
 <div class="bg-brand-white border border-brand-sand rounded-xl p-5 shadow-sm mb-6">
-    <h2 class="font-heading font-bold text-sm text-brand-plum mb-4 uppercase tracking-wider">6-Month Trend</h2>
+    <h2 class="font-heading font-bold text-sm text-brand-plum mb-4 uppercase tracking-wider"><?= $period['by'] === 'day' ? 'Day by Day' : 'Month by Month' ?></h2>
     <div style="height: 240px; position: relative;">
         <canvas id="trendChart"></canvas>
     </div>
@@ -142,7 +201,7 @@ $cat_labels = [
     <div class="bg-brand-white border border-brand-sand rounded-xl p-5 shadow-sm">
         <h2 class="font-heading font-bold text-sm text-brand-plum mb-4 uppercase tracking-wider">Where the Money Went</h2>
         <?php if (empty($expense_categories)): ?>
-            <p class="text-xs text-brand-plum/40">No expenses recorded this month.</p>
+            <p class="text-xs text-brand-plum/40">No expenses recorded in this period.</p>
         <?php else: ?>
             <div class="space-y-3">
                 <?php foreach ($expense_categories as $cat): ?>
@@ -201,7 +260,7 @@ $cat_labels = [
 
         <!-- Invoices Issued -->
         <div class="bg-brand-white border border-brand-sand rounded-xl p-5 shadow-sm">
-            <h2 class="font-heading font-bold text-sm text-brand-plum mb-3 uppercase tracking-wider">Invoices Issued This Month</h2>
+            <h2 class="font-heading font-bold text-sm text-brand-plum mb-3 uppercase tracking-wider">Invoices Issued</h2>
             <div class="flex items-baseline gap-3">
                 <div class="font-heading font-extrabold text-xl text-brand-plum"><?= (int)$invoices_issued['count'] ?></div>
                 <div class="text-xs text-brand-plum/50">totalling <?= $currency ?><?= number_format((float)$invoices_issued['total'], 0) ?></div>
@@ -281,11 +340,11 @@ function downloadReport() {
     const el = document.getElementById('report-content');
     const opt = {
         margin: [10, 10, 10, 10],
-        filename: 'PnL_<?= date('F_Y', strtotime($period_start)) ?>_<?= preg_replace('/[^a-zA-Z0-9]/', '_', $business['name'] ?? 'Report') ?>.pdf',
+        filename: 'PnL_<?= $period['filename'] ?>_<?= preg_replace('/[^a-zA-Z0-9]/', '_', $business['name'] ?? 'Report') ?>.pdf',
         image: { type: 'jpeg', quality: 0.95 },
         html2canvas: { scale: 2, useCORS: true },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
     html2pdf().set(opt).from(el).save();
 }
-</script>
+</script>
