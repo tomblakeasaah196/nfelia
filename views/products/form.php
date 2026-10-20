@@ -339,27 +339,57 @@ $units = [
             <div class="bg-brand-white border border-brand-sand rounded-xl p-6 shadow-sm"
                  x-data="{
                     groups: <?= e(json_encode(array_map(function($g) {
-                        return ['name' => $g['name'], 'options' => $g['options_str'] ?? ''];
+                        $priced = (bool)array_filter($g['options'] ?? [], fn($o) => (float)($o['price_delta'] ?? 0) != 0.0);
+                        return [
+                            'name'    => $g['name'],
+                            'priced'  => $priced,
+                            'options' => array_map(function($o) {
+                                $d = (float)($o['price_delta'] ?? 0);
+                                return ['label' => $o['label'], 'price' => $d != 0.0 ? rtrim(rtrim(number_format($d, 2, '.', ''), '0'), '.') : ''];
+                            }, $g['options'] ?? []),
+                        ];
                     }, $variant_groups ?? []), JSON_HEX_APOS | JSON_HEX_QUOT)) ?>,
-                    addGroup() { this.groups.push({ name: '', options: '' }); },
-                    removeGroup(i) { this.groups.splice(i, 1); }
+                    addGroup() { this.groups.push({ name: '', priced: false, options: [{ label: '', price: '' }] }); },
+                    removeGroup(i) { this.groups.splice(i, 1); },
+                    addOption(g) { g.options.push({ label: '', price: '' }); },
+                    removeOption(g, j) { g.options.splice(j, 1); if (!g.options.length) g.options.push({ label: '', price: '' }); }
                  }">
                 <div class="flex items-center justify-between mb-4">
                     <h2 class="font-heading font-bold text-xs text-brand-plum uppercase tracking-widest">Variants</h2>
                     <button type="button" @click="addGroup()" class="text-[9px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg border border-brand-sand hover:border-brand-gold text-brand-plum/60 hover:text-brand-plum transition-all">+ Add Option Group</button>
                 </div>
                 <p class="text-[9px] text-brand-plum/40 mb-4" x-show="groups.length === 0">No variants defined. Add option groups like Color, Size, etc.</p>
-                <template x-for="(group, idx) in groups" :key="idx">
+                <template x-for="(group, gi) in groups" :key="gi">
                     <div class="mb-3 p-3 bg-brand-cream rounded-lg border border-brand-sand">
-                        <div class="flex items-center gap-2 mb-2">
-                            <input type="text" :name="'variant_group_name[' + idx + ']'" x-model="group.name" placeholder="e.g. Color, Size"
+                        <div class="flex items-center gap-2 mb-3">
+                            <input type="text" :name="'variant_group_name[' + gi + ']'" x-model="group.name" placeholder="e.g. Color, Size"
                                    class="flex-1 px-3 py-2 text-xs font-bold bg-white border border-brand-sand rounded focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/25">
-                            <button type="button" @click="removeGroup(idx)" class="text-red-400 hover:text-red-600 transition-colors p-1">
+                            <button type="button" @click="removeGroup(gi)" class="text-red-400 hover:text-red-600 transition-colors p-1" aria-label="Remove this group">
                                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                             </button>
                         </div>
-                        <input type="text" :name="'variant_group_options[' + idx + ']'" x-model="group.options" placeholder="Comma-separated: Black, White, Red"
-                               class="w-full px-3 py-2 text-xs bg-white border border-brand-sand rounded focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/25">
+
+                        <label class="flex items-center gap-2 mb-3 cursor-pointer">
+                            <input type="checkbox" x-model="group.priced" class="w-3.5 h-3.5 rounded border-brand-sand text-brand-gold focus:ring-brand-gold">
+                            <span class="text-[10px] font-semibold text-brand-plum/60 uppercase tracking-wider">This changes the price</span>
+                        </label>
+
+                        <template x-for="(opt, oi) in group.options" :key="oi">
+                            <div class="flex items-center gap-2 mb-2">
+                                <input type="text" :name="'variant_opt_label[' + gi + '][]'" x-model="opt.label" placeholder="Option, e.g. Navy Blue"
+                                       class="flex-1 min-w-0 px-3 py-2 text-xs bg-white border border-brand-sand rounded focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/25">
+                                <span class="flex items-center gap-1 shrink-0" x-show="group.priced" x-cloak>
+                                    <span class="text-[11px] font-bold text-brand-plum/40" title="Added to or taken off the base price">±<?= e($currency) ?></span>
+                                    <input type="text" inputmode="decimal" :name="'variant_opt_price[' + gi + '][]'" x-model="opt.price" placeholder="0" :disabled="!group.priced"
+                                           class="w-20 px-2 py-2 text-xs font-mono bg-white border border-brand-sand rounded focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/25">
+                                </span>
+                                <button type="button" @click="removeOption(group, oi)" class="text-brand-plum/30 hover:text-red-500 transition-colors p-1 shrink-0" aria-label="Remove this option">
+                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+                                </button>
+                            </div>
+                        </template>
+                        <button type="button" @click="addOption(group)" class="mt-1 text-[9px] font-bold uppercase tracking-wider text-brand-plum/50 hover:text-brand-gold transition-colors">+ Add option</button>
+                        <p class="text-[9px] text-brand-plum/35 mt-2" x-show="group.priced" x-cloak>Use a minus for cheaper options, e.g. −2000. Leave blank for no change.</p>
                     </div>
                 </template>
             </div>

@@ -81,6 +81,27 @@
         toastTimer = setTimeout(function () { toastEl.classList.remove('is-on'); }, 2600);
     }
 
+    /* ── Variant prices ──────────────────────────── */
+
+    function round2(n) { return Math.round(n * 100) / 100; }
+    // Sum the price changes of the chosen options, read back from the variant
+    // string ("Colour: Navy Blue, Size: XXL") the forms already produce.
+    function variantDelta(item, variant) {
+        if (!item || !item.variants || !variant) { return 0; }
+        var chosen = {};
+        String(variant).split(', ').forEach(function (tok) {
+            var at = tok.indexOf(': ');
+            if (at > 0) { chosen[tok.slice(0, at)] = tok.slice(at + 2); }
+        });
+        var d = 0;
+        item.variants.forEach(function (g) {
+            var label = chosen[g.name];
+            if (label && g.deltas && typeof g.deltas[label] === 'number') { d += g.deltas[label]; }
+        });
+        return d;
+    }
+    function linePrice(item, variant) { return round2((item.price || 0) + variantDelta(item, variant)); }
+
     /* ── The bag ─────────────────────────────────── */
 
     var CART_KEY = 'nfelia_cart_' + S.shop;
@@ -92,7 +113,7 @@
             var item = line && S.items[String(line.id)];
             if (!item) { return false; }
             line.name = item.name;
-            line.price = item.price;
+            line.price = linePrice(item, line.variant);
             line.qty = Math.max(1, Math.min(999, parseInt(line.qty, 10) || 1));
             return true;
         });
@@ -110,7 +131,7 @@
             line.qty = Math.min(999, line.qty + qty);
             if (note) { line.note = note; }
         } else {
-            cart.push({ key: key, id: item.id, name: item.name, price: item.price, qty: qty, variant: variant || '', note: note || '',
+            cart.push({ key: key, id: item.id, name: item.name, price: linePrice(item, variant), qty: qty, variant: variant || '', note: note || '',
                         image: item.img.length ? item.img[0].src : '' });
         }
     }
@@ -256,6 +277,15 @@
         var text = 'Hello ' + S.name + ', I found ' + current.name + (choice ? ' (' + choice + ')' : '') + ' on your shop. Is it available?';
         link.href = 'https://wa.me/' + S.wa + '?text=' + encodeURIComponent(text);
     }
+    function updateSheetPrice() {
+        var el2 = $('[data-p-price]', sheet);
+        if (!el2 || !current) { return; }
+        if (current.price > 0) {
+            el2.textContent = money(linePrice(current, variantString($('[data-p-variants]', sheet)))) + unitText(current.unit);
+        } else {
+            el2.textContent = 'Ask for the price';
+        }
+    }
 
     function openProduct(id, opts) {
         var item = S.items[String(id)];
@@ -304,7 +334,10 @@
                 var preset = opts.preset && opts.preset[group.name];
                 if (preset ? preset === option : oi === 0) { input.checked = true; }
                 label.appendChild(input);
-                label.appendChild(el('span', {}, option));
+                var optText = el('span', {}, option);
+                var d = group.deltas && group.deltas[option];
+                if (d) { optText.appendChild(el('small', { class: 'sf-choice__delta' }, (d > 0 ? '+' : '−') + money(Math.abs(d)))); }
+                label.appendChild(optText);
                 wrap.appendChild(label);
             });
             fs.appendChild(wrap);
@@ -327,6 +360,7 @@
             bookText.textContent = book.text;
         }
         updateSheetWa();
+        updateSheetPrice();
 
         if (opts.push !== false && LIVE) {
             history.pushState({ sfItem: item.id }, '', item.path || '#item-' + item.id);
@@ -360,7 +394,7 @@
     if (sheet) {
         sheet.addEventListener('cancel', function (e) { e.preventDefault(); closeProduct(); });
         sheet.addEventListener('click', function (e) { if (e.target === sheet) { closeProduct(); } });
-        sheet.addEventListener('change', updateSheetWa);
+        sheet.addEventListener('change', function () { updateSheetWa(); updateSheetPrice(); });
         $('[data-p-add]', sheet).addEventListener('click', function () {
             if (!current) { return; }
             var qty = parseInt($('[data-p-qty]', sheet).textContent, 10) || 1;
@@ -775,13 +809,25 @@
         var buyItem = S.items[buy.dataset.buy];
         var buyQty = $('[data-buy-qty]', buy);
         var buyWa = $('[data-buy-wa]', buy);
+        var buyPrice = $('[data-buy-price]', buy);
         var updateBuyWa = function () {
             if (!buyWa || !buyItem) { return; }
             var choice = variantString(buy);
             var text = 'Hello ' + S.name + ', I found ' + buyItem.name + (choice ? ' (' + choice + ')' : '') + ' on your shop. Is it available?';
             buyWa.href = 'https://wa.me/' + S.wa + '?text=' + encodeURIComponent(text);
         };
-        buy.addEventListener('change', updateBuyWa);
+        var updateBuyPrice = function () {
+            if (!buyPrice || !buyItem) { return; }
+            var d = variantDelta(buyItem, variantString(buy));
+            if (d && buyItem.price > 0) {
+                buyPrice.textContent = 'Your choice: ' + money(round2(buyItem.price + d)) + unitText(buyItem.unit);
+                buyPrice.hidden = false;
+            } else {
+                buyPrice.hidden = true;
+            }
+        };
+        buy.addEventListener('change', function () { updateBuyWa(); updateBuyPrice(); });
+        updateBuyPrice();
         buy.addEventListener('click', function (e) {
             var b = e.target.closest('[data-buy-step]');
             if (!b) { return; }

@@ -156,9 +156,9 @@ class MoMoController {
             'application/pdf' => 'pdf',
         ];
 
-        // Server-side MIME validation (never trust browser-reported type)
-        $finfo    = new \finfo(FILEINFO_MIME_TYPE);
-        $detected = $finfo->file($tmp);
+        // Server-side MIME validation (never trust browser-reported type).
+        // Read from the file's own bytes, with or without the fileinfo extension.
+        $detected = mime_content_type($tmp);
 
         if (!array_key_exists($detected, $ext_map)) {
             flash('error', 'Invalid file type. Please upload a JPG, PNG, WebP, or PDF receipt.');

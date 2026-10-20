@@ -103,7 +103,7 @@ $flash = get_flash();
     <?= errors_script_tag() ?>
     <!-- NFELIA AUDIT FIX H01 — CSRF meta tag for JS consumption — 2026-06-03 -->
     <meta name="csrf-token" content="<?= csrf_token() ?>">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content">
     <title><?= e($title ?? 'Home') ?> — <?= e($business['name']) ?> | Nfelia</title>
     <meta name="robots" content="noindex, nofollow">
     <meta name="theme-color" content="<?= $splash ? '#6E0039' : ($ui['bg'] === 'cream' ? '#F7F3EA' : '#FFFFFF') ?>" data-theme-color="<?= $ui['bg'] === 'cream' ? '#F7F3EA' : '#FFFFFF' ?>">

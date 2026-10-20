@@ -1709,7 +1709,7 @@ function order__store_proof(array $file, int $biz): string {
     if (filesize($file['tmp_name']) > $max * 1024 * 1024) {
         throw new DomainException('That file is bigger than ' . $max . ' MB. Add a smaller screenshot or PDF.');
     }
-    $mime = (new finfo(FILEINFO_MIME_TYPE))->file($file['tmp_name']);
+    $mime = mime_content_type($file['tmp_name']);
     $name = bin2hex(random_bytes(16));
     $dir  = private_file_dir('refund_proofs', $biz);
     $rel  = 'storage/private/refund_proofs/' . $biz . '/' . $name;

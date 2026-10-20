@@ -916,6 +916,21 @@ class PublicController
             }
             $catalogue[(int) $product["id"]] = $product;
         }
+        /* Price changes per variant option, keyed by the exact "Group: Label"
+           token the storefront writes into variant_selection. The delta is
+           looked up here and added to the real sell_price, so the browser can
+           never set its own price (S10). */
+        $variant_deltas = [];
+        $stmtVar = $this->db->prepare(
+            "SELECT g.product_id, g.name AS group_name, o.label, o.price_delta
+             FROM product_variant_groups g
+             JOIN product_variant_options o ON o.variant_group_id = g.id
+             WHERE g.business_id = ? AND o.price_delta <> 0 AND g.product_id IN ({$placeholders})",
+        );
+        $stmtVar->execute(array_merge([$business_id], $product_ids));
+        foreach ($stmtVar->fetchAll() as $vrow) {
+            $variant_deltas[(int) $vrow["product_id"]][$vrow["group_name"] . ": " . $vrow["label"]] = (float) $vrow["price_delta"];
+        }
         $subtotal = 0;
         $order_items = [];
         foreach ($lines as $line) {
@@ -924,6 +939,15 @@ class PublicController
                 continue; /* removed or hidden since the page was loaded */
             }
             $price = (float) $product["sell_price"];
+            if (!empty($line["variant_selection"]) && !empty($variant_deltas[$line["product_id"]])) {
+                $map = $variant_deltas[$line["product_id"]];
+                foreach (explode(", ", $line["variant_selection"]) as $chosen) {
+                    if (isset($map[$chosen])) {
+                        $price += $map[$chosen];
+                    }
+                }
+            }
+            $price = max(0.0, round($price, 2));
             $line_total = $price * $line["quantity"];
             $subtotal += $line_total;
             $order_items[] = [

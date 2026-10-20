@@ -52,7 +52,7 @@ class OpsPaymentsController
         if (!$inside) {
             ops_render('message', ['heading' => 'No receipt', 'text' => 'The receipt file for this payment is not on the server.'], 'Receipt', 404);
         }
-        $mime = (new finfo(FILEINFO_MIME_TYPE))->file($real);
+        $mime = mime_content_type($real);
         if (!in_array($mime, ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'], true)) {
             ops_render('message', ['heading' => 'Not a receipt', 'text' => 'This file is not a picture or a PDF, so it is not shown.'], 'Receipt', 415);
         }

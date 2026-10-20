@@ -163,6 +163,18 @@ $action = $is_edit ? APP_URL . '/orders/update/' . (int)$order['id'] : APP_URL .
                         <label class="nf-oprice"><span class="sr-only">Price each</span><span class="nf-cur"><?= e($currency) ?></span>
                             <input type="text" inputmode="decimal" x-model="it.unit_price" :name="'items[' + i + '][unit_price]'" placeholder="Price each"></label>
                     </div>
+                    <div class="nf-ovariants" x-show="it.variants && it.variants.length" x-cloak>
+                        <template x-for="(group, gi) in (it.variants || [])" :key="gi">
+                            <label class="nf-ovariant">
+                                <span x-text="group.name"></span>
+                                <select x-model="it.choices[group.name]" @change="onVariant(it)">
+                                    <template x-for="(opt, oi) in group.options" :key="oi">
+                                        <option :value="opt.label" x-text="opt.label + (opt.delta ? '  ·  ' + (opt.delta > 0 ? '+' : '−') + money(Math.abs(opt.delta)) : '')"></option>
+                                    </template>
+                                </select>
+                            </label>
+                        </template>
+                    </div>
                     <div class="nf-oitem-note">
                         <button type="button" class="nf-link" x-show="!it.showNote && !it.note" @click="it.showNote = true">Add a note</button>
                         <input type="text" x-show="it.showNote || it.note" x-model="it.note" :name="'items[' + i + '][note]'" maxlength="255" placeholder="Size, colour, measurements…" aria-label="Note for this item">

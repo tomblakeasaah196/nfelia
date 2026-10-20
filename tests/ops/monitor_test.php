@@ -410,4 +410,20 @@ exec_sql("UPDATE error_groups SET status = 'fixed', last_seen_at = NOW() - INTER
 ops_monitor_cleanup(get_db());
 eq((int)q("SELECT COUNT(*) FROM error_groups WHERE id = ?", [$fg['id']]), 0, 'a fixed one unseen for 90 days goes too');
 
+/* ── The PHP check ──────────────────────────────────────────── */
+
+section('fileinfo and intl are worth a look, not a break (the app has fallbacks)');
+
+// The host runs without fileinfo and intl; the app stands in for both. Missing
+// only these is amber, so the team is not paged for something that still works.
+[$state, $detail] = ops_php_health('8.3.35', '512M', [], ['intl', 'fileinfo']);
+eq($state, 'warn', 'missing only fileinfo/intl is "worth a look", not "needs attention"');
+ok(str_contains($detail, 'Missing: intl, fileinfo') && str_contains($detail, 'fallbacks'), 'and the detail says so, and that the app has fallbacks');
+
+// A must-have extension, or an old PHP, is still a break — still red, still alerts.
+eq(ops_php_health('8.3.35', '512M', ['gd'], [])[0], 'bad', 'a missing must-have (gd) is still "needs attention"');
+eq(ops_php_health('8.3.35', '512M', ['curl'], ['fileinfo'])[0], 'bad', 'a must-have missing alongside a cushioned one is still a break');
+eq(ops_php_health('8.2.0', '512M', [], [])[0], 'bad', 'a PHP older than 8.3 is still a break');
+eq(ops_php_health('8.3.35', '512M', [], [])[0], 'ok', 'everything present is all good');
+
 done();

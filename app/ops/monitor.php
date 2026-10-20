@@ -229,6 +229,25 @@ function ops_minutes_since(?string $db_time): ?int
 }
 
 /**
+ * How the PHP check reads, split out so it can be checked without an extension
+ * actually being absent. A break (bad) when PHP is too old or an extension the
+ * app can't run without is missing; worth a look (warn) when only a cushioned
+ * one is (fileinfo, intl — the app has fallbacks for both); otherwise ok.
+ *
+ * @param string[] $missing_required   must-have extensions not loaded
+ * @param string[] $missing_cushioned  fileinfo/intl not loaded (app copes)
+ * @return array{0: string, 1: string} [state, detail]
+ */
+function ops_php_health(string $version, string $memory_limit, array $missing_required, array $missing_cushioned): array
+{
+    $missing = array_merge($missing_required, $missing_cushioned);
+    $state   = (version_compare($version, '8.3', '<') || $missing_required) ? 'bad' : ($missing_cushioned ? 'warn' : 'ok');
+    $detail  = 'PHP ' . $version . ', memory limit ' . $memory_limit
+             . ($missing ? '. Missing: ' . implode(', ', $missing) . ($missing_required ? '.' : ' (the app has fallbacks for these).') : '.');
+    return [$state, $detail];
+}
+
+/**
  * Every check, worst first within its place. Each: key, group, label,
  * state (ok, warn, bad), detail, and link (a path in Ops, or null).
  */
@@ -325,10 +344,14 @@ function ops_health(PDO $db): array
         $add('dir:' . $dir, 'Server', $what, $ok ? 'ok' : 'bad', $dir . ($ok ? ' can be written to.' : (is_dir($full) ? ' cannot be written to.' : ' does not exist.')));
     }
 
-    // ── PHP and the database
-    $missing = array_values(array_filter(['pdo_mysql', 'curl', 'openssl', 'mbstring', 'gd', 'intl', 'fileinfo'], fn($x) => !extension_loaded($x)));
-    $add('php', 'Server', 'PHP', version_compare(PHP_VERSION, '8.3', '<') || $missing ? 'bad' : 'ok',
-         'PHP ' . PHP_VERSION . ', memory limit ' . ini_get('memory_limit') . ($missing ? '. Missing: ' . implode(', ', $missing) . '.' : '.'));
+    // ── PHP and the database. fileinfo and intl are cushioned: the app stands
+    //    in for fileinfo (app/helpers/functions.php) and guards every intl call,
+    //    so either being missing is worth a look, not a break. The rest, and an
+    //    old PHP, break the app and stay red (and so still alert the team).
+    $need_ext = array_values(array_filter(['pdo_mysql', 'curl', 'openssl', 'mbstring', 'gd'], fn($x) => !extension_loaded($x)));
+    $soft_ext = array_values(array_filter(['intl', 'fileinfo'], fn($x) => !extension_loaded($x)));
+    [$php_state, $php_detail] = ops_php_health(PHP_VERSION, (string)ini_get('memory_limit'), $need_ext, $soft_ext);
+    $add('php', 'Server', 'PHP', $php_state, $php_detail);
     $add('db', 'Server', 'Database', 'ok', (string)$db->query("SELECT VERSION()")->fetchColumn() . ', clock ' . $db->query("SELECT DATE_FORMAT(NOW(), '%H:%i')")->fetchColumn() . ' Lagos time.');
     $release_file = BASE_PATH . '/storage/release';
     $add('release', 'Server', 'Release', 'ok', app_release() === 'dev' ? 'Not deployed by bin/deploy.sh (no storage/release).'

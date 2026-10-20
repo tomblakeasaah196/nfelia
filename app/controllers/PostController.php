@@ -102,8 +102,8 @@ class PostController
                 if (!is_dir($dir)) {
                     mkdir($dir, 0755, true);
                 }
-                $file = 'post_' . time() . '_' . bin2hex(random_bytes(4)) . '.png';
-                if (save_image($_FILES['image'], $dir . '/' . $file, 1600)) {
+                $file = 'post_' . time() . '_' . bin2hex(random_bytes(4)) . '.jpg';
+                if (save_image($_FILES['image'], $dir . '/' . $file, 1600, 'jpg')) {
                     $image = 'uploads/storefront/' . $this->biz_id . '/' . $file;
                 } else {
                     $errors[] = 'That photo couldn\'t be read. Use a JPG, PNG or WebP picture.';

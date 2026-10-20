@@ -833,7 +833,33 @@ class OrderController
         $products = array_map(fn($p) => [
             "id" => (int) $p["id"], "name" => (string) $p["name"], "price" => (float) $p["sell_price"],
             "stock" => (int) $p["is_service"] ? null : (float) $p["stock_qty"], "unit" => (string) ($p["unit"] ?? ""),
+            "variants" => [],
         ], $stmt->fetchAll());
+
+        // Attach each product's variant groups and options (with price changes),
+        // so staff can pick a colour/size and the price follows.
+        $by_id = [];
+        foreach ($products as $k => $p) { $by_id[$p["id"]] = $k; }
+        if ($by_id) {
+            $vstmt = $this->db->prepare(
+                "SELECT g.id AS gid, g.product_id, g.name AS gname, o.label, o.price_delta
+                 FROM product_variant_groups g
+                 JOIN product_variant_options o ON o.variant_group_id = g.id
+                 WHERE g.business_id = ?
+                 ORDER BY g.product_id, g.sort_order, g.id, o.sort_order, o.id",
+            );
+            $vstmt->execute([$this->biz_id]);
+            $vgroups = [];
+            foreach ($vstmt->fetchAll() as $r) {
+                $pid = (int) $r["product_id"];
+                $gid = (int) $r["gid"];
+                $vgroups[$pid][$gid] ??= ["name" => (string) $r["gname"], "options" => []];
+                $vgroups[$pid][$gid]["options"][] = ["label" => (string) $r["label"], "delta" => (float) $r["price_delta"]];
+            }
+            foreach ($vgroups as $pid => $gs) {
+                if (isset($by_id[$pid])) { $products[$by_id[$pid]]["variants"] = array_values($gs); }
+            }
+        }
 
         $picked = !empty($old["customer_id"]) ? $this->customer_choice((int) $old["customer_id"]) : null;
         $form_mode = $mode;
