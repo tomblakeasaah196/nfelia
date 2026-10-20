@@ -1,0 +1,23 @@
+# MariaDB 10.11 for Nfelia on a 4 GB server. /etc/mysql/mariadb.conf.d/60-nfelia.cnf
+[mysqld]
+bind-address                    = 127.0.0.1
+character-set-server            = utf8mb4
+collation-server                = utf8mb4_unicode_ci
+# the app sets +01:00 per connection; the server stays on the system clock
+innodb_buffer_pool_size         = 1G
+innodb_log_file_size            = 256M
+innodb_flush_log_at_trx_commit  = 1        # money: never lose a committed row
+innodb_file_per_table           = 1
+innodb_flush_method             = O_DIRECT
+max_connections                 = 100
+max_allowed_packet              = 64M
+tmp_table_size                  = 64M
+max_heap_table_size             = 64M
+table_open_cache                = 2000
+thread_cache_size               = 16
+slow_query_log                  = 1
+slow_query_log_file             = /var/log/mysql/mariadb-slow.log
+long_query_time                 = 1
+log_queries_not_using_indexes   = 0
+performance_schema              = ON
+expire_logs_days                = 7

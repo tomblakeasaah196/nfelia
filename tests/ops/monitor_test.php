@@ -201,6 +201,37 @@ for ($i = 0; $i < 70; $i++) $send(['message' => 'Flood ' . $i, 'file' => '', 'pa
 ok((int)q("SELECT COUNT(*) FROM error_groups WHERE title LIKE 'Flood%'") <= 60, 'one network can send at most 60 in ten minutes');
 exec_sql("DELETE FROM auth_throttle");
 
+/* ── Content-policy reports ─────────────────────────────────── */
+
+section('A content-policy report from someone\'s browser');
+
+$csp = function ($body, ?Http $as = null, string $type = 'application/csp-report'): Http {
+    $h = $as ?? new Http();
+    $h->send('POST', 'api/csp', is_string($body) ? $body : json_encode($body), ['Content-Type: ' . $type]);
+    return $h;
+};
+$c = $csp(['csp-report' => ['document-uri' => $page, 'effective-directive' => 'script-src', 'blocked-uri' => 'https://evil.example/m.js?x=1',
+                            'source-file' => $page, 'line-number' => 12, 'disposition' => 'report']], $ada);
+eq($c->status, 204, 'is taken in (204)');
+$cg = rows("SELECT * FROM error_groups WHERE kind = 'csp'")[0] ?? null;
+ok($cg && $cg['level'] === 'warning' && $cg['file'] === 'script-src evil.example' && str_starts_with((string)$cg['title'], 'script-src would block evil.example'),
+   'recorded as a content-policy warning, grouped by directive and host');
+$cev = rows("SELECT * FROM error_events WHERE group_id = ?", [$cg['id'] ?? 0])[0] ?? [];
+eq([(int)($cev['business_id'] ?? 0), (int)($cev['user_id'] ?? 0), $cev['path'] ?? ''], [2, 20, '/dashboard'], 'for Ada at Ada\'s Hair, on the dashboard');
+$csp([['type' => 'csp-violation', 'age' => 3, 'body' => ['documentURL' => $page, 'effectiveDirective' => 'script-src', 'blockedURL' => 'https://evil.example/other.js', 'disposition' => 'report']],
+      ['type' => 'csp-violation', 'body' => ['documentURL' => $page, 'effectiveDirective' => 'img-src', 'blockedURL' => 'https://pics.example/a.png', 'disposition' => 'report']]],
+     null, 'application/reports+json');
+eq((int)q("SELECT events FROM error_groups WHERE id = ?", [$cg['id'] ?? 0]), 2, 'the Reporting API shape lands in the same group when directive and host are the same');
+eq((int)q("SELECT COUNT(*) FROM error_groups WHERE kind = 'csp' AND file = 'img-src pics.example'"), 1, 'a different directive or host is its own group');
+$csp(['csp-report' => ['document-uri' => $page, 'effective-directive' => 'script-src', 'blocked-uri' => 'chrome-extension://abc/x.js']]);
+$csp(['csp-report' => ['document-uri' => 'https://evil.example/', 'effective-directive' => 'script-src', 'blocked-uri' => 'inline']]);
+$csp('not json at all');
+eq((int)q("SELECT COUNT(*) FROM error_groups WHERE kind = 'csp'"), 2, 'extensions, other sites\' pages and rubbish are dropped');
+$csp(['csp-report' => ['document-uri' => 'http://adas-hair.' . shop_base_host() . ':' . parse_url(APP_URL, PHP_URL_PORT) . '/', 'effective-directive' => 'font-src', 'blocked-uri' => 'https://fonts.example/f.woff2']]);
+$scg = rows("SELECT e.* FROM error_events e JOIN error_groups g ON g.id = e.group_id WHERE g.file = 'font-src fonts.example'")[0] ?? [];
+eq([$scg['source'] ?? null, (int)($scg['business_id'] ?? 0)], ['shop', 2], 'a report from Ada\'s shop is put down to her shop');
+exec_sql("DELETE FROM auth_throttle");
+
 /* ── The server log ─────────────────────────────────────────── */
 
 section('The server log is read into Ops, once, without the ones already recorded');

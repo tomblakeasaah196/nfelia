@@ -69,8 +69,8 @@ try {
             $need_signed_in();
             if (!throttle_allows('unlock', 'user:' . $user['id'], 8, 15)) {
                 // Someone is guessing. End the session; the owner signs in again.
-                if (isset($_COOKIE['nfelia_remember'])) {
-                    get_db()->prepare("DELETE FROM sessions WHERE session_token = ?")->execute([$_COOKIE['nfelia_remember']]);
+                if (isset($_COOKIE[REMEMBER_COOKIE])) {
+                    remember_forget((string)$_COOKIE[REMEMBER_COOKIE]);
                 }
                 logout_user();
                 auth_api_fail('Too many tries. You have been signed out; sign in again.', 429, ['signedOut' => true]);
@@ -119,7 +119,7 @@ try {
             json_response(['ok' => true, 'left' => lock_seconds_left()]);
 
         case 'passkey-login':
-            if (!throttle_allows('passkey', 'ip:' . ($_SERVER['REMOTE_ADDR'] ?? ''), 30, 15)) {
+            if (!throttle_allows('passkey', 'ip:' . client_ip(), 30, 15)) {
                 auth_api_fail('Too many tries from this network. Wait a few minutes and try again.', 429);
             }
             $row = passkey_verify($in, 'login', null);

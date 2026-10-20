@@ -40,6 +40,7 @@
 ./storage/logs
 ./storage/sessions
 ./storage/private
+./storage/pdf
 
 # PHP error logs, any depth
 error_log

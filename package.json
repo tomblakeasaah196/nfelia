@@ -3,9 +3,10 @@
   "private": true,
   "description": "Front-end build for the app: Tailwind compiled ahead of time, and fonts and scripts served from Nfelia itself so the installed app opens fast and works offline.",
   "scripts": {
-    "build": "npm run build:vendor && npm run build:css",
+    "build": "npm run build:vendor && npm run build:css && npm run build:public",
     "build:vendor": "node bin/build-vendor.js",
-    "build:css": "tailwindcss -c tailwind.config.js -i assets/css/src/app.css -o assets/css/app.css --minify"
+    "build:css": "tailwindcss -c tailwind.config.js -i assets/css/src/app.css -o assets/css/app.css --minify",
+    "build:public": "tailwindcss -c tailwind.public.config.js -i assets/css/src/public.css -o assets/css/public.css --minify"
   },
   "devDependencies": {
     "@fontsource-variable/bricolage-grotesque": "5.3.0",

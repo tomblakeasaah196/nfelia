@@ -496,16 +496,17 @@ foreach (['ORD' => 'Order', 'INV' => 'Invoice', 'REC' => 'Receipt', 'DEL' => 'De
                            class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">
                 </div>
                 <div>
-                    <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">New Password</label>
-                    <input type="password" name="new_password" required minlength="8"
+                    <label for="new_password" class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">New Password</label>
+                    <input id="new_password" type="password" name="new_password" required minlength="9" maxlength="200" autocomplete="new-password"
                            class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">
                 </div>
                 <div>
-                    <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Confirm Password</label>
-                    <input type="password" name="confirm_password" required minlength="8"
+                    <label for="confirm_password" class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Confirm Password</label>
+                    <input id="confirm_password" type="password" name="confirm_password" required minlength="9" maxlength="200" autocomplete="new-password"
                            class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">
                 </div>
             </div>
+            <?php $pw_input = '#new_password'; $pw_confirm = '#confirm_password'; $pw_compact = true; require BASE_PATH . '/views/partials/password_rules.php'; ?>
             <div class="flex justify-end mt-4">
                 <button type="submit" class="bg-brand-white border border-brand-sand text-brand-plum px-6 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:border-brand-gold transition-colors">Update Password</button>
             </div>
@@ -616,10 +617,11 @@ foreach (['ORD' => 'Order', 'INV' => 'Invoice', 'REC' => 'Receipt', 'DEL' => 'De
                         <option value="admin">Admin — Full access except billing</option>
                     </select>
                 </div>
-                    <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Password *</label>
-                    <input type="password" name="staff_password" required minlength="8"
+                    <label for="staff_password" class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Password *</label>
+                    <input id="staff_password" type="password" name="staff_password" required minlength="9" maxlength="200" autocomplete="new-password"
                            class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum"
-                           placeholder="Min 8 characters">
+                           placeholder="9+ characters, a capital, a number, a symbol">
+                    <?php $pw_input = '#staff_password'; $pw_confirm = ''; $pw_compact = true; require BASE_PATH . '/views/partials/password_rules.php'; ?>
                 </div>
             </div>
             <p class="text-[9px] text-brand-plum/30 mt-2">Staff members can access operational modules but cannot manage billing, reports, or settings.</p>

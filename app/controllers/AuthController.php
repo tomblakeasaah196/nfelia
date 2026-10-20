@@ -9,6 +9,11 @@ class AuthController {
     /** How long an email-verification link works. */
     private const VERIFY_LINK_HOURS = 48;
 
+    /** Wrong passwords allowed before sign-in waits (per account, per connection, in the window). */
+    private const LOGIN_MAX_PER_ACCOUNT = 10;
+    private const LOGIN_MAX_PER_IP      = 50;
+    private const LOGIN_WINDOW_MINUTES  = 15;
+
     public function __construct() {
         // Initialize CSRF token if it doesn't exist using our new helper
         if (empty($_SESSION['csrf_token'])) {
@@ -43,10 +48,23 @@ class AuthController {
 
         $email = trim($_POST['email'] ?? '');
         $pass  = $_POST['password'] ?? '';
+        $ip    = client_ip();
+
+        // Wrong passwords are counted, right ones are not: 10 wrong tries on
+        // one account, or 50 from one connection, in 15 minutes, and sign-in
+        // waits. The same message either way, so the count says nothing
+        // about whether the address has an account.
+        $by_account = throttle_count('login_email', email_key($email), self::LOGIN_WINDOW_MINUTES);
+        $by_ip      = throttle_count('login_ip', $ip, self::LOGIN_WINDOW_MINUTES);
+        if ($by_account >= self::LOGIN_MAX_PER_ACCOUNT || $by_ip >= self::LOGIN_MAX_PER_IP) {
+            flash('error', 'Too many sign-in attempts. Wait ' . self::LOGIN_WINDOW_MINUTES . ' minutes and try again, or use "Forgot password".');
+            redirect(signin_url($_POST['next'] ?? ''));
+        }
 
         $user = account_find('email', $email);
 
         if ($user && password_verify($pass, $user['password_hash'])) {
+            throttle_clear('login_email', email_key($email));
             signin_start($user);
             if (!empty($_POST['remember_me'])) {
                 signin_remember($user);
@@ -54,6 +72,15 @@ class AuthController {
 
             redirect(signin_destination($_POST['next'] ?? null));
         } else {
+            throttle_hit('login_email', email_key($email));
+            throttle_hit('login_ip', $ip);
+            // The try that reaches the limit tells the account's owner, once
+            // an hour: someone is guessing their password.
+            if ($user && $by_account + 1 >= self::LOGIN_MAX_PER_ACCOUNT) {
+                notify('security.signin_blocked', (int)$user['business_id'], [
+                    'tries' => self::LOGIN_MAX_PER_ACCOUNT, 'minutes' => self::LOGIN_WINDOW_MINUTES, 'when' => planner_now()->format('j M, g:ia'),
+                ], ['users' => [(int)$user['id']], 'dedupe' => 'signin_blocked:' . date('YmdH')]);
+            }
             flash('error', 'Invalid email or password combination.');
             redirect(signin_url($_POST['next'] ?? ''));
         }
@@ -80,13 +107,13 @@ class AuthController {
         $password         = $_POST['password'] ?? '';
         $password_confirm = $_POST['password_confirm'] ?? '';
 
-        if (empty($biz_name) || empty($full_name) || empty($email) || strlen($password) < 8) {
-            flash('error', 'All fields are required. Password must be 8+ characters.');
+        if (empty($biz_name) || empty($full_name) || empty($email) || $password === '') {
+            flash('error', 'All fields are required.');
             $this->back_to_register();
         }
 
-        if ($password !== $password_confirm) {
-            flash('error', 'Passwords do not match. Please re-enter.');
+        if ($problem = new_password_problem($password, $password_confirm)) {
+            flash('error', $problem);
             $this->back_to_register();
         }
 
@@ -310,7 +337,7 @@ class AuthController {
         // Both limits count every request, account or not, so hitting one
         // says nothing about who is registered. The per-address limit stops
         // anyone flooding a person's inbox; reset and sign-in links share it.
-        if (!throttle_allows('link_ip', $_SERVER['REMOTE_ADDR'] ?? '', 30, 60)) {
+        if (!throttle_allows('link_ip', client_ip(), 30, 60)) {
             flash('error', 'Too many requests from this network. Please try again in an hour.');
             redirect($back);
         }
@@ -376,8 +403,8 @@ class AuthController {
                 redirect('forgot-password');
             }
 
-            if (strlen($password) < 8 || $password !== $confirm) {
-                flash('error', 'Passkeys do not match or fail security protocols.');
+            if ($problem = new_password_problem($password, $confirm)) {
+                flash('error', $problem);
                 redirect("reset-password/$token");
             }
 
@@ -397,7 +424,7 @@ class AuthController {
             // had the account, the reset now locks them out.
             $db->prepare("UPDATE account_tokens SET used_at = NOW() WHERE user_id = ? AND used_at IS NULL")
                ->execute([$account['id']]);
-            $db->prepare("DELETE FROM sessions WHERE user_id = ?")->execute([$account['id']]);
+            session_epoch_bump((int)$account['id'], false);   // every signed-in browser and kept device too
 
             // Tell the owner of the address, so a reset they did not make
             // does not go unnoticed.
@@ -472,7 +499,7 @@ class AuthController {
         $enterprise = trim($_POST['enterprise'] ?? '');
         $contact    = trim($_POST['contact'] ?? ''); // WhatsApp/Phone field
         $message    = trim($_POST['message'] ?? '');
-        $ip_address = $_SERVER['REMOTE_ADDR'] ?? null;
+        $ip_address = client_ip() ?: null;
 
         // Basic Validation
         if (empty($enterprise) || empty($message)) {
@@ -527,9 +554,7 @@ class AuthController {
 
         // Delete the sessions table row if remember-me was active
         if (isset($_COOKIE[REMEMBER_COOKIE])) {
-            $db = get_db();
-            $db->prepare("DELETE FROM sessions WHERE session_token = ?")
-               ->execute([$_COOKIE[REMEMBER_COOKIE]]);
+            remember_forget((string)$_COOKIE[REMEMBER_COOKIE]);
         }
 
         logout_user();

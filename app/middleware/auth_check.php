@@ -40,13 +40,19 @@ if (!is_logged_in()) {
             FROM sessions s
             JOIN users u ON u.id = s.user_id
             JOIN businesses b ON b.id = s.business_id
-            WHERE s.session_token = :token AND s.expires_at > NOW()
+            WHERE s.session_token IN (:hash, :raw) AND s.expires_at > NOW()
               AND u.is_active = 1  -- a removed team member's cookie must stop working
         ");
-        $stmt->execute([':token' => $token]);
+        // Tokens are kept hashed. One saved before they were is matched as
+        // it is, and rewritten as its hash the first time it is used.
+        $stmt->execute([':hash' => remember_hash($token), ':raw' => $token]);
         $session = $stmt->fetch();
 
         if ($session) {
+            if ($session['session_token'] === $token) {
+                $db->prepare("UPDATE sessions SET session_token = ? WHERE id = ?")
+                   ->execute([remember_hash($token), (int)$session['remember_row_id']]);
+            }
             login_user(
                 [
                     'id'          => $session['user_id'],
@@ -75,6 +81,16 @@ if (!is_logged_in()) {
                     'email_verified_at'   => $session['email_verified_at'] ?? null,
                 ]
             );
+            // The session epoch, read on its own: the column arrives with a
+            // migration a minute after the code, and that minute must not
+            // sign anyone out.
+            try {
+                $stmtE = $db->prepare("SELECT session_epoch FROM users WHERE id = ?");
+                $stmtE->execute([(int)$session['user_id']]);
+                $_SESSION['user']['session_epoch'] = (int)$stmtE->fetchColumn();
+            } catch (PDOException $e) {
+                $_SESSION['user']['session_epoch'] = 0;
+            }
             // This very page carries on, so there is nothing to come back to.
             unset($_SESSION['signin_next']);
             // Back after a while: open on the lock, not straight into the business.

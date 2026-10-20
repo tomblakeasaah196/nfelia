@@ -61,6 +61,8 @@ function signin_session(array $user): void
             'email'       => $user['email'],
             'role'        => $user['role'],
             'avatar_path' => $user['avatar_path'],
+            // Moved on when the password changes: older sessions end (auth_still_member)
+            'session_epoch' => (int)($user['session_epoch'] ?? 0),
         ],
         [
             'id'                  => $user['business_id'],
@@ -198,7 +200,11 @@ function signin_url(string $next = '', string $page = 'login'): string
     return $page . ($next !== '' ? '?next=' . rawurlencode($next) : '');
 }
 
-/** "Keep me signed in": a 30-day token for this device. */
+/**
+ * "Keep me signed in": a 30-day token for this device. The browser holds
+ * the token; the database holds only its hash, so a copy of the table is
+ * no use for signing in.
+ */
 function signin_remember(array $user): void
 {
     $token = bin2hex(random_bytes(64));
@@ -209,8 +215,8 @@ function signin_remember(array $user): void
     ")->execute([
         $user['id'],
         $user['business_id'],
-        $token,
-        $_SERVER['REMOTE_ADDR'] ?? null,
+        remember_hash($token),
+        client_ip() ?: null,
         substr((string)($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 500) ?: null,
         date('Y-m-d H:i:s', strtotime('+30 days')),
     ]);

@@ -9,6 +9,25 @@ ErrorDocument 500 /views/500.php
 # --- Block direct access to sensitive folders ---
 RewriteEngine On
 
+# --- Only Cloudflare may talk to this site (docs/ops/SECURITY.md §5) ---
+# Every nfelia.com name is proxied, so a request that did not come through
+# Cloudflare has skipped its rules. This server already presents the visitor's
+# own address as REMOTE_ADDR (LiteSpeed takes it from Cloudflare's header), so
+# Cloudflare's address ranges cannot be told apart here. Instead Cloudflare adds
+# a secret header to every request it forwards (a Transform Rule, CLOUDFLARE.md
+# prompt E), and anything without it is refused. The value lives in the docroot
+# .env as EDGE_TOKEN; bin/deploy.sh writes it over the placeholders below, or
+# removes the block when .env has none. Unsubstituted, the first line keeps
+# the block inert, so a copy of this file made by hand locks nobody out.
+# .well-known/ stays open: certificate checks for the mail names arrive there
+# directly. Do not edit the begin/end marker lines.
+# nf-edge-lock-begin
+RewriteCond __EDGE_ARMED__ ^armed$
+RewriteCond %{REQUEST_URI} !^/\.well-known/
+RewriteCond %{HTTP:X-Nfelia-Edge} !^__EDGE_TOKEN__$
+RewriteRule ^ - [F,L]
+# nf-edge-lock-end
+
 # --- Redirect old domain (nfelia.lpc.cm) to new domain (nfelia.com) ---
 RewriteCond %{HTTP_HOST} ^(www\.)?nfelia\.lpc\.cm$ [NC]
 RewriteRule ^(.*)$ https://nfelia.com/$1 [R=301,L]
@@ -20,6 +39,9 @@ RewriteRule ^config/ - [F,L]
 RewriteRule ^app/ - [F,L]
 RewriteRule ^views/ - [F,L]
 RewriteRule ^storage/ - [F,L]
+# Libraries are loaded by the app, never opened by a browser: no file under
+# vendor/ or lib/ should run or be read on its own.
+RewriteRule ^(vendor|lib)/ - [F,L]
 
 # Customers' signatures and payment screenshots saved before they moved to
 # storage/private/. They are sent only by the pages that check who is asking
@@ -37,6 +59,17 @@ RewriteRule ^uploads/.*\.(php[0-9]?|phtml|phar|pl|py|cgi|shtml)$ - [F,L,NC]
     Require all denied
 </FilesMatch>
 
+# cPanel's PHP writes a bare "error_log" file next to the script that
+# failed. It has no extension, so the rule above never matched it, and it
+# holds file paths and whatever the error message carried.
+<Files "error_log">
+    Require all denied
+</Files>
+# The dependency list is for Composer, not visitors
+<Files "composer.json">
+    Require all denied
+</Files>
+
 # --- Block access to .env and hidden files ---
 <FilesMatch "^\.">
     Order allow,deny
@@ -50,11 +83,43 @@ RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^(.*)$ index.php?url=$1 [QSA,L]
 
 # --- Security Headers ---
+# HSTS is set at Cloudflare (Edge Certificates), where every nfelia.com
+# host is served; see docs/ops/SECURITY.md before changing either place.
 <IfModule mod_headers.c>
     Header always set X-Frame-Options "SAMEORIGIN"
     Header always set X-Content-Type-Options "nosniff"
-    Header always set X-XSS-Protection "1; mode=block"
+    # The old XSS auditor is gone from every browser; "0" is the safe value
+    # (the auditor itself could be abused where it still ran).
+    Header always set X-XSS-Protection "0"
     Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    # No page of Nfelia may be framed by another site, rebased, or embed
+    # plugins. Script and style sources are governed separately, page by
+    # page, once the report-only trial has run (docs/ops/SECURITY.md).
+    Header always set Content-Security-Policy "frame-ancestors 'self'; base-uri 'self'; object-src 'none'"
+    # The full policy, on trial: nothing is blocked, browsers tell /api/csp
+    # what would have been, and Ops → Errors lists it as "Content policy".
+    # After two clean weeks the same line moves to Content-Security-Policy,
+    # minus 'unsafe-inline' once the inline scripts carry nonces and minus
+    # 'unsafe-eval' once Alpine's CSP build is in (docs/ops/SECURITY.md §6).
+    Header always set Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://nfelia.com https://fonts.gstatic.com; img-src 'self' data: blob: https://nfelia.com https://*.nfelia.com https://i.ytimg.com; media-src 'self' blob:; connect-src 'self'; frame-src 'self' https://www.youtube-nocookie.com; worker-src 'self'; manifest-src 'self'; form-action 'self'; frame-ancestors 'self'; base-uri 'self'; object-src 'none'; report-uri /api/csp"
+    # Nothing in Nfelia uses these browser features; saying so stops any
+    # script that slips in from asking for them.
+    Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=(), interest-cohort=()"
+    Header always set Cross-Origin-Opener-Policy "same-origin-allow-popups"
+
+    # --- Caching ---
+    # Styles, scripts, fonts and images under assets/, icons/ and uploads/
+    # carry their own .htaccess (a year; their names change when they do).
+    # Files at the root (icons, the manifest, the offline page) change in
+    # place now and then: a day.
+    <FilesMatch "\.(png|ico|svg|webmanifest|html)$">
+        Header set Cache-Control "public, max-age=86400"
+    </FilesMatch>
+    # The service workers must be checked on every start, or a new version
+    # of the app waits a day behind the old one.
+    <FilesMatch "^(sw|ops-sw)\.js$">
+        Header set Cache-Control "no-cache"
+    </FilesMatch>
 </IfModule>
 
 # --- PHP Settings for shared hosting ---

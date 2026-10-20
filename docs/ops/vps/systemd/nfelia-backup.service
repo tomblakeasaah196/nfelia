@@ -1,0 +1,12 @@
+[Unit]
+Description=Nfelia nightly backup (database, uploads, private files, .env) to /var/backups/nfelia and R2
+After=network-online.target mariadb.service
+
+[Service]
+Type=oneshot
+User=nfelia
+Group=nfelia
+Environment=NF_DOCROOT=/var/www/nfelia/current
+Environment=NF_BACKUPS=/var/backups/nfelia
+Environment=NF_BACKUP_REMOTE=nfelia-offsite
+ExecStart=/usr/bin/env bash /var/www/nfelia/current/bin/backup.sh

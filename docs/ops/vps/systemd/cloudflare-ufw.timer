@@ -1,0 +1,9 @@
+[Unit]
+Description=Refresh the Cloudflare address list weekly
+
+[Timer]
+OnCalendar=weekly
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,17 @@
+# Laid down as uploads/.htaccess by bin/deploy.sh on every deploy (uploads/
+# itself is runtime data and never copied).
+#
+# 1. Nothing under uploads/ ever runs as a script, whatever it is called.
+#    The root .htaccess says the same; this holds even if that one changes.
+# 2. Every uploaded file gets a new name (a time stamp or random bytes), so
+#    an image may be kept by browsers and Cloudflare for a month; a deleted
+#    photo is purged from Cloudflare by the app (app/helpers/cloudflare.php).
+Options -Indexes -ExecCGI
+<FilesMatch "\.(php[0-9]?|phtml|phar|pl|py|cgi|shtml|shtm|htaccess)$">
+    Require all denied
+</FilesMatch>
+<IfModule mod_headers.c>
+    <FilesMatch "\.(png|jpe?g|gif|webp|avif|svg|mp4|webm|pdf)$">
+        Header set Cache-Control "public, max-age=2592000"
+    </FilesMatch>
+</IfModule>

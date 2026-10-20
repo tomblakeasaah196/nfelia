@@ -63,12 +63,13 @@ $flash = get_flash();
                 </div>
                 <div class="field">
                     <label for="password">Password</label>
-                    <input id="password" type="password" name="password" required minlength="8" autocomplete="new-password" aria-describedby="password-hint" data-error="Use at least 8 characters.">
-                    <span class="hint" id="password-hint">At least 8 characters.</span>
+                    <input id="password" type="password" name="password" required minlength="9" maxlength="200" autocomplete="new-password" aria-describedby="password-hint" data-error="Meet every line in the list below the password.">
+                    <span class="hint" id="password-hint">Each line ticks as you type.</span>
+                    <?php $pw_input = '#password'; $pw_confirm = '#password_confirm'; require BASE_PATH . '/views/partials/password_rules.php'; ?>
                 </div>
                 <div class="field">
                     <label for="password_confirm">Type the password again</label>
-                    <input id="password_confirm" type="password" name="password_confirm" required minlength="8" autocomplete="new-password" data-match="password" data-error="Type the same password again.">
+                    <input id="password_confirm" type="password" name="password_confirm" required minlength="9" maxlength="200" autocomplete="new-password" data-match="password" data-error="Type the same password again.">
                 </div>
                 <details <?= $ref !== '' ? 'open' : '' ?>>
                     <summary>Have a referral code?</summary>

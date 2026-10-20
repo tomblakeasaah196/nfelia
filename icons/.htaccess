@@ -1,0 +1,5 @@
+# App icons and launch screens: regenerated rarely, under the same names
+# (docs/brand/icons/make_icons.js), so a month rather than a year.
+<IfModule mod_headers.c>
+    Header set Cache-Control "public, max-age=2592000"
+</IfModule>

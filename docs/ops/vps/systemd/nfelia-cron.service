@@ -1,0 +1,13 @@
+[Unit]
+Description=Nfelia planner (reminders, billing, outbox, monitor, records)
+After=network-online.target mariadb.service
+
+[Service]
+Type=oneshot
+User=nfelia
+Group=nfelia
+WorkingDirectory=/var/www/nfelia/current
+ExecStart=/usr/bin/php /var/www/nfelia/current/cron/planner.php
+Nice=5
+IOSchedulingClass=best-effort
+IOSchedulingPriority=5

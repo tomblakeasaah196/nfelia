@@ -477,8 +477,8 @@ $flash = get_flash();
     </script>
 
     <!-- System Scripts -->
-    <script src="<?= $asset('assets/vendor/jquery-3.7.1.min.js') ?>"></script>
-    <script src="<?= $asset('assets/js/app.js') ?>"></script>
+    <script src="<?= $asset('assets/vendor/jquery-3.7.1.min.js') ?>" defer></script>
+    <script src="<?= $asset('assets/js/app.js') ?>" defer></script>
     <script src="<?= $asset('assets/js/shell.js') ?>" defer></script>
     <script src="<?= $asset('assets/js/passkey.js') ?>" defer></script>
     <script src="<?= $asset('assets/js/lock.js') ?>" defer></script>

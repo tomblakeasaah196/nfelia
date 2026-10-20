@@ -17,7 +17,7 @@ if (!function_exists('ops_error_kind_chip')) {
     }
     function ops_error_kind_chip(string $kind): string
     {
-        return '<span class="ops-chip">' . e(['php' => 'Server', 'js' => 'Browser', 'job' => 'Background job', 'log' => 'Server log', 'slow' => 'Slow page'][$kind] ?? $kind) . '</span>';
+        return '<span class="ops-chip">' . e(['php' => 'Server', 'js' => 'Browser', 'csp' => 'Content policy', 'job' => 'Background job', 'log' => 'Server log', 'slow' => 'Slow page'][$kind] ?? $kind) . '</span>';
     }
     function ops_error_level_chip(string $level): string
     {

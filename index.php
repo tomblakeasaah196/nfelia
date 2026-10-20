@@ -30,6 +30,7 @@ require_once __DIR__ . '/app/helpers/orders.php';
 require_once __DIR__ . '/app/helpers/signing.php';
 require_once __DIR__ . '/app/helpers/token.php';
 require_once __DIR__ . '/app/helpers/mail.php';
+require_once __DIR__ . '/app/helpers/pdf.php';
 require_once __DIR__ . '/app/helpers/webpush.php';
 require_once __DIR__ . '/app/helpers/planner.php';
 require_once __DIR__ . '/app/helpers/shop_links.php';
@@ -457,7 +458,7 @@ function dispatch_ajax(string $action, ?string $param): void {
     // The service worker renewing a push subscription is not someone using
     // the app: it neither waits on the lock nor keeps it away.
     $sw_renewal = $action === 'notifications' && ($_GET['action'] ?? '') === 'resubscribe';
-    if (!in_array($action, ['auth', 'webhooks', 'errors'], true) && !$sw_renewal && is_logged_in()) {
+    if (!in_array($action, ['auth', 'webhooks', 'errors', 'csp'], true) && !$sw_renewal && is_logged_in()) {
         if (!auth_still_member()) {
             json_response(['success' => false, 'message' => 'You no longer have access to this business.'], 401);
         }
@@ -482,10 +483,20 @@ function dispatch_ajax(string $action, ?string $param): void {
         'auth'          => __DIR__ . '/api/ajax/auth.php',
         'webhooks'      => __DIR__ . '/api/webhooks/paystack.php',
         'errors'        => __DIR__ . '/api/ajax/errors.php',   // a script error in someone's browser
+        'csp'           => __DIR__ . '/api/ajax/csp.php',      // a content-policy report from someone's browser
     ];
     
     $file = $ajax_map[$action] ?? null;
     if ($file && file_exists($file)) {
+        // A GET here only reads (the bell's count and list, the pickers'
+        // searches): the session is let go first, so this request never
+        // waits behind a slow page the same person has open in another
+        // tab (a photo being saved held the bell poll for 3 seconds live),
+        // and never holds that page up. The sign-in API keeps its session:
+        // it checks the lock itself.
+        if ($action !== 'auth' && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET' && session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
+        }
         require_once $file;
     } else {
         http_response_code(404);

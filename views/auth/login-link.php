@@ -15,40 +15,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sign-in Link — Nfelia</title>
     
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&family=Plus+Jakarta+Sans:ital,wght@0,600;0,700;0,800;1,600&family=Roboto+Mono:wght@400;600;700&display=swap" rel="stylesheet">
     
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: { 
-                        brand: { 
-                            burgundy: '#8B004A', 
-                            gold: '#B69F5E', 
-                            cream: '#F2EFE7', 
-                            plum: '#1B0A11', 
-                            sand: '#E8E4DA', 
-                            white: '#FFFFFF' 
-                        } 
-                    },
-                    fontFamily: { 
-                        jakarta: ['"Plus Jakarta Sans"', 'sans-serif'], 
-                        montserrat: ['Montserrat', 'sans-serif'], 
-                        mono: ['"Roboto Mono"', 'monospace'] 
-                    },
-                    boxShadow: { 
-                        'flat': '0 4px 15px rgba(27, 10, 17, 0.03)' 
-                    }
-                }
-            }
-        }
-    </script>
+    <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/public.css?v=<?= @filemtime(BASE_PATH . '/assets/css/public.css') ?>">
     <style>
-        body { background-color: #F2EFE7; color: #1B0A11; font-family: 'Montserrat', sans-serif; }
-        h1, h2, h3, .font-heading { font-family: '"Plus Jakarta Sans"', sans-serif; }
-        .data-text { font-family: '"Roboto Mono"', monospace; }
-    </style>
+        body { background-color: #F2EFE7; color: #1B0A11; }
+        </style>
 </head>
 <body class="min-h-screen flex flex-col items-center justify-center p-4">
 

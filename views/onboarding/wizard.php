@@ -20,29 +20,8 @@ $fonts = FONT_PAIRINGS ?? [];
     <?= errors_script_tag() ?>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= e($title) ?> — Nfelia Setup</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&family=Roboto+Mono:wght@400;600;700&display=swap" rel="stylesheet">
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        brand: {
-                            burgundy: '#8B004A', gold: '#B69F5E', cream: '#F2EFE7',
-                            plum: '#1B0A11', sand: '#E8E4DA', white: '#FFFFFF'
-                        }
-                    },
-                    fontFamily: {
-                        heading: ['"Plus Jakarta Sans"', 'sans-serif'],
-                        body: ['Montserrat', 'sans-serif'],
-                        mono: ['"Roboto Mono"', 'monospace'],
-                    },
-                    boxShadow: { 'flat': '4px 4px 0px 0px rgba(27, 10, 17, 1)' }
-                }
-            }
-        }
-    </script>
-    <style>body { font-family: 'Montserrat', sans-serif; background-color: #F2EFE7; color: #1B0A11; }</style>
+    <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/public.css?v=<?= @filemtime(BASE_PATH . '/assets/css/public.css') ?>">
+    <style>body { background-color: #F2EFE7; color: #1B0A11; }</style>
 </head>
 <body class="min-h-screen flex flex-col items-center justify-center p-4 lg:p-8">
 
@@ -69,7 +48,7 @@ $fonts = FONT_PAIRINGS ?? [];
         <?php endif; ?>
 
         <!-- Main Form Container -->
-        <div class="bg-brand-white border border-brand-plum shadow-flat p-8 lg:p-12 relative">
+        <div class="bg-brand-white border border-brand-plum shadow-flat-hard p-8 lg:p-12 relative">
             <h1 class="font-heading font-extrabold text-3xl text-brand-plum uppercase tracking-tight mb-2"><?= e($title) ?></h1>
             <p class="text-xs text-brand-plum/70 font-medium mb-8">Establish structural parameters for <?= e($business['name']) ?>.</p>
 

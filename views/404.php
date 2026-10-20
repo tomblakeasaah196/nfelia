@@ -7,33 +7,12 @@
     <title>404 Not Found — Nfelia</title>
     
     <!-- Typography -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&family=Roboto+Mono:wght@400;600;700&display=swap" rel="stylesheet">
     
     <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        brand: { burgundy: '#8B004A', gold: '#B69F5E', cream: '#F2EFE7', plum: '#1B0A11', sand: '#E8E4DA', white: '#FFFFFF' }
-                    },
-                    fontFamily: {
-                        heading: ['"Plus Jakarta Sans"', 'sans-serif'],
-                        body: ['Montserrat', 'sans-serif'],
-                        mono: ['"Roboto Mono"', 'monospace'],
-                    },
-                    boxShadow: { 'flat': '0 4px 15px rgba(27, 10, 17, 0.03)' }
-                }
-            }
-        }
-    </script>
+    <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/public.css?v=<?= @filemtime(BASE_PATH . '/assets/css/public.css') ?>">
     <style>
-        body { background-color: #F2EFE7; color: #1B0A11; font-family: 'Montserrat', sans-serif; -webkit-font-smoothing: antialiased; }
-        .data-text { font-family: '"Roboto Mono"', monospace; }
-    </style>
+        body { background-color: #F2EFE7; color: #1B0A11; -webkit-font-smoothing: antialiased; }
+        </style>
 </head>
 <body class="min-h-screen flex flex-col justify-center items-center p-4 relative overflow-hidden">
     

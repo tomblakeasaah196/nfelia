@@ -354,6 +354,26 @@ function ops_health(PDO $db): array
     $add('php', 'Server', 'PHP', $php_state, $php_detail);
     $add('db', 'Server', 'Database', 'ok', (string)$db->query("SELECT VERSION()")->fetchColumn() . ', clock ' . $db->query("SELECT DATE_FORMAT(NOW(), '%H:%i')")->fetchColumn() . ' Lagos time.');
     $release_file = BASE_PATH . '/storage/release';
+    // Backups: bin/backup.sh writes one line per run to <BACKUP_DIR>/backup.log,
+    // "<time> OK <stamp> db=... files=... offsite: ...". Older than 36 hours,
+    // or a FAILED line last, is worth a look; no log at all is a problem.
+    $backup_dir = rtrim((string)($_ENV['BACKUP_DIR'] ?? (dirname(BASE_PATH, 2) . '/backups/nfelia')), '/');
+    $backup_log = $backup_dir . '/backup.log';
+    $last = '';
+    if (is_file($backup_log) && ($lines = @file($backup_log, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES))) {
+        $last = (string)end($lines);
+    }
+    if ($last === '') {
+        $add('backup', 'Server', 'Backups', 'bad', 'No backup has been recorded at ' . $backup_log . '. Set up bin/backup.sh (docs/ops/RUNBOOK.md, Backups).');
+    } else {
+        $when = strtotime(substr($last, 0, 25)) ?: 0;
+        $age_h = $when ? (time() - $when) / 3600 : 999;
+        $failed = str_contains($last, 'FAILED');
+        $offsite = str_contains($last, 'copied to');
+        $add('backup', 'Server', 'Backups', $failed || $age_h > 72 ? 'bad' : ($age_h > 36 || !$offsite ? 'warn' : 'ok'),
+             ($failed ? 'The last run failed: ' : 'Last backup ' . ($age_h < 1 ? 'under an hour' : round($age_h) . ' hours') . ' ago. ')
+             . ($failed ? trim(substr($last, 26)) : ($offsite ? 'Copied off the server.' : 'Kept on this server only: no off-site copy is set up.')));
+    }
     $add('release', 'Server', 'Release', 'ok', app_release() === 'dev' ? 'Not deployed by bin/deploy.sh (no storage/release).'
          : app_release() . ', deployed ' . ops_ago(date('Y-m-d H:i:s', (int)@filemtime($release_file) + ops_tz_offset())) . '.');
 

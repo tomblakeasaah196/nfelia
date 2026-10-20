@@ -91,6 +91,27 @@ mkdir -p "$DEPLOYPATH/storage"
 git -C "$REPO" log -1 --pretty='%h %cI %s' > "$DEPLOYPATH/storage/release"
 echo "[deploy] release $(cut -d' ' -f1 "$DEPLOYPATH/storage/release")"
 
+# uploads/ is runtime data and never copied, so its .htaccess (no scripts
+# run there, long caching for the images) is laid down from the repo on
+# every deploy instead.
+mkdir -p "$DEPLOYPATH/uploads"
+cp "$REPO/bin/uploads.htaccess" "$DEPLOYPATH/uploads/.htaccess"
+echo "[deploy] uploads/.htaccess refreshed"
+
+# --- Origin lock (docs/ops/SECURITY.md §5) ---------------------------------
+# The repo's .htaccess carries placeholders; the real value lives in the
+# docroot .env as EDGE_TOKEN and in Cloudflare's request-header rule. With a
+# usable token the block is armed; without one it is removed, the site stays
+# open as before, and the log says so. Never fails the deploy.
+EDGE_TOKEN="$(grep -E '^EDGE_TOKEN=' "$DEPLOYPATH/.env" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '\r"'"'"' ' || true)"
+if printf '%s' "$EDGE_TOKEN" | grep -Eq '^[A-Za-z0-9_-]{24,128}$'; then
+    sed -i -e "s/__EDGE_TOKEN__/$EDGE_TOKEN/g" -e "s/__EDGE_ARMED__/armed/g" "$DEPLOYPATH/.htaccess"
+    echo "[deploy] origin lock ARMED (EDGE_TOKEN from .env; Cloudflare must send X-Nfelia-Edge)"
+else
+    sed -i '/# nf-edge-lock-begin/,/# nf-edge-lock-end/d' "$DEPLOYPATH/.htaccess"
+    echo "[deploy] origin lock OFF: no usable EDGE_TOKEN in .env (letters, digits, - and _, 24 to 128 long)"
+fi
+
 # Normalise permissions. tar xp preserves the archive's modes, and the
 # archive carries whatever umask was in force when the repo was cloned.
 # A clone made under `umask 077` yields mode 600 files, which tar copies
@@ -101,10 +122,17 @@ echo "[deploy] release $(cut -d' ' -f1 "$DEPLOYPATH/storage/release")"
 #   go=rX  group/other read; traverse directories
 chmod -R u=rwX,go=rX "$DEPLOYPATH"
 
-# ...except the secrets, which must stay owner-only.
+# ...except the secrets, which must stay owner-only: .env, and everything the
+# app keeps for itself (sessions, private files and the seal key under them,
+# logs, kept PDFs). Those are never served, so the web server needs no
+# access to them either.
 for secret in "$DEPLOYPATH"/.env "$DEPLOYPATH"/.env.*; do
     [ -f "$secret" ] && chmod 600 "$secret"
 done
+for private in sessions private logs pdf momo_receipts; do
+    [ -d "$DEPLOYPATH/storage/$private" ] && chmod -R o-rwx "$DEPLOYPATH/storage/$private"
+done
+[ -f "$DEPLOYPATH/storage/private/seal.key" ] && chmod 600 "$DEPLOYPATH/storage/private/seal.key"
 echo "[deploy] permissions normalised"
 
 # --- 3. Composer dependencies ----------------------------------------------

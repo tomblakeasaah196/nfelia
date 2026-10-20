@@ -1,14 +1,26 @@
 name: CI + Deploy
 
+# The quick checks run on every push to main and every pull request. The
+# long end-to-end job (a database, a browser, ~1,500 checks, 10+ minutes)
+# runs on pull requests, where it decides whether the change may merge, and
+# on demand; it is not run again on the merge itself, which would double
+# the Actions minutes for no new information. On a private repository the
+# free plan allows 2,000 minutes a month.
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 concurrency:
   group: deploy-${{ github.ref }}
   cancel-in-progress: false
+
+# The workflow only reads the repository; the deploy talks to the server
+# with its own secret. Nothing here needs to write to GitHub.
+permissions:
+  contents: read
 
 jobs:
   checks:
@@ -153,6 +165,7 @@ jobs:
 
   notifications:
     name: Notifications and Nfelia Ops, end to end
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     services:
       mariadb:
@@ -206,6 +219,8 @@ jobs:
             echo "MAIL_PASSWORD=sink"
             echo "MAIL_FROM_ADDRESS=no-reply@nfelia.test"
             echo "PAYSTACK_SECRET_KEY=sk_test_ci_only"
+            # No calls to Have I Been Pwned from the test copy
+            echo "PASSWORD_BREACH_CHECK=off"
             # The stand-in push service (push_sink.php): only real push
             # services and these are ever called (app/helpers/webpush.php).
             echo "PUSH_TEST_ENDPOINTS=http://127.0.0.1:8098/"
@@ -228,7 +243,7 @@ jobs:
           echo "::error::the app did not start"; cat "$RUNNER_TEMP/app.log"; exit 1
 
       - name: Engine, every trigger over HTTP, the cron, the service worker, Nfelia Ops, the orders hub, the Records Book, signatures
-        run: bash tests/notifications/run.sh engine flows cron sw ops/foundation ops/monitor ops/clients ops/sales ops/uploads orders/core ops/records docs/sign
+        run: bash tests/notifications/run.sh engine flows cron sw ops/foundation ops/monitor ops/clients ops/sales ops/uploads orders/core ops/records docs/sign auth/signin
 
       # What the app itself said (PHP errors above all), right in the job's
       # log: the artifact below has the whole file.
@@ -271,7 +286,7 @@ jobs:
 
   deploy:
     name: Deploy via webhook
-    needs: [checks, notifications]
+    needs: [checks]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: production
