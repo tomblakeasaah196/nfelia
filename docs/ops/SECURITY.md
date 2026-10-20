@@ -185,8 +185,10 @@ request without the right value:
 RewriteCond armed ^armed$
 RewriteCond %{REQUEST_URI} !^/\.well-known/
 RewriteCond %{HTTP:X-Nfelia-Edge} !^<token>$
-RewriteRule ^ - [F,L]
+RewriteRule .* - [F,L]
 ```
+
+(`.*`, not `^`: the form proven on this LiteSpeed on 20 October.)
 
 Visitors never see the header; a caller who knows the server's address
 does not know the token. The committed file carries placeholders
