@@ -1,5 +1,9 @@
 # Nfelia — deployment
 
+> The day-to-day procedures (deploying without Actions, backups, restore,
+> secret rotation, the panel, Cloudflare, GitHub) are in
+> [docs/ops/RUNBOOK.md](docs/ops/RUNBOOK.md). This file is the mechanism.
+
 Push to `main` → GitHub Actions lints and sweeps for secrets → it POSTs an
 authenticated request to `webhook/deploy.php` on the server → that runs
 `bin/deploy.sh`, which resets the checkout to `origin/main`, copies the tree

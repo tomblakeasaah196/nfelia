@@ -1,0 +1,10 @@
+[Unit]
+Description=Nfelia backup every night at 02:40 Lagos time
+
+[Timer]
+OnCalendar=*-*-* 02:40:00 Africa/Lagos
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

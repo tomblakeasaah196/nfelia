@@ -68,6 +68,17 @@ notes. Two rules that have each caused an outage:
 
 Push to `main`. See [DEPLOY.md](DEPLOY.md).
 
+## Operations documentation
+
+`docs/ops/` is the operations set, written on 20 October 2026 from the
+live server:
+
+- [INFRASTRUCTURE.md](docs/ops/INFRASTRUCTURE.md): everything that exists today, with real values
+- [RUNBOOK.md](docs/ops/RUNBOOK.md): how to deploy, back up, restore, rotate secrets, and what to check where
+- [SECURITY.md](docs/ops/SECURITY.md): the audit, what was fixed, what is still open
+- [PERFORMANCE.md](docs/ops/PERFORMANCE.md): what was slow, what changed, what is left
+- [VPS-MIGRATION.md](docs/ops/VPS-MIGRATION.md): the move to a dedicated server, with the configs under `docs/ops/vps/`
+
 ## Operational checks
 
 ```

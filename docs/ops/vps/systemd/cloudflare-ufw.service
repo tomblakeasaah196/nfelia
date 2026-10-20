@@ -1,0 +1,7 @@
+[Unit]
+Description=Refresh the firewall's list of Cloudflare addresses
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/cloudflare-ufw.sh

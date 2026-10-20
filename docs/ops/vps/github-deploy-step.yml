@@ -1,0 +1,21 @@
+# Replace the "Deploy via webhook" job in .github/workflows/deploy.yml with
+# this one on the VPS. Secrets: DEPLOY_SSH_KEY (the private key whose public
+# half is in /home/nfelia/.ssh/authorized_keys, restricted to the deploy
+# script), DEPLOY_HOST (the server's address). The key can run nothing but
+# bin/deploy-vps.sh.
+  deploy:
+    name: Deploy over SSH
+    needs: [checks]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Deploy
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          set -euo pipefail
+          umask 077; printf '%s\n' "$DEPLOY_SSH_KEY" > key
+          ssh -i key -o StrictHostKeyChecking=accept-new -o BatchMode=yes "nfelia@$DEPLOY_HOST" "${GITHUB_SHA}" | tee out.log
+          grep -q '^\[deploy\] OK ' out.log
