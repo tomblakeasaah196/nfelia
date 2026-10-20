@@ -66,6 +66,13 @@ function planner() {
         confirmDelete: false,
         confirmFrom: null,
 
+        // A tick asks before it clears a task, so a mis-tap never quietly
+        // removes something. The item waits here until the owner says yes.
+        confirmDone: false,
+        doneItem: null,
+        doneInJob: false,
+        doneFrom: null,
+
         plan: { template: null, steps: [] },
         job: {},
         jobSteps: [],
@@ -99,10 +106,11 @@ function planner() {
             }
             if (this.tab === 'calendar') this.loadMonth();
             this.checkPush();
-            this.$watch('panel', function (v) { document.body.style.overflow = v ? 'hidden' : ''; });
+            this.$watch('panel', function () { self.lockScroll(); });
+            this.$watch('confirmDone', function () { self.lockScroll(); });
             this.$watch('form', function () { self.saveDraft(); });
             this.$watch('plan', function () { self.saveDraft(); });
-            document.addEventListener('keydown', function (e) { if (e.key === 'Tab' && self.panel) self.trapFocus(e); });
+            document.addEventListener('keydown', function (e) { if (e.key === 'Tab' && (self.panel || self.confirmDone)) self.trapFocus(e); });
 
             // A page left open overnight starts the new day fresh, unless a
             // sheet is open with something half typed. Compared with the
@@ -163,6 +171,9 @@ function planner() {
                     });
                 });
         },
+
+        // Background stays put whenever a sheet or a confirm is open.
+        lockScroll: function () { document.body.style.overflow = (this.panel || this.confirmDone) ? 'hidden' : ''; },
 
         say: function (text, undo, error, label) {
             clearTimeout(this.toastTimer);
@@ -276,7 +287,37 @@ function planner() {
 
         /* ── Ticking off ────────────────────────────── */
 
+        // Completing a task or job step, or marking an order delivered, asks
+        // first; undoing, or hiding an automatic item, goes straight through —
+        // nothing is lost that way.
         tick: function (it, inJob) {
+            if ((it.tick === 'task' || it.tick === 'delivered' || inJob) && !it.done) return this.askDone(it, inJob);
+            return this.doTick(it, inJob);
+        },
+
+        askDone: function (it, inJob) {
+            this.doneItem = it;
+            this.doneInJob = !!inJob;
+            this.doneFrom = document.activeElement;
+            this.confirmDone = true;
+            this.$nextTick(function () { var y = document.getElementById('pl-done-yes'); if (y) y.focus(); });
+        },
+
+        confirmDoneYes: function () {
+            var it = this.doneItem, inJob = this.doneInJob;
+            this.closeDone();
+            if (it) this.doTick(it, inJob);
+        },
+
+        closeDone: function () {
+            var self = this, from = this.doneFrom;
+            this.confirmDone = false;
+            this.doneItem = null;
+            this.doneInJob = false;
+            this.$nextTick(function () { if (from && from.isConnected && from.focus) from.focus(); });
+        },
+
+        doTick: function (it, inJob) {
             var self = this;
             var after = function () { if (inJob || self.panel === 'job') self.reloadJob(); };
             if (it.tick === 'task' || inJob) {
@@ -366,7 +407,8 @@ function planner() {
         },
 
         onEscape: function () {
-            if (this.confirmDelete) this.closeConfirm();
+            if (this.confirmDone) this.closeDone();
+            else if (this.confirmDelete) this.closeConfirm();
             else this.dismissPanel();
         },
 
@@ -400,7 +442,9 @@ function planner() {
         },
 
         trapFocus: function (e) {
-            var sheet = this.confirmDelete ? document.querySelector('[role=alertdialog]') : this.$refs.sheet;
+            var sheet = this.confirmDone ? document.getElementById('pl-done-dialog')
+                      : this.confirmDelete ? document.getElementById('pl-del-dialog')
+                      : this.$refs.sheet;
             if (!sheet) return;
             var els = Array.prototype.filter.call(
                 sheet.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select, textarea'),

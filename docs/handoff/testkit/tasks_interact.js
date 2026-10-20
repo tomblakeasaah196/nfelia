@@ -25,6 +25,8 @@ const ok = (c, m) => { if (c) { pass++; console.log('  PASS ', m); } else { fail
   };
   const waitIdle = () => page.waitForTimeout(500);
   const row = (title) => page.locator('li', { has: page.locator(`text="${title}"`) }).last();
+  // Completing a task now asks first; say yes to clear it.
+  const sayDone = async () => { await page.waitForSelector('#pl-done-yes', { state: 'visible', timeout: 5000 }); await page.click('#pl-done-yes'); };
 
   console.log('Quick add');
   await page.click('button[role=radio]:has-text("Tomorrow")');
@@ -40,6 +42,12 @@ const ok = (c, m) => { if (c) { pass++; console.log('  PASS ', m); } else { fail
 
   console.log('Tick, undo');
   await row('Post new arrivals on Instagram').locator('button[role=checkbox]').click();
+  ok(await page.locator('#pl-done-title').textContent().then((t) => t.includes('Post new arrivals on Instagram')), 'tick asks to confirm, naming the task');
+  ok(q("SELECT done_at IS NULL FROM tasks WHERE title='Post new arrivals on Instagram' AND deleted_at IS NULL") === '1', 'not marked done until confirmed');
+  await page.click('#pl-done-no');
+  ok(await page.locator('#pl-done-dialog').isHidden(), 'Not yet closes the confirm');
+  await row('Post new arrivals on Instagram').locator('button[role=checkbox]').click();
+  await sayDone();
   ok((await toast('^Done')).startsWith('Done'), 'tick says Done');
   await waitIdle();
   ok(q("SELECT done_at IS NOT NULL FROM tasks WHERE title='Post new arrivals on Instagram' AND deleted_at IS NULL") === '1', 'done_at stamped');
@@ -49,6 +57,7 @@ const ok = (c, m) => { if (c) { pass++; console.log('  PASS ', m); } else { fail
 
   console.log('Repeat');
   await row('Pay shop rent').locator('button[role=checkbox]').click();
+  await sayDone();
   const rt = await toast('Next one');
   ok(/Next one: /.test(rt), 'repeat toast names the next date: ' + rt);
   await waitIdle();
@@ -96,9 +105,9 @@ const ok = (c, m) => { if (c) { pass++; console.log('  PASS ', m); } else { fail
   await page.click('button:has-text("Clean and dust the display shelves")');
   await page.click('[role=dialog][aria-modal=true] button:has-text("Delete")');
   await page.waitForTimeout(200);
-  ok(await page.isVisible('[role=alertdialog]'), 'delete asks first');
+  ok(await page.isVisible('#pl-del-dialog'), 'delete asks first');
   ok((await page.textContent('#pl-del-title')).includes('Clean and dust the display shelves'), 'confirmation names the task');
-  await page.click('[role=alertdialog] button:has-text("Delete")');
+  await page.click('#pl-del-dialog button:has-text("Delete")');
   ok((await toast('Deleted')).includes('Deleted'), 'deleted');
   await waitIdle();
   ok(q("SELECT deleted_at IS NOT NULL FROM tasks WHERE title='Clean and dust the display shelves'") === '1', 'soft-deleted in DB');
@@ -112,6 +121,8 @@ const ok = (c, m) => { if (c) { pass++; console.log('  PASS ', m); } else { fail
   await page.click('[role=status] button:has-text("Undo")'); await page.waitForTimeout(700);
   ok(await page.locator('text=/Restock HD Lace Closure/').count() === 1, 'undo brings it back');
   await row('Deliver to Blessing Etim').locator('button[role=checkbox]').click();
+  ok(await page.locator('#pl-done-title').textContent().then((t) => /delivered\?$/.test(t)), 'delivery asks to confirm first');
+  await sayDone();
   ok((await toast('Marked delivered')).includes('Marked delivered'), 'delivery ticked');
   await waitIdle();
   ok(q("SELECT delivered_at IS NOT NULL FROM invoices WHERE id=6") === '1', 'invoice delivered_at set');
@@ -140,6 +151,7 @@ const ok = (c, m) => { if (c) { pass++; console.log('  PASS ', m); } else { fail
   await page.click('button:has-text("Sewing job for Chioma")');
   await page.waitForSelector('[role=dialog][aria-modal=true] ol li');
   await page.locator('[role=dialog][aria-modal=true] ol li').first().locator('button[role=checkbox]').click();
+  await sayDone();
   await page.waitForTimeout(1500);
   console.log('    job header:', await page.textContent('#pl-job-title + p'), '| steps done in DB:', q("SELECT COUNT(*) FROM tasks t JOIN tasks p ON p.id=t.parent_id WHERE p.title='Sewing job for Chioma' AND t.done_at IS NOT NULL"));
   ok((await page.textContent('#pl-job-title + p')).includes('1 of 5 done'), 'ticking a step updates the count');
@@ -191,6 +203,7 @@ const ok = (c, m) => { if (c) { pass++; console.log('  PASS ', m); } else { fail
       .observe(document.body, { subtree: true, childList: true, characterData: true });
   });
   await row('Post new arrivals on Instagram').locator('button[role=checkbox]').click();
+  await sayDone();
   await toast('Done');
   await page.waitForTimeout(1200);
   ok(!(await page.evaluate(() => window.__blank)), 'ticking on the calendar does not blank the day list');
@@ -228,14 +241,14 @@ const ok = (c, m) => { if (c) { pass++; console.log('  PASS ', m); } else { fail
   await page.waitForTimeout(250);
   ok(await page.evaluate(() => document.activeElement.id) === 'pl-del-keep', 'the delete question starts on "Keep it"');
   await page.keyboard.press('Escape'); await page.waitForTimeout(250);
-  ok(await page.locator('[role=alertdialog]').isHidden() && await page.locator('[role=dialog][aria-modal=true]').isVisible(), 'Escape closes only the question, not the editor');
+  ok(await page.locator('#pl-del-dialog').isHidden() && await page.locator('[role=dialog][aria-modal=true]').isVisible(), 'Escape closes only the question, not the editor');
   ok(await page.inputValue('#pl-title') === 'Ask supplier for the HD lace price', 'the edit is still there');
   ok(await page.evaluate(() => document.activeElement.textContent.trim()) === 'Delete', 'focus is back on Delete');
   let deletes = 0;
   const countDelete = (req) => { if (req.url().endsWith('/tasks/delete')) deletes++; };
   page.on('request', countDelete);
   await page.click('[role=dialog][aria-modal=true] button:has-text("Delete")'); await page.waitForTimeout(250);
-  await page.locator('[role=alertdialog] button:has-text("Delete")').dblclick();
+  await page.locator('#pl-del-dialog button:has-text("Delete")').dblclick();
   ok((await toast('Deleted')).includes('Deleted'), 'a double tap on Delete still reads "Deleted."');
   await waitIdle();
   page.off('request', countDelete);
