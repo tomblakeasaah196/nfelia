@@ -1,10 +1,17 @@
 name: CI + Deploy
 
+# The quick checks run on every push to main and every pull request. The
+# long end-to-end job (a database, a browser, ~1,500 checks, 10+ minutes)
+# runs on pull requests, where it decides whether the change may merge, and
+# on demand; it is not run again on the merge itself, which would double
+# the Actions minutes for no new information. On a private repository the
+# free plan allows 2,000 minutes a month.
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 concurrency:
   group: deploy-${{ github.ref }}
@@ -158,6 +165,7 @@ jobs:
 
   notifications:
     name: Notifications and Nfelia Ops, end to end
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     services:
       mariadb:
@@ -278,7 +286,7 @@ jobs:
 
   deploy:
     name: Deploy via webhook
-    needs: [checks, notifications]
+    needs: [checks]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: production
