@@ -207,16 +207,16 @@
                                 class="mt-3 h-11 px-4 rounded-xl bg-brand-burgundy text-white text-sm font-semibold">Add a task for today</button>
                     </div>
 
-                    <ul x-show="g.items.length && (g.key !== 'done' || showDone)" class="bg-white border border-brand-sand rounded-2xl divide-y divide-brand-sand overflow-hidden">
+                    <ul x-show="g.items.length && (g.key !== 'done' || showDone)" class="bg-white border border-brand-sand rounded-2xl divide-y divide-brand-sand">
                         <template x-for="(it, i) in g.items" :key="it.id">
                             <li>
-                                <div x-show="g.byDay && (i === 0 || g.items[i - 1].date !== it.date)" class="px-4 pt-3 pb-1 text-sm font-semibold text-[#5B4650] bg-brand-cream/40" x-text="dayHeading(it.date)"></div>
+                                <div x-show="g.byDay && (i === 0 || g.items[i - 1].date !== it.date)" class="px-4 pt-3 pb-1 text-sm font-semibold text-[#5B4650] bg-brand-cream/40" :class="i === 0 ? 'rounded-t-2xl' : ''" x-text="dayHeading(it.date)"></div>
                                 <div class="flex items-start gap-1 pl-1 pr-2 py-2">
                                     <!-- Tick, or the source icon for items done elsewhere -->
                                     <template x-if="it.tick">
                                         <button type="button" role="checkbox" :aria-checked="it.done" @click="tick(it)"
                                                 :aria-label="(it.done ? 'Mark not done: ' : (it.tick === 'delivered' ? 'Mark delivered: ' : 'Mark done: ')) + it.title"
-                                                :data-tip="it.done ? 'Mark not done' : (it.tick === 'delivered' ? 'Mark delivered' : 'Mark done')" data-tip-side="right"
+                                                :data-tip="it.done ? 'Mark not done' : (it.tick === 'delivered' ? 'Mark delivered' : 'Mark done')"
                                                 class="w-11 h-11 shrink-0 inline-flex items-center justify-center rounded-full">
                                             <span class="w-6 h-6 rounded-full border-2 inline-flex items-center justify-center"
                                                   :class="it.done ? 'bg-[#00764A] border-[#00764A] text-white' : (it.tick === 'delivered' ? 'border-[#B54708]' : 'border-[#5B4650]/60')">
@@ -530,10 +530,10 @@
                     <div class="overflow-y-auto px-5 py-4">
                         <div x-show="job.countdown" class="mb-4 inline-flex px-3 py-1 rounded-full text-sm font-semibold" :class="toneClass(job.countdown && job.countdown.tone)" x-text="job.countdown && job.countdown.label"></div>
                         <p x-show="jobLoading" class="text-base text-[#5B4650]">Loading steps…</p>
-                        <ol class="bg-white border border-brand-sand rounded-2xl divide-y divide-brand-sand overflow-hidden">
+                        <ol class="bg-white border border-brand-sand rounded-2xl divide-y divide-brand-sand">
                             <template x-for="s in jobSteps" :key="s.id">
                                 <li class="flex items-start gap-1 pl-1 pr-2 py-2">
-                                    <button type="button" role="checkbox" :aria-checked="s.done" @click="tick(s, true)" :aria-label="(s.done ? 'Mark not done: ' : 'Mark done: ') + s.title" :data-tip="s.done ? 'Mark not done' : 'Mark done'" data-tip-side="right" class="w-11 h-11 shrink-0 inline-flex items-center justify-center">
+                                    <button type="button" role="checkbox" :aria-checked="s.done" @click="tick(s, true)" :aria-label="(s.done ? 'Mark not done: ' : 'Mark done: ') + s.title" :data-tip="s.done ? 'Mark not done' : 'Mark done'" class="w-11 h-11 shrink-0 inline-flex items-center justify-center">
                                         <span class="w-6 h-6 rounded-full border-2 inline-flex items-center justify-center" :class="s.done ? 'bg-[#00764A] border-[#00764A] text-white' : 'border-[#5B4650]/60'">
                                             <svg x-show="s.done" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
                                         </span>
