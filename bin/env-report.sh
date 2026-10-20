@@ -73,7 +73,9 @@ say "2. cPANEL: DOMAINS, DOCROOTS, SSL, EMAIL, CRON"
 if have uapi; then
     sub "domains"; uapi DomainInfo list_domains 2>&1 | head -60
     sub "docroots"; uapi DomainInfo domains_data format=list 2>&1 | grep -E 'domain:|documentroot:|servername:|type:' | head -80
-    sub "SSL installed hosts (certificate text omitted)"; uapi SSL installed_hosts 2>&1 | grep -E 'servername|not_after|not_before|organizationName|is_self_signed|docroot|fqdns|commonName' | head -60
+    sub "SSL installed hosts (certificate text omitted)"; uapi SSL installed_hosts 2>&1 | grep -E 'servername|not_after|not_before|organizationName|is_self_signed|docroot|fqdns|commonName' | head -140
+    sub "the certificate the origin presents for $HOST (what Cloudflare connects to)"
+    (timeout 10 openssl s_client -connect 127.0.0.1:443 -servername "$HOST" </dev/null 2>/dev/null | openssl x509 -noout -subject -issuer -dates -ext subjectAltName 2>/dev/null) || echo "(could not read)"
     sub "email accounts"; uapi Email list_pops 2>&1 | grep -E 'email:' | head -40
     sub "MX"; uapi Email list_mxs domain="$HOST" 2>&1 | head -30
     sub "SPF / DKIM / PTR as cPanel sees them"
@@ -99,6 +101,7 @@ say "4. PHP (command line: ${PHP_BIN:-none})"
 if [ -n "$PHP_BIN" ]; then
     "$PHP_BIN" -v | head -1
     sub "extensions"; "$PHP_BIN" -m | tr '\n' ' '; echo
+    sub "opcache (CLI view; the web view is in section 5)"; "$PHP_BIN" -i 2>/dev/null | grep -iE '^(opcache\.enable|opcache\.memory_consumption|Zend OPcache)' | head -4 || true
     sub "ini (CLI)"; "$PHP_BIN" -i 2>/dev/null | grep -E '^(Loaded Configuration File|Scan this dir|memory_limit|max_execution_time|post_max_size|upload_max_filesize|disable_functions|allow_url_fopen|date\.timezone|error_log|log_errors|display_errors|session\.save_path|session\.gc_maxlifetime|opcache\.enable|opcache\.enable_cli|opcache\.memory_consumption|opcache\.max_accelerated_files|opcache\.validate_timestamps|opcache\.revalidate_freq|opcache\.jit|opcache\.jit_buffer_size|opcache\.interned_strings_buffer|realpath_cache_size|max_input_vars|open_basedir|sendmail_path) ' | head -40
     sub "other PHP binaries"; ls -la /usr/local/bin/php /usr/local/bin/ea-php8* /opt/cpanel/ea-php8*/root/usr/bin/php 2>/dev/null
 else
@@ -156,6 +159,16 @@ say "7. REPO CHECKOUT, DEPLOY, DOCROOT"
 if [ -d "$REPO/.git" ]; then
     sub "remote / head"; git -C "$REPO" remote -v | mask; git -C "$REPO" rev-parse --abbrev-ref HEAD; git -C "$REPO" log -1 --format='%h %ci %s'; git -C "$REPO" status --short | head -10
     sub "credential helper"; git -C "$REPO" config --get credential.helper; git -C "$REPO" config --get remote.origin.url | mask
+    sub "stored git credential (masked)"; [ -f "$HOME_DIR/.git-credentials" ] && sed -E 's#(://[^:/@]+:)[^@]{4}[^@]*@#\1***@#' "$HOME_DIR/.git-credentials" || echo "(none)"
+    sub "can that credential read the repository through the API?"
+    GH_TOKEN_LINE="$(grep -m1 'github.com' "$HOME_DIR/.git-credentials" 2>/dev/null || true)"
+    if [ -n "$GH_TOKEN_LINE" ]; then
+        GH_TOKEN="$(printf '%s' "$GH_TOKEN_LINE" | sed -E 's#.*://[^:/@]+:([^@]+)@.*#\1#')"
+        curl -sS --max-time 15 -o /dev/null -D - -H "Authorization: token $GH_TOKEN" https://api.github.com/repos/tomblakeasaah196/nfelia 2>/dev/null | grep -iE '^(HTTP|x-oauth-scopes|x-accepted-github-permissions|github-authentication-token-expiration)' || echo "(no answer)"
+        unset GH_TOKEN
+    else
+        echo "(no github.com credential stored)"
+    fi
 else
     echo "repo checkout not found at $REPO"
 fi
@@ -210,6 +223,13 @@ if have mysql && [ -n "$DB_USER" ]; then
     export MYSQL_PWD="$DB_PASS"
     MY="mysql --default-character-set=utf8mb4 -h ${DB_HOST:-localhost} -u $DB_USER $DB_NAME"
     [ -n "$DB_PORT" ] && MY="$MY -P $DB_PORT"
+    # The shell may not reach the host .env names (a public IP from inside
+    # CageFS, say); the local socket is the same server on cPanel.
+    if ! $MY -e "SELECT 1" >/dev/null 2>&1; then
+        echo "(could not reach DB_HOST=${DB_HOST:-localhost} from the shell: using the local socket instead)"
+        MY="mysql --default-character-set=utf8mb4 --protocol=socket -u $DB_USER $DB_NAME"
+    fi
+    sub "which hosts the app user may connect from"; $MY -N -e "SELECT CONCAT(user, '@', host) FROM mysql.user WHERE user = '$DB_USER';" 2>/dev/null || echo "(mysql.user not readable by this user)"
     sub "server"; $MY -t -e "SELECT VERSION() v, @@version_comment c, @@hostname h;" 2>&1
     sub "variables that matter"; $MY -t -e "SHOW VARIABLES WHERE Variable_name IN ('innodb_buffer_pool_size','innodb_log_file_size','innodb_flush_log_at_trx_commit','innodb_file_per_table','max_connections','max_user_connections','wait_timeout','interactive_timeout','max_allowed_packet','tmp_table_size','max_heap_table_size','sort_buffer_size','join_buffer_size','table_open_cache','thread_cache_size','character_set_server','collation_server','character_set_database','collation_database','time_zone','system_time_zone','sql_mode','slow_query_log','long_query_time','log_queries_not_using_indexes','performance_schema','query_cache_type','query_cache_size','max_statement_time','lock_wait_timeout','innodb_lock_wait_timeout','event_scheduler');" 2>&1
     sub "status"; $MY -t -e "SHOW GLOBAL STATUS WHERE Variable_name IN ('Uptime','Threads_connected','Max_used_connections','Connections','Slow_queries','Questions','Innodb_buffer_pool_reads','Innodb_buffer_pool_read_requests','Created_tmp_disk_tables','Created_tmp_tables','Select_full_join','Select_scan','Table_locks_waited','Aborted_connects');" 2>&1
@@ -226,6 +246,7 @@ if have mysql && [ -n "$DB_USER" ]; then
     if have mysqldump; then
         MD="mysqldump --no-data --skip-comments --skip-add-drop-table --routines --triggers --events -h ${DB_HOST:-localhost} -u $DB_USER"
         [ -n "$DB_PORT" ] && MD="$MD -P $DB_PORT"
+        case "$MY" in *--protocol=socket*) MD="mysqldump --no-data --skip-comments --skip-add-drop-table --routines --triggers --events --protocol=socket -u $DB_USER" ;; esac
         if $MD "$DB_NAME" > "$SCHEMA_OUT" 2>"$TMPD/dumperr"; then chmod 600 "$SCHEMA_OUT"; echo "written: $(wc -l < "$SCHEMA_OUT") lines, $(grep -c 'CREATE TABLE' "$SCHEMA_OUT") tables"; else echo "mysqldump failed:"; head -3 "$TMPD/dumperr"; fi
     fi
     unset MYSQL_PWD
