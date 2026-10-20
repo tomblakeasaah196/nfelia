@@ -184,8 +184,10 @@ has fallbacks, but these are the real thing).
 
 ### 4.2 Point the database at localhost
 
-Only after report run 2 lists `smartqaq_nfelia_admin@localhost` among the
-user's hosts (it will: cPanel creates both). Edit `.env`:
+Only once the shell can sign in as `smartqaq_nfelia_admin` over the local
+socket (§7, "Section 10": runs 1 and 2 could not, so the `localhost` entry
+is missing or carries another password; the fix there is a password reset
+in cPanel plus the same new password in `.env`). Then edit `.env`:
 `DB_HOST=localhost`. Open the site. If it fails, put the IP back; nothing
 else changed.
 
@@ -216,7 +218,21 @@ the cPanel subdomain and the DNS record.
   Configuration → Purge Everything.
 - **DMARC step-up** (after two weeks of clean reports at dmarc@nfelia.com):
   DNS → `_dmarc` TXT → `v=DMARC1; p=quarantine; rua=mailto:dmarc@nfelia.com; pct=100`.
-- HSTS, origin lock and WAF rules: SECURITY.md §4 and §5 (decisions first).
+- **Before anything else: 2FA** on both account members (My Profile →
+  Authentication → Two-Factor Authentication, an authenticator app plus
+  backup codes), then Manage Account → Members → Enforce 2FA. The export
+  of 20 October found it off on both (SECURITY.md L-10).
+- **Minimum TLS 1.2**: SSL/TLS → Edge Certificates → Minimum TLS Version
+  (or CLOUDFLARE.md prompt B).
+- **DNSSEC**: DNS → Settings → Enable DNSSEC, then the DS record it shows
+  goes to the registrar of `nfelia.com`.
+- **Notifications** (free): Notifications → Add → "SSL for SaaS /
+  Universal SSL" expiry, "DDoS Attack L7", "Origin Error Rate"; to the
+  owner's mailbox.
+- HSTS, origin lock and the rules: SECURITY.md §4 and §5 (decisions first).
+- The zone can be read and changed by Cloudflare's own assistant in the
+  dashboard with a token you give it; the paste-ready prompts, and what
+  the read-only run of 20 October found, are in [CLOUDFLARE.md](CLOUDFLARE.md).
 
 ---
 
@@ -264,6 +280,28 @@ cd ~/repositories/nfelia && git fetch origin main && git show origin/main:bin/en
 (Until this branch is merged, use `origin/ccr-78f79379-31wjft` in place of
 `origin/main`.) With a read-only Cloudflare token: `CF_API_TOKEN=… bash ~/nfelia-env-report.sh`.
 The report masks secrets; the schema copy it writes stays in `~`.
+
+**Section 10 (database) and the schema copy.** Since 20 October the schema
+is read through the panel's API (`uapi Mysql dump_database_schema`), so it
+no longer depends on the database password, and an empty file is never
+left behind. The table figures, variables and grants still need the shell
+to sign in as the app user, which runs 1 and 2 could not: the user signs
+in for the site over TCP to the public address but is refused as
+`…@localhost` (INFRASTRUCTURE.md §10). If section 10 still says so, the
+checks by hand are: cPanel → MySQL Databases → Current Users (is
+`smartqaq_nfelia_admin` listed?) and cPanel → Remote MySQL (which hosts
+are added?), then, typing the `.env` password when asked:
+
+```bash
+mysql --protocol=socket -u smartqaq_nfelia_admin -p smartqaq_nfelia_core -e 'SELECT CURRENT_USER()'
+```
+
+"Access denied" there means the `localhost` entry is missing or has
+another password. Fix: cPanel → MySQL Databases → Current Users →
+Change Password (sets the same password on every host entry), then the
+new password into `.env` `DB_PASS` in the same minute (the site is down
+in between), then `DB_HOST=localhost` (§4.2). Check by opening the site,
+signing in, and Ops → Health.
 
 ### Checking the schema
 

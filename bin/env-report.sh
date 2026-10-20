@@ -54,7 +54,7 @@ mask() {
         -e 's/\b[A-Fa-f0-9]{48,}\b/<hex-token>/g'
 }
 mask_mail() { sed -E 's/[A-Za-z0-9._%+-]+@([A-Za-z0-9.-]+\.[A-Za-z]{2,})/***@\1/g'; }
-envval() { [ -f "$DOCROOT/.env" ] && grep -E "^$1=" "$DOCROOT/.env" | tail -1 | cut -d= -f2- | sed -E "s/^[\"']//; s/[\"']$//"; }
+envval() { [ -f "$DOCROOT/.env" ] && grep -E "^$1=" "$DOCROOT/.env" | tail -1 | cut -d= -f2- | tr -d '\r' | sed -E "s/^[\"']//; s/[\"']$//"; }
 code() { curl -sS -o /dev/null -w '%{http_code}' --max-time 15 "$@" 2>/dev/null || printf '000'; }
 
 report() {
@@ -219,17 +219,56 @@ sub "logs"; ls -la "$DOCROOT/storage/logs" 2>/dev/null; for f in "$DOCROOT/stora
 
 say "10. DATABASE"
 DB_HOST="$(envval DB_HOST)"; DB_PORT="$(envval DB_PORT)"; DB_NAME="$(envval DB_NAME)"; DB_USER="$(envval DB_USER)"; DB_PASS="$(envval DB_PASS)"
+echo "DB_HOST=${DB_HOST:-localhost}  DB_NAME=$DB_NAME  DB_USER=$DB_USER"
+# What the panel knows needs no database password: users, privileges, schema.
+if have uapi; then
+    sub "database users and their databases (panel)"; uapi Mysql list_users 2>&1 | sed -n '/^  data:/,/^  errors:/p' | grep -v '^  errors:' | head -60
+    sub "privileges of the app user on the database (panel)"; uapi Mysql get_privileges_on_database user="$DB_USER" database="$DB_NAME" 2>&1 | sed -n '/^  data:/,/^  errors:/p' | grep -v '^  errors:' | head -30
+fi
+sub "structure-only schema copy -> $SCHEMA_OUT (kept in HOME, not printed)"
+done_dump=no
+if have uapi && uapi --output=jsonpretty Mysql dump_database_schema dbname="$DB_NAME" > "$TMPD/schema.json" 2>"$TMPD/dumperr"; then
+    if have perl && perl -MJSON::PP -e1 2>/dev/null; then
+        perl -MJSON::PP -0777 -ne 'my $j = decode_json($_); die "uapi: " . join("; ", @{$j->{result}{errors} || []}) . "\n" unless $j->{result}{status}; print $j->{result}{data}' "$TMPD/schema.json" > "$SCHEMA_OUT" 2>"$TMPD/dumperr" && done_dump=yes
+    elif have node; then
+        node -e 'const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); if (!j.result.status) { console.error("uapi: " + (j.result.errors || []).join("; ")); process.exit(1); } process.stdout.write(j.result.data);' "$TMPD/schema.json" > "$SCHEMA_OUT" 2>"$TMPD/dumperr" && done_dump=yes
+    else
+        echo "uapi answered, but neither perl (JSON::PP) nor node is here to unpack it" > "$TMPD/dumperr"
+    fi
+    [ "$done_dump" = yes ] && echo "(through the panel API: uapi Mysql dump_database_schema)"
+fi
 if have mysql && [ -n "$DB_USER" ]; then
     export MYSQL_PWD="$DB_PASS"
-    MY="mysql --default-character-set=utf8mb4 -h ${DB_HOST:-localhost} -u $DB_USER $DB_NAME"
-    [ -n "$DB_PORT" ] && MY="$MY -P $DB_PORT"
-    # The shell may not reach the host .env names (a public IP from inside
-    # CageFS, say); the local socket is the same server on cPanel.
-    if ! $MY -e "SELECT 1" >/dev/null 2>&1; then
-        echo "(could not reach DB_HOST=${DB_HOST:-localhost} from the shell: using the local socket instead)"
-        MY="mysql --default-character-set=utf8mb4 --protocol=socket -u $DB_USER $DB_NAME"
+    BASEOPTS="-u $DB_USER"; [ -n "$DB_PORT" ] && BASEOPTS="$BASEOPTS -P $DB_PORT"
+    # Try the host .env names (from inside CageFS a public IP may not be
+    # reachable), then TCP on loopback, then the local socket. Say which one
+    # answered and how each other one failed: the host part of the grant
+    # decides, and that is what DB_HOST=localhost depends on.
+    WAY=""; MY=""
+    for way in "-h ${DB_HOST:-localhost} --protocol=tcp" "-h 127.0.0.1 --protocol=tcp" "--protocol=socket"; do
+        if out=$(mysql $BASEOPTS $way -N -e "SELECT CONCAT('signed in as ', CURRENT_USER())" "$DB_NAME" 2>&1); then
+            echo "$out  ($way)"; WAY="$way"; MY="mysql --default-character-set=utf8mb4 $BASEOPTS $WAY $DB_NAME"; break
+        else
+            echo "no  ($way): $(echo "$out" | head -1 | cut -c1-150)"
+        fi
+    done
+    if [ -z "$MY" ]; then
+        cat <<EOT
+The shell cannot sign in as $DB_USER with the password in .env by any route,
+while the site itself does (so the account exists for the host the web
+server connects from, DB_HOST=${DB_HOST:-localhost}). Usual causes: no 'localhost'
+entry for this user, or a different password on it. Look at cPanel ->
+MySQL Databases -> Current Users (is $DB_USER there?) and cPanel ->
+Remote MySQL (which hosts are added?). To confirm by hand, typing the
+.env password when asked:
+    mysql --protocol=socket -u $DB_USER -p $DB_NAME -e 'SELECT CURRENT_USER()'
+Resetting the user's password in cPanel (and putting the new one in .env
+in the same minute) sets it on every host entry; DB_HOST=localhost works
+after that.
+EOT
+        db_skip() { echo "(skipped: no connection)"; }; MY=db_skip
     fi
-    sub "which hosts the app user may connect from"; $MY -N -e "SELECT CONCAT(user, '@', host) FROM mysql.user WHERE user = '$DB_USER';" 2>/dev/null || echo "(mysql.user not readable by this user)"
+    sub "which hosts the app user may connect from"; $MY -N -e "SELECT CONCAT(user, '@', host) FROM mysql.user WHERE user = '$DB_USER';" 2>/dev/null || echo "(mysql.user not readable by this user; SHOW GRANTS below names the host of this connection)"
     sub "server"; $MY -t -e "SELECT VERSION() v, @@version_comment c, @@hostname h;" 2>&1
     sub "variables that matter"; $MY -t -e "SHOW VARIABLES WHERE Variable_name IN ('innodb_buffer_pool_size','innodb_log_file_size','innodb_flush_log_at_trx_commit','innodb_file_per_table','max_connections','max_user_connections','wait_timeout','interactive_timeout','max_allowed_packet','tmp_table_size','max_heap_table_size','sort_buffer_size','join_buffer_size','table_open_cache','thread_cache_size','character_set_server','collation_server','character_set_database','collation_database','time_zone','system_time_zone','sql_mode','slow_query_log','long_query_time','log_queries_not_using_indexes','performance_schema','query_cache_type','query_cache_size','max_statement_time','lock_wait_timeout','innodb_lock_wait_timeout','event_scheduler');" 2>&1
     sub "status"; $MY -t -e "SHOW GLOBAL STATUS WHERE Variable_name IN ('Uptime','Threads_connected','Max_used_connections','Connections','Slow_queries','Questions','Innodb_buffer_pool_reads','Innodb_buffer_pool_read_requests','Created_tmp_disk_tables','Created_tmp_tables','Select_full_join','Select_scan','Table_locks_waited','Aborted_connects');" 2>&1
@@ -242,16 +281,22 @@ if have mysql && [ -n "$DB_USER" ]; then
     sub "subscriptions by status"; $MY -t -e "SELECT status, COUNT(*) n FROM subscriptions GROUP BY status;" 2>&1
     sub "shops (names only)"; $MY -t -e "SELECT id, subdomain, subdomain_status, landing_enabled FROM businesses ORDER BY id;" 2>&1
     sub "outbox by status"; $MY -t -e "SELECT status, channel, COUNT(*) n FROM notify_outbox GROUP BY status, channel;" 2>&1
-    sub "structure-only schema copy -> $SCHEMA_OUT (kept in HOME, not printed)"
-    if have mysqldump; then
-        MD="mysqldump --no-data --skip-comments --skip-add-drop-table --routines --triggers --events -h ${DB_HOST:-localhost} -u $DB_USER"
-        [ -n "$DB_PORT" ] && MD="$MD -P $DB_PORT"
-        case "$MY" in *--protocol=socket*) MD="mysqldump --no-data --skip-comments --skip-add-drop-table --routines --triggers --events --protocol=socket -u $DB_USER" ;; esac
-        if $MD "$DB_NAME" > "$SCHEMA_OUT" 2>"$TMPD/dumperr"; then chmod 600 "$SCHEMA_OUT"; echo "written: $(wc -l < "$SCHEMA_OUT") lines, $(grep -c 'CREATE TABLE' "$SCHEMA_OUT") tables"; else echo "mysqldump failed:"; head -3 "$TMPD/dumperr"; fi
+    if [ "$done_dump" != yes ]; then
+        sub "schema copy, second try (mysqldump as the app user)"
+        if have mysqldump && [ -n "$WAY" ]; then
+            if mysqldump --no-data --skip-comments --skip-add-drop-table --routines --triggers --events $BASEOPTS $WAY "$DB_NAME" > "$SCHEMA_OUT" 2>"$TMPD/dumperr"; then done_dump=yes; else echo "mysqldump failed: $(head -2 "$TMPD/dumperr")"; fi
+        else
+            echo "not possible: $(head -2 "$TMPD/dumperr" 2>/dev/null)"
+        fi
     fi
     unset MYSQL_PWD
 else
     echo "mysql client not found or DB_USER empty"
+fi
+if [ "$done_dump" = yes ]; then
+    chmod 600 "$SCHEMA_OUT"; echo "schema copy written: $(wc -l < "$SCHEMA_OUT") lines, $(grep -c 'CREATE TABLE' "$SCHEMA_OUT") tables, $(grep -c -E 'CREATE[^;]*(PROCEDURE|FUNCTION)' "$SCHEMA_OUT") routines -> $SCHEMA_OUT"
+else
+    rm -f "$SCHEMA_OUT"; echo "NO schema copy this run (the reasons are above); nothing left at $SCHEMA_OUT"
 fi
 
 say "11. MAIL SERVER"

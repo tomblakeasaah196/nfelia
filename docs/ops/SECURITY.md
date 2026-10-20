@@ -73,12 +73,19 @@ below: reaching the origin directly (§5) and injecting a script (§6).
 | L-07 | HSTS off at Cloudflare | decision Q (scope), then Edge Certificates → HSTS | §4 below |
 | L-08 | The origin answers requests that bypass Cloudflare | decision Q, then §5 below | |
 | L-09 | Nothing watches the site from outside | an uptime check (free: UptimeRobot, Better Stack) on `/login` and `ops.nfelia.com/signin` | |
+| L-10 | **Cloudflare account: 2FA off on both members** (export of 20 October). Whoever signs into that account owns the DNS, and with it the site, the mail and every password reset | an authenticator app and backup codes on both accounts (My Profile → Authentication), then Manage Account → Members → Enforce 2FA | Cloudflare; CLOUDFLARE.md C-1 |
+| L-11 | The edge still accepts TLS 1.0 and 1.1 | SSL/TLS → Edge Certificates → Minimum TLS Version → 1.2 | CLOUDFLARE.md prompt B |
+| L-12 | DNSSEC off: a forged DNS answer for `nfelia.com` cannot be detected by resolvers | DNS → Settings → Enable DNSSEC, then the DS record at the registrar | CLOUDFLARE.md C-8 |
+| L-13 | The mailbox password of `no-reply@nfelia.com` is 9 characters, on a server whose SMTP and IMAP ports face the internet | a 24-character random password, and `MAIL_PASSWORD` in `.env` in the same minute | RUNBOOK §3 |
+| L-14 | No Cloudflare rules at all: nothing slows a sign-in burst before PHP, nothing stops strangers from knocking on the deploy webhook | decision (which rules), then CLOUDFLARE.md prompt C | |
 
 ### 2.3 Decisions pending (the ten questions)
 
 HSTS scope; origin lock now or at the VPS; CSP for scripts (report-only
-first); Cloudflare plan and rate-limit rules; the VPS stack; mail on the
-VPS; monitoring; Redis for sessions; R2 details; when to go private.
+first); which Cloudflare rules; the VPS provider and stack; mail after
+the move; outside monitoring; the DMARC step; when to go private. Asked
+on 20 October. CLOUDFLARE.md carries the prompts that apply the Cloudflare
+side once answered.
 
 ### 2.4 Later (background)
 
@@ -194,6 +201,13 @@ served; `/views/404.php` served (the error page); the deploy webhook answers
 secure; HttpOnly; SameSite=Lax`; security headers as listed in §1 minus
 the ones this branch adds; SPF, DKIM and PTR valid; TTFB ~150 ms from the
 server through Cloudflare.
+
+From the Cloudflare export of the same day: encryption Full (strict),
+Always Use HTTPS on, no WAF custom rules, no rate limiting, no Page Rules,
+Bot Fight Mode off, security level medium; the managed free ruleset and
+the DDoS protection blocked 264 of the week's 25,503 requests; minimum
+TLS 1.0 and DNSSEC off (L-11, L-12); 2FA off on both account members
+(L-10).
 
 Still to verify after merge: the new headers in a live response; the
 `vendor/` denial; the origin lock if chosen; HSTS if chosen.

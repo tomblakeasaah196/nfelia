@@ -18,6 +18,7 @@ few hundred. Companion: [SECURITY.md](SECURITY.md),
 | App page weight | `app.css` 140 KB + jQuery 87 KB + Alpine 45 KB + scripts; fonts 2 × woff2 | assets |
 | Public/sign-in pages before this branch | the Tailwind CDN compiler, several hundred KB of script, plus Google Fonts | views |
 | Static assets at the origin | `cache-control: public, max-age=604800` (LiteSpeed default), versioned URLs | report §6 |
+| Served from Cloudflare's cache, 14–20 October | 3.0 % of 25,503 requests (app pages are `DYNAMIC` by design and are most of the traffic; shop pages are cached five minutes at the edge, assets a week or more) | Cloudflare export |
 | Database | 52 MB; 92 tables; shared MariaDB | report |
 
 ## 2. Done in this branch
@@ -43,7 +44,9 @@ few hundred. Companion: [SECURITY.md](SECURITY.md),
 2. **`DB_HOST=localhost`** (RUNBOOK §4.2): the local socket instead of a
    TCP loop through the public address.
 3. **Cloudflare purge token** (RUNBOOK §5): shop edits visible at once.
-4. Cloudflare → Speed: Brotli on, Early Hints on, HTTP/3 on (free plan).
+4. Cloudflare → Speed → Optimization: **Early Hints on** (Brotli and
+   HTTP/3 are already on, per the export of 20 October; CLOUDFLARE.md
+   prompt B does it).
 
 ## 4. Known costs left as they are, and why
 
@@ -64,6 +67,13 @@ few hundred. Companion: [SECURITY.md](SECURITY.md),
   form token), so it is `DYNAMIC` at Cloudflare. Fine at this traffic.
 - **`html2pdf.js` from cdnjs** on receipt and delivery pages (client-side
   "save as PDF"): to be vendored (SECURITY.md 2.4).
+- **The shop Cache Rule works as designed.** Its edge TTL is "bypass by
+  default", which means Cloudflare follows the origin's headers, and the
+  storefront sends `Cache-Control: public, max-age=0, s-maxage=300` (an
+  hour for the catalogue feed), so shop pages are kept at the edge for
+  five minutes and refreshed from there. The low weekly ratio is the app
+  itself: signed-in, per-business pages are `DYNAMIC` by design and are the
+  bulk of the traffic. Nothing to change.
 
 ## 5. On the VPS
 

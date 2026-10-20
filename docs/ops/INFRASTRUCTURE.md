@@ -7,12 +7,15 @@ section numbers below refer to its report), the repository, and the
 dashboards. Secrets are never written here: they live in the docroot
 `.env` and in the backup of it.
 
-Lines marked **⟵ pending** wait on the second report run (database
-section) or the Cloudflare export; everything else is confirmed.
+Lines marked **⟵ pending** wait on the database section of the report
+(run 3, with the script changed on 20 October to read the schema through
+the panel's API). The Cloudflare export of 20 October is folded in;
+everything else is confirmed.
 
 Companion documents: [RUNBOOK.md](RUNBOOK.md) (how to do things),
 [SECURITY.md](SECURITY.md), [PERFORMANCE.md](PERFORMANCE.md),
-[VPS-MIGRATION.md](VPS-MIGRATION.md) (the move, step by step).
+[CLOUDFLARE.md](CLOUDFLARE.md) (the zone as exported, and the prompts for
+its assistant), [VPS-MIGRATION.md](VPS-MIGRATION.md) (the move, step by step).
 
 ---
 
@@ -107,7 +110,7 @@ LiteSpeed actually applies (the probe confirms 512M / 120 s / 64M / 32M).
 | `session.gc_probability` (ini) | 0 | the app sets 1/100 with a 12-hour lifetime |
 | `date.timezone` | UTC | the app sets `Africa/Lagos` |
 | Behind Cloudflare | `REMOTE_ADDR` is the edge, `CF-Connecting-IP` present | the app uses `client_ip()` |
-| `litespeed_finish_request` | present ⟵ pending confirmation (the probe's function line was cut in run 1) | PHP-FPM has `fastcgi_finish_request` |
+| `litespeed_finish_request` | present (run 2); `exec`, `popen`, `proc_open`, `mail`, `curl` all allowed | PHP-FPM has `fastcgi_finish_request` |
 
 Extensions loaded: bcmath, calendar, ctype, curl, dom, gd, iconv, imap,
 json, mbstring, mysqli, mysqlnd, openssl, pcntl, pdo, pdo_mysql,
@@ -117,8 +120,7 @@ xmlreader, xmlwriter, xsl, zip, zlib.
 **Missing and wanted on the VPS:** `opcache`, `fileinfo` (the app works
 around it since 2026-10-20), `intl` (transliteration falls back to iconv),
 `exif`, `sodium`; and `ffmpeg` if hero videos should be converted again.
-GD's WebP support ⟵ pending (the shop photo variants depend on it; the
-29 variants on disk suggest yes).
+GD has WebP and AVIF support (run 2), which the shop photo variants use.
 
 ### 3.2 On the command line (`/usr/local/bin/ea-php83`, used by the cron and the deploy)
 
@@ -135,11 +137,9 @@ call `ea-php83` by name.
 
 | Name | Type | Value | Proxied |
 |---|---|---|---|
-| `nfelia.com` | A / AAAA | 172.67.186.133, 104.21.19.149 / 2606:4700:… | yes |
-| `www.nfelia.com` | A | (Cloudflare) | yes |
-| `ops.nfelia.com` | A | (Cloudflare) | yes |
-| `*.nfelia.com` | A | (Cloudflare) | yes (shops) |
-| `cpanel.nfelia.com`, `webdisk.nfelia.com` | A | (Cloudflare) | yes (cPanel's own hostnames) |
+| `nfelia.com` | A | 37.59.83.88 in the zone; resolvers see the edge (172.67.186.133, 104.21.19.149, two AAAA) | yes |
+| `www.nfelia.com` | A | 37.59.83.88 in the zone | yes |
+| `*.nfelia.com` | CNAME | `nfelia.com` (so `ops`, every shop, and cPanel's `cpanel`/`webdisk` names all go through the proxy) | yes |
 | `mail.nfelia.com` | A | 37.59.83.88 | **no** (mail must reach the server) |
 | `webmail.nfelia.com` | A | 37.59.83.88 | **no** |
 | `nfelia.com` | MX | `0 mail.nfelia.com` | |
@@ -149,8 +149,10 @@ call `ea-php83` by name.
 | `nfelia.com` | CAA | none | |
 | `nfelia.lpc.cm` | A | 37.59.83.88 | the old address; `.htaccess` sends it to nfelia.com with a 301 |
 
-The full record list with TTLs and any record not probed here (SRV,
-verification TXTs, Google Search Console) ⟵ pending: Cloudflare export.
+The Cloudflare export of 20 October confirms exactly these nine records
+(the two A records, the wildcard CNAME, `mail`, `webmail`, MX, SPF, DKIM,
+DMARC): no SRV or verification records, every TTL Auto, CNAME flattening
+at the root only, and **DNSSEC off** (SECURITY.md L-12).
 
 **On the VPS:** the proxied records change to the new IP in one edit each
 (or one if a single A record is used with CNAMEs). `mail`, `webmail`, the
@@ -160,15 +162,20 @@ SPF `ip4:` and the PTR move only if mail moves (see §7).
 
 ## 5. TLS
 
-- Browsers see Cloudflare's edge certificate for `nfelia.com` and
-  `*.nfelia.com`. HSTS is **not** enabled at Cloudflare (no
-  `strict-transport-security` header live).
-- Cloudflare connects to the origin over HTTPS; the origin certificate for
-  `nfelia.com` ⟵ pending (run 2 reads it from port 443; the handoff notes
-  say a Cloudflare Origin CA certificate for `nfelia.com` and
-  `*.nfelia.com` was installed in cPanel, with `*.nfelia.com` excluded from
-  AutoSSL). The account's other domains use Let's Encrypt via AutoSSL.
-- Encryption mode, minimum TLS version, TLS 1.3 ⟵ pending: Cloudflare export.
+- Browsers see Cloudflare's Universal SSL certificate for `nfelia.com` and
+  `*.nfelia.com` (Google Trust Services, ECDSA, renews itself; the current
+  one runs to 2027-01-04). HSTS **off**; Always Use HTTPS **on**; Automatic
+  HTTPS Rewrites on; **minimum TLS 1.0** (SECURITY.md L-11: raise to 1.2);
+  TLS 1.3 on; 0-RTT off; Opportunistic Encryption and ECH on.
+- Encryption mode **Full (strict)**: Cloudflare verifies the origin's
+  certificate. For `nfelia.com` the origin presents cPanel's AutoSSL
+  Let's Encrypt certificate (CN `www.nfelia.com`, with `nfelia.com`,
+  `mail`, `webmail`, `cpanel`, `webdisk`, `autodiscover`… as names; valid
+  2026-10-18 to 2027-01-16, renewed by AutoSSL); the `*.nfelia.com` vhost
+  carries the Cloudflare Origin CA certificate installed by hand (valid to
+  2041). Both satisfy Full (strict).
+- `mail.nfelia.com` and `webmail.nfelia.com` are not proxied: mail clients
+  see the Let's Encrypt certificate directly.
 
 **On the VPS:** a Cloudflare Origin CA certificate (15 years, free) on
 nginx, or certbot; and Authenticated Origin Pulls so only Cloudflare can
@@ -181,11 +188,22 @@ talk to the origin (SECURITY.md).
 | Setting | Value |
 |---|---|
 | Zone ID | `1a0e9a750a9786c0d9f236c168507e15` |
-| Plan | ⟵ pending (assumed Free) |
-| Cache Rule "Cache shop pages" | documented in `docs/handoff/Shop studio step 2.md`: expression `(http.host contains ".nfelia.com" and not http.host in {"www.nfelia.com"})`, eligible for cache, edge TTL from origin headers, browser TTL respect origin ⟵ pending confirmation it exists |
+| Plan | **Free** (zone created and activated 2026-06-10; one account, the owner's) |
+| Cache Rule "Cache shop pages" | confirmed: expression `(http.host contains ".nfelia.com" and not http.host in {"www.nfelia.com"})`, eligible for cache, browser TTL respect origin, edge TTL "bypass by default" (Cloudflare follows the origin's headers: the storefront sends `s-maxage=300`, so shop pages stay five minutes at the edge), last changed 2026-10-18 |
 | Purge API token | **not set** in `.env` (`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ZONE_ID` absent): shop edits show within 5 minutes instead of at once |
-| Live edge behaviour seen | app pages `cf-cache-status: DYNAMIC`; `app.css` `MISS` then cached, origin `cache-control: public, max-age=604800`; Ops `BYPASS`; HTTP/3 advertised; NEL reporting on |
-| WAF, rate limiting, Bot Fight Mode, Security level, Always Use HTTPS, Brotli, Early Hints, 0-RTT | ⟵ pending: Cloudflare export |
+| Live edge behaviour seen | app pages `cf-cache-status: DYNAMIC`; `app.css` `MISS` then `HIT`, origin `cache-control: public, max-age=604800`; Ops `BYPASS`; HTTP/3 advertised; NEL reporting on; 3.0 % of the week's requests served from cache |
+| WAF custom rules, rate limiting, Page Rules | **none** (quota on Free: 5 custom rules, 1 rate-limiting rule, 3 Page Rules); managed and always on: Cloudflare Managed Free Ruleset, Normalization, DDoS L7 |
+| Security level, Browser Integrity Check, challenge TTL | medium, on, 30 min (defaults) |
+| Bot Fight Mode, JS detection, AI-bot blocking | all **off** |
+| IP access rules, user-agent rules, zone lockdowns | none |
+| Speed | Brotli on, HTTP/2 and HTTP/3 on, **Early Hints off**, Rocket Loader off, minify off, 0-RTT off; Polish, Mirage, WebP are paid |
+| Caching | level aggressive, browser TTL 4 h, Always Online off, Tiered Cache off, Development Mode off |
+| Network | IPv6 on, WebSockets on, max upload 100 MB, Pseudo IPv4 off |
+| Email Routing | not enabled (one disabled catch-all → drop rule remains) |
+| Workers, Pages, Tunnels, Access, Load Balancers | none |
+| Account members | the owner's Google account (Super Administrator) and a second member with Domain Administrator and zone-scoped roles on another zone; **2FA off on both**, account-level "enforce 2FA" off (SECURITY.md L-10) |
+| Notifications | none readable, most likely none configured |
+| Traffic, 14–20 October | 25,503 requests, 3,403 page views, 1,226 unique visitors, 264 requests blocked by the managed rules, 774 served from cache, 161 MB |
 
 ---
 
@@ -261,17 +279,19 @@ Paystack dashboard, the Cloudflare account.
 
 | Item | Value |
 |---|---|
-| Engine | MariaDB (README: 10.11) ⟵ pending exact version, variables, grants (run 2) |
+| Engine | MariaDB (README: 10.11) ⟵ pending exact version and variables: in runs 1 and 2 the shell could not sign in (next rows) |
 | Name / user | `smartqaq_nfelia_core` / `smartqaq_nfelia_admin` |
 | Collation | `utf8mb4_unicode_ci` everywhere (never pin `utf8mb4_0900_ai_ci`: MySQL-only, took the site down once) |
 | Session time zone | `+01:00` set per connection; PHP runs `Africa/Lagos` |
 | Schema | `db/schema.sql` (baseline) + 29 migrations in `db/migrations/`, tracked in `schema_migrations`; 92 tables after all migrations; stored procedure `generate_doc_number` (loaded by the tests; production ⟵ pending) |
 | Size | 52 MB on disk (cPanel figure) |
-| Hosts the user may connect from | ⟵ pending (run 2 prints them; `localhost` must be among them before `DB_HOST` is changed) |
+| Hosts the user may connect from | ⟵ pending. Run 2 found that `smartqaq_nfelia_admin` **cannot** sign in from the shell as `…@localhost` with the `.env` password (`Access denied`), while the site signs in over TCP to `DB_HOST=37.59.83.88`: that connection arrives from the server's own address, which matches a Remote MySQL host entry. So the user either has no `localhost` entry or that entry carries another password. The two `cpmove_failed_mysql_dbs.*` folders in the home directory (June 2026) say the databases failed to restore when the account moved to this server and were rebuilt by hand, which fits. `DB_HOST=localhost` (RUNBOOK §4.2) needs this settled first. |
 
 A structure-only live dump is produced by `bin/env-report.sh` into the
-home folder; compare it with a fresh local copy (schema + migrations) with
-the small Python comparer in RUNBOOK.md, "Checking the schema".
+home folder, since 20 October through the panel's own API
+(`uapi Mysql dump_database_schema`, no database password involved);
+compare it with a fresh local copy (schema + migrations) as RUNBOOK.md
+"Checking the schema" shows.
 
 ---
 
@@ -283,7 +303,7 @@ the small Python comparer in RUNBOOK.md, "Checking the schema".
 | Default branch | `main`, **no protection rules** |
 | Actions | `.github/workflows/deploy.yml`: quick checks on push and pull request; the end-to-end job on pull requests and on demand (this branch); deploy on push to `main` through the `production` environment |
 | Secrets / variables | secret `DEPLOY_WEBHOOK_SECRET`; variable `DEPLOY_WEBHOOK_URL=https://nfelia.com/webhook/deploy.php` |
-| Minutes | unlimited while public; 2,000 a month once private (free plan) |
+| Minutes | unlimited while public (confirmed 20 October through the API: 94 runs, the last two that morning green, one on the pull request and the deploy on `main`); 2,000 a month only once private (free plan) |
 
 ---
 
@@ -315,4 +335,7 @@ cookie is `__Host-nfelia_ops`; phone alerts use the same VAPID pair.
   at ~5 s and `GET /api/notifications` at 3 s, the latter now addressed),
   `~/deploy-nfelia.log`, cPanel's `~/error_log` (54 MB, all accounts'
   sites), `~/logs/`.
-- Nothing external watches the site. VPS-MIGRATION.md adds an uptime check.
+- Nothing external watches the site, and Cloudflare has no notification
+  policies (none readable in the export). VPS-MIGRATION.md adds an uptime
+  check; Cloudflare → Notifications can at least mail about certificate
+  expiry, DDoS events and origin errors today (CLOUDFLARE.md C-10).
