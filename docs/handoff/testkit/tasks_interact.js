@@ -121,6 +121,8 @@ const ok = (c, m) => { if (c) { pass++; console.log('  PASS ', m); } else { fail
   await page.click('[role=status] button:has-text("Undo")'); await page.waitForTimeout(700);
   ok(await page.locator('text=/Restock HD Lace Closure/').count() === 1, 'undo brings it back');
   await row('Deliver to Blessing Etim').locator('button[role=checkbox]').click();
+  ok(await page.locator('#pl-done-title').textContent().then((t) => /delivered\?$/.test(t)), 'delivery asks to confirm first');
+  await sayDone();
   ok((await toast('Marked delivered')).includes('Marked delivered'), 'delivery ticked');
   await waitIdle();
   ok(q("SELECT delivered_at IS NOT NULL FROM invoices WHERE id=6") === '1', 'invoice delivered_at set');

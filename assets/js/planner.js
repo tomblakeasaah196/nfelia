@@ -287,10 +287,11 @@ function planner() {
 
         /* ── Ticking off ────────────────────────────── */
 
-        // Completing a task (or a job step) asks first; undoing it, or the
-        // automatic items, go straight through — nothing is lost that way.
+        // Completing a task or job step, or marking an order delivered, asks
+        // first; undoing, or hiding an automatic item, goes straight through —
+        // nothing is lost that way.
         tick: function (it, inJob) {
-            if ((it.tick === 'task' || inJob) && !it.done) return this.askDone(it, inJob);
+            if ((it.tick === 'task' || it.tick === 'delivered' || inJob) && !it.done) return this.askDone(it, inJob);
             return this.doTick(it, inJob);
         },
 
