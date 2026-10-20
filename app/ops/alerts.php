@@ -88,6 +88,7 @@ function ops_error_alert(PDO $db, array $group, string $why, ?string $ref, int $
     }
     $what = match ($group['kind']) {
         'js'   => 'Browser error',
+        'csp'  => 'Content policy',
         'slow' => 'Slow page',
         'job'  => 'Job failed',
         default => match ($group['level']) { 'fatal' => 'Crash', 'warning' => 'Warning', default => 'Error' },

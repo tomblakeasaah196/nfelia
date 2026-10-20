@@ -279,19 +279,23 @@ Paystack dashboard, the Cloudflare account.
 
 | Item | Value |
 |---|---|
-| Engine | MariaDB (README: 10.11) ⟵ pending exact version and variables: in runs 1 and 2 the shell could not sign in (next rows) |
-| Name / user | `smartqaq_nfelia_core` / `smartqaq_nfelia_admin` |
+| Engine | **MariaDB 10.11.19** (CloudLinux build) on the same box, shared by every account. Server defaults `latin1` / `latin1_swedish_ci` (the database itself is utf8mb4), `time_zone SYSTEM` = CEST, `sql_mode STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION`, InnoDB buffer pool **128 MB**, `max_connections 151`, `tmp_table_size` 16 MB, slow log off (`long_query_time` 10 s), performance schema off, event scheduler off (run 3) |
+| Name / users | `smartqaq_nfelia_core`; **two** users hold ALL PRIVILEGES on it: `smartqaq_nfelia_admin` (the app) and `smartqaq_nfelia_it` (named in the old deployment guide; nothing in the code uses it: SECURITY.md L-15) |
+| Server-wide counters, 5 days | 375 k connections, 31 M statements, 82 connections at the busiest moment of 151, 39 % of temporary tables written to disk, 7,366 aborted connects: every account on the box together, not Nfelia's alone |
 | Collation | `utf8mb4_unicode_ci` everywhere (never pin `utf8mb4_0900_ai_ci`: MySQL-only, took the site down once) |
 | Session time zone | `+01:00` set per connection; PHP runs `Africa/Lagos` |
-| Schema | `db/schema.sql` (baseline) + 29 migrations in `db/migrations/`, tracked in `schema_migrations`; 92 tables after all migrations; stored procedure `generate_doc_number` (loaded by the tests; production ⟵ pending) |
-| Size | 52 MB on disk (cPanel figure) |
-| Hosts the user may connect from | ⟵ pending. Run 2 found that `smartqaq_nfelia_admin` **cannot** sign in from the shell as `…@localhost` with the `.env` password (`Access denied`), while the site signs in over TCP to `DB_HOST=37.59.83.88`: that connection arrives from the server's own address, which matches a Remote MySQL host entry. So the user either has no `localhost` entry or that entry carries another password. The two `cpmove_failed_mysql_dbs.*` folders in the home directory (June 2026) say the databases failed to restore when the account moved to this server and were rebuilt by hand, which fits. `DB_HOST=localhost` (RUNBOOK §4.2) needs this settled first. |
+| Schema | `db/schema.sql` (baseline) + the migrations in `db/migrations/`, tracked in `schema_migrations` (29 rows live, the baseline included; the last, `20261026090000_variant_prices`, applied 20 October: production is level with `main`; two more wait in this branch, sign-in hardening and the list indexes). **92 tables and 4 views** (`v_dashboard_summary`, `v_low_stock_products`, `v_monthly_pl`, `v_overdue_invoices`), the stored procedure `generate_doc_number` (created 2026-07-27), no triggers, no events |
+| Size | 52 MB on disk (cPanel figure); the tables themselves about 6 MB. 5 businesses (3 founder and test accounts, 2 shops: `studio12oclock`, `rnafriluxe`), 6 active users, 10 invoices, 14 customers, 14 products, subscriptions 3 active and 2 trial, 123 error events, 8 remember-me rows all expired (the nightly sweep in this branch removes them) |
+| Host the user may connect from | **`srv-web-ns9.newtoncorp.fr` only** (`SHOW GRANTS`, run 3): the grant is bound to the server's own hostname, which is what a TCP connection to `37.59.83.88` from the server itself resolves to. There is no `localhost` entry, which is why runs 1 and 2 were refused over the socket and why `.env` carries the IP. The connection never leaves the machine. Leave it (SECURITY.md L-04, RUNBOOK §4.2); on the VPS the user is created for `localhost`. The two `cpmove_failed_mysql_dbs.*` folders in the home directory (June 2026) say the databases failed to restore when the account moved to this server and were rebuilt by hand, which explains the shape. |
 
 A structure-only live dump is produced by `bin/env-report.sh` into the
-home folder, since 20 October through the panel's own API
-(`uapi Mysql dump_database_schema`, no database password involved);
-compare it with a fresh local copy (schema + migrations) as RUNBOOK.md
-"Checking the schema" shows.
+home folder: asked of the panel's own API first (`uapi Mysql
+dump_database_schema`; its answer in run 3 held no tables, so the script
+checks and lets mysqldump over TCP take over). Compare it with a fresh
+local copy (schema + migrations) as RUNBOOK.md "Checking the schema"
+shows. The copy uploaded on 20 October was the 17 October file (52
+tables, before the storefront, bookings, Ops and Records Book
+migrations), so the live comparison is still ⟵ pending the next copy.
 
 ---
 

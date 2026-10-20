@@ -458,7 +458,7 @@ function dispatch_ajax(string $action, ?string $param): void {
     // The service worker renewing a push subscription is not someone using
     // the app: it neither waits on the lock nor keeps it away.
     $sw_renewal = $action === 'notifications' && ($_GET['action'] ?? '') === 'resubscribe';
-    if (!in_array($action, ['auth', 'webhooks', 'errors'], true) && !$sw_renewal && is_logged_in()) {
+    if (!in_array($action, ['auth', 'webhooks', 'errors', 'csp'], true) && !$sw_renewal && is_logged_in()) {
         if (!auth_still_member()) {
             json_response(['success' => false, 'message' => 'You no longer have access to this business.'], 401);
         }
@@ -483,6 +483,7 @@ function dispatch_ajax(string $action, ?string $param): void {
         'auth'          => __DIR__ . '/api/ajax/auth.php',
         'webhooks'      => __DIR__ . '/api/webhooks/paystack.php',
         'errors'        => __DIR__ . '/api/ajax/errors.php',   // a script error in someone's browser
+        'csp'           => __DIR__ . '/api/ajax/csp.php',      // a content-policy report from someone's browser
     ];
     
     $file = $ajax_map[$action] ?? null;

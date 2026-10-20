@@ -19,7 +19,7 @@ few hundred. Companion: [SECURITY.md](SECURITY.md),
 | Public/sign-in pages before this branch | the Tailwind CDN compiler, several hundred KB of script, plus Google Fonts | views |
 | Static assets at the origin | `cache-control: public, max-age=604800` (LiteSpeed default), versioned URLs | report §6 |
 | Served from Cloudflare's cache, 14–20 October | 3.0 % of 25,503 requests (app pages are `DYNAMIC` by design and are most of the traffic; shop pages are cached five minutes at the edge, assets a week or more) | Cloudflare export |
-| Database | 52 MB; 92 tables; shared MariaDB | report |
+| Database | 52 MB on disk, about 6 MB of tables; 92 tables and 4 views; MariaDB 10.11.19 shared with every account on the box: 128 MB InnoDB buffer pool, 39 % of temporary tables going to disk server-wide, slow log off. Nfelia's data sits in memory regardless | report §10 | report |
 
 ## 2. Done in this branch
 
@@ -41,8 +41,9 @@ few hundred. Companion: [SECURITY.md](SECURITY.md),
    of a page to drop by half or more. Settings: 192 MB, 20,000 files,
    revalidate every 60 s (the deploy copies files in place, so timestamps
    must be checked).
-2. **`DB_HOST=localhost`** (RUNBOOK §4.2): the local socket instead of a
-   TCP loop through the public address.
+2. ~~`DB_HOST=localhost`~~ Dropped after run 3: the user's grant is bound
+   to the server's hostname, the TCP connection stays on the machine, and
+   there is nothing measurable to gain (RUNBOOK §4.2).
 3. **Cloudflare purge token** (RUNBOOK §5): shop edits visible at once.
 4. Cloudflare → Speed → Optimization: **Early Hints on** (Brotli and
    HTTP/3 are already on, per the export of 20 October; CLOUDFLARE.md

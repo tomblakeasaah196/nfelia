@@ -16,7 +16,7 @@ class OpsErrorsController
 {
     private const PAGE = 25;
     private const STATUSES = ['open' => 'Open', 'handling' => 'Being handled', 'fixed' => 'Fixed', 'ignored' => 'Ignored'];
-    private const KINDS = ['php' => 'Server', 'js' => 'Browser', 'job' => 'Background job', 'log' => 'Server log', 'slow' => 'Slow page'];
+    private const KINDS = ['php' => 'Server', 'js' => 'Browser', 'csp' => 'Content policy', 'job' => 'Background job', 'log' => 'Server log', 'slow' => 'Slow page'];
     private const LEVELS = ['fatal' => 'Crash', 'error' => 'Error', 'warning' => 'Warning', 'notice' => 'Notice', 'deprecated' => 'Outdated code', 'slow' => 'Slow'];
 
     private PDO $db;

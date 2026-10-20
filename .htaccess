@@ -2,6 +2,20 @@ Options -Indexes
 ServerSignature Off
 DirectoryIndex index.php
 
+# --- Only Cloudflare may talk to this site (docs/ops/SECURITY.md §5) ---
+# Every nfelia.com name is proxied, so a request from any other address has
+# skipped Cloudflare and its rules: it is refused. The ranges are Cloudflare's
+# published list, https://www.cloudflare.com/ips/ ; bin/env-report.sh
+# (section 6) compares the two, and the runbook says to look once a month: a
+# range added there and missing here means a 403 for the visitors behind it.
+# .well-known/ stays open to everyone (.well-known/.htaccess): certificate
+# checks for the mail names arrive there directly. Several Require lines in
+# one section mean "any of these".
+Require ip 173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18
+Require ip 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17
+Require ip 162.158.0.0/15 104.16.0.0/13 104.24.0.0/14 172.64.0.0/13 131.0.72.0/22
+Require ip 2400:cb00::/32 2606:4700::/32 2803:f800::/32 2405:b500::/32 2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32
+
 # --- Custom Error Pages ---
 ErrorDocument 404 /views/404.php
 ErrorDocument 500 /views/500.php
@@ -77,6 +91,12 @@ RewriteRule ^(.*)$ index.php?url=$1 [QSA,L]
     # plugins. Script and style sources are governed separately, page by
     # page, once the report-only trial has run (docs/ops/SECURITY.md).
     Header always set Content-Security-Policy "frame-ancestors 'self'; base-uri 'self'; object-src 'none'"
+    # The full policy, on trial: nothing is blocked, browsers tell /api/csp
+    # what would have been, and Ops → Errors lists it as "Content policy".
+    # After two clean weeks the same line moves to Content-Security-Policy,
+    # minus 'unsafe-inline' once the inline scripts carry nonces and minus
+    # 'unsafe-eval' once Alpine's CSP build is in (docs/ops/SECURITY.md §6).
+    Header always set Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://nfelia.com https://fonts.gstatic.com; img-src 'self' data: blob: https://nfelia.com https://*.nfelia.com https://i.ytimg.com; media-src 'self' blob:; connect-src 'self'; frame-src 'self' https://www.youtube-nocookie.com; worker-src 'self'; manifest-src 'self'; form-action 'self'; frame-ancestors 'self'; base-uri 'self'; object-src 'none'; report-uri /api/csp"
     # Nothing in Nfelia uses these browser features; saying so stops any
     # script that slips in from asking for them.
     Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=(), interest-cohort=()"

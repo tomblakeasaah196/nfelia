@@ -38,14 +38,15 @@ paste the prompt from §3.
 | C-1 | 2FA on both members, then Enforce 2FA for the account | you: My Profile → Authentication; Manage Account → Members | the account controls the DNS, and so the site, the mail and every password reset | **open, first** |
 | C-2 | Minimum TLS 1.2 | assistant, prompt B (or SSL/TLS → Edge Certificates) | TLS 1.0 and 1.1 are broken protocols; no browser of this decade needs them | open |
 | C-3 | Early Hints on | assistant, prompt B (or Speed → Optimization) | free; browsers fetch the stylesheet while PHP is still working | open |
-| C-4 | HSTS, 6 months, no `includeSubDomains`, no preload | assistant, prompt C | SECURITY.md §4 | decision |
-| C-5 | Rate limit on sign-in POSTs | assistant, prompt C | SECURITY.md §5 | decision |
-| C-6 | WAF rule: the deploy webhook answers GitHub Actions only | assistant, prompt C | takes the brute-force surface off `webhook/deploy.php` | decision |
-| C-7 | WAF rule: challenge `ops.nfelia.com` outside the countries you sign in from | assistant, prompt C, needs the country list | the back office is used by two people | decision |
+| C-4 | HSTS, 6 months, no `includeSubDomains`, no preload | assistant, prompt C | SECURITY.md §4 | **decided 20 Oct** |
+| C-5 | Rate limit on sign-in POSTs | assistant, prompt C | SECURITY.md §5 | **decided 20 Oct** |
+| C-6 | WAF rule: the deploy webhook answers GitHub Actions only | assistant, prompt C | takes the brute-force surface off `webhook/deploy.php` | **decided 20 Oct** |
+| C-7 | WAF rule: challenge `ops.nfelia.com` outside the countries you sign in from | assistant, needs the country list | the back office is used by two people | not chosen |
+| C-12 | Bot Fight Mode | you: Security → Bots, after reading prompt D | asked for 20 Oct; on the Free plan it cannot be bypassed by rules, so it can challenge Paystack's webhooks and GitHub's deploy call | **read §3 first** |
 | C-8 | DNSSEC on, then the DS record at the registrar | you: DNS → Settings → Enable DNSSEC; then the registrar | SECURITY.md L-12 | open |
 | C-9 | DMARC `p=quarantine` | you: DNS → `_dmarc` | after two clean weeks of reports at dmarc@nfelia.com | from 3 November |
 | C-10 | Notifications: Universal SSL expiry, DDoS Attack L7, Origin Error Rate | you: Notifications → Add | nobody is told of anything today | open |
-| C-11 | Lock the origin to Cloudflare | code (`.htaccess`), SECURITY.md §5; it happens at the origin, not here | decision |
+| C-11 | Lock the origin to Cloudflare | code (`.htaccess`), SECURITY.md §5; it happens at the origin, not here | **decided 20 Oct, in the branch; RUNBOOK §4.4 tests it** |
 
 Undo for anything the assistant creates: ask it to **disable** the rule by
 name (not delete), or Security → WAF → the rule's switch; HSTS is turned
@@ -77,10 +78,7 @@ On the zone nfelia.com, make exactly these two changes and nothing else, then re
 Do not touch HSTS, DNS, caching, WAF, rate limiting or anything else. If a call fails, stop and show me the error instead of trying something different.
 ```
 
-### Prompt C: after the decisions
-
-Delete the numbered items that were decided against, and fill in the
-country list in item 4 before pasting.
+### Prompt C: the decisions of 20 October (HSTS and the two rules)
 
 ```
 On the zone nfelia.com, apply the following, one item at a time, reading each back to confirm it. Do nothing that is not listed. If the plan does not allow a value, use the nearest value it allows and tell me what you used.
@@ -91,10 +89,28 @@ On the zone nfelia.com, apply the following, one item at a time, reading each ba
 
 3. A WAF custom rule named "Deploy webhook: GitHub Actions only", placed first: requests whose URI path is exactly "/webhook/deploy.php" and whose User-Agent does not contain "github-actions-nfelia"; action Block.
 
-4. A WAF custom rule named "Ops back office: expected countries only": requests whose host is exactly "ops.nfelia.com" and whose country is not one of {CM, NG}; action Managed Challenge.
-
 When done, list every WAF custom rule, every rate limiting rule and the HSTS setting as they now are.
 ```
+
+### Prompt D: Bot Fight Mode (asked for; read this first)
+
+Bot Fight Mode on the Free plan challenges requests it judges to be
+automated, and **no rule can exempt a caller from it** (that needs Super
+Bot Fight Mode on a paid plan). Two callers Nfelia depends on are
+automated: Paystack, which posts payment webhooks to `/api/webhooks`, and
+GitHub Actions, which posts to `/webhook/deploy.php` after every merge. If
+either is challenged, payments stop being recorded or deploys stop,
+silently. The recommendation is to leave it off: the managed rules, the
+rate limit and the deploy rule above cover what it would add. If it is
+wanted anyway, turn it on in Security → Bots and test both callers the
+same hour:
+
+1. Merge or re-run the deploy workflow in GitHub → Actions; the deploy job
+   must end green and `~/deploy-nfelia.log` must show the new run.
+2. Paystack dashboard → Settings → Webhooks → send a test event, or make a
+   small real payment; Ops → Health must show the webhook received.
+
+If either fails, turn Bot Fight Mode off again; nothing else needs undoing.
 
 ---
 

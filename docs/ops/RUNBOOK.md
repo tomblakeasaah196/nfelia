@@ -182,14 +182,14 @@ on ea-php83 first. Check afterwards with the environment report (section
 While there, tick `fileinfo`, `intl`, `exif` and `sodium` too (the app
 has fallbacks, but these are the real thing).
 
-### 4.2 Point the database at localhost
+### 4.2 The database address: leave it
 
-Only once the shell can sign in as `smartqaq_nfelia_admin` over the local
-socket (§7, "Section 10": runs 1 and 2 could not, so the `localhost` entry
-is missing or carries another password; the fix there is a password reset
-in cPanel plus the same new password in `.env`). Then edit `.env`:
-`DB_HOST=localhost`. Open the site. If it fails, put the IP back; nothing
-else changed.
+`.env` says `DB_HOST=37.59.83.88` because the user's only grant is
+`smartqaq_nfelia_admin@srv-web-ns9.newtoncorp.fr` (run 3): a TCP
+connection from the server to its own address is what that host name
+matches, and there is no `localhost` entry. The connection never leaves
+the machine, so nothing is gained by changing it before the VPS, where
+the user is created for `localhost` from the start.
 
 ### 4.3 Tidy the docroot
 
@@ -199,6 +199,55 @@ mkdir -p ~/backups/env-history && mv .env.bak-* .htaccess.bak-* ~/backups/env-hi
 rm -f composer.phar error_log            # the deploy uses ~/composer.phar; the log is from July
 rmdir cgi-bin 2>/dev/null || true
 ```
+
+### 4.4 The origin lock: test before the merge, check monthly, roll back in one line
+
+The branch puts Cloudflare's address ranges at the top of `.htaccess`
+(SECURITY.md §5). LiteSpeed reads the same directives as Apache, but prove
+it on this server before the merge, in a folder of its own:
+
+```bash
+cd ~/public_html/nfelia.com && mkdir -p lock-test && echo ok > lock-test/index.html
+git -C ~/repositories/nfelia fetch -q origin ccr-78f79379-31wjft
+git -C ~/repositories/nfelia show origin/ccr-78f79379-31wjft:.htaccess | grep '^Require ip' > lock-test/.htaccess
+curl -s -o /dev/null -w 'through Cloudflare: %{http_code}\n' https://nfelia.com/lock-test/
+curl -s -o /dev/null -w 'straight to the server: %{http_code}\n' --resolve nfelia.com:443:37.59.83.88 https://nfelia.com/lock-test/
+rm -r lock-test
+```
+
+Expected: 200, then 403. Anything else (500 means LiteSpeed refused the
+syntax): do not merge; send the two lines back.
+
+After the merge and the deploy:
+
+```bash
+curl -s -o /dev/null -w 'direct, should be 403: %{http_code}\n' --resolve nfelia.com:443:37.59.83.88 https://nfelia.com/login
+curl -s -o /dev/null -w 'via Cloudflare, should be 200: %{http_code}\n' https://nfelia.com/login
+curl -s -o /dev/null -w '.well-known direct, should be 404 not 403: %{http_code}\n' --resolve nfelia.com:443:37.59.83.88 https://nfelia.com/.well-known/x
+```
+
+Then cPanel → SSL/TLS Status → Run AutoSSL: `mail.nfelia.com` and
+`webmail.nfelia.com` must still pass their check.
+
+Monthly: `bash ~/nfelia-env-report.sh`, section 6, prints "in step" or the
+ranges to add. By eye: https://www.cloudflare.com/ips/ against the
+`Require ip` lines.
+
+Rollback, if visitors ever see 403: File Manager → `.htaccess` → delete
+the `Require ip` lines, save (it takes effect at once); then the same in
+the repository, or the next deploy puts them back.
+
+### 4.5 The content-policy trial
+
+From the merge, every page carries `Content-Security-Policy-Report-Only`
+(SECURITY.md §6). Nothing is blocked. Ops → Errors, kind "Content policy",
+collects what the policy would have refused: each group names the
+directive and the foreign host, with the pages and the business. After
+two weeks: a group that names a page of ours loading something legitimate
+means the policy needs that source added; a group that names a host
+nobody recognises is worth a look the same day. When the list is
+understood, the header's name changes to `Content-Security-Policy` in
+`.htaccess` and the policy is enforced.
 
 ### 4.4 The old domain
 
@@ -281,27 +330,18 @@ cd ~/repositories/nfelia && git fetch origin main && git show origin/main:bin/en
 `origin/main`.) With a read-only Cloudflare token: `CF_API_TOKEN=… bash ~/nfelia-env-report.sh`.
 The report masks secrets; the schema copy it writes stays in `~`.
 
-**Section 10 (database) and the schema copy.** Since 20 October the schema
-is read through the panel's API (`uapi Mysql dump_database_schema`), so it
-no longer depends on the database password, and an empty file is never
-left behind. The table figures, variables and grants still need the shell
-to sign in as the app user, which runs 1 and 2 could not: the user signs
-in for the site over TCP to the public address but is refused as
-`…@localhost` (INFRASTRUCTURE.md §10). If section 10 still says so, the
-checks by hand are: cPanel → MySQL Databases → Current Users (is
-`smartqaq_nfelia_admin` listed?) and cPanel → Remote MySQL (which hosts
-are added?), then, typing the `.env` password when asked:
+**Section 10 (database) and the schema copy.** The shell signs in as the
+app user over TCP to the address in `.env` (run 3 did); the socket is
+refused because the user's only grant is bound to the server's hostname
+(INFRASTRUCTURE.md §10), which is how this server is set up and needs no
+fixing. The schema copy is asked of the panel's API first (`uapi Mysql
+dump_database_schema`; in run 3 its answer held no tables, so the script
+now checks and lets mysqldump take over) and never leaves an empty file.
+By hand, typing the `.env` password when asked:
 
 ```bash
-mysql --protocol=socket -u smartqaq_nfelia_admin -p smartqaq_nfelia_core -e 'SELECT CURRENT_USER()'
+mysqldump --no-data --skip-comments --skip-add-drop-table --routines --triggers --events -h 37.59.83.88 --protocol=tcp -u smartqaq_nfelia_admin -p smartqaq_nfelia_core > ~/nfelia-schema-live.sql
 ```
-
-"Access denied" there means the `localhost` entry is missing or has
-another password. Fix: cPanel → MySQL Databases → Current Users →
-Change Password (sets the same password on every host entry), then the
-new password into `.env` `DB_PASS` in the same minute (the site is down
-in between), then `DB_HOST=localhost` (§4.2). Check by opening the site,
-signing in, and Ops → Health.
 
 ### Checking the schema
 

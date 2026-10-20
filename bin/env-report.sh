@@ -155,6 +155,22 @@ for ip in $(hostname -I 2>/dev/null); do
     printf 'http  direct to %-16s -> %s\n' "$ip" "$(code -H "Host: $HOST" "http://$ip/login")"
 done
 
+sub "Cloudflare's address ranges: published vs the deployed .htaccess (an origin lock that falls behind locks visitors out)"
+if grep -q '^Require ip' "$DOCROOT/.htaccess" 2>/dev/null; then
+    { curl -fsS --max-time 10 https://www.cloudflare.com/ips-v4; echo; curl -fsS --max-time 10 https://www.cloudflare.com/ips-v6; echo; } 2>/dev/null | grep -E '^[0-9a-f:.]+/[0-9]+$' | sort > "$TMPD/cf_published" || true
+    grep '^Require ip' "$DOCROOT/.htaccess" | sed 's/^Require ip //' | tr ' ' '\n' | grep -E '/[0-9]+$' | sort > "$TMPD/cf_in_htaccess"
+    if [ ! -s "$TMPD/cf_published" ]; then
+        echo "(could not fetch the published list; compare https://www.cloudflare.com/ips/ by eye with the Require ip lines)"
+    elif diff -q "$TMPD/cf_published" "$TMPD/cf_in_htaccess" >/dev/null; then
+        echo "same $(wc -l < "$TMPD/cf_published") ranges: in step"
+    else
+        echo "DIFFERENT. Published but missing from .htaccess (add these):"; comm -23 "$TMPD/cf_published" "$TMPD/cf_in_htaccess" | sed 's/^/  + /'
+        echo "In .htaccess but no longer published (remove):"; comm -13 "$TMPD/cf_published" "$TMPD/cf_in_htaccess" | sed 's/^/  - /'
+    fi
+else
+    echo "(no origin lock in the deployed .htaccess)"
+fi
+
 say "7. REPO CHECKOUT, DEPLOY, DOCROOT"
 if [ -d "$REPO/.git" ]; then
     sub "remote / head"; git -C "$REPO" remote -v | mask; git -C "$REPO" rev-parse --abbrev-ref HEAD; git -C "$REPO" log -1 --format='%h %ci %s'; git -C "$REPO" status --short | head -10
@@ -236,6 +252,13 @@ if have uapi && uapi --output=jsonpretty Mysql dump_database_schema dbname="$DB_
         echo "uapi answered, but neither perl (JSON::PP) nor node is here to unpack it" > "$TMPD/dumperr"
     fi
     [ "$done_dump" = yes ] && echo "(through the panel API: uapi Mysql dump_database_schema)"
+    # Run 3 on the server got 34 lines back with no table in them: check, and
+    # if so keep that answer aside for a look and let mysqldump have its turn.
+    if [ "$done_dump" = yes ] && [ "$(grep -c 'CREATE TABLE' "$SCHEMA_OUT")" = 0 ]; then
+        echo "...but with no CREATE TABLE in it ($(wc -c < "$SCHEMA_OUT") bytes). Its first lines, for the record:"
+        head -c 600 "$SCHEMA_OUT" | tr '\n' ' ' | cut -c1-600; echo
+        mv "$SCHEMA_OUT" "$TMPD/uapi-schema.txt"; done_dump=no
+    fi
 fi
 if have mysql && [ -n "$DB_USER" ]; then
     export MYSQL_PWD="$DB_PASS"
