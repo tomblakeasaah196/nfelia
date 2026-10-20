@@ -51,6 +51,9 @@ jobs:
       - name: Report periods (no database needed)
         run: php tests/reports/period_test.php
 
+      - name: The content policy covers what the views load (no database needed)
+        run: php tests/ops/policy_test.php
+
       - name: No server-specific collation may be pinned
         run: |
           set -euo pipefail
