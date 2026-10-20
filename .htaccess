@@ -25,7 +25,7 @@ RewriteEngine On
 RewriteCond __EDGE_ARMED__ ^armed$
 RewriteCond %{REQUEST_URI} !^/\.well-known/
 RewriteCond %{HTTP:X-Nfelia-Edge} !^__EDGE_TOKEN__$
-RewriteRule ^ - [F,L]
+RewriteRule .* - [F,L]
 # nf-edge-lock-end
 
 # --- Redirect old domain (nfelia.lpc.cm) to new domain (nfelia.com) ---

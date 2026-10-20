@@ -219,19 +219,25 @@ or every page answers 403 until it does).
    `Origin lock: edge token`; "All incoming requests"; **Set static**,
    header name `X-Nfelia-Edge`, value the token → Deploy. Or paste
    CLOUDFLARE.md **prompt E** into the assistant with the token filled in.
-3. **Prove the header arrives, before anything is locked.** A folder of its
-   own, with the real token in place of `PASTE_TOKEN`:
+3. **Prove the header arrives, before anything is locked.** The token goes
+   on the first line only. The test asks for a file by name (a folder
+   without `index.php` answers 403 on its own here, which misled the first
+   attempt), writes the rule before the first request, and waits a moment
+   (the server kept a "no rules" state for a folder asked about too soon):
    ```bash
-   cd ~/public_html/nfelia.com && mkdir -p lock-test && echo ok > lock-test/index.html
-   printf 'RewriteEngine On\nRewriteCond armed ^armed$\nRewriteCond %%{HTTP:X-Nfelia-Edge} !^PASTE_TOKEN$\nRewriteRule ^ - [F,L]\n' > lock-test/.htaccess
-   curl -s -o /dev/null -w 'through Cloudflare: %{http_code}\n' https://nfelia.com/lock-test/
-   curl -s -o /dev/null -w 'straight to the server: %{http_code}\n' --resolve nfelia.com:443:37.59.83.88 https://nfelia.com/lock-test/
-   curl -s -o /dev/null -w 'straight, with the header: %{http_code}\n' --resolve nfelia.com:443:37.59.83.88 -H 'X-Nfelia-Edge: PASTE_TOKEN' https://nfelia.com/lock-test/
-   rm -r lock-test
+   KEY='PASTE_TOKEN'
+   T=lock-test-$RANDOM; cd ~/public_html/nfelia.com && mkdir -p $T && echo ok > $T/ok.txt
+   printf 'RewriteEngine On\nRewriteCond %%{HTTP:X-Nfelia-Edge} !^%s$\nRewriteRule .* - [F,L]\n' "$KEY" > $T/.htaccess
+   sleep 3
+   curl -s -o /dev/null -w 'straight to the server: %{http_code}  (want 403)\n' --resolve nfelia.com:443:37.59.83.88 https://nfelia.com/$T/ok.txt
+   curl -s -o /dev/null -w 'straight, with the header: %{http_code}  (want 200)\n' --resolve nfelia.com:443:37.59.83.88 -H "X-Nfelia-Edge: $KEY" https://nfelia.com/$T/ok.txt
+   curl -s -o /dev/null -w 'through Cloudflare: %{http_code}  (want 200)\n' https://nfelia.com/$T/ok.txt
+   rm -r $T
    ```
-   Expected: **200, 403, 200**. 403 on the first line means the Cloudflare
-   rule is not sending the header yet (wait a minute, check the rule's
-   name and value); 500 means LiteSpeed refused the syntax: stop and report.
+   Expected: **403, 200, 200** (seen on 20 October). 403 on the last line
+   means the Cloudflare rule is not sending the header yet (wait a minute,
+   check the rule's value); 200 on the first line means the rule was not
+   applied: stop and report.
 4. **The token into `.env`**: File Manager → `public_html/nfelia.com/.env`
    → Edit → a new line `EDGE_TOKEN=<the token>` → Save.
 5. **Deploy**, so the token is written into `.htaccess`: cPanel → Git
