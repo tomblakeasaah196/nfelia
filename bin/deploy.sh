@@ -108,10 +108,17 @@ echo "[deploy] uploads/.htaccess refreshed"
 #   go=rX  group/other read; traverse directories
 chmod -R u=rwX,go=rX "$DEPLOYPATH"
 
-# ...except the secrets, which must stay owner-only.
+# ...except the secrets, which must stay owner-only: .env, and everything the
+# app keeps for itself (sessions, private files and the seal key under them,
+# logs, kept PDFs). Those are never served, so the web server needs no
+# access to them either.
 for secret in "$DEPLOYPATH"/.env "$DEPLOYPATH"/.env.*; do
     [ -f "$secret" ] && chmod 600 "$secret"
 done
+for private in sessions private logs pdf momo_receipts; do
+    [ -d "$DEPLOYPATH/storage/$private" ] && chmod -R o-rwx "$DEPLOYPATH/storage/$private"
+done
+[ -f "$DEPLOYPATH/storage/private/seal.key" ] && chmod 600 "$DEPLOYPATH/storage/private/seal.key"
 echo "[deploy] permissions normalised"
 
 # --- 3. Composer dependencies ----------------------------------------------

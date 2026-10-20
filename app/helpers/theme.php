@@ -138,3 +138,20 @@ function theme_appearance(): array
         'bg'   => in_array($ui['bg'] ?? '', ['white', 'cream'], true) ? $ui['bg'] : 'white',
     ];
 }
+
+/**
+ * A colour as the "r g b" channels Tailwind's rgb(var(--brand-rgb) / a)
+ * expects (tailwind.public.config.js). Anything that isn't a 6-digit hex
+ * colour becomes Nfelia's wine.
+ */
+function brand_rgb(?string $hex): string
+{
+    $hex = ltrim((string)$hex, '#');
+    if (strlen($hex) === 3) {
+        $hex = $hex[0] . $hex[0] . $hex[1] . $hex[1] . $hex[2] . $hex[2];
+    }
+    if (!preg_match('/^[0-9a-fA-F]{6}$/', $hex)) {
+        $hex = '8B004A';
+    }
+    return implode(' ', sscanf($hex, '%02x%02x%02x'));
+}

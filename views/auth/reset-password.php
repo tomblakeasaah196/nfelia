@@ -12,19 +12,8 @@
     <!-- The URL carries the reset token: never send it to the font/CSS hosts. -->
     <meta name="referrer" content="no-referrer">
     <title>Establish New Access — Nfelia</title>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&family=Plus+Jakarta+Sans:ital,wght@0,600;0,700;0,800;1,600&family=Roboto+Mono:wght@400;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: { brand: { burgundy: '#8B004A', gold: '#B69F5E', cream: '#F2EFE7', plum: '#1B0A11', sand: '#E8E4DA', white: '#FFFFFF' } },
-                    fontFamily: { jakarta: ['"Plus Jakarta Sans"', 'sans-serif'], montserrat: ['Montserrat', 'sans-serif'], mono: ['"Roboto Mono"', 'monospace'] }
-                }
-            }
-        }
-    </script>
-    <style>body { background-color: #F2EFE7; color: #1B0A11; font-family: 'Montserrat', sans-serif; } .font-heading { font-family: '"Plus Jakarta Sans"', sans-serif; } .data-text { font-family: '"Roboto Mono"', monospace; }</style>
+    <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/public.css?v=<?= @filemtime(BASE_PATH . '/assets/css/public.css') ?>">
+    <style>body { background-color: #F2EFE7; color: #1B0A11; } </style>
 </head>
 <body class="min-h-screen flex flex-col items-center justify-center p-4">
 

@@ -55,14 +55,10 @@ $og_image  = $business['logo_path']
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=<?= $google_fonts ?>&family=Roboto+Mono:wght@400;600&display=swap" rel="stylesheet">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = { theme: { extend: { fontFamily: {
-            heading: ['"<?= $font_heading ?>"', 'sans-serif'],
-            body: ['"<?= $font_body ?>"', 'sans-serif'],
-            mono: ['"Roboto Mono"', 'monospace'],
-        }}}}
-    </script>
+    <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/public.css?v=<?= @filemtime(BASE_PATH . '/assets/css/public.css') ?>">
+    <style>
+        :root { --font-heading: "<?= e($font_heading) ?>", sans-serif; --font-body: "<?= e($font_body) ?>", sans-serif; --font-mono: "Roboto Mono", monospace; }
+    </style>
     <style>
         body { font-family: '<?= $font_body ?>', sans-serif; background: #F2EFE7; }
         .data-text { font-family: 'Roboto Mono', monospace; }

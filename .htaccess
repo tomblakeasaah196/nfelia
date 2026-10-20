@@ -20,6 +20,9 @@ RewriteRule ^config/ - [F,L]
 RewriteRule ^app/ - [F,L]
 RewriteRule ^views/ - [F,L]
 RewriteRule ^storage/ - [F,L]
+# Libraries are loaded by the app, never opened by a browser: no file under
+# vendor/ or lib/ should run or be read on its own.
+RewriteRule ^(vendor|lib)/ - [F,L]
 
 # Customers' signatures and payment screenshots saved before they moved to
 # storage/private/. They are sent only by the pages that check who is asking
@@ -41,6 +44,10 @@ RewriteRule ^uploads/.*\.(php[0-9]?|phtml|phar|pl|py|cgi|shtml)$ - [F,L,NC]
 # failed. It has no extension, so the rule above never matched it, and it
 # holds file paths and whatever the error message carried.
 <Files "error_log">
+    Require all denied
+</Files>
+# The dependency list is for Composer, not visitors
+<Files "composer.json">
     Require all denied
 </Files>
 

@@ -34,23 +34,13 @@ if (!empty($activities)) {
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Roboto+Mono:wght@500;700&display=swap" rel="stylesheet">
     
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
+    <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/public.css?v=<?= @filemtime(BASE_PATH . '/assets/css/public.css') ?>">
+    <script defer src="<?= APP_URL ?>/assets/vendor/alpine-3.14.3.min.js"></script>
     
-    <script>
-        tailwind.config = { 
-            theme: { 
-                extend: { 
-                    fontFamily: {
-                        sans: ['"<?= $font_body ?>"', 'sans-serif'],
-                        heading: ['"<?= $font_heading ?>"', 'sans-serif'],
-                        mono: ['"<?= $font_mono ?>"', 'monospace'],
-                    },
-                    colors: { brand: '<?= e($primary) ?>' }
-                }
-            }
-        }
-    </script>
+    <style>
+        :root { --font-heading: "<?= e($font_heading) ?>", sans-serif; --font-body: "<?= e($font_body) ?>", sans-serif; --font-mono: "<?= e($font_mono) ?>", monospace;
+                --brand-rgb: <?= e(brand_rgb($primary)) ?>; }
+    </style>
     <style>
         body { background-color: #F8FAFC; -webkit-tap-highlight-color: transparent; }
         .hide-scrollbar::-webkit-scrollbar { display: none; }

@@ -30,22 +30,11 @@ if (!empty($business['logo_path']) && file_exists(BASE_PATH . '/' . $business['l
     <meta name="robots" content="noindex, nofollow">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,600;1,400&family=Questrial&display=swap" rel="stylesheet">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        brand: { primary: '<?= e($primary) ?>', accent: '<?= e($accent) ?>' }
-                    },
-                    fontFamily: {
-                        serif:  ['"EB Garamond"', 'Georgia', 'serif'],
-                        sans:   ['Questrial', 'sans-serif'],
-                    }
-                }
-            }
-        }
-    </script>
+    <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/public.css?v=<?= @filemtime(BASE_PATH . '/assets/css/public.css') ?>">
+    <style>
+        :root { --font-serif: "EB Garamond", Georgia, serif; --font-body: "Questrial", sans-serif; --font-heading: "EB Garamond", Georgia, serif;
+                --brand-rgb: <?= e(brand_rgb($primary)) ?>; --brand-secondary-rgb: <?= e(brand_rgb($accent)) ?>; }
+    </style>
     <style>
         body { background: #f5f2ed; font-family: 'Questrial', sans-serif; }
         .garamond { font-family: 'EB Garamond', Georgia, serif; }
