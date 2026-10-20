@@ -265,8 +265,11 @@ the cPanel subdomain and the DNS record.
   `CLOUDFLARE_ZONE_ID=1a0e9a750a9786c0d9f236c168507e15`.
 - **Purge everything** after a change to shop templates: Caching →
   Configuration → Purge Everything.
-- **DMARC step-up** (after two weeks of clean reports at dmarc@nfelia.com):
-  DNS → `_dmarc` TXT → `v=DMARC1; p=quarantine; rua=mailto:dmarc@nfelia.com; pct=100`.
+- **DMARC step-up on 3 November** (decided 20 October, after two weeks of
+  reports at dmarc@nfelia.com; open a few of them first: every report
+  should show SPF and DKIM passing for 37.59.83.88): DNS → `_dmarc` TXT →
+  `v=DMARC1; p=quarantine; rua=mailto:dmarc@nfelia.com; pct=100`. If a
+  legitimate sender shows up failing in the reports, add it to SPF first.
 - **Before anything else: 2FA** on both account members (My Profile →
   Authentication → Two-Factor Authentication, an authenticator app plus
   backup codes), then Manage Account → Members → Enforce 2FA. The export
@@ -297,6 +300,11 @@ Dependabot alerts on. Account → Password and authentication → two-factor
 on.
 
 ### 6.2 Going private without breaking deploys
+
+Decided 20 October: steps 1 and 2 on **1 November**; step 3 as soon as
+step 4's manual deploy has worked with the token, and at the VPS move at
+the latest (there the deploy runs over SSH and no token sits on a shared
+server).
 
 1. GitHub → Settings → Developer settings → Fine-grained personal access
    tokens → Generate: repository access only `nfelia`; permissions

@@ -64,31 +64,44 @@ below: reaching the origin directly (§5) and injecting a script (§6).
 
 | # | Finding | What to do | Where |
 |---|---|---|---|
-| L-01 | The repository is **public**: anyone reads the code, the server paths, the zone id, the audit documents | make it private once deploys can fetch with a token | RUNBOOK §6.2 |
+| L-01 | The repository is **public**: anyone reads the code, the server paths, the zone id, the audit documents | decided 20 October: the token sequence on 1 November, private as soon as a manual deploy with the token has worked, at the VPS move at the latest | RUNBOOK §6.2 |
 | L-02 | `main` is unprotected; a push to `main` is code on the server | branch ruleset, required checks, 2FA | RUNBOOK §6.1 |
 | L-03 | Nfelia shares its Unix user with seven other sites (WordPress tooling present) | move Nfelia to its own account or server; until then keep the other sites patched | VPS-MIGRATION.md |
 | L-04 | `.env` points the database at the public IP | reassessed after run 3: the user's only grant is bound to the server's hostname, the connection stays on the machine, and nothing is gained before the VPS. **Leave it.** | RUNBOOK §4.2 |
 | L-05 | Five `.env` backups, an `.htaccess` backup, `composer.phar` in the docroot | move / remove | RUNBOOK §4.3 |
-| L-06 | DMARC at `p=none` | `p=quarantine` after two clean weeks | RUNBOOK §5 |
+| L-06 | DMARC at `p=none` | decided 20 October: `p=quarantine` on 3 November, after two weeks of reports | RUNBOOK §5 |
 | L-07 | HSTS off at Cloudflare | decided 20 October: on, 6 months, no `includeSubDomains`, no preload; CLOUDFLARE.md prompt C | §4 below |
 | L-08 | The origin answers requests that bypass Cloudflare | decided 20 October: locked in `.htaccess` in this branch; the test before the merge, the monthly check and the rollback are in RUNBOOK §4.4 | §5 below |
-| L-09 | Nothing watches the site from outside | an uptime check (free: UptimeRobot, Better Stack) on `/login` and `ops.nfelia.com/signin` | |
+| L-09 | Nothing watches the site from outside | decided 20 October: UptimeRobot on `/login` and `ops.nfelia.com/signin` from the day of the VPS move, nothing before (VPS-MIGRATION.md §4) | |
 | L-10 | **Cloudflare account: 2FA off on both members** (export of 20 October). Whoever signs into that account owns the DNS, and with it the site, the mail and every password reset | an authenticator app and backup codes on both accounts (My Profile → Authentication), then Manage Account → Members → Enforce 2FA | Cloudflare; CLOUDFLARE.md C-1 |
 | L-11 | The edge still accepts TLS 1.0 and 1.1 | SSL/TLS → Edge Certificates → Minimum TLS Version → 1.2 | CLOUDFLARE.md prompt B |
 | L-12 | DNSSEC off: a forged DNS answer for `nfelia.com` cannot be detected by resolvers | DNS → Settings → Enable DNSSEC, then the DS record at the registrar | CLOUDFLARE.md C-8 |
 | L-13 | The mailbox password of `no-reply@nfelia.com` is 9 characters, on a server whose SMTP and IMAP ports face the internet | a 24-character random password, and `MAIL_PASSWORD` in `.env` in the same minute | RUNBOOK §3 |
-| L-14 | No Cloudflare rules at all: nothing slows a sign-in burst before PHP, nothing stops strangers from knocking on the deploy webhook | decided 20 October: the sign-in rate limit and the deploy-webhook rule, CLOUDFLARE.md prompt C. Bot Fight Mode was asked for as well; the caution and the test for it are there too | |
-| L-15 | A second database user, `smartqaq_nfelia_it`, holds ALL PRIVILEGES on the database and nothing in the code uses it (run 3): one more password that opens everything | once confirmed unused by anything else: cPanel → MySQL Databases → Current Users → delete it | decision |
+| L-14 | No Cloudflare rules at all: nothing slows a sign-in burst before PHP, nothing stops strangers from knocking on the deploy webhook | decided 20 October: the sign-in rate limit and the deploy-webhook rule, CLOUDFLARE.md prompt C. Bot Fight Mode: considered, then **left off** (it cannot exempt Paystack or GitHub on the Free plan); prompt D there keeps the test for the day it is reconsidered | |
+| L-15 | A second database user, `smartqaq_nfelia_it`, holds ALL PRIVILEGES on the database and nothing in the code uses it (run 3): one more password that opens everything | owner's decision 20 October: **kept as it is**. It does not move to the VPS (the dump carries tables, not users), so it ends with the shared account | |
 
 ### 2.3 Decisions pending (the ten questions)
 
-Answered 20 October: HSTS (on, 6 months, no `includeSubDomains`); origin
-lock (now, `.htaccess`); CSP (report-only first); edge rules (sign-in
-rate limit, deploy-webhook rule, Bot Fight Mode). Still to answer: the
-VPS provider and stack; mail after the move; outside monitoring; the
-DMARC step; when to go private; the second database user; the countries
-for an Ops geo rule if wanted. CLOUDFLARE.md carries the prompts that
-apply the Cloudflare side.
+All twelve answered on 20 October:
+
+1. HSTS: on, 6 months, no `includeSubDomains`, no preload.
+2. Origin lock: now, in `.htaccess` (this branch).
+3. CSP: report-only for two weeks, then enforce (this branch).
+4. Edge rules: the sign-in rate limit and the deploy-webhook rule; no
+   Ops geo rule; Bot Fight Mode considered and left off.
+5. VPS provider: between a Western European server and Database Mart
+   (United States); decided at the move, not before.
+6. Mail: stays on cPanel for good; the app only changes its SMTP host.
+7. Outside monitoring: UptimeRobot from the day of the move, nothing before.
+8. The second database user `smartqaq_nfelia_it`: kept as it is.
+9. DMARC: `p=quarantine` on 3 November.
+10. Repository: token sequence on 1 November, private once a manual deploy
+    with the token has worked, at the VPS move at the latest.
+11. Bot Fight Mode: off (confirmed).
+12. Countries for an Ops geo rule: not wanted (the rule was not chosen).
+
+CLOUDFLARE.md carries the prompts that apply the Cloudflare side;
+RUNBOOK.md and VPS-MIGRATION.md carry the rest.
 
 ### 2.4 Later (background)
 

@@ -280,7 +280,7 @@ Paystack dashboard, the Cloudflare account.
 | Item | Value |
 |---|---|
 | Engine | **MariaDB 10.11.19** (CloudLinux build) on the same box, shared by every account. Server defaults `latin1` / `latin1_swedish_ci` (the database itself is utf8mb4), `time_zone SYSTEM` = CEST, `sql_mode STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION`, InnoDB buffer pool **128 MB**, `max_connections 151`, `tmp_table_size` 16 MB, slow log off (`long_query_time` 10 s), performance schema off, event scheduler off (run 3) |
-| Name / users | `smartqaq_nfelia_core`; **two** users hold ALL PRIVILEGES on it: `smartqaq_nfelia_admin` (the app) and `smartqaq_nfelia_it` (named in the old deployment guide; nothing in the code uses it: SECURITY.md L-15) |
+| Name / users | `smartqaq_nfelia_core`; **two** users hold ALL PRIVILEGES on it: `smartqaq_nfelia_admin` (the app) and `smartqaq_nfelia_it` (named in the old deployment guide; nothing in the code uses it; kept by the owner's decision of 20 October: SECURITY.md L-15) |
 | Server-wide counters, 5 days | 375 k connections, 31 M statements, 82 connections at the busiest moment of 151, 39 % of temporary tables written to disk, 7,366 aborted connects: every account on the box together, not Nfelia's alone |
 | Collation | `utf8mb4_unicode_ci` everywhere (never pin `utf8mb4_0900_ai_ci`: MySQL-only, took the site down once) |
 | Session time zone | `+01:00` set per connection; PHP runs `Africa/Lagos` |

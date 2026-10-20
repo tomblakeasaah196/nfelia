@@ -9,17 +9,32 @@ in seconds.
 Decisions this plan assumes (change them and the matching section): Ubuntu
 24.04 LTS; nginx + PHP-FPM 8.3; MariaDB 10.11 (the same major as today, so
 the database moves by dump and restore with no code change); deploys over
-SSH from GitHub Actions into release directories; mail stays on the cPanel
-server (the app only changes its SMTP host) until a transactional mail
-service is chosen; Cloudflare stays in front, with the origin accepting
-Cloudflare only; backups to Cloudflare R2.
+SSH from GitHub Actions into release directories; **mail stays on the
+cPanel server for good** (decided 20 October: the mailboxes do not move,
+the app only changes its SMTP host to `mail.nfelia.com`, and the shared
+account is kept for that); Cloudflare stays in front, with the origin
+accepting Cloudflare only; backups to Cloudflare R2; an UptimeRobot check
+from the day of the move (decided 20 October: nothing before it).
 
 ---
 
 ## 0. Before the day
 
-- [ ] Server: 2 vCPU, 4 GB RAM, 40+ GB SSD, Ubuntu 24.04, in Europe (Cloudflare
-      terminates in Lagos either way; Hetzner, OVH, DigitalOcean all fine). Note its IPv4 and IPv6.
+- [ ] Server: 2 vCPU, 4 GB RAM, 40+ GB SSD, Ubuntu 24.04, KVM with root
+      over SSH. Candidates on 20 October: Database Mart (United States only;
+      Express Linux VPS, 2 vCPU, 4 GB, 60 GB, $6.99 a month) and DTR Hosting
+      (Cameroon/France; offer still to be read). Where it stands matters
+      more than the vendor: every app page is dynamic, so each request goes
+      from Cloudflare's edge in Lagos or Douala to the origin and back.
+      Western Europe (Paris, Gravelines, Frankfurt) is about 100 ms away from
+      both countries; the United States about 200 ms, felt on every tap; a
+      server in Douala is quickest for Cameroon, but traffic from Nigeria to
+      Cameroon usually travels through Europe anyway, and power and uplink
+      reliability become the question. Before paying, ask the vendor for a
+      test address and `ping` it from Douala and from Lagos for a minute
+      each. Note the server's IPv4 and IPv6 once bought. Decision on
+      20 October: between a Western European server and Database Mart,
+      to be settled when the move is near.
 - [ ] Backups off the server already running from the old host (RUNBOOK §2.2):
       the latest dated folder in R2 is what moves.
 - [ ] `bin/env-report.sh` run on the old host and kept: it is the reference.
@@ -195,15 +210,19 @@ replay it, so decide quickly.
       `nfelia.com` addon domain and the `*.nfelia.com` subdomain from cPanel
       (mail stays), delete the docroot, the repo checkout and the webhook.
       Keep the `.env` backup.
-- [ ] Cloudflare: HSTS on (SECURITY.md §4), a rate limit on `/login`,
-      Authenticated Origin Pulls on for the zone (SSL/TLS → Origin Server).
+- [ ] Cloudflare: HSTS and the rate limit are already on (CLOUDFLARE.md
+      prompt C); turn Authenticated Origin Pulls on for the zone (SSL/TLS →
+      Origin Server) once nginx holds the certificate.
 - [ ] Repository: private (RUNBOOK §6.2); `webhook/deploy.php` and
       `.cpanel.yml` deleted; `bin/deploy.sh` kept only for history.
-- [ ] External uptime check on `https://nfelia.com/login` and
-      `https://ops.nfelia.com/signin`.
+- [ ] UptimeRobot, free plan (decided 20 October): monitors on
+      `https://nfelia.com/login` and `https://ops.nfelia.com/signin`,
+      5-minute checks, alerts to the owner's mailbox and phone.
 - [ ] A restore drill from R2 onto a scratch database within the first month.
-- [ ] Mail: decide between keeping cPanel's Exim (works as is) and a
-      transactional service; if the latter, update `MAIL_*`, SPF and DKIM.
+- [ ] Mail stays on cPanel (decided 20 October): `MAIL_HOST=mail.nfelia.com`
+      in the new `.env`; SPF, DKIM, MX and the `mail`/`webmail` records do
+      not change. Keep the shared account for it, and rotate the mailbox
+      password (SECURITY.md L-13) before the move.
 
 ---
 

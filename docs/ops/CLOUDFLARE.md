@@ -42,9 +42,9 @@ paste the prompt from §3.
 | C-5 | Rate limit on sign-in POSTs | assistant, prompt C | SECURITY.md §5 | **decided 20 Oct** |
 | C-6 | WAF rule: the deploy webhook answers GitHub Actions only | assistant, prompt C | takes the brute-force surface off `webhook/deploy.php` | **decided 20 Oct** |
 | C-7 | WAF rule: challenge `ops.nfelia.com` outside the countries you sign in from | assistant, needs the country list | the back office is used by two people | not chosen |
-| C-12 | Bot Fight Mode | you: Security → Bots, after reading prompt D | asked for 20 Oct; on the Free plan it cannot be bypassed by rules, so it can challenge Paystack's webhooks and GitHub's deploy call | **read §3 first** |
+| C-12 | Bot Fight Mode | you: Security → Bots | on the Free plan it cannot be bypassed by rules, so it can challenge Paystack's webhooks and GitHub's deploy call | **decided 20 Oct: off**; prompt D kept for the day it is reconsidered |
 | C-8 | DNSSEC on, then the DS record at the registrar | you: DNS → Settings → Enable DNSSEC; then the registrar | SECURITY.md L-12 | open |
-| C-9 | DMARC `p=quarantine` | you: DNS → `_dmarc` | after two clean weeks of reports at dmarc@nfelia.com | from 3 November |
+| C-9 | DMARC `p=quarantine` | you: DNS → `_dmarc` (RUNBOOK §5 has the record) | after two weeks of reports at dmarc@nfelia.com | **decided: 3 November** |
 | C-10 | Notifications: Universal SSL expiry, DDoS Attack L7, Origin Error Rate | you: Notifications → Add | nobody is told of anything today | open |
 | C-11 | Lock the origin to Cloudflare | code (`.htaccess`), SECURITY.md §5; it happens at the origin, not here | **decided 20 Oct, in the branch; RUNBOOK §4.4 tests it** |
 
