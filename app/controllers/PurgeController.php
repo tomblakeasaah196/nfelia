@@ -328,9 +328,8 @@ class PurgeController
             $files_to_unlink = array_merge($files_to_unlink, doc_forget_missing($this->db, $this->biz_id));
 
             // Write immutable non-repudiation log
-            $admin_ip =
-                $_SERVER["HTTP_X_FORWARDED_FOR"] ??
-                ($_SERVER["REMOTE_ADDR"] ?? "Unknown");
+            // The visitor's own address (never a header anyone can type)
+            $admin_ip = client_ip() ?: "Unknown";
             $summary =
                 "Purged " .
                 count($deleted_doc_strings) .

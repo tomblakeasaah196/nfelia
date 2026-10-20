@@ -579,6 +579,15 @@ function notify_events(): array
             'private' => 'Nfelia support looked at your account',
             'button' => 'Open Nfelia',
         ],
+        'security.signin_blocked' => [
+            'topic' => 'security', 'to' => 'user', 'brand' => 'nfelia', 'urgency' => 'high',
+            'url' => fn($d) => 'settings?tab=profile', 'tag' => fn($d) => 'security',
+            'text' => fn($d, $m) => ['Someone tried your password ' . $d['tries'] . ' times',
+                                     'Sign-in to your account is paused for ' . $d['minutes'] . ' minutes after ' . $d['tries'] . ' wrong passwords in a row, at ' . $d['when']
+                                     . '. If this wasn’t you, change your password as soon as you are back in, and add a passkey.'],
+            'private' => 'Repeated wrong passwords on your account',
+            'button' => 'Check your account',
+        ],
         'security.password_changed' => [
             'topic' => 'security', 'to' => 'user', 'brand' => 'nfelia', 'urgency' => 'high',
             'url' => fn($d) => 'settings?tab=profile', 'tag' => fn($d) => 'security',

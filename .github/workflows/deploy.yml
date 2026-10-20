@@ -206,6 +206,8 @@ jobs:
             echo "MAIL_PASSWORD=sink"
             echo "MAIL_FROM_ADDRESS=no-reply@nfelia.test"
             echo "PAYSTACK_SECRET_KEY=sk_test_ci_only"
+            # No calls to Have I Been Pwned from the test copy
+            echo "PASSWORD_BREACH_CHECK=off"
             # The stand-in push service (push_sink.php): only real push
             # services and these are ever called (app/helpers/webpush.php).
             echo "PUSH_TEST_ENDPOINTS=http://127.0.0.1:8098/"
@@ -228,7 +230,7 @@ jobs:
           echo "::error::the app did not start"; cat "$RUNNER_TEMP/app.log"; exit 1
 
       - name: Engine, every trigger over HTTP, the cron, the service worker, Nfelia Ops, the orders hub, the Records Book, signatures
-        run: bash tests/notifications/run.sh engine flows cron sw ops/foundation ops/monitor ops/clients ops/sales ops/uploads orders/core ops/records docs/sign
+        run: bash tests/notifications/run.sh engine flows cron sw ops/foundation ops/monitor ops/clients ops/sales ops/uploads orders/core ops/records docs/sign auth/signin
 
       # What the app itself said (PHP errors above all), right in the job's
       # log: the artifact below has the whole file.

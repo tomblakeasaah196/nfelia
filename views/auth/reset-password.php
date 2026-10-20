@@ -52,13 +52,14 @@
                 <input type="hidden" name="token" value="<?= e($token) ?>">
                 
                 <div>
-                    <label class="block text-xs font-bold text-brand-plum uppercase tracking-widest mb-2">New Secure Passkey</label>
-                    <input type="password" name="password" required class="w-full px-4 py-3 bg-brand-white border border-brand-sand text-brand-plum text-sm focus:border-brand-gold focus:ring-0 outline-none transition-all rounded-none placeholder-brand-plum/30" placeholder="••••••••">
+                    <label for="new-password" class="block text-xs font-bold text-brand-plum uppercase tracking-widest mb-2">New password</label>
+                    <input id="new-password" type="password" name="password" required minlength="9" maxlength="200" autocomplete="new-password" class="w-full px-4 py-3 bg-brand-white border border-brand-sand text-brand-plum text-sm focus:border-brand-gold focus:ring-0 outline-none transition-all rounded-none placeholder-brand-plum/30" placeholder="••••••••">
+                    <?php $pw_input = '#new-password'; $pw_confirm = '#new-password-confirm'; require BASE_PATH . '/views/partials/password_rules.php'; ?>
                 </div>
 
                 <div>
-                    <label class="block text-xs font-bold text-brand-plum uppercase tracking-widest mb-2">Confirm Passkey</label>
-                    <input type="password" name="password_confirm" required class="w-full px-4 py-3 bg-brand-white border border-brand-sand text-brand-plum text-sm focus:border-brand-gold focus:ring-0 outline-none transition-all rounded-none placeholder-brand-plum/30" placeholder="••••••••">
+                    <label for="new-password-confirm" class="block text-xs font-bold text-brand-plum uppercase tracking-widest mb-2">Type it again</label>
+                    <input id="new-password-confirm" type="password" name="password_confirm" required minlength="9" maxlength="200" autocomplete="new-password" class="w-full px-4 py-3 bg-brand-white border border-brand-sand text-brand-plum text-sm focus:border-brand-gold focus:ring-0 outline-none transition-all rounded-none placeholder-brand-plum/30" placeholder="••••••••">
                 </div>
 
                 <button type="submit" class="w-full bg-brand-plum text-brand-white text-xs font-bold py-4 uppercase tracking-widest hover:bg-brand-burgundy transition-colors mt-4">

@@ -17,7 +17,7 @@ $raw = (string)file_get_contents('php://input', false, null, 0, 16384);
 $in  = json_decode($raw, true);
 http_response_code(204);
 header_remove('Content-Type');
-if (!is_array($in) || !throttle_allows('js_errors', $_SERVER['REMOTE_ADDR'] ?? '', 60, 10)) {
+if (!is_array($in) || !throttle_allows('js_errors', client_ip(), 60, 10)) {
     exit;
 }
 

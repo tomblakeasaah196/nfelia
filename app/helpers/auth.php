@@ -29,10 +29,19 @@ function is_owner(): bool {
  * applies at once too.
  */
 function auth_still_member(): bool {
-    $stmt = get_db()->prepare("SELECT is_active, role FROM users WHERE id = ? AND business_id = ?");
+    // SELECT *, not a column list: the code can arrive a minute before the
+    // migration that adds session_epoch, and that minute must not sign
+    // everyone out.
+    $stmt = get_db()->prepare("SELECT * FROM users WHERE id = ? AND business_id = ?");
     $stmt->execute([(int)(auth_user()['id'] ?? 0), (int)auth_business_id()]);
     $me = $stmt->fetch();
     if (!$me || !(int)$me['is_active']) {
+        logout_user();
+        return false;
+    }
+    // A changed password (or "sign out everywhere") moves the epoch on;
+    // every session started before it ends here, on its next request.
+    if ((int)($me['session_epoch'] ?? 0) !== (int)($_SESSION['user']['session_epoch'] ?? 0)) {
         logout_user();
         return false;
     }
@@ -40,6 +49,42 @@ function auth_still_member(): bool {
         $_SESSION['user']['role'] = $me['role'];
     }
     return true;
+}
+
+/**
+ * The password changed (or the person asked to be signed out everywhere):
+ * every other session and every "keep me signed in" token of theirs stops
+ * working. The session doing it carries on when $keep_current is true.
+ */
+function session_epoch_bump(int $user_id, bool $keep_current = true): void {
+    $db = get_db();
+    $db->prepare("UPDATE users SET session_epoch = session_epoch + 1 WHERE id = ?")->execute([$user_id]);
+    $stmt = $db->prepare("SELECT session_epoch FROM users WHERE id = ?");
+    $stmt->execute([$user_id]);
+    $epoch = (int)$stmt->fetchColumn();
+    $mine  = (int)(auth_user()['id'] ?? 0) === $user_id;
+    if ($mine && $keep_current) {
+        $_SESSION['user']['session_epoch'] = $epoch;
+        session_regenerate_id(true);
+        $keep_row = (int)($_SESSION['remember_id'] ?? 0);
+        $db->prepare("DELETE FROM sessions WHERE user_id = ? AND id <> ?")->execute([$user_id, $keep_row]);
+    } else {
+        $db->prepare("DELETE FROM sessions WHERE user_id = ?")->execute([$user_id]);
+    }
+}
+
+/**
+ * Forget one "keep me signed in" token, as the browser sent it. Tokens are
+ * kept hashed; a token saved before they were is matched as it is.
+ */
+function remember_forget(string $raw): void {
+    if ($raw === '') return;
+    get_db()->prepare("DELETE FROM sessions WHERE session_token IN (?, ?)")->execute([remember_hash($raw), $raw]);
+}
+
+/** How a "keep me signed in" token is kept: only its SHA-256, never the token. */
+function remember_hash(string $raw): string {
+    return hash('sha256', $raw);
 }
 
 /** Owner or admin: who the menu shows the money pages and the shop to. */
@@ -265,6 +310,124 @@ function throttle_allows(string $bucket, string $key, int $max, int $window_minu
         $db->exec("DELETE FROM auth_throttle WHERE created_at < NOW() - INTERVAL 1 DAY");
     }
     return true;
+}
+
+/** How many requests a bucket has seen in the last $window_minutes, recording nothing. */
+function throttle_count(string $bucket, string $key, int $window_minutes): int {
+    $stmt = get_db()->prepare("
+        SELECT COUNT(*) FROM auth_throttle
+        WHERE bucket = ? AND key_hash = ? AND created_at > NOW() - INTERVAL " . (int)$window_minutes . " MINUTE
+    ");
+    $stmt->execute([$bucket, hash('sha256', strtolower(trim($key)))]);
+    return (int)$stmt->fetchColumn();
+}
+
+/** Record one request against a bucket (a failed sign-in, say) without deciding anything. */
+function throttle_hit(string $bucket, string $key): void {
+    get_db()->prepare("INSERT INTO auth_throttle (bucket, key_hash) VALUES (?, ?)")
+            ->execute([$bucket, hash('sha256', strtolower(trim($key)))]);
+}
+
+/** Forget a bucket's requests: the right password after a few wrong ones starts the count again. */
+function throttle_clear(string $bucket, string $key): void {
+    get_db()->prepare("DELETE FROM auth_throttle WHERE bucket = ? AND key_hash = ?")
+            ->execute([$bucket, hash('sha256', strtolower(trim($key)))]);
+}
+
+/* ── Passwords ─────────────────────────────────────────────── */
+
+const PASSWORD_MIN = 9;
+
+/**
+ * The rules a new password must meet, in the order the form lists them.
+ * Each has a key (the form's checklist uses it), the words shown, and a
+ * test. Letters and digits from any script count.
+ */
+function password_rules(): array {
+    return [
+        'length' => ['label' => 'At least ' . PASSWORD_MIN . ' characters',  'test' => fn(string $p) => mb_strlen($p) >= PASSWORD_MIN],
+        'upper'  => ['label' => 'A capital letter (A to Z)',                 'test' => fn(string $p) => (bool)preg_match('/\p{Lu}/u', $p)],
+        'number' => ['label' => 'A number (0 to 9)',                         'test' => fn(string $p) => (bool)preg_match('/\p{N}/u', $p)],
+        'symbol' => ['label' => 'A symbol, like ! ? # or @',                 'test' => fn(string $p) => (bool)preg_match('/[^\p{L}\p{N}\s]/u', $p)],
+    ];
+}
+
+/**
+ * What is wrong with a new password, in one sentence, or null when it is
+ * fine. $again is the "type it again" field when the form has one. Over
+ * 200 characters is refused too: bcrypt reads only the first 72 bytes.
+ */
+function password_problem(string $password, ?string $again = null): ?string {
+    if ($password === '') {
+        return 'Choose a password.';
+    }
+    if (strlen($password) > 200) {
+        return 'Use at most 200 characters.';
+    }
+    $missing = [];
+    foreach (password_rules() as $rule) {
+        if (!$rule['test']($password)) {
+            $missing[] = lcfirst($rule['label']);
+        }
+    }
+    if ($missing) {
+        return 'Your password needs ' . implode(', ', $missing) . '.';
+    }
+    if ($again !== null && $again !== $password) {
+        return 'The two passwords are not the same.';
+    }
+    return null;
+}
+
+/**
+ * Has this password appeared in a known data breach? Asks Have I Been
+ * Pwned with the first five characters of its SHA-1 only (k-anonymity: the
+ * password never leaves the server, and the answer cannot be tied to it).
+ * Returns true (found), false (not found) or null when the check could not
+ * run (no network, a slow answer): then the password is not held up.
+ */
+function password_pwned(string $password): ?bool {
+    if (!function_exists('curl_init') || ($_ENV['PASSWORD_BREACH_CHECK'] ?? 'on') === 'off') {
+        return null;
+    }
+    $sha    = strtoupper(sha1($password));
+    $prefix = substr($sha, 0, 5);
+    $suffix = substr($sha, 5);
+    $ch = curl_init('https://api.pwnedpasswords.com/range/' . $prefix);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CONNECTTIMEOUT => 2,
+        CURLOPT_TIMEOUT        => 4,
+        CURLOPT_HTTPHEADER     => ['Add-Padding: true', 'User-Agent: Nfelia (password check)'],
+        CURLOPT_PROTOCOLS      => CURLPROTO_HTTPS,
+    ]);
+    $body   = curl_exec($ch);
+    $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    curl_close($ch);
+    if (!is_string($body) || $status !== 200) {
+        return null;
+    }
+    foreach (explode("\n", $body) as $line) {
+        [$hash_suffix, $count] = array_pad(explode(':', trim($line), 2), 2, '0');
+        if (strtoupper($hash_suffix) === $suffix) {
+            return (int)$count > 0;   // padding lines carry a count of 0
+        }
+    }
+    return false;
+}
+
+/**
+ * Everything a new password must pass before it is saved: the rules, the
+ * "type it again" field, and the breach check. One sentence, or null.
+ */
+function new_password_problem(string $password, ?string $again = null): ?string {
+    if ($problem = password_problem($password, $again)) {
+        return $problem;
+    }
+    if (password_pwned($password) === true) {
+        return 'That password has appeared in a known data breach and could be guessed. Choose a different one.';
+    }
+    return null;
 }
 
 /**

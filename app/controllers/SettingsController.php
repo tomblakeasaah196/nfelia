@@ -468,14 +468,8 @@ class SettingsController {
         $new_pass = $_POST['new_password'] ?? '';
         $confirm  = $_POST['confirm_password'] ?? '';
 
-        if ($new_pass === '' || strlen($new_pass) < 8) {
-            flash('error', 'New password must be at least 8 characters.');
-            redirect('settings?tab=profile');
-            return;
-        }
-
-        if ($new_pass !== $confirm) {
-            flash('error', 'New passwords do not match.');
+        if ($problem = new_password_problem($new_pass, $confirm)) {
+            flash('error', $problem);
             redirect('settings?tab=profile');
             return;
         }
@@ -494,6 +488,8 @@ class SettingsController {
             password_hash($new_pass, PASSWORD_BCRYPT, ['cost' => 12]),
             $user['id']
         ]);
+        // Every other browser and kept device is signed out; this one carries on.
+        session_epoch_bump((int)$user['id'], true);
         // Told on every device and by email, in case it wasn't them.
         notify('security.password_changed', $this->biz_id, [], ['users' => [(int)$user['id']], 'dedupe' => (string)time()]);
 
@@ -538,8 +534,8 @@ class SettingsController {
             return;
         }
 
-        if (strlen($password) < 8) {
-            flash('error', 'Password must be at least 8 characters.');
+        if ($problem = new_password_problem($password)) {
+            flash('error', $problem);
             redirect('settings?tab=staff');
             return;
         }

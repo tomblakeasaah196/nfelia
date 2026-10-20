@@ -58,6 +58,7 @@ for s in "${suites[@]}"; do
         ops/*) php "$root/tests/${s}_test.php" ;;
         orders/*) php "$root/tests/${s}_test.php" ;;
         docs/*) php "$root/tests/${s}_test.php" ;;
+        auth/*) php "$root/tests/${s}_test.php" ;;
         *)   echo "Unknown suite: $s" >&2; false ;;
     esac || failed+=("$s")
 done
