@@ -232,11 +232,20 @@ with the page and the business. Reports caused by browser extensions are
 dropped; the endpoint is limited like the browser-error one.
 
 The policy on trial allows what the code is known to use: our own origin,
-`cdnjs.cloudflare.com` (html2pdf.js on four pages), Google Fonts on the
-document pages, `i.ytimg.com` thumbnails and `youtube-nocookie.com` frames
-for shop videos, `nfelia.com` fonts and images on shop subdomains, `data:`
-and `blob:` images. Anything else that turns up in the reports is either a
+`cdnjs.cloudflare.com` (html2pdf.js on four pages, Chart.js on the profit
+and loss report, and Cropper.js with its stylesheet on Settings), Google
+Fonts on the document pages, `i.ytimg.com` thumbnails and
+`youtube-nocookie.com` frames for shop videos, `nfelia.com` fonts and
+images on shop subdomains, `data:` and `blob:` images, and `blob:`
+connections, which is the cropper reading the chosen photo back to find
+which way up it was taken. It also allows `static.cloudflareinsights.com`,
+which is in no file here: Cloudflare adds its analytics beacon to every
+page at the edge. Anything else that turns up in the reports is either a
 page nobody listed or an injection.
+
+`tests/ops/policy_test.php` keeps that list honest. It reads the policy out
+of `.htaccess` and fails the build if a view loads a script or a stylesheet
+the policy does not name.
 
 What stands between the trial and enforcement, counted in the code: 40
 inline `<script>` blocks and 52 inline `on…=` handlers in `views/` (they
