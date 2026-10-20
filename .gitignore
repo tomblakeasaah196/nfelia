@@ -36,6 +36,7 @@ cgi-bin/
 /storage/og-cache/
 /storage/sessions/
 /storage/private/
+/storage/pdf/
 
 # Database dumps. Forward migrations under db/migrations/ ARE tracked, and
 # so is db/schema.sql, the structure-only schema (CI rejects rows in it).
