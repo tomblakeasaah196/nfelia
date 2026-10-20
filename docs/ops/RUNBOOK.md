@@ -348,8 +348,22 @@ now checks and lets mysqldump take over) and never leaves an empty file.
 By hand, typing the `.env` password when asked:
 
 ```bash
-mysqldump --no-data --skip-comments --skip-add-drop-table --routines --triggers --events -h 37.59.83.88 --protocol=tcp -u smartqaq_nfelia_admin -p smartqaq_nfelia_core > ~/nfelia-schema-live.sql
+mysqldump --no-data --skip-comments --skip-add-drop-table --triggers --events -h 37.59.83.88 --protocol=tcp -u smartqaq_nfelia_admin -p smartqaq_nfelia_core > ~/nfelia-schema-live.sql
 ```
+
+Not `--routines`: the stored procedure belongs to the panel user, and the
+app user is refused `SHOW CREATE PROCEDURE`, which fails the whole dump
+(seen 20 October). Its text is in the repository anyway
+(`db/migrations/20261021090000_numbers_right.sql`).
+
+**Or in phpMyAdmin**, which signs in as the panel user and can read
+everything: cPanel → phpMyAdmin → click `smartqaq_nfelia_core` in the
+left column → **Export** tab → Export method **Custom** → Format **SQL**
+→ Tables: all selected → Output: **Save output to a file** → Format-specific
+options: dump **Structure** (not "Structure and data") → Object creation
+options: untick **Add DROP TABLE / VIEW / PROCEDURE / FUNCTION / EVENT /
+TRIGGER**, keep **Add CREATE PROCEDURE / FUNCTION / EVENT** ticked → **Export**.
+The browser downloads `smartqaq_nfelia_core.sql`.
 
 ### Checking the schema
 

@@ -305,9 +305,12 @@ EOT
     sub "shops (names only)"; $MY -t -e "SELECT id, subdomain, subdomain_status, landing_enabled FROM businesses ORDER BY id;" 2>&1
     sub "outbox by status"; $MY -t -e "SELECT status, channel, COUNT(*) n FROM notify_outbox GROUP BY status, channel;" 2>&1
     if [ "$done_dump" != yes ]; then
-        sub "schema copy, second try (mysqldump as the app user)"
+        sub "schema copy, second try (mysqldump as the app user; tables, views, triggers, events)"
+        # Not --routines: the stored procedure belongs to the panel user, and
+        # SHOW CREATE PROCEDURE is refused to anyone else, which fails the whole
+        # dump. Its text is in the repository (db/migrations/*numbers_right.sql).
         if have mysqldump && [ -n "$WAY" ]; then
-            if mysqldump --no-data --skip-comments --skip-add-drop-table --routines --triggers --events $BASEOPTS $WAY "$DB_NAME" > "$SCHEMA_OUT" 2>"$TMPD/dumperr"; then done_dump=yes; else echo "mysqldump failed: $(head -2 "$TMPD/dumperr")"; fi
+            if mysqldump --no-data --skip-comments --skip-add-drop-table --triggers --events $BASEOPTS $WAY "$DB_NAME" > "$SCHEMA_OUT" 2>"$TMPD/dumperr"; then done_dump=yes; else echo "mysqldump failed: $(head -2 "$TMPD/dumperr")"; fi
         else
             echo "not possible: $(head -2 "$TMPD/dumperr" 2>/dev/null)"
         fi
