@@ -37,6 +37,13 @@ RewriteRule ^uploads/.*\.(php[0-9]?|phtml|phar|pl|py|cgi|shtml)$ - [F,L,NC]
     Require all denied
 </FilesMatch>
 
+# cPanel's PHP writes a bare "error_log" file next to the script that
+# failed. It has no extension, so the rule above never matched it, and it
+# holds file paths and whatever the error message carried.
+<Files "error_log">
+    Require all denied
+</Files>
+
 # --- Block access to .env and hidden files ---
 <FilesMatch "^\.">
     Order allow,deny
@@ -50,11 +57,37 @@ RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^(.*)$ index.php?url=$1 [QSA,L]
 
 # --- Security Headers ---
+# HSTS is set at Cloudflare (Edge Certificates), where every nfelia.com
+# host is served; see docs/ops/SECURITY.md before changing either place.
 <IfModule mod_headers.c>
     Header always set X-Frame-Options "SAMEORIGIN"
     Header always set X-Content-Type-Options "nosniff"
-    Header always set X-XSS-Protection "1; mode=block"
+    # The old XSS auditor is gone from every browser; "0" is the safe value
+    # (the auditor itself could be abused where it still ran).
+    Header always set X-XSS-Protection "0"
     Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    # No page of Nfelia may be framed by another site, rebased, or embed
+    # plugins. Script and style sources are governed separately, page by
+    # page, once the report-only trial has run (docs/ops/SECURITY.md).
+    Header always set Content-Security-Policy "frame-ancestors 'self'; base-uri 'self'; object-src 'none'"
+    # Nothing in Nfelia uses these browser features; saying so stops any
+    # script that slips in from asking for them.
+    Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=(), interest-cohort=()"
+    Header always set Cross-Origin-Opener-Policy "same-origin-allow-popups"
+
+    # --- Caching ---
+    # Styles, scripts, fonts and images under assets/, icons/ and uploads/
+    # carry their own .htaccess (a year; their names change when they do).
+    # Files at the root (icons, the manifest, the offline page) change in
+    # place now and then: a day.
+    <FilesMatch "\.(png|ico|svg|webmanifest|html)$">
+        Header set Cache-Control "public, max-age=86400"
+    </FilesMatch>
+    # The service workers must be checked on every start, or a new version
+    # of the app waits a day behind the old one.
+    <FilesMatch "^(sw|ops-sw)\.js$">
+        Header set Cache-Control "no-cache"
+    </FilesMatch>
 </IfModule>
 
 # --- PHP Settings for shared hosting ---

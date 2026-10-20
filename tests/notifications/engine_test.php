@@ -27,6 +27,7 @@ $sample = [
     'amount_text' => '₦10,000', 'period_end' => date('Y-m-d'), 'access_until' => date('Y-m-d'), 'trial_ends' => date('Y-m-d'),
     'grace_ends' => date('Y-m-d H:i:s'), 'host' => 'adas-hair.nfelia.com', 'changed' => true, 'has_current' => false, 'ticket_id' => 1,
     'subject' => 'Cannot print', 'reply' => 'Fixed now.', 'referred' => 'Kola Prints', 'reward' => 2500, 'role' => 'an admin',
+    'tries' => 10, 'minutes' => 15,
     'device' => 'Chrome on Android', 'staff' => 'Sam from Nfelia', 'new_email' => 'new@example.test', 'business' => "Ada's Hair & Co", 'payment_id' => 1,
     'contact' => '08030000000', 'count' => 4, 'book_id' => 1, 'what' => 'Invoice ADA-INV-0400',
     'user_id' => 22, 'kind' => 'order', 'number' => 'ORD-0700',

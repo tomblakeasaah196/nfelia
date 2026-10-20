@@ -1,0 +1,10 @@
+# Everything under assets/ is referenced with ?v=<file time> (see $asset in
+# views/layouts/app.php), so a changed file gets a new address and the old
+# one may live in browsers and at Cloudflare for a year.
+<IfModule mod_headers.c>
+    Header set Cache-Control "public, max-age=31536000, immutable"
+    # Fonts are fetched by shop pages on name.nfelia.com too
+    <FilesMatch "\.(woff2?|ttf|otf)$">
+        Header set Access-Control-Allow-Origin "*"
+    </FilesMatch>
+</IfModule>

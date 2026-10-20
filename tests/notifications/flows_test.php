@@ -381,6 +381,9 @@ $first->get('settings?tab=profile');
 $first->post('settings/change_password', ['current_password' => T_PASSWORD, 'new_password' => 'NewPass#123', 'confirm_password' => 'NewPass#123']);
 expect('security.password_changed', [CHIDI], 'settings?tab=profile');
 exec_sql("UPDATE users SET password_hash = ? WHERE id = ?", [password_hash(T_PASSWORD, PASSWORD_BCRYPT, ['cost' => 4]), CHIDI]);
+// Changing the password signed Chidi's every other browser out (auth/signin_test.php); the shared one comes back in
+as_(CHIDI)->get('login');
+as_(CHIDI)->post('login', ['email' => EMAIL[CHIDI], 'password' => T_PASSWORD]);
 $first->post('settings/update_profile', ['full_name' => 'Chidi Staff', 'email' => 'chidi.new@adashair.test']);
 expect('security.email_changed', [CHIDI], 'settings?tab=profile');
 deliver();

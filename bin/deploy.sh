@@ -91,6 +91,13 @@ mkdir -p "$DEPLOYPATH/storage"
 git -C "$REPO" log -1 --pretty='%h %cI %s' > "$DEPLOYPATH/storage/release"
 echo "[deploy] release $(cut -d' ' -f1 "$DEPLOYPATH/storage/release")"
 
+# uploads/ is runtime data and never copied, so its .htaccess (no scripts
+# run there, long caching for the images) is laid down from the repo on
+# every deploy instead.
+mkdir -p "$DEPLOYPATH/uploads"
+cp "$REPO/bin/uploads.htaccess" "$DEPLOYPATH/uploads/.htaccess"
+echo "[deploy] uploads/.htaccess refreshed"
+
 # Normalise permissions. tar xp preserves the archive's modes, and the
 # archive carries whatever umask was in force when the repo was cloned.
 # A clone made under `umask 077` yields mode 600 files, which tar copies

@@ -10,6 +10,11 @@ concurrency:
   group: deploy-${{ github.ref }}
   cancel-in-progress: false
 
+# The workflow only reads the repository; the deploy talks to the server
+# with its own secret. Nothing here needs to write to GitHub.
+permissions:
+  contents: read
+
 jobs:
   checks:
     name: Lint, secret sweep, deploy-exclusion proof
