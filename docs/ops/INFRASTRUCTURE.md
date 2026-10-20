@@ -7,10 +7,9 @@ section numbers below refer to its report), the repository, and the
 dashboards. Secrets are never written here: they live in the docroot
 `.env` and in the backup of it.
 
-Lines marked **⟵ pending** wait on the database section of the report
-(run 3, with the script changed on 20 October to read the schema through
-the panel's API). The Cloudflare export of 20 October is folded in;
-everything else is confirmed.
+Nothing is pending: the three report runs, the Cloudflare export and the
+schema comparison of 20 October are all folded in. The next time a line
+here stops being true, change it.
 
 Companion documents: [RUNBOOK.md](RUNBOOK.md) (how to do things),
 [SECURITY.md](SECURITY.md), [PERFORMANCE.md](PERFORMANCE.md),
@@ -67,7 +66,7 @@ its assistant), [VPS-MIGRATION.md](VPS-MIGRATION.md) (the move, step by step).
 | Web server | LiteSpeed (LSAPI), serves `.htaccess` | nginx + PHP-FPM; `.htaccess` translated (VPS-MIGRATION.md) |
 | Docroot | `/home/smartqaq/public_html/nfelia.com` (addon domain `nfelia.com`; `servername` `nfelia.com.smartls.cm`) | `/var/www/nfelia/current` (a symlink to a release) |
 | Wildcard | `*.nfelia.com` is a cPanel subdomain on the **same docroot**; shops and `ops.nfelia.com` ride on it | one nginx server block with `server_name nfelia.com *.nfelia.com` |
-| Git checkout | `/home/smartqaq/repositories/nfelia`, remote `https://github.com/tomblakeasaah196/nfelia.git`, credential helper `store` (`~/.git-credentials`, mode 600) ⟵ pending: whether that credential can read a private repo | releases cloned by the deploy user over SSH |
+| Git checkout | `/home/smartqaq/repositories/nfelia`, remote `https://github.com/tomblakeasaah196/nfelia.git`, credential helper `store` (`~/.git-credentials`, mode 600, an `x-access-token` that the API answers with `metadata=read` only: run 2). It can read the repository while it is public; before going private it is replaced by the fine-grained token of RUNBOOK §6.2 | releases cloned by the deploy user over SSH |
 | Composer | `/home/smartqaq/composer.phar` 2.10.3, run as `ea-php83 -d allow_url_fopen=On` | `composer` system-wide |
 | Node | v22.22.0 under `~/.nvm` (the user installed it; the server never runs npm) | not needed on the server |
 | Missing tools | `rsync`, `ffmpeg`, `jq`, `python3` | all available |
@@ -109,7 +108,7 @@ LiteSpeed actually applies (the probe confirms 512M / 120 s / 64M / 32M).
 | `session.save_path` (ini) | `/var/cpanel/php/sessions/ea-php83` | the app overrides to `storage/sessions` (config/app.php) |
 | `session.gc_probability` (ini) | 0 | the app sets 1/100 with a 12-hour lifetime |
 | `date.timezone` | UTC | the app sets `Africa/Lagos` |
-| Behind Cloudflare | `REMOTE_ADDR` is the edge, `CF-Connecting-IP` present | the app uses `client_ip()` |
+| Behind Cloudflare | `REMOTE_ADDR` is already the **visitor's** address: LiteSpeed substitutes it from `CF-Connecting-IP` (the lock test of 20 October proved it: an allow-list of Cloudflare's ranges refused everyone). `CF-Connecting-IP` and `CF-RAY` are present as well | `client_ip()` returns it unchanged; on nginx `real_ip` does the same job |
 | `litespeed_finish_request` | present (run 2); `exec`, `popen`, `proc_open`, `mail`, `curl` all allowed | PHP-FPM has `fastcgi_finish_request` |
 
 Extensions loaded: bcmath, calendar, ctype, curl, dom, gd, iconv, imap,
@@ -243,6 +242,7 @@ work (new IP, PTR, warm-up). VPS-MIGRATION.md recommends the service.
 | `PAYSTACK_PLAN_CODE`, `PAYSTACK_SEAT_PLAN_CODE` | `PLN_j8slp26f5yikdhi`, `PLN_4nb1dm2gn0y2cyv` (old card plans only) | |
 | `MAX_UPLOAD_SIZE_MB` | 10 | |
 | `MOMO_RECEIPT_DIR` | `/home/smartqaq/momo_receipts` (exists, empty; receipts are in `storage/momo_receipts`, 216 KB) | |
+| `EDGE_TOKEN` | **to add** (this branch): the origin-lock secret, the same value as Cloudflare's `X-Nfelia-Edge` header rule; the deploy writes it into `.htaccess`. RUNBOOK §4.4 | the same, or Authenticated Origin Pulls instead |
 | `DEPLOY_WEBHOOK_SECRET` | yes (64 chars) | same value in the GitHub Actions secret |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT=mailto:support@nfelia.com` | yes | **never rotate**: phones are tied to the pair |
 | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ZONE_ID` | **absent** | optional instant purge |
@@ -293,9 +293,9 @@ home folder: asked of the panel's own API first (`uapi Mysql
 dump_database_schema`; its answer in run 3 held no tables, so the script
 checks and lets mysqldump over TCP take over). Compare it with a fresh
 local copy (schema + migrations) as RUNBOOK.md "Checking the schema"
-shows. The copy uploaded on 20 October was the 17 October file (52
-tables, before the storefront, bookings, Ops and Records Book
-migrations), so the live comparison is still ⟵ pending the next copy.
+shows. Compared on 20 October (a phpMyAdmin export and a mysqldump, the
+same in substance): production differs from this branch by exactly its
+three migrations and nothing else; it is level with `main`.
 
 ---
 

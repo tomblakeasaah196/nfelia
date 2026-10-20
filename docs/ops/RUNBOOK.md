@@ -200,42 +200,63 @@ rm -f composer.phar error_log            # the deploy uses ~/composer.phar; the 
 rmdir cgi-bin 2>/dev/null || true
 ```
 
-### 4.4 The origin lock: test before the merge, check monthly, roll back in one line
+### 4.4 The origin lock: arm it in this order, roll it back in one line
 
-The branch puts Cloudflare's address ranges at the top of `.htaccess`
-(SECURITY.md §5). LiteSpeed reads the same directives as Apache, but prove
-it on this server before the merge, in a folder of its own:
+How it works is in SECURITY.md §5: Cloudflare adds a secret header to
+every request it forwards, `.htaccess` refuses requests without it, and
+the secret lives only in the docroot `.env` (`EDGE_TOKEN`) and in the
+Cloudflare rule. The merge alone changes nothing: with no `EDGE_TOKEN` in
+`.env` the deploy removes the block. Arming it is these steps, in this
+order (the Cloudflare rule must exist before the token goes into `.env`,
+or every page answers 403 until it does).
 
-```bash
-cd ~/public_html/nfelia.com && mkdir -p lock-test && echo ok > lock-test/index.html
-git -C ~/repositories/nfelia fetch -q origin ccr-78f79379-31wjft
-git -C ~/repositories/nfelia show origin/ccr-78f79379-31wjft:.htaccess | grep '^Require ip' > lock-test/.htaccess
-curl -s -o /dev/null -w 'through Cloudflare: %{http_code}\n' https://nfelia.com/lock-test/
-curl -s -o /dev/null -w 'straight to the server: %{http_code}\n' --resolve nfelia.com:443:37.59.83.88 https://nfelia.com/lock-test/
-rm -r lock-test
-```
+1. **Make the token** in the terminal and keep the output somewhere safe:
+   ```bash
+   openssl rand -hex 24
+   ```
+2. **The Cloudflare rule.** Dashboard → the zone → Rules → **Transform
+   Rules** → **Modify Request Header** → Create rule: name
+   `Origin lock: edge token`; "All incoming requests"; **Set static**,
+   header name `X-Nfelia-Edge`, value the token → Deploy. Or paste
+   CLOUDFLARE.md **prompt E** into the assistant with the token filled in.
+3. **Prove the header arrives, before anything is locked.** A folder of its
+   own, with the real token in place of `PASTE_TOKEN`:
+   ```bash
+   cd ~/public_html/nfelia.com && mkdir -p lock-test && echo ok > lock-test/index.html
+   printf 'RewriteEngine On\nRewriteCond armed ^armed$\nRewriteCond %%{HTTP:X-Nfelia-Edge} !^PASTE_TOKEN$\nRewriteRule ^ - [F,L]\n' > lock-test/.htaccess
+   curl -s -o /dev/null -w 'through Cloudflare: %{http_code}\n' https://nfelia.com/lock-test/
+   curl -s -o /dev/null -w 'straight to the server: %{http_code}\n' --resolve nfelia.com:443:37.59.83.88 https://nfelia.com/lock-test/
+   curl -s -o /dev/null -w 'straight, with the header: %{http_code}\n' --resolve nfelia.com:443:37.59.83.88 -H 'X-Nfelia-Edge: PASTE_TOKEN' https://nfelia.com/lock-test/
+   rm -r lock-test
+   ```
+   Expected: **200, 403, 200**. 403 on the first line means the Cloudflare
+   rule is not sending the header yet (wait a minute, check the rule's
+   name and value); 500 means LiteSpeed refused the syntax: stop and report.
+4. **The token into `.env`**: File Manager → `public_html/nfelia.com/.env`
+   → Edit → a new line `EDGE_TOKEN=<the token>` → Save.
+5. **Deploy**, so the token is written into `.htaccess`: cPanel → Git
+   Version Control → Manage → Pull or Deploy → **Deploy HEAD Commit** (or
+   the next merge). `~/deploy-nfelia.log` must say `origin lock ARMED`.
+6. **Check**:
+   ```bash
+   curl -s -o /dev/null -w 'direct, should be 403: %{http_code}\n' --resolve nfelia.com:443:37.59.83.88 https://nfelia.com/login
+   curl -s -o /dev/null -w 'via Cloudflare, should be 200: %{http_code}\n' https://nfelia.com/login
+   curl -s -o /dev/null -w '.well-known direct, should be 404 not 403: %{http_code}\n' --resolve nfelia.com:443:37.59.83.88 https://nfelia.com/.well-known/x
+   ```
+   Then cPanel → SSL/TLS Status → Run AutoSSL: `mail.nfelia.com` and
+   `webmail.nfelia.com` must still pass their check. Open the site, sign
+   in, and look at Ops → Health. `bash ~/nfelia-env-report.sh` section 5
+   must say `x_nfelia_edge=present` and section 6 `ARMED`.
 
-Expected: 200, then 403. Anything else (500 means LiteSpeed refused the
-syntax): do not merge; send the two lines back.
+**Rotation** (once a year, or if the token was ever shown to someone):
+remove the `EDGE_TOKEN` line from `.env` and Deploy HEAD Commit (lock
+off), change the value in the Cloudflare rule, put the new value into
+`.env`, Deploy HEAD Commit again. Two minutes with the lock off, no 403s.
 
-After the merge and the deploy:
-
-```bash
-curl -s -o /dev/null -w 'direct, should be 403: %{http_code}\n' --resolve nfelia.com:443:37.59.83.88 https://nfelia.com/login
-curl -s -o /dev/null -w 'via Cloudflare, should be 200: %{http_code}\n' https://nfelia.com/login
-curl -s -o /dev/null -w '.well-known direct, should be 404 not 403: %{http_code}\n' --resolve nfelia.com:443:37.59.83.88 https://nfelia.com/.well-known/x
-```
-
-Then cPanel → SSL/TLS Status → Run AutoSSL: `mail.nfelia.com` and
-`webmail.nfelia.com` must still pass their check.
-
-Monthly: `bash ~/nfelia-env-report.sh`, section 6, prints "in step" or the
-ranges to add. By eye: https://www.cloudflare.com/ips/ against the
-`Require ip` lines.
-
-Rollback, if visitors ever see 403: File Manager → `.htaccess` → delete
-the `Require ip` lines, save (it takes effect at once); then the same in
-the repository, or the next deploy puts them back.
+**Rollback, if visitors ever see 403**: File Manager → `.htaccess` →
+delete the lines between `# nf-edge-lock-begin` and `# nf-edge-lock-end`,
+save (it takes effect at once). To keep it off: also delete the
+`EDGE_TOKEN` line from `.env`, or the next deploy arms it again.
 
 ### 4.5 The content-policy trial
 

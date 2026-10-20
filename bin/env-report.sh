@@ -118,7 +118,8 @@ if [ -d "$DOCROOT" ]; then
 <?php
 header('Content-Type: text/plain'); header('Cache-Control: no-store');
 echo "sapi=", PHP_SAPI, " php=", PHP_VERSION, " server=", $_SERVER['SERVER_SOFTWARE'] ?? '', "\n";
-echo "remote_addr=", $_SERVER['REMOTE_ADDR'] ?? '', " cf_connecting_ip=", isset($_SERVER['HTTP_CF_CONNECTING_IP']) ? 'present' : 'absent', " cf_ray=", isset($_SERVER['HTTP_CF_RAY']) ? 'present' : 'absent', " https=", $_SERVER['HTTPS'] ?? '', "\n";
+echo "remote_addr=", $_SERVER['REMOTE_ADDR'] ?? '', " cf_connecting_ip=", isset($_SERVER['HTTP_CF_CONNECTING_IP']) ? 'present' : 'absent', " cf_ray=", isset($_SERVER['HTTP_CF_RAY']) ? 'present' : 'absent', " x_nfelia_edge=", isset($_SERVER['HTTP_X_NFELIA_EDGE']) ? 'present' : 'absent', " https=", $_SERVER['HTTPS'] ?? '', "\n";
+echo "(remote_addr above is the address of the machine running this report: on this server LiteSpeed puts the visitor's own address there, not Cloudflare's)\n";
 foreach (['memory_limit','max_execution_time','max_input_time','post_max_size','upload_max_filesize','max_input_vars','disable_functions','allow_url_fopen','date.timezone','error_log','log_errors','display_errors','session.save_path','session.gc_maxlifetime','session.gc_probability','session.gc_divisor','session.cookie_secure','session.cookie_samesite','opcache.enable','opcache.memory_consumption','opcache.max_accelerated_files','opcache.validate_timestamps','opcache.revalidate_freq','opcache.jit','opcache.jit_buffer_size','opcache.interned_strings_buffer','realpath_cache_size','realpath_cache_ttl','open_basedir','upload_tmp_dir','sys_temp_dir','output_buffering','zlib.output_compression','expose_php'] as $k) echo $k, "=", ini_get($k), "\n";
 echo "loaded_ini=", php_ini_loaded_file(), " scanned=", php_ini_scanned_files(), "\n";
 echo "tmp=", sys_get_temp_dir(), " tz=", date_default_timezone_get(), " now=", date('c'), "\n";
@@ -155,20 +156,17 @@ for ip in $(hostname -I 2>/dev/null); do
     printf 'http  direct to %-16s -> %s\n' "$ip" "$(code -H "Host: $HOST" "http://$ip/login")"
 done
 
-sub "Cloudflare's address ranges: published vs the deployed .htaccess (an origin lock that falls behind locks visitors out)"
-if grep -q '^Require ip' "$DOCROOT/.htaccess" 2>/dev/null; then
-    { curl -fsS --max-time 10 https://www.cloudflare.com/ips-v4; echo; curl -fsS --max-time 10 https://www.cloudflare.com/ips-v6; echo; } 2>/dev/null | grep -E '^[0-9a-f:.]+/[0-9]+$' | sort > "$TMPD/cf_published" || true
-    grep '^Require ip' "$DOCROOT/.htaccess" | sed 's/^Require ip //' | tr ' ' '\n' | grep -E '/[0-9]+$' | sort > "$TMPD/cf_in_htaccess"
-    if [ ! -s "$TMPD/cf_published" ]; then
-        echo "(could not fetch the published list; compare https://www.cloudflare.com/ips/ by eye with the Require ip lines)"
-    elif diff -q "$TMPD/cf_published" "$TMPD/cf_in_htaccess" >/dev/null; then
-        echo "same $(wc -l < "$TMPD/cf_published") ranges: in step"
+sub "origin lock (docs/ops/SECURITY.md §5): state of the deployed .htaccess"
+if grep -q 'nf-edge-lock-begin' "$DOCROOT/.htaccess" 2>/dev/null; then
+    if grep -q '^RewriteCond armed \^armed\$' "$DOCROOT/.htaccess"; then
+        echo "ARMED: requests without Cloudflare's X-Nfelia-Edge header are refused (section 5 above must say x_nfelia_edge=present, or the site is unreachable)"
+    elif grep -q '__EDGE_ARMED__' "$DOCROOT/.htaccess"; then
+        echo "present but inert: the placeholders were never substituted (the file was copied without bin/deploy.sh); the lock is off"
     else
-        echo "DIFFERENT. Published but missing from .htaccess (add these):"; comm -23 "$TMPD/cf_published" "$TMPD/cf_in_htaccess" | sed 's/^/  + /'
-        echo "In .htaccess but no longer published (remove):"; comm -13 "$TMPD/cf_published" "$TMPD/cf_in_htaccess" | sed 's/^/  - /'
+        echo "block present in an unexpected state: read the lines between the nf-edge-lock markers"
     fi
 else
-    echo "(no origin lock in the deployed .htaccess)"
+    echo "off: no lock block in the deployed .htaccess (no EDGE_TOKEN in .env at the last deploy, or an older file)"
 fi
 
 say "7. REPO CHECKOUT, DEPLOY, DOCROOT"
@@ -202,7 +200,8 @@ fi
 sub "permissions of the sensitive files"; ls -lad "$DOCROOT/.env" "$DOCROOT/.htaccess" "$DOCROOT/storage" "$DOCROOT/storage/private" "$DOCROOT/storage/private/seal.key" "$DOCROOT/storage/sessions" "$DOCROOT/uploads" 2>&1 | head -20
 sub "cPanel-made ini files in the docroot"; for f in .user.ini php.ini; do echo "[$f]"; cat "$DOCROOT/$f" 2>/dev/null || echo "(none)"; done
 sub ".htaccess files under the docroot"; find "$DOCROOT" -maxdepth 3 -name .htaccess -not -path '*/vendor/*' 2>/dev/null
-sub "deployed .htaccess vs repo .htaccess (differences; none is good)"; diff "$REPO/.htaccess" "$DOCROOT/.htaccess" 2>&1 | head -40
+sub "deployed .htaccess vs repo .htaccess (differences; none is good; the origin-lock block is left out of the comparison since the deploy rewrites it)"
+diff <(sed '/# nf-edge-lock-begin/,/# nf-edge-lock-end/d' "$REPO/.htaccess") <(sed '/# nf-edge-lock-begin/,/# nf-edge-lock-end/d' "$DOCROOT/.htaccess") 2>&1 | head -40
 sub "uploads/.htaccess"; cat "$DOCROOT/uploads/.htaccess" 2>/dev/null || echo "(none)"
 sub "error_log files cPanel may have written (public if present at the root!)"; find "$DOCROOT" -maxdepth 3 -name error_log -not -path '*/vendor/*' -exec ls -la {} \; 2>/dev/null
 

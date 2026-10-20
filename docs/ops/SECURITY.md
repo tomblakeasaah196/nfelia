@@ -46,7 +46,7 @@ below: reaching the origin directly (§5) and injecting a script (§6).
 | # | Finding | Fix |
 |---|---|---|
 | S-01 | Password sign-in had no limit at all (unlimited guessing; each guess costs the server a bcrypt) | counted per account (10) and per connection (50) in 15 minutes; owner alerted once an hour; the right password clears the count |
-| S-02 | Three limits (reset links, passkey sign-in, browser errors) keyed on Cloudflare's edge address, shared by every visitor: anyone could lock everyone out of password recovery, and the limits never slowed an attacker | `client_ip()` everywhere; also the remember-me table, the home form and the purge audit (which trusted `X-Forwarded-For`) |
+| S-02 | Three limits (reset links, passkey sign-in, browser errors) keyed on `REMOTE_ADDR`, which behind a proxy is the edge's address, shared by every visitor: anyone could lock everyone out of password recovery, and the limits never slowed an attacker | `client_ip()` everywhere; also the remember-me table, the home form and the purge audit (which trusted `X-Forwarded-For`). Found on 20 October: this LiteSpeed already substitutes the visitor's address into `REMOTE_ADDR`, so on the shared server the three limits happened to work; on any other server (the VPS) they would not have. Fixed for both |
 | S-03 | "Keep me signed in" tokens stored in clear for 30 days | stored as SHA-256; old raw tokens accepted once and rewritten |
 | S-04 | Changing a password ended nothing else | `users.session_epoch`; every other browser and kept device out on its next request |
 | S-05 | Passwords needed only 8 characters, nothing else | 9+, a capital, a number, a symbol, Have I Been Pwned range check; the forms show a live checklist |
@@ -161,40 +161,57 @@ Revisit `includeSubDomains` at the VPS, when the mail hostnames are settled.
 
 ---
 
-## 5. Locking the origin to Cloudflare (decided: now, in `.htaccess`)
+## 5. Locking the origin to Cloudflare (decided: now; a secret header, not an address list)
 
 Before this branch, `curl --resolve nfelia.com:443:37.59.83.88 https://nfelia.com/login`
 answered 200: whoever knew the IP (it is in the SPF record) skipped every
-Cloudflare rule, the rate limits and the WAF included. On shared hosting
-the firewall is not ours, so the lock is the first thing in the docroot
-`.htaccess`:
+Cloudflare rule, the rate limits and the WAF included.
+
+The first version of the lock was an allow-list of Cloudflare's address
+ranges (`Require ip`). The test on the server before the merge refused
+requests through Cloudflare as well (403 both ways), which showed why:
+this LiteSpeed already presents the visitor's own address as
+`REMOTE_ADDR`, taken from Cloudflare's `CF-Connecting-IP` header, so no
+request ever arrives "from" a Cloudflare address and an address list can
+never match. (The report had shown `remote_addr` equal to the probing
+machine's own address; it was read as the edge's by mistake.)
+
+The lock is therefore a shared secret. Cloudflare adds a request header,
+`X-Nfelia-Edge: <token>`, to everything it forwards to the origin (a
+Transform Rule, CLOUDFLARE.md prompt E), and `.htaccess` refuses any
+request without the right value:
 
 ```apache
-# Only Cloudflare may talk to this site. Ranges: https://www.cloudflare.com/ips/
-Require ip 173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18
-Require ip 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17
-Require ip 162.158.0.0/15 104.16.0.0/13 104.24.0.0/14 172.64.0.0/13 131.0.72.0/22
-Require ip 2400:cb00::/32 2606:4700::/32 2803:f800::/32 2405:b500::/32 2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32
+RewriteCond armed ^armed$
+RewriteCond %{REQUEST_URI} !^/\.well-known/
+RewriteCond %{HTTP:X-Nfelia-Edge} !^<token>$
+RewriteRule ^ - [F,L]
 ```
 
-Several `Require` lines in one section mean "any of these". Everything
-else keeps working because it already arrives through Cloudflare: the
-deploy webhook, Paystack, `ops.nfelia.com`, the shops, and the certificate
-checks for `nfelia.com` itself (its DNS is proxied). The cron does not use
-HTTP. The one exception is `.well-known/`: cPanel's AutoSSL fetches its
-validation files for `mail.nfelia.com` and `webmail.nfelia.com` directly,
-since those names are not proxied, so `.well-known/.htaccess` (in the
-repository, copied by the deploy) re-opens that folder with
-`Require all granted`. Without it the mail names would drop out of the
-certificate at the next renewal and mail clients would start warning.
+Visitors never see the header; a caller who knows the server's address
+does not know the token. The committed file carries placeholders
+(`__EDGE_ARMED__`, `__EDGE_TOKEN__`); the token lives in the docroot
+`.env` as `EDGE_TOKEN`, nowhere in the public repository, and
+`bin/deploy.sh` writes it in on every deploy. With no token in `.env` the
+deploy removes the block and says so, and an unsubstituted copy of the
+file is inert (the first line never matches), so a missing or mistyped
+token never locks everyone out. `.well-known/` stays open because cPanel's
+AutoSSL fetches its validation files for `mail.nfelia.com` and
+`webmail.nfelia.com` directly (those names are not proxied); without that,
+the mail names would fall out of the certificate at the next renewal and
+mail clients would start warning. Everything else already arrives through
+Cloudflare: the deploy webhook, Paystack, `ops.nfelia.com`, the shops. The
+cron does not use HTTP.
 
-The cost is the list: if Cloudflare publishes a new range and this file
-does not have it, visitors behind that range see 403. `bin/env-report.sh`
-section 6 fetches the published list and compares; RUNBOOK §4.4 has the
-test to run on the server before the merge, the monthly check and the
-one-line rollback. On the VPS the same is done properly with the firewall
-plus Authenticated Origin Pulls (a client certificate only Cloudflare
-holds), which needs no list (`docs/ops/vps/`).
+RUNBOOK §4.4 has the order of operations (token, Cloudflare rule, `.env`,
+deploy, checks), the test that proves the header arrives before the lock
+is armed, rotation and the two rollbacks. `bin/env-report.sh` section 5
+shows whether the header reaches PHP (`x_nfelia_edge=present`) and
+section 6 whether the origin still answers direct requests and in what
+state the deployed block is. On the VPS the same is done with the
+firewall plus Authenticated Origin Pulls (a client certificate only
+Cloudflare holds); the header check can stay as a second layer
+(`docs/ops/vps/`).
 
 The edge rules decided the same day (a rate limit on sign-in POSTs, a WAF
 rule that lets only GitHub Actions reach `/webhook/deploy.php`) are

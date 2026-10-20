@@ -46,7 +46,7 @@ paste the prompt from §3.
 | C-8 | DNSSEC on, then the DS record at the registrar | you: DNS → Settings → Enable DNSSEC; then the registrar | SECURITY.md L-12 | open |
 | C-9 | DMARC `p=quarantine` | you: DNS → `_dmarc` (RUNBOOK §5 has the record) | after two weeks of reports at dmarc@nfelia.com | **decided: 3 November** |
 | C-10 | Notifications: Universal SSL expiry, DDoS Attack L7, Origin Error Rate | you: Notifications → Add | nobody is told of anything today | open |
-| C-11 | Lock the origin to Cloudflare | code (`.htaccess`), SECURITY.md §5; it happens at the origin, not here | **decided 20 Oct, in the branch; RUNBOOK §4.4 tests it** |
+| C-11 | Lock the origin to Cloudflare | a Transform Rule that adds the secret header (prompt E, or by hand), then the token in `.env` and a deploy; RUNBOOK §4.4 in that order | **decided 20 Oct**; the address-list version failed the server test and was replaced by the header |
 
 Undo for anything the assistant creates: ask it to **disable** the rule by
 name (not delete), or Security → WAF → the rule's switch; HSTS is turned
@@ -111,6 +111,19 @@ same hour:
    small real payment; Ops → Health must show the webhook received.
 
 If either fails, turn Bot Fight Mode off again; nothing else needs undoing.
+
+### Prompt E: the origin lock's header (step 2 of RUNBOOK §4.4)
+
+Make the token first (`openssl rand -hex 24` on the server) and put it in
+place of `PASTE_TOKEN`. Needs **Transform Rules: Edit** on the zone.
+
+```
+On the zone nfelia.com, create exactly one Transform Rule of the kind "Modify Request Header", named "Origin lock: edge token": for all incoming requests, set a static request header named X-Nfelia-Edge with the value PASTE_TOKEN. Do nothing else. Read the rule back and show me its expression, its action and the header it sets.
+```
+
+Visitors never see this header; it travels only from Cloudflare to the
+server. Changing the value later means changing it here and in the
+server's `.env` in the order RUNBOOK §4.4 gives.
 
 ---
 

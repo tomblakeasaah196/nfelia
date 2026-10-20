@@ -1,7 +1,0 @@
-# Certificate checks (cPanel AutoSSL, Let's Encrypt) fetch their files from
-# here, and for the mail names (mail.nfelia.com, webmail.nfelia.com, which are
-# not behind Cloudflare) they arrive straight from the internet. This re-opens
-# the folder that the root .htaccess closes to everything but Cloudflare.
-# Nothing else lives here; cPanel writes the files itself.
-Require all granted
-Options -Indexes
