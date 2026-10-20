@@ -18,8 +18,13 @@
     .pl-fade-out { transition: opacity 150ms ease-in; }
     [data-tip] { position: relative; }
     @media (hover: hover) and (min-width: 768px) {
+        /* Reset top/right too: the global [data-tip]::after in app.css anchors
+           bottom-hanging (top: calc(100%+6px); right: 0). Without resetting
+           them, both anchors apply at once and the tooltip collapses into a
+           dark blob under the control — worst on the task checkbox, where
+           :focus-visible (sticky after a tap in the app's webview) kept it lit. */
         [data-tip]:hover::after, [data-tip]:focus-visible::after {
-            content: attr(data-tip); position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+            content: attr(data-tip); position: absolute; top: auto; right: auto; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
             background: #1F0A14; color: #fff; font-size: 12px; font-weight: 600; line-height: 1.3; white-space: nowrap;
             padding: 6px 8px; border-radius: 6px; pointer-events: none; z-index: 60;
         }
@@ -28,7 +33,7 @@
             bottom: auto; left: auto; right: calc(100% + 6px); top: 50%; transform: translateY(-50%);
         }
         [data-tip-side=right]:hover::after, [data-tip-side=right]:focus-visible::after {
-            bottom: auto; left: calc(100% + 6px); top: 50%; transform: translateY(-50%);
+            bottom: auto; right: auto; left: calc(100% + 6px); top: 50%; transform: translateY(-50%);
         }
     }
     @media (prefers-reduced-motion: reduce) {
