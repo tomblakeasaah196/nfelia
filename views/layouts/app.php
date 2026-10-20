@@ -67,6 +67,14 @@ $back_url = APP_URL . '/' . (str_contains($current_url, '/') && in_array($curren
 // the app behind the lock, never the business.
 $locked_page = !empty($locked_page);
 
+// App pages carry a signed-in business's data and must never be held by a
+// shared or browser cache: without this, Cloudflare's browser-cache TTL made
+// the page HTML stale, so it kept pointing at an old ?v= of the scripts and
+// deployed changes did not reach the installed app until a hard refresh.
+// (The service worker keeps its own offline copy via Cache Storage, which is
+// independent of this header, so offline reading still works.)
+header('Cache-Control: private, no-store');
+
 // sw.js keeps a copy of app pages so they can be read offline. Not these:
 // what they show should never be left on a phone.
 if (!$locked_page && !in_array($current_section, ['settings', 'purge', 'admin', 'momo', 'countries'], true)) {

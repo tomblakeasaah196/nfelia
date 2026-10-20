@@ -661,4 +661,4 @@
     </div>
 </div>
 
-<script src="<?= APP_URL ?>/assets/js/planner.js?v=3"></script>
+<script src="<?= APP_URL ?>/assets/js/planner.js?v=<?= @filemtime(BASE_PATH . '/assets/js/planner.js') ?: '3' ?>"></script>
