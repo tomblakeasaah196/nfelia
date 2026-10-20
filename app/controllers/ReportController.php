@@ -180,18 +180,11 @@ class ReportController {
         require BASE_PATH . '/views/reports/profit_loss_pdf.php';
         $html = ob_get_clean();
 
-        $options = new Options();
-        $options->set('isHtml5ParserEnabled', true);
-        $options->set('isRemoteEnabled', true);
-        $options->set('defaultFont', 'DejaVu Sans');
-        $options->set('tempDir', BASE_PATH . '/storage/pdf');
-
-        $dompdf = new Dompdf($options);
-        $dompdf->loadHtml($html);
-        $dompdf->setPaper('A4', 'portrait');
-        $dompdf->render();
-        $dompdf->stream('PL_Report_' . $period['filename'] . '.pdf', ['Attachment' => true]);
-        exit;
+        // The session is let go before the render, so the person's other
+        // tabs don't wait on it; the PDF is kept for the next download of
+        // the same figures (app/helpers/pdf.php).
+        session_write_close();
+        pdf_send(pdf_file($html), 'PL_Report_' . $period['filename'] . '.pdf');
     }
 
     /** Expenses recorded from $from to $to inclusive (Y-m-d). */

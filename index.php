@@ -30,6 +30,7 @@ require_once __DIR__ . '/app/helpers/orders.php';
 require_once __DIR__ . '/app/helpers/signing.php';
 require_once __DIR__ . '/app/helpers/token.php';
 require_once __DIR__ . '/app/helpers/mail.php';
+require_once __DIR__ . '/app/helpers/pdf.php';
 require_once __DIR__ . '/app/helpers/webpush.php';
 require_once __DIR__ . '/app/helpers/planner.php';
 require_once __DIR__ . '/app/helpers/shop_links.php';

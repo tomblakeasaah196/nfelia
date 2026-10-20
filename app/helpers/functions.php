@@ -440,6 +440,9 @@ function send_private_proof(?string $rel_path): never {
     header('Content-Length: ' . filesize($full));
     header('Cache-Control: private, no-store');
     header('X-Content-Type-Options: nosniff');
+    // An uploaded PDF is someone else's file: whatever script it carries runs
+    // in a sandbox with no access to the page or the session.
+    header('Content-Security-Policy: sandbox');
     readfile($full);
     exit;
 }

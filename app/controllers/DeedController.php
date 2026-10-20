@@ -186,20 +186,9 @@ class DeedController {
         require BASE_PATH . '/views/deeds/pdf_template.php';
         $html = ob_get_clean();
 
-        $options = new Options();
-        $options->set('isHtml5ParserEnabled', true);
-        $options->set('isRemoteEnabled', true);
-        $options->set('defaultFont', 'Georgia');
-        $options->set('tempDir', BASE_PATH . '/storage/pdf');
-
-        $dompdf = new Dompdf($options);
-        $dompdf->loadHtml($html);
-        $dompdf->setPaper('A4', 'portrait');
-        $dompdf->render();
-
-        $filename = 'Deed_' . $deed['doc_number'] . '.pdf';
-        $dompdf->stream($filename, ['Attachment' => true]);
-        exit;
+        // Kept per version of the deed, rendered without holding the session (app/helpers/pdf.php)
+        session_write_close();
+        pdf_send(pdf_file($html, ['font' => 'Georgia']), 'Deed_' . $deed['doc_number'] . '.pdf');
     }
 
     /* ══════════════════════════════════════════

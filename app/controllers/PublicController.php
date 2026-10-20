@@ -584,7 +584,13 @@ class PublicController
         if ($_SERVER["REQUEST_METHOD"] !== "GET") {
             http_response_code(405);
             exit();
-        } /* Try each document type by token */
+        }
+        // Anyone with the link may ask; one connection gets 60 an hour. The
+        // session is let go first: rendering takes a while, and the same
+        // person's other tabs must not wait on it.
+        pdf_public_guard();
+        session_write_close();
+        /* Try each document type by token */
         $template = null;
         $filename = "Document.pdf";
         $html = ""; /* 1. Quotation? */
@@ -682,18 +688,9 @@ class PublicController
         if (!$html) {
             not_found();
             return;
-        } /* Configure dompdf */
-        $options = new Options();
-        $options->set("isHtml5ParserEnabled", true);
-        $options->set("isRemoteEnabled", true);
-        $options->set("defaultFont", "DejaVu Sans");
-        $options->set("tempDir", BASE_PATH . "/storage/pdf");
-        $dompdf = new Dompdf($options);
-        $dompdf->loadHtml($html);
-        $dompdf->setPaper("A4", "portrait");
-        $dompdf->render();
-        $dompdf->stream($filename, ["Attachment" => true]);
-        exit();
+        }
+        // Rendered once per version of the document and kept (app/helpers/pdf.php)
+        pdf_send(pdf_file($html), $filename);
     } /* ────────────────────────────────────────── * AJAX QUOTE REQUEST POST /public/quote-request * *──────────────────────────────────────────*/
     public function quote_request(): void
     {

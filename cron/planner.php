@@ -65,6 +65,7 @@ require_once __DIR__ . '/../app/helpers/planner.php';
 require_once __DIR__ . '/../app/helpers/notify.php';
 require_once __DIR__ . '/../app/helpers/subscription_helpers.php';   // never in web code: it redeclares is_owner()
 require_once __DIR__ . '/../app/helpers/errors.php';
+require_once __DIR__ . '/../app/helpers/pdf.php';
 
 // What goes wrong here is written down for the Nfelia team (Ops → Errors),
 // and each run's heartbeat tells Ops → Health the cron is alive.
@@ -424,6 +425,9 @@ if ($hour === 3 && (int)$now->format('i') < 5) {
         // A row some process claimed and never finished, for a day: given up on, with a word.
         $db->exec("UPDATE notify_outbox SET status = 'failed', last_error = CONCAT('stuck; ', COALESCE(last_error, '')) WHERE status = 'sending' AND next_attempt_at < NOW() - INTERVAL 1 DAY");
         $db->exec("DELETE FROM push_dead WHERE created_at < NOW() - INTERVAL 60 DAY");
+        // "Keep me signed in" tokens past their 30 days, and kept PDFs nobody has opened in 30
+        $db->exec("DELETE FROM sessions WHERE expires_at < NOW()");
+        pdf_cache_sweep(30);
     } catch (Throwable $e) {
         $done['errors']++;
         errors_report_throwable($e, ['job' => 'Cron: notification clean-up']);
