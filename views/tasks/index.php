@@ -623,8 +623,21 @@
         </div>
     </div>
 
+    <!-- Done confirmation: a tick never clears a task until it is confirmed. -->
+    <div x-show="confirmDone" id="pl-done-dialog" class="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-4" role="alertdialog" aria-modal="true" aria-labelledby="pl-done-title" aria-describedby="pl-done-desc">
+        <div class="absolute inset-0 bg-[#1F0A14]/40" @click="closeDone()"></div>
+        <div class="relative w-full max-w-sm bg-white rounded-2xl border border-brand-sand p-5">
+            <h2 id="pl-done-title" class="font-heading font-bold text-lg" x-text="'Have you completed “' + (doneItem && doneItem.title || 'this task') + '”?'"></h2>
+            <p id="pl-done-desc" class="mt-1 text-base text-[#5B4650]" x-text="doneInJob ? 'This step will be marked done.' : 'It will be marked done and cleared from your list. You can undo straight after.'"></p>
+            <div class="mt-5 flex gap-3">
+                <button type="button" id="pl-done-no" @click="closeDone()" class="h-12 flex-1 rounded-xl border border-brand-sand text-sm font-semibold hover:bg-brand-cream">Not yet</button>
+                <button type="button" id="pl-done-yes" @click="confirmDoneYes()" :disabled="busy" class="h-12 flex-1 rounded-xl bg-[#00764A] text-white text-sm font-semibold disabled:opacity-50">Yes, it's done</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Delete confirmation -->
-    <div x-show="confirmDelete" class="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-4" role="alertdialog" aria-modal="true" aria-labelledby="pl-del-title">
+    <div x-show="confirmDelete" id="pl-del-dialog" class="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-4" role="alertdialog" aria-modal="true" aria-labelledby="pl-del-title">
         <div class="absolute inset-0 bg-[#1F0A14]/40" @click="closeConfirm()"></div>
         <div class="relative w-full max-w-sm bg-white rounded-2xl border border-brand-sand p-5">
             <h2 id="pl-del-title" class="font-heading font-bold text-lg" x-text="'Delete “' + (form.title || '') + '”?'"></h2>
@@ -648,4 +661,4 @@
     </div>
 </div>
 
-<script src="<?= APP_URL ?>/assets/js/planner.js?v=1"></script>
+<script src="<?= APP_URL ?>/assets/js/planner.js?v=2"></script>
