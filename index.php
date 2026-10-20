@@ -487,6 +487,15 @@ function dispatch_ajax(string $action, ?string $param): void {
     
     $file = $ajax_map[$action] ?? null;
     if ($file && file_exists($file)) {
+        // A GET here only reads (the bell's count and list, the pickers'
+        // searches): the session is let go first, so this request never
+        // waits behind a slow page the same person has open in another
+        // tab (a photo being saved held the bell poll for 3 seconds live),
+        // and never holds that page up. The sign-in API keeps its session:
+        // it checks the lock itself.
+        if ($action !== 'auth' && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET' && session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
+        }
         require_once $file;
     } else {
         http_response_code(404);

@@ -131,7 +131,7 @@ echo "uid=", getmyuid(), " user=", get_current_user(), " umask=", sprintf('%04o'
 $sp = ini_get('session.save_path') ?: sys_get_temp_dir(); $n = @count(glob(rtrim($sp, '/') . '/sess_*') ?: []); echo "session_files_in_save_path=", $n, " (", $sp, ")\n";
 PHPEOF
     chmod 644 "$PROBE"
-    curl -sS --max-time 20 "$SITE/nf-env-probe-$T.php" 2>&1 | head -60
+    curl -sS --max-time 20 "$SITE/nf-env-probe-$T.php" 2>&1 | grep -v "^/opt/cpanel/.*\.ini,$" | head -90
     rm -f "$PROBE"; PROBE=""
 else
     echo "docroot $DOCROOT not found"
