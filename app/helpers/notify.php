@@ -55,7 +55,9 @@ const NOTIFY_FIELDS = ['quiet_hours', 'quiet_from', 'quiet_to', 'hide_amounts'];
 /* ═══════════════════════════════════════════════════════════════════
  *  THE EVENTS
  * ═══════════════════════════════════════════════════════════════════
- * Each: topic, to (owner | boss | team | user), urgency, ttl
+ * Each: topic, to (owner | boss | team | user), urgency (default 'high':
+ * every push shows a notification, and anything lower lets Android hold it
+ * while the phone sleeps, until Nfelia is next opened), ttl
  * (seconds a push stays worth delivering), url, tag (a newer push with the
  * same tag replaces the older one on the phone), text (title and body;
  * $m formats money and is null when this person must not see amounts),
@@ -721,7 +723,7 @@ function notify(string $event, int $business_id, array $data = [], array $opts =
                 // so "why didn't my phone buzz?" (More > Notifications) can say so.
                 notify_queue($db, [
                     'business_id' => $business_id, 'notification_id' => $nid, 'user_id' => $uid, 'event' => $event, 'channel' => 'push',
-                    'payload' => ['title' => $title], 'urgency' => $def['urgency'] ?? 'normal', 'ttl' => $def['ttl'] ?? 86400,
+                    'payload' => ['title' => $title], 'urgency' => $def['urgency'] ?? 'high', 'ttl' => $def['ttl'] ?? 86400,
                     'status' => 'skipped', 'error' => 'phone alerts for ' . strtolower((string)(NOTIFY_TOPICS[$topic]['label'] ?? $topic)) . ' are off',
                 ]);
             }
@@ -742,7 +744,7 @@ function notify(string $event, int $business_id, array $data = [], array $opts =
                 $late = $hold !== null && $hold->getTimestamp() >= planner_now()->getTimestamp() + $ttl;
                 notify_queue($db, [
                     'business_id' => $business_id, 'notification_id' => $nid, 'user_id' => $uid, 'event' => $event,
-                    'channel' => 'push', 'payload' => $message, 'urgency' => $def['urgency'] ?? 'normal',
+                    'channel' => 'push', 'payload' => $message, 'urgency' => $def['urgency'] ?? 'high',
                     'ttl' => $ttl,
                     'status' => $late ? 'skipped' : 'pending',
                     'error'  => $late ? 'quiet hours' : ($hold ? 'held for quiet hours' : null),
