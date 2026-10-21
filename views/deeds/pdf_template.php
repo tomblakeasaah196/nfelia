@@ -2,7 +2,8 @@
 /**
  * Nfelia — Deed of Acquisition PDF Template
  * Rendered by DeedController::download() via dompdf
- * Variables: $deed, $business, $customer, $items, $sign (doc_sign_state)
+ * Variables: $deed, $business, $customer, $items, $sign (doc_sign_state),
+ *            $photos (DeedController::item_photos(): the items' photos)
  *
  * Design: luxury editorial — two-column header, hero story block, financial table,
  * the signature when signed and the verify code, brand colors injected per business.
@@ -21,6 +22,26 @@ if (!empty($business['logo_path']) && file_exists(BASE_PATH . '/' . $business['l
     $ext      = strtolower(pathinfo($business['logo_path'], PATHINFO_EXTENSION));
     $mime     = in_array($ext, ['svg']) ? 'image/svg+xml' : "image/{$ext}";
     $logo_src = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents(BASE_PATH . '/' . $business['logo_path']));
+}
+
+// The items' photos → base64 for dompdf, as light JPEG copies: the link-preview
+// size for one photo, the email size for several side by side
+$photo_srcs = [];
+foreach ($photos ?? [] as $rel) {
+    $file = BASE_PATH . '/' . $rel;
+    if (preg_match('#^uploads/(' . STOREFRONT_VARIANT_PATH . ')$#i', $rel, $m)) {
+        [$size, $width, $bytes] = count($photos) === 1
+            ? ['og', STOREFRONT_OG_WIDTH, STOREFRONT_OG_MAX_BYTES]
+            : ['mail', STOREFRONT_MAIL_WIDTH, STOREFRONT_MAIL_MAX_BYTES];
+        $copy = BASE_PATH . '/uploads/cache/' . $size . '/' . $m[1] . '.jpg';
+        if (storefront_make_jpeg($file, $copy, $width, $bytes)) {
+            $file = $copy;
+        }
+    }
+    $mime = @getimagesize($file)['mime'] ?? '';
+    if (in_array($mime, ['image/jpeg', 'image/png'], true)) {
+        $photo_srcs[] = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($file));
+    }
 }
 
 // Determine deed title based on business type
@@ -146,6 +167,9 @@ $total = (float)$deed['total_amount'];
         .subject-table { width: 100%; border: 1px solid <?= $primary ?>; margin-bottom: 26px; }
         .subject-image-cell { width: 36%; vertical-align: middle; text-align: center; background-color: #f9f7f4; border-right: 1px solid <?= $primary ?>; padding: 20px; }
         .subject-image-cell img { max-width: 100%; max-height: 150px; }
+        .photo-grid { width: 100%; }
+        .photo-grid td { width: 50%; padding: 3px; text-align: center; vertical-align: middle; }
+        .photo-grid img { max-width: 100%; max-height: 90px; }
         .subject-story-cell { vertical-align: top; padding: 24px 28px; }
         .item-title-text {
             font-size: 15px;
@@ -277,11 +301,28 @@ $total = (float)$deed['total_amount'];
     $multi_items = count($items) > 1;
     ?>
 
-    <?php if ($is_creative && ($has_provenance || !$multi_items)): ?>
+    <?php if ($photo_srcs || ($is_creative && ($has_provenance || !$multi_items))): ?>
     <!-- Full luxury layout: editorial hero block -->
     <table class="subject-table" cellpadding="0" cellspacing="0">
         <tr>
-            <?php if ($logo_src): /* Use logo as a stand-in visual if no product image */ ?>
+            <?php if ($photo_srcs): /* The pieces themselves: one large, or two to a row */ ?>
+            <td class="subject-image-cell">
+                <?php if (count($photo_srcs) === 1): ?>
+                    <img src="<?= $photo_srcs[0] ?>" alt="">
+                <?php else: ?>
+                    <table class="photo-grid" cellpadding="0" cellspacing="0">
+                        <?php foreach (array_chunk($photo_srcs, 2) as $row): ?>
+                        <tr>
+                            <?php foreach ($row as $src): ?>
+                            <td><img src="<?= $src ?>" alt=""></td>
+                            <?php endforeach; ?>
+                            <?php if (count($row) === 1): ?><td></td><?php endif; ?>
+                        </tr>
+                        <?php endforeach; ?>
+                    </table>
+                <?php endif; ?>
+            </td>
+            <?php elseif ($logo_src): /* Use logo as a stand-in visual if no product image */ ?>
             <td class="subject-image-cell">
                 <div style="font-size:8px;letter-spacing:0.2em;color:<?= $accent ?>;text-transform:uppercase;font-family:Arial,sans-serif;margin-bottom:8px;">[ PIECE ]</div>
                 <img src="<?= $logo_src ?>" alt="" style="max-height:100px;opacity:0.4;">

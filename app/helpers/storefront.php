@@ -1681,12 +1681,12 @@ function storefront_serve_icon(string $source, string $target, string $url_path,
 }
 
 /**
- * Make (once) and send the JPEG copy of a photo for link previews (and the
- * small one for emails, STOREFRONT_MAIL_WIDTH): at most STOREFRONT_OG_WIDTH wide, see-through parts on white, and squeezed until it
- * is under STOREFRONT_OG_MAX_BYTES (the size never changes, so the width and
- * height on product pages stay true).
+ * Make (once) a JPEG copy of a photo at $target: at most $max_width wide,
+ * see-through parts on white, squeezed until it is under $max_bytes. The
+ * link-preview and email copies, and the photos in deed PDFs. False when the
+ * photo can't be read or the copy can't be written.
  */
-function storefront_serve_og(string $source, string $target, string $url_path, int $max_width = STOREFRONT_OG_WIDTH, int $max_bytes = STOREFRONT_OG_MAX_BYTES): void {
+function storefront_make_jpeg(string $source, string $target, int $max_width, int $max_bytes): bool {
     if (!is_file($target)) {
         $info = @getimagesize($source);
         $src = match ($info['mime'] ?? '') {
@@ -1696,8 +1696,7 @@ function storefront_serve_og(string $source, string $target, string $url_path, i
             default      => false,
         };
         if (!$src) {
-            http_response_code(404);
-            exit;
+            return false;
         }
         $w = imagesx($src);
         $h = imagesy($src);
@@ -1725,10 +1724,23 @@ function storefront_serve_og(string $source, string $target, string $url_path, i
         imagedestroy($dst);
         if (!$ok || !@rename($tmp, $target)) {
             @unlink($tmp);
-            error_log('[Nfelia] Link preview copy failed: ' . $url_path);
-            http_response_code(404);
-            exit;
+            return false;
         }
+    }
+    return true;
+}
+
+/**
+ * Make (once) and send the JPEG copy of a photo for link previews (and the
+ * small one for emails, STOREFRONT_MAIL_WIDTH): at most STOREFRONT_OG_WIDTH wide, see-through parts on white, and squeezed until it
+ * is under STOREFRONT_OG_MAX_BYTES (the size never changes, so the width and
+ * height on product pages stay true).
+ */
+function storefront_serve_og(string $source, string $target, string $url_path, int $max_width = STOREFRONT_OG_WIDTH, int $max_bytes = STOREFRONT_OG_MAX_BYTES): void {
+    if (!storefront_make_jpeg($source, $target, $max_width, $max_bytes)) {
+        error_log('[Nfelia] Link preview copy failed: ' . $url_path);
+        http_response_code(404);
+        exit;
     }
 
     header('Content-Type: image/jpeg');

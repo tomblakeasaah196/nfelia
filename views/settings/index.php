@@ -163,6 +163,15 @@ $current_staff_count = count($staff);
                     <?php endforeach; ?>
                 </select>
             </div>
+            <div>
+                <label for="business_type" class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">What you sell</label>
+                <select name="business_type" id="business_type" aria-describedby="business_type_hint" class="w-full px-3 py-2.5 text-xs font-semibold bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">
+                    <?php foreach (['product' => 'Products', 'service' => 'Services', 'mixed' => 'Products and services'] as $val => $label): ?>
+                        <option value="<?= $val ?>" <?= ($business['business_type'] ?? 'product') === $val ? 'selected' : '' ?>><?= $label ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <p id="business_type_hint" class="mt-1 text-[10px] text-brand-plum/50">Services issue a Certificate of Completion; products issue a Deed of Acquisition.</p>
+            </div>
         </div>
     </div>
 
