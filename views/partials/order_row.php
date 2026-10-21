@@ -4,6 +4,8 @@
  * it stands on the right. Used by Orders and Home.
  * Expects $o (a row from order_rows()), $currency and $today. On a client's own
  * page set $row_for_client: the order number leads instead of their name.
+ * The first product photo on the order, when there is one, takes the place
+ * of the initials (order_rows() reads it).
  */
 $o_mine  = !empty($row_for_client);
 $o_stage = order_stage($o, $o['delivery_status'] ? ['status' => $o['delivery_status']] : null);
@@ -22,7 +24,9 @@ $o_off   = in_array($o_stage['key'], ['cancelled', 'turned_down'], true);
 $o_where_now = in_array($o_stage['key'], ['new', 'cancelled', 'turned_down'], true) ? screen_date($o['created_at']) : $o_stage['words'];
 ?>
 <a class="nf-item nf-order-row<?= $o_off ? ' is-off' : '' ?>" href="<?= APP_URL ?>/orders/view/<?= (int)$o['id'] ?>" data-prefetch>
-    <?php if (!$o_mine): ?><span class="nf-face" aria-hidden="true"><?= e(planner_initials($o['customer_name'])) ?></span><?php endif; ?>
+    <?php $o_photo = order_photo($o['photo'] ?? null); ?>
+    <?php if ($o_photo): ?><span class="nf-face is-square has-photo" aria-hidden="true"><?= e(planner_initials($o['customer_name'])) ?><img src="<?= e($o_photo['src']) ?>" data-full="<?= e($o_photo['full']) ?>" alt="" loading="lazy" decoding="async"></span>
+    <?php elseif (!$o_mine): ?><span class="nf-face" aria-hidden="true"><?= e(planner_initials($o['customer_name'])) ?></span><?php endif; ?>
     <span class="nf-orow">
         <span class="nf-orow-1"><b><?= e($o_mine ? $o['order_number'] : ($o['customer_name'] ?: 'Walk-in customer')) ?></b><b class="nf-orow-amt"><?= planner_money((float)$o['total'], $currency) ?></b></span>
         <span class="nf-orow-2">

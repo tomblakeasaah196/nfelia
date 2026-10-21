@@ -178,12 +178,13 @@ class ReceiptController {
     }
 
     /* ──────────────────────────────────────────
-     *  CREATE — every sale is an order now: a sale on the spot is a quick
-     *  sale, which makes its order, invoice and receipt in one go
-     *  (docs/ORDERS_HUB.md). Receipts for payments come with the payment.
+     *  CREATE — every sale is an order now: a sale on the spot is a new
+     *  order in the shop, paid now (a quick sale), which makes its order,
+     *  invoice and receipt in one go (docs/ORDERS_HUB.md). Receipts for
+     *  payments come with the payment.
      * ────────────────────────────────────────── */
     public function create() {
-        redirect('orders/quick');
+        redirect('orders/create');
     }
 
     /* ──────────────────────────────────────────

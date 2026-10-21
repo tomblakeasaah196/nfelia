@@ -253,6 +253,8 @@ $event_icons = ['created' => 'plus', 'confirmed' => 'check', 'payment' => 'money
             <?php foreach ($lines as $l):
                 $short = $stage['key'] === 'new' && $l['product_id'] && !(int)($l['is_service'] ?? 0) && $l['stock_qty'] !== null && (float)$l['stock_qty'] < (float)$l['quantity']; ?>
                 <li>
+                    <?php $l_photo = order_photo($l['image_path'] ?? null); ?>
+                    <span class="nf-thumb" aria-hidden="true"><?= e(planner_initials($l['product_name'])) ?><?php if ($l_photo): ?><img src="<?= e($l_photo['src']) ?>" data-full="<?= e($l_photo['full']) ?>" alt="" loading="lazy" decoding="async"><?php endif; ?></span>
                     <span class="nf-line-main">
                         <b><?= e($l['product_name']) ?></b>
                         <?php if (!empty($l['variant_selection'])): ?><small><?= e($l['variant_selection']) ?></small><?php endif; ?>

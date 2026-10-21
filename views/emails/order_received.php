@@ -1,5 +1,6 @@
 <?php /* views/emails/order_received.php — to a shopper after they order on a shop.
-   Variables: $first_name, $shop_name, $order_number, $order_url, $lines (name, quantity, total), $total, $is_whatsapp */ ?>
+   Variables: $first_name, $shop_name, $order_number, $order_url, $lines (name, quantity, total), $total, $is_whatsapp,
+   $details (the whole order with photos, order_mail_details(); older queued emails have only $lines) */ ?>
 <h2 style="margin:0 0 16px;font-size:22px;color:#1B0A11;font-weight:700;">
     Thank you, <?= htmlspecialchars($first_name, ENT_QUOTES) ?>.
 </h2>
@@ -10,6 +11,9 @@
         : 'They will check your payment and get it ready.' ?>
     You can follow every step on your order's page.
 </p>
+<?php if (!empty($details)): ?>
+<?php require __DIR__ . '/_order_details.php'; ?>
+<?php else: ?>
 <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:0 0 20px;border-collapse:collapse;">
     <?php foreach ($lines as $line): ?>
     <tr>
@@ -26,6 +30,7 @@
         <td align="right" style="padding:12px 0 0;color:#1B0A11;font-size:15px;font-weight:700;white-space:nowrap;"><?= htmlspecialchars($total, ENT_QUOTES) ?></td>
     </tr>
 </table>
+<?php endif; ?>
 <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom:24px;">
     <tr>
         <td style="background-color:<?= htmlspecialchars($biz_color ?? '#8B004A', ENT_QUOTES) ?>;">

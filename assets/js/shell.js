@@ -8,6 +8,7 @@
  *   - the invitation to install, after sign-in on a phone
  *   - text size and background, saved on this device
  *   - typing on a phone: the field stays in sight above the keyboard
+ *   - product photos: the original when a small copy can't be made
  *   - the service worker, for speed and offline reading
  * No dependencies. Loaded with `defer` by views/layouts/app.php.
  */
@@ -58,6 +59,9 @@
         }
         return dlg;
     }
+    // For page scripts that open a sheet themselves (the order screen's item step).
+    window.nfOpenSheet = openSheet;
+    window.nfCloseSheet = function (id) { var dlg = document.getElementById(id); if (dlg) closeSheet(dlg); };
     // A link can open a sheet on the page it goes to: page#sheet:nf-cancel
     if (location.hash.indexOf('#sheet:') === 0) {
         var sheetId = location.hash.slice(7);
@@ -299,10 +303,21 @@
         if (meta) meta.setAttribute('data-theme-color', colour);
     });
 
+    // ---------- Photos ----------
+    // A small copy that can't be made gives way to the original photo
+    // (data-full); a photo that is gone leaves its placeholder showing.
+    document.addEventListener('error', function (e) {
+        var img = e.target;
+        if (!img || img.tagName !== 'IMG' || !img.hasAttribute('data-full')) return;
+        var full = img.getAttribute('data-full');
+        if (full && img.getAttribute('src') !== full) { img.setAttribute('src', full); return; }
+        img.hidden = true;
+    }, true);
+
     // ---------- Typing: keep the field in sight ----------
     // A tap anywhere on a money box (the currency sign too) goes to its number.
     document.addEventListener('click', function (e) {
-        var box = e.target.closest && e.target.closest('.nf-amount, .nf-oprice');
+        var box = e.target.closest && e.target.closest('.nf-amount');
         if (!box || e.target.tagName === 'INPUT') return;
         var input = box.querySelector('input:not([type="hidden"])');
         if (input && document.activeElement !== input) input.focus();

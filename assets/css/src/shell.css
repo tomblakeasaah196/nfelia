@@ -240,6 +240,7 @@ dialog.nf-sheet.is-closing { animation: nf-sheet-out 200ms var(--ease-in) forwar
 .nf-create { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 8px 16px 4px; }
 .nf-create a { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 10px 12px; border-radius: 16px; border: 1px solid var(--line);
   color: var(--ink); font: 600 .9375rem/1.25 var(--font-body); text-decoration: none; background: var(--surface); }
+.nf-create a.is-big { grid-column: 1 / -1; }
 .nf-create a:active { transform: scale(.98); }
 .nf-create a:hover { border-color: var(--line-2); }
 .nf-tile-ic { width: 40px; height: 40px; border-radius: 12px; flex: none; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent-text); }

@@ -24,6 +24,55 @@
  *  READING
  * ══════════════════════════════════════════════════════════════ */
 
+/**
+ * A product photo for the order screens: the small WebP copy (made on its
+ * first request by storefront_serve_variant()) and the original to fall back
+ * on (shell.js swaps to data-full when the copy can't be made). Null when the
+ * product has no photo.
+ */
+function order_photo(?string $rel): ?array {
+    $rel = trim((string)$rel);
+    // No photo, or not where uploads go (or no storefront helpers here, as in a script)
+    if ($rel === '' || str_contains($rel, '..') || !str_starts_with($rel, 'uploads/') || !function_exists('sf_media_url')) {
+        return null;
+    }
+    $full = sf_media_url($rel);
+    $src  = preg_match('#^uploads/(' . STOREFRONT_VARIANT_PATH . ')$#i', $rel, $m)
+        ? sf_media_url('uploads/cache/320/' . $m[1] . '.webp') : $full;
+    return ['src' => $src, 'full' => $full];
+}
+
+/** The same photo for an email: a small JPEG (every mail app shows those), or '' when there is none. */
+function order_mail_photo(?string $rel): string {
+    $rel = trim((string)$rel);
+    if (!function_exists('sf_media_url') || !preg_match('#^uploads/(' . STOREFRONT_VARIANT_PATH . ')$#i', $rel, $m) || str_contains($rel, '..')) {
+        return '';
+    }
+    return sf_media_url('uploads/cache/mail/' . $m[1] . '.jpg');
+}
+
+/**
+ * The cover photo of each product on the given orders' lines, first line
+ * first: [order_id => [product_id => image_path]]. One query for a page.
+ */
+function order_line_photos(PDO $db, int $biz, array $order_ids): array {
+    $order_ids = array_values(array_unique(array_filter(array_map('intval', $order_ids))));
+    if (!$order_ids) {
+        return [];
+    }
+    $in = implode(',', array_fill(0, count($order_ids), '?'));
+    $stmt = $db->prepare("SELECT oi.order_id, oi.product_id, p.image_path FROM order_items oi
+                          JOIN products p ON p.id = oi.product_id AND p.business_id = ?
+                          WHERE oi.order_id IN ({$in}) AND p.image_path IS NOT NULL AND p.image_path <> ''
+                          ORDER BY oi.order_id, oi.sort_order, oi.id");
+    $stmt->execute(array_merge([$biz], $order_ids));
+    $out = [];
+    foreach ($stmt->fetchAll() as $r) {
+        $out[(int)$r['order_id']][(int)$r['product_id']] ??= (string)$r['image_path'];
+    }
+    return $out;
+}
+
 function order_find(PDO $db, int $biz, int $order_id, bool $lock = false): ?array {
     $stmt = $db->prepare("SELECT * FROM orders WHERE id = ? AND business_id = ?" . ($lock ? " FOR UPDATE" : ""));
     $stmt->execute([$order_id, $biz]);
@@ -102,7 +151,15 @@ function order_rows(PDO $db, int $biz, array $f = [], int $limit = 20, int $offs
     $stmt = $db->prepare("SELECT * FROM (" . order__list_sql() . ") x WHERE {$where}
                           ORDER BY x.created_at DESC, x.id DESC LIMIT " . max(1, $limit) . " OFFSET " . max(0, $offset));
     $stmt->execute(array_merge([$biz], $params));
-    return $stmt->fetchAll();
+    $rows = $stmt->fetchAll();
+    // The first photo on each order, for its row
+    $photos = order_line_photos($db, $biz, array_column($rows, 'id'));
+    foreach ($rows as &$row) {
+        $first = $photos[(int)$row['id']] ?? [];
+        $row['photo'] = $first ? reset($first) : null;
+    }
+    unset($row);
+    return $rows;
 }
 
 /** How many orders order_rows() would list for each view, and the balance left on them: all, confirm, progress, balance, done, balance_total, matching. */

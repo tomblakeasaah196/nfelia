@@ -158,6 +158,14 @@ eq(told('payment.invoice'), [BISI], 'Bisi hears about the money (Ada recorded it
 eq(json_decode((string)q("SELECT data FROM notifications WHERE event = 'payment.invoice'"), true)['order_number'] ?? null, 'ADA-ORD-009', 'with the order number');
 eq(array_column(order_events($db, BIZ, (int)$o['id']), 'kind'), ['created', 'confirmed', 'payment'], 'the Log: made, confirmed, paid');
 eq(order_events($db, BIZ, (int)$o['id'])[0]['user_name'] ?? null, 'Ada Obi', 'each line says who');
+$mail = json_decode((string)q("SELECT payload FROM notify_outbox WHERE channel = 'email' AND dedupe_key = ?", ['order:' . $o['id'] . ':confirmed']), true);
+$details = $mail['vars']['details'] ?? [];
+eq([$mail['template'] ?? null, count($details['lines'] ?? []), $details['lines'][0]['name'] ?? null, $details['lines'][0]['each'] ?? null],
+   ['order_update', 1, 'Body Wave 18in', '2 × ₦65,000'], 'Ngozi\'s confirmation email carries the order: each line, how many and the price');
+eq([$details['total'] ?? null, $details['paid'] ?? null, $details['balance'] ?? null, $details['how'] ?? null, $details['when'] ?? null],
+   ['₦130,000', '₦130,000', '', 'Pickup', date('l j F', strtotime($day(2)))], 'and the money, and how and when she gets it');
+$html = render_email('order_update', $mail['vars'] ?? [], ['id' => BIZ, 'name' => 'Ada']);
+ok(str_contains($html, 'Body Wave 18in') && str_contains($html, '₦130,000') && str_contains($html, 'Pickup'), 'which the email shows');
 
 section('Confirming twice does nothing twice');
 $again = refused(fn() => order_confirm($db, BIZ, (int)$o['id'], ADA));

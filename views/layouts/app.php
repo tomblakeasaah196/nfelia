@@ -359,7 +359,6 @@ $flash = get_flash();
         </div>
         <div class="nf-create">
             <a class="is-big" href="<?= APP_URL ?>/orders/create"><span class="nf-tile-ic"><?= nav_icon('orders') ?></span>New order</a>
-            <a class="is-big" href="<?= APP_URL ?>/orders/quick"><span class="nf-tile-ic"><?= nav_icon('bolt') ?></span>Quick sale</a>
             <a href="<?= APP_URL ?>/quotations/create"><span class="nf-tile-ic"><?= nav_icon('quote') ?></span>New quote</a>
             <a href="<?= APP_URL ?>/tasks?new=task"><span class="nf-tile-ic"><?= nav_icon('task') ?></span>Add task</a>
             <a href="<?= APP_URL ?>/customers/create"><span class="nf-tile-ic"><?= nav_icon('customer') ?></span>Add customer</a>

@@ -84,7 +84,7 @@ $sorts   = ['newest' => 'Newest first', 'oldest' => 'Oldest first', 'amount_desc
             <p>Check the spelling, or search by the receipt number.</p>
         <?php else: ?>
             <h2><?= $type === 'invoice' ? 'No receipts for invoices yet' : 'No sales on the spot yet' ?></h2>
-            <p><?= $type === 'invoice' ? 'Record a payment on an order and its receipt shows here.' : 'Receipts from before orders, for sales on the spot, show here. A sale on the spot is now a quick sale.' ?></p>
+            <p><?= $type === 'invoice' ? 'Record a payment on an order and its receipt shows here.' : 'Receipts from before orders, for sales on the spot, show here. A sale on the spot is now a new order: in the shop, paid now.' ?></p>
         <?php endif; ?>
         <a class="nf-link" href="<?= APP_URL ?>/receipts">Show all receipts</a>
     </div>
@@ -93,7 +93,7 @@ $sorts   = ['newest' => 'Newest first', 'oldest' => 'Oldest first', 'amount_desc
         <span class="nf-tile-ic"><?= nav_icon('receipt') ?></span>
         <h2>No receipts yet</h2>
         <p>Every payment on an order makes its receipt, so the customer has proof and you see all the money that came in.</p>
-        <a class="nf-btn nf-btn-primary" href="<?= APP_URL ?>/orders/quick"><?= nav_icon('bolt') ?>Quick sale</a>
+        <a class="nf-btn nf-btn-primary" href="<?= APP_URL ?>/orders/create"><?= nav_icon('plus') ?>New order</a>
     </div>
 <?php endif; ?>
 </div>
