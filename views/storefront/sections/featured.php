@@ -14,7 +14,7 @@ $featured_title = $section['title'] !== '' ? $section['title'] : $labels['featur
         <div class="sf-section__head">
             <h2 class="sf-h2" id="sf-featured-title"><?= e($featured_title) ?></h2>
             <?php if ($featured_items && $sections['catalogue']['on'] && count($catalogue['items']) > count($featured_items)): ?>
-                <a class="sf-link" href="#sf-catalogue">See all <?= count($catalogue['items']) ?></a>
+                <a class="sf-link" href="<?= e(sf_page_href('catalogue')) ?>">See all <?= count($catalogue['items']) ?></a>
             <?php endif; ?>
         </div>
         <?php if ($featured_items): ?>

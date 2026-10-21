@@ -1,9 +1,11 @@
 <?php
 /**
- * Custom and bulk orders: a form people fill in to ask for a price. It posts
- * to the shop's own /quote-request; the request lands in the owner's quote
- * requests and their customer list.
+ * Custom and bulk orders: a form people fill in to ask for a price, on the
+ * contact page (pages/contact.php sets $quote_form_only, since the page's
+ * own title says what it is). It posts to the shop's own /quote-request; the
+ * request lands in the owner's quote requests and their customer list.
  */
+$quote_form_only = $quote_form_only ?? false;
 $quote_title = $section['title'] !== '' ? $section['title'] : $labels['quote'];
 $quote_text  = $section['text'] !== '' ? $section['text'] : 'Tell us what you need and we will reply with a price.';
 $extras = array_filter([
@@ -13,13 +15,19 @@ $extras = array_filter([
     'delivery_location' => $section['delivery_location'] ? ['Where should we deliver?', 'Town or full address', 'street-address'] : null,
 ]);
 ?>
-<section class="sf-section sf-quote" id="sf-quote" aria-labelledby="sf-quote-title">
+<?php if (!$quote_form_only): ?>
+<section class="sf-section sf-quote" aria-labelledby="sf-quote-title">
     <div class="sf-wrap">
-        <div class="sf-quote__card">
+<?php endif; ?>
+        <div class="sf-quote__card<?= $quote_form_only ? ' sf-quote__card--page' : '' ?>" id="sf-quote">
+            <?php if (!$quote_form_only): ?>
             <div class="sf-quote__intro">
                 <h2 class="sf-h2" id="sf-quote-title"><?= e($quote_title) ?></h2>
                 <?= sf_paragraphs($quote_text, 'sf-quote__text') ?>
             </div>
+            <?php else: ?>
+            <h2 class="sf-sr">Your request</h2>
+            <?php endif; ?>
             <form class="sf-form" action="/quote-request" method="post" data-quote-form novalidate>
                 <input type="text" name="website" class="sf-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
                 <div class="sf-form__row">
@@ -62,5 +70,7 @@ $extras = array_filter([
                 </div>
             </form>
         </div>
+<?php if (!$quote_form_only): ?>
     </div>
 </section>
+<?php endif; ?>

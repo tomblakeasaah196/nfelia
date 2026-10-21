@@ -21,7 +21,7 @@ foreach (['APP_ENV', 'APP_URL', 'DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_
 require_once $root . '/config/app.php';
 require_once $root . '/config/mail.php';
 foreach (['functions', 'auth', 'billing', 'stock', 'money', 'invoices', 'orders', 'signing', 'token', 'mail', 'webpush', 'planner', 'shop_links',
-          'storefront', 'cloudflare', 'shop_orders', 'bookings', 'seo', 'theme', 'nav', 'signin', 'passkeys', 'notify', 'screens'] as $helper) {
+          'storefront', 'brand', 'maps', 'cloudflare', 'shop_orders', 'bookings', 'seo', 'theme', 'nav', 'signin', 'passkeys', 'notify', 'screens'] as $helper) {
     require_once $root . '/app/helpers/' . $helper . '.php';
 }
 require_once $root . '/app/helpers/errors.php';

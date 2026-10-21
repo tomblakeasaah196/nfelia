@@ -16,6 +16,8 @@
  * GET  /landing-page/versions          the last ten publishes (JSON)
  * POST /landing-page/restore-version   a version → the draft
  * POST /landing-page/upload-image      a hero photo or video for the draft
+ * POST /landing-page/location-find     places matching an address, for the map's pin
+ * POST /landing-page/location-link     the pin in a pasted Google Maps link
  * POST /landing-page/visibility        switch the whole shop on or off
  *
  * Every POST checks the CSRF token, sent as the X-CSRF-Token header or a
@@ -66,7 +68,7 @@ class LandingPageController {
         $pending_name = $business['subdomain_status'] === 'pending' ? $business['subdomain_requested'] : null;
         $can_rename   = $public_url && (int)$business['subdomain_renames'] < 1 && !$pending_name && is_owner();
         $unpublished  = $published === null || $published != $draft;
-        $theme        = storefront_resolve($draft);
+        $theme        = storefront_resolve($draft, $business);
 
         header('Cache-Control: private, no-store');
         require BASE_PATH . '/views/studio/index.php';
@@ -81,7 +83,10 @@ class LandingPageController {
         $business = $this->business();
         header('Cache-Control: private, no-store');
         header('X-Robots-Tag: noindex, nofollow');
-        storefront_render($business, storefront_settings($business, 'draft'), 'preview');
+        // ?page= shows the shop's other pages: its list, contact page or news
+        $kind = in_array($_GET['page'] ?? '', ['catalogue', 'contact', 'news'], true) ? $_GET['page'] : 'shop';
+        $page = ['kind' => $kind] + ($kind === 'news' ? ['posts' => shop_posts($this->db, $this->biz_id, 60)] : []);
+        storefront_render($business, storefront_settings($business, 'draft'), 'preview', 'live', $page);
     }
 
     /* ──────────────────────────────────────────
@@ -158,6 +163,14 @@ class LandingPageController {
         }
 
         update_business_session(['storefront_look' => $settings['look']]);
+        // The map picture in the published colours, made before the shop's
+        // cached pages are dropped, so shoppers never wait for it
+        $location = sf_section($settings, 'location');
+        if ($location && $location['on'] && $location['lat'] !== null && function_exists('after_response')) {
+            $palette = storefront_resolve($settings, $business)['palette'];
+            $biz_id  = $this->biz_id;
+            after_response(fn() => maps_picture($biz_id, (float)$location['lat'], (float)$location['lng'], (int)$location['zoom'], $palette['dark'], $palette['accent']));
+        }
         storefront_purge($this->biz_id);
 
         json_response([
@@ -237,6 +250,56 @@ class LandingPageController {
     }
 
     /* ──────────────────────────────────────────
+     *  MAP: FIND AN ADDRESS — POST /landing-page/location-find
+     *  {address}: places that match it (Geoapify), best first, for the pin
+     *  in Sections › Map and directions. The address is the business's own,
+     *  from Settings; an owner who changes it here changes it there too.
+     * ────────────────────────────────────────── */
+    public function location_find() {
+        $this->require_post();
+        $address = sf_clean_text($this->input()['address'] ?? '', 500);
+        if ($address === '') {
+            json_response(['error' => 'Type or paste your address first.'], 422);
+        }
+        if (maps_key() === '') {
+            json_response(['error' => 'Finding addresses isn\'t switched on yet. Paste a Google Maps link to your shop instead.'], 503);
+        }
+        $business = $this->business();
+        $saved = false;
+        if (is_owner() && $address !== trim((string)($business['address'] ?? ''))) {
+            $this->db->prepare("UPDATE businesses SET address = ? WHERE id = ?")->execute([$address, $this->biz_id]);
+            update_business_session(['address' => $address]);
+            storefront_purge($this->biz_id);
+            $saved = true;
+        }
+        $stmt = $this->db->prepare("SELECT c.iso_code FROM countries c JOIN businesses b ON b.country_id = c.id WHERE b.id = ?");
+        $stmt->execute([$this->biz_id]);
+        $places = maps_geocode($address, (string)($stmt->fetchColumn() ?: ''));
+        if (!$places) {
+            json_response(['error' => 'We couldn\'t find that address on the map. Add your area and town, or paste a Google Maps link to your shop.', 'saved' => $saved], 404);
+        }
+        json_response(['ok' => true, 'places' => $places, 'saved' => $saved]);
+    }
+
+    /* ──────────────────────────────────────────
+     *  MAP: READ A LINK — POST /landing-page/location-link
+     *  {link}: the pin in a Google Maps or Apple Maps link (short links are
+     *  followed, to Google only), or in plain "6.45, 3.39".
+     * ────────────────────────────────────────── */
+    public function location_link() {
+        $this->require_post();
+        $link = trim((string)($this->input()['link'] ?? ''));
+        if ($link === '' || mb_strlen($link) > 2000) {
+            json_response(['error' => 'Paste the link to your shop from Google Maps.'], 422);
+        }
+        $pin = maps_resolve_pin($link);
+        if ($pin === null) {
+            json_response(['error' => 'We couldn\'t find a pin in that link. In Google Maps, tap your shop, then Share, then Copy link, and paste it here.'], 422);
+        }
+        json_response(['ok' => true, 'pin' => $pin]);
+    }
+
+    /* ──────────────────────────────────────────
      *  SHOP ON OR OFF — POST /landing-page/visibility
      * ────────────────────────────────────────── */
     public function visibility() {
@@ -306,7 +369,7 @@ class LandingPageController {
      * or light, and the font pair with its stylesheet.
      */
     private function theme_for(array $settings): array {
-        $theme = storefront_resolve($settings);
+        $theme = storefront_resolve($settings, $this->business());
         return [
             'vars'      => $theme['vars'],
             'dark'      => $theme['palette']['dark'],

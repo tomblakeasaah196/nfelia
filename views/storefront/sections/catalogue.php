@@ -1,15 +1,16 @@
 <?php
 /**
- * Everything the shop sells, in the look's own style: a filter by category
- * when there is more than one, a search box in the looks made for long
- * lists, and products grouped under their category where the look reads
- * like a menu or a price list.
+ * Everything the shop sells, on its own page (/shop), in the look's own
+ * style: a filter by category when there is more than one, a search box for
+ * longer lists, and products grouped under their category where the look
+ * reads like a menu or a price list. The home page shows a taste of it
+ * instead (catalogue_home.php).
  */
 $items      = $catalogue['items'];
 $style      = $look['items'];
 $cat_title  = $section['title'] !== '' ? $section['title'] : $labels['catalogue'];
 $grouped    = in_array($style, ['menu', 'pricerow', 'pricelist'], true);
-$searchable = in_array($settings['look'], ['volt', 'market'], true) && count($items) >= 6;
+$searchable = count($items) >= (in_array($settings['look'], ['volt', 'market'], true) ? 6 : 8);
 $categories = $catalogue['categories'];
 $render     = 'sf_item_' . $style;
 
@@ -32,11 +33,15 @@ if (!$items && !$ticket && $mode === 'live') {
 ?>
 <section class="sf-section sf-catalogue sf-catalogue--<?= e($style) ?>" id="sf-catalogue" aria-labelledby="sf-catalogue-title" data-catalogue>
     <div class="sf-wrap">
-        <div class="sf-section__head">
-            <h2 class="sf-h2" id="sf-catalogue-title"><?= e($cat_title) ?></h2>
+        <div class="sf-section__head sf-page__head">
+            <h1 class="sf-h1 sf-page__title" id="sf-catalogue-title"><?= e($cat_title) ?></h1>
             <?php if (count($items) > 1): ?><span class="sf-section__count" data-count><?= count($items) ?> items</span><?php endif; ?>
         </div>
+        <?php if ($settings['look'] === 'market' && $catalogue['updated_at']): ?>
+            <p class="sf-page__note"><?= sf_icon('clock', 16) ?>Prices updated <?= e(date('j F Y', strtotime($catalogue['updated_at']))) ?></p>
+        <?php endif; ?>
 
+        <?php if ($searchable || count($categories) > 1): ?><div class="sf-shopbar"><?php endif; ?>
         <?php if ($searchable): ?>
             <label class="sf-search">
                 <span class="sf-sr">Search the shop</span>
@@ -54,6 +59,7 @@ if (!$items && !$ticket && $mode === 'live') {
                 <?php endforeach; ?>
             </div>
         <?php endif; ?>
+        <?php if ($searchable || count($categories) > 1): ?></div><?php endif; ?>
 
         <?php if (!$items && !$ticket): ?>
             <?php if ($mode === 'live'): ?>
@@ -112,7 +118,7 @@ if (!$items && !$ticket && $mode === 'live') {
                 <div class="sf-ticket__tear" aria-hidden="true"></div>
                 <div class="sf-ticket__foot">
                     <?php if ($quote_on): ?>
-                        <a class="sf-btn sf-btn--band sf-btn--block" href="#sf-quote">Ask for a quote</a>
+                        <a class="sf-btn sf-btn--band sf-btn--block" href="<?= e(sf_quote_href()) ?>">Ask for a quote</a>
                     <?php elseif ($wa !== ''): ?>
                         <a class="sf-btn sf-btn--band sf-btn--block" href="https://wa.me/<?= e($wa) ?>" target="_blank" rel="noopener">Ask on WhatsApp</a>
                     <?php endif; ?>

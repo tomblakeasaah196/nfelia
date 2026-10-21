@@ -35,6 +35,8 @@ require_once __DIR__ . '/app/helpers/webpush.php';
 require_once __DIR__ . '/app/helpers/planner.php';
 require_once __DIR__ . '/app/helpers/shop_links.php';
 require_once __DIR__ . '/app/helpers/storefront.php';
+require_once __DIR__ . '/app/helpers/brand.php';
+require_once __DIR__ . '/app/helpers/maps.php';
 require_once __DIR__ . '/app/helpers/cloudflare.php';
 require_once __DIR__ . '/app/helpers/shop_orders.php';
 require_once __DIR__ . '/app/helpers/bookings.php';

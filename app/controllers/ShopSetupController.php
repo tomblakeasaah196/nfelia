@@ -156,7 +156,7 @@ class ShopSetupController {
         $business = $this->business();
         $settings = storefront_settings($business, 'draft');
         $settings['look']    = $look;
-        $settings['colours'] = ['set' => 'look'];
+        $settings['colours'] = ['set' => 'brand', 'mode' => ''];
         $settings['font']    = '';
 
         header('Cache-Control: private, no-store');
@@ -228,7 +228,8 @@ class ShopSetupController {
     /**
      * Choosing a look here changes the shop straight away, as it always has:
      * Shop Studio's draft and the published settings both move to the new
-     * look, with its own colours and fonts. Sections and words stay.
+     * look, in the brand's colours and fonts from Settings (the look's own
+     * while there is no brand). Sections and words stay.
      */
     private function apply_look(array $business, string $look): void {
         foreach (['storefront_draft', 'storefront_published'] as $column) {
@@ -237,7 +238,7 @@ class ShopSetupController {
             }
             $settings = storefront_normalise(json_decode((string)$business[$column], true) ?: [], $business);
             $settings['look']    = $look;
-            $settings['colours'] = ['set' => 'look'];
+            $settings['colours'] = ['set' => 'brand', 'mode' => ''];
             $settings['font']    = '';
             $this->db->prepare("UPDATE businesses SET {$column} = ? WHERE id = ?")
                      ->execute([json_encode($settings, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), $this->biz_id]);

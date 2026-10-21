@@ -9,10 +9,7 @@
 $currency  = $business['currency_symbol'] ?? '₦';
 $primary   = $business['primary_color'] ?? '#8B004A';
 $secondary = $business['secondary_color'] ?? '#B69F5E';
-$font_map  = FONT_PAIRINGS[$business['font_pairing'] ?? 'modern_sans'] ?? FONT_PAIRINGS['modern_sans'];
-$font_heading = $font_map['heading'];
-$font_body    = $font_map['body'];
-$google_fonts = urlencode($font_heading) . ':wght@400;600;700;800&family=' . urlencode($font_body) . ':wght@400;500;600';
+$doc_fonts    = brand_doc_fonts($business);   // the brand fonts (app/helpers/brand.php)
 
 $is_standalone = !$receipt['invoice_id'];
 
@@ -54,13 +51,14 @@ $og_image  = $business['logo_path']
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=<?= $google_fonts ?>&family=Roboto+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <link href="<?= e($doc_fonts['url']) ?>" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/public.css?v=<?= @filemtime(BASE_PATH . '/assets/css/public.css') ?>">
     <style>
-        :root { --font-heading: "<?= e($font_heading) ?>", sans-serif; --font-body: "<?= e($font_body) ?>", sans-serif; --font-mono: "Roboto Mono", monospace; }
+        :root { --font-heading: <?= $doc_fonts['head_stack'] ?>; --font-body: <?= $doc_fonts['body_stack'] ?>; --font-mono: "Roboto Mono", monospace; }
     </style>
     <style>
-        body { font-family: '<?= $font_body ?>', sans-serif; background: #F2EFE7; }
+        body { font-family: <?= $doc_fonts['body_stack'] ?>; background: #F2EFE7; }
         .data-text { font-family: 'Roboto Mono', monospace; }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>

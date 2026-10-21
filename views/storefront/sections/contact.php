@@ -34,6 +34,13 @@ $footer_address = trim((string)($business['address'] ?? ''));
                 <a class="sf-iconbtn sf-iconbtn--footer" href="<?= e($url) ?>" target="_blank" rel="noopener" aria-label="<?= e($social_icons[$network]) ?>"><?= sf_icon($network === 'twitter' ? 'x' : $network, 20) ?></a>
             <?php endforeach; ?>
         </div>
+        <?php if (count($nav_pages) > 2): ?>
+            <nav class="sf-footer__nav" aria-label="Pages of the shop">
+                <?php foreach ($nav_pages as $foot_key => $foot_label): ?>
+                    <a href="<?= e(sf_page_href($foot_key)) ?>"<?= $foot_key === $nav_here ? ' aria-current="page"' : '' ?>><?= e($foot_label) ?></a>
+                <?php endforeach; ?>
+            </nav>
+        <?php endif; ?>
         <div class="sf-footer__end">
             <p>© <?= date('Y') ?> <?= e($business['name']) ?></p>
             <?php if (empty($business['hide_nfelia_credit'])): ?>

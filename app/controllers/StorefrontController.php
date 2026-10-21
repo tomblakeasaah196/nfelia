@@ -5,7 +5,9 @@
  * Serves name.nfelia.com. index.php hands over every request whose host is a
  * shop link, before any session starts, so shoppers never get a cookie.
  *
- *   GET  /                  the shop
+ *   GET  /                  the shop's home page
+ *   GET  /shop              everything it sells, with search and categories
+ *   GET  /contact           the request form, every way to reach it, the map
  *   GET  /p/{id}-{name}     a product's own page (other names are sent on)
  *   POST /checkout          place an order (proof of payment or WhatsApp)
  *   POST /quote-request     bulk or custom order request
@@ -121,6 +123,15 @@ class StorefrontController extends PublicController
                 return;
             }
             $this->render_shop($business, $visibility);
+            return;
+        }
+
+        if (in_array($path, ['shop', 'contact'], true) && in_array($method, ['GET', 'HEAD'], true)) {
+            if ($visibility === 'closed') {
+                $this->closed($business);
+                return;
+            }
+            $this->shop_page($business, $path === 'shop' ? 'catalogue' : 'contact', $visibility);
             return;
         }
 
@@ -295,6 +306,26 @@ class StorefrontController extends PublicController
             'who' => review_display_name((string)$review['customer_name']), 'rating' => $rating, 'comment' => $comment,
         ], ['business' => $business, 'dedupe' => (string)$review['id']]);
         storefront_purge((int)$business['id']);
+    }
+
+    /**
+     * The shop's full list (/shop) or its contact page (/contact). Cached
+     * like the shop. A shop that switched its list off shows everything it
+     * has on the home page, so /shop goes there.
+     */
+    private function shop_page(array $business, string $kind, string $visibility): void
+    {
+        $settings = storefront_settings($business, 'published');
+        if ($kind === 'catalogue' && !(sf_section($settings, 'catalogue')['on'] ?? false)) {
+            header('Cache-Control: public, max-age=0, s-maxage=300');
+            header('Location: ' . shop_url($business['subdomain']), true, 302);
+            exit;
+        }
+        header('Cache-Control: public, max-age=0, s-maxage=300');
+        if ($visibility !== 'live') {
+            header('X-Robots-Tag: noindex, nofollow');
+        }
+        storefront_render($business, $settings, 'live', $visibility, ['kind' => $kind]);
     }
 
     /* ── News and offers ─────────────────────────────── */

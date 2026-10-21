@@ -23,7 +23,7 @@ $wa_text = 'Hello ' . $business['name'] . ', I found ' . $item['name'] . ' on yo
 ?>
 <article class="sf-pdp" data-item="<?= (int)$item['id'] ?>" aria-labelledby="sf-pdp-name">
     <div class="sf-wrap">
-        <a class="sf-back" href="/#sf-catalogue"><?= sf_icon('left', 18) ?><span>All of <?= e($business['name']) ?></span></a>
+        <a class="sf-back" href="/shop"><?= sf_icon('left', 18) ?><span>All of <?= e($business['name']) ?></span></a>
 
         <div class="sf-pdp__grid">
             <div class="sf-pdp__media">
@@ -144,7 +144,7 @@ $wa_text = 'Hello ' . $business['name'] . ', I found ' . $item['name'] . ' on yo
         <div class="sf-section__head">
             <h2 class="sf-h2" id="sf-more-title">More from <?= e($business['name']) ?></h2>
             <?php if (count($catalogue['items']) > count($related) + 1): ?>
-                <a class="sf-link" href="/#sf-catalogue">See all <?= count($catalogue['items']) ?></a>
+                <a class="sf-link" href="/shop">See all <?= count($catalogue['items']) ?></a>
             <?php endif; ?>
         </div>
         <div class="sf-tiles sf-tiles--<?= e($look['tiles']) ?>">

@@ -674,6 +674,7 @@
             return;
         }
         if (t.closest('[data-open-bag]')) { openBag(); return; }
+        if (t.closest('[data-open-menu]')) { openMenu(); return; }
         var close = t.closest('[data-close]');
         if (close) {
             var dialog = close.closest('dialog');
@@ -710,11 +711,11 @@
             yt.parentNode.replaceChild(frame, yt);
             return;
         }
+        // The request form is on the contact page; the link takes the
+        // product's name there. On that page itself, fill it in here.
         var ask = t.closest('[data-quote]');
-        if (ask) { prefillQuote('I would like a price for ' + ask.dataset.quote + '.'); return; }
-        if (t.closest('[data-estimate-quote]')) {
-            var picked = $('[data-estimator] input:checked');
-            if (picked) { prefillQuote('I would like a price for ' + picked.dataset.name + '.'); }
+        if (ask) {
+            if ($('[data-quote-form]')) { e.preventDefault(); prefillQuote('I would like a price for ' + ask.dataset.quote + '.', true); }
             return;
         }
         if (t.closest('[data-estimate-open]')) {
@@ -738,11 +739,13 @@
         }
     }
 
-    function prefillQuote(text) {
+    function prefillQuote(text, focus) {
         var message = $('[data-quote-form] textarea[name="message"]');
         if (!message) { return; }
         if (!message.value.trim()) { message.value = text; }
-        setTimeout(function () { message.focus(); }, 350);
+        var card = $('#sf-quote');
+        if (card) { card.scrollIntoView({ block: 'start', behavior: 'smooth' }); }
+        if (focus) { setTimeout(function () { message.focus(); }, 350); }
     }
 
     var estimator = $('[data-estimator]');
@@ -752,6 +755,8 @@
             if (input.name !== 'sf-estimate') { return; }
             $('[data-estimate-price]', estimator).textContent = input.dataset.price;
             $('[data-estimate-unit]', estimator).textContent = input.dataset.unit;
+            var quoteLink = $('[data-estimate-quote]', estimator);
+            if (quoteLink) { quoteLink.href = S.urls.contact.replace(/#.*$/, '') + '#quote=' + encodeURIComponent(input.dataset.name); }
         });
     }
 
@@ -801,6 +806,158 @@
             }
         }
     }
+
+    /* ── The menu ────────────────────────────────── */
+
+    var menu = $('#sf-menu');
+    function openMenu() {
+        if (menu && !menu.open) { menu.showModal(); }
+    }
+    if (menu) {
+        menu.addEventListener('click', function (e) {
+            // A tap outside the panel, or on a link to this same page, closes it
+            if (e.target === menu || e.target.closest('a[href^="#"]')) { menu.close(); }
+        });
+    }
+
+    /* ── Header over a cover: clear, then frosted ── */
+    // The announcement's height is taken off the cover, so the cover fills
+    // exactly the first screen
+
+    var announce = $('.sf-announce');
+    function measureTop() { root.style.setProperty('--sf-top', (announce ? announce.offsetHeight : 0) + 'px'); }
+    measureTop();
+    window.addEventListener('resize', measureTop);
+
+    var overHeader = $('.sf-header--over');
+    var coverEl = $('[data-cover]');
+    if (overHeader && coverEl && 'IntersectionObserver' in window) {
+        new IntersectionObserver(function (entries) {
+            overHeader.classList.toggle('is-solid', !entries[0].isIntersecting);
+        }, { rootMargin: '-' + overHeader.offsetHeight + 'px 0px 0px 0px' }).observe(coverEl);
+    }
+
+    /* ── The cover: photos taking turns ──────────── */
+    // A bar under the words fills while a photo shows; when it is full the
+    // next photo fades in. Photos after the first load just before their
+    // turn. Nothing moves for people who ask for less motion or save data:
+    // they tap the bars. A pause button stops it, and it rests while the tab
+    // or the cover is out of sight.
+
+    if (coverEl) {
+        var slides = $$('.sf-cover__slide', coverEl);
+        var bars = $$('[data-slide-to]', coverEl);
+        var pauseBtn = $('[data-cover-pause]', coverEl);
+        var connection = navigator.connection || {};
+        var thrifty = connection.saveData || /(^|-)2g$/.test(connection.effectiveType || '');
+        var stillness = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        var at = 0;
+        var heldBy = { user: false, hidden: false, away: false, focus: false };
+
+        var loadSlide = function (i) {
+            var slide = slides[i];
+            if (!slide) { return; }
+            var img = $('img[data-src]', slide);
+            if (img) {
+                if (img.dataset.srcset) { img.srcset = img.dataset.srcset; }
+                img.src = img.dataset.src;
+                img.removeAttribute('data-src');
+                img.removeAttribute('data-srcset');
+            }
+            var video = $('video[data-src]', slide);
+            if (video && !thrifty && !stillness) {
+                video.src = video.dataset.src;
+                video.removeAttribute('data-src');
+            }
+        };
+        var playVideos = function () {
+            slides.forEach(function (slide, i) {
+                var video = $('video', slide);
+                if (!video || !video.src) { return; }
+                if (i === at) {
+                    var playing = video.play();
+                    if (playing && playing.then) { playing.then(function () { video.classList.add('is-playing'); }, function () { /* the cover colour shows */ }); }
+                } else {
+                    video.pause();
+                }
+            });
+        };
+        var show = function (i) {
+            at = (i + slides.length) % slides.length;
+            loadSlide(at);
+            slides.forEach(function (slide, j) {
+                slide.classList.toggle('is-on', j === at);
+                if (bars.length) { slide.setAttribute('aria-hidden', String(j !== at)); }
+            });
+            bars.forEach(function (bar, j) {
+                bar.classList.toggle('is-done', j < at);
+                if (j === at) { bar.setAttribute('aria-current', 'true'); } else { bar.removeAttribute('aria-current'); }
+            });
+            playVideos();
+            // The next photo arrives while this one shows
+            if (slides.length > 1 && !thrifty) { setTimeout(function () { loadSlide(at + 1); }, 1200); }
+        };
+        var held = function () { return heldBy.user || heldBy.hidden || heldBy.away || heldBy.focus; };
+        var updateHold = function () { coverEl.classList.toggle('is-paused', held()); };
+
+        loadSlide(0);
+        playVideos();
+        if (bars.length > 1) {
+            coverEl.style.setProperty('--sf-interval', (parseInt(coverEl.dataset.interval, 10) || 6500) + 'ms');
+            if (!stillness && !thrifty) {
+                coverEl.classList.add('is-running');
+                setTimeout(function () { loadSlide(1); }, 1500);
+            }
+            coverEl.addEventListener('animationend', function (e) {
+                if (e.animationName === 'sf-bar') { show(at + 1); }
+            });
+            bars.forEach(function (bar) {
+                bar.addEventListener('click', function () { show(parseInt(bar.dataset.slideTo, 10)); });
+            });
+            if (pauseBtn) {
+                pauseBtn.addEventListener('click', function () {
+                    heldBy.user = !heldBy.user;
+                    pauseBtn.setAttribute('aria-pressed', String(heldBy.user));
+                    pauseBtn.setAttribute('aria-label', heldBy.user ? 'Play the photos' : 'Pause the photos');
+                    updateHold();
+                });
+            }
+            document.addEventListener('visibilitychange', function () { heldBy.hidden = document.hidden; updateHold(); });
+            if ('IntersectionObserver' in window) {
+                new IntersectionObserver(function (entries) { heldBy.away = !entries[0].isIntersecting; updateHold(); }).observe(coverEl);
+            }
+            // Someone reading or using the buttons isn't rushed
+            coverEl.addEventListener('focusin', function () { heldBy.focus = true; updateHold(); });
+            coverEl.addEventListener('focusout', function () { heldBy.focus = false; updateHold(); });
+            // A swipe moves to the next or the last photo
+            var startX = null;
+            coverEl.addEventListener('pointerdown', function (e) { startX = e.isPrimary ? e.clientX : null; });
+            coverEl.addEventListener('pointerup', function (e) {
+                if (startX === null || e.target.closest('a, button')) { startX = null; return; }
+                var dx = e.clientX - startX;
+                startX = null;
+                if (Math.abs(dx) > 48) { show(at + (dx < 0 ? 1 : -1)); }
+            });
+        }
+    }
+
+    /* ── Arriving at the list or the contact page ── */
+    // /shop#cat=kaftans opens the list at that category; /contact#quote=Name
+    // starts the request with that product
+
+    function fromHash() {
+        var cat = location.hash.match(/^#cat=(.+)$/);
+        if (cat && catalogue) {
+            var wanted = decodeURIComponent(cat[1]);
+            if ($('[data-filter="' + wanted.replace(/["\\]/g, '') + '"]', catalogue)) { setFilter(wanted); }
+        }
+        var about = location.hash.match(/^#quote=(.+)$/);
+        if (about) {
+            prefillQuote('I would like a price for ' + decodeURIComponent(about[1]) + '.', false);
+        }
+    }
+    fromHash();
+    window.addEventListener('hashchange', fromHash);
 
     /* ── A product's page: buy box and photos ────── */
 
@@ -1313,6 +1470,45 @@
                 if (target) { target.scrollIntoView({ block: 'start' }); }
             }
         });
+    }
+
+    // In Shop Studio, a section under the pointer is outlined with its name,
+    // and tapping it (anywhere but a link or button) opens it in Studio
+    if (!LIVE && S.sections && window.parent !== window) {
+        var editable = null;
+        var editTag = el('span', { class: 'sf-editable__tag', 'aria-hidden': 'true' });
+        editTag.hidden = true;
+        document.body.appendChild(editTag);
+        var sectionOf = function (node) {
+            for (; node && node !== document.body; node = node.parentElement) {
+                var type = node.id && node.id.indexOf('sf-') === 0 ? node.id.slice(3) : '';
+                if (type && S.sections[type]) { return node; }
+            }
+            return null;
+        };
+        var mark = function (node) {
+            if (node === editable) { return; }
+            if (editable) { editable.classList.remove('sf-editable'); }
+            editable = node;
+            editTag.hidden = !node;
+            if (!node) { return; }
+            node.classList.add('sf-editable');
+            var box = node.getBoundingClientRect();
+            editTag.textContent = 'Edit: ' + S.sections[node.id.slice(3)];
+            editTag.style.left = Math.max(8, box.left + 8) + 'px';
+            editTag.style.top = Math.max(8, box.top + 8) + 'px';
+        };
+        document.addEventListener('mouseover', function (e) { mark(sectionOf(e.target)); });
+        document.addEventListener('mouseleave', function () { mark(null); });
+        window.addEventListener('scroll', function () { mark(null); }, { passive: true });
+        document.addEventListener('click', function (e) {
+            if (e.target.closest('a, button, input, select, textarea, label, summary, dialog')) { return; }
+            var node = sectionOf(e.target);
+            if (!node) { return; }
+            e.preventDefault();
+            e.stopPropagation();
+            window.parent.postMessage({ type: 'nfelia:edit', section: node.id.slice(3) }, location.origin);
+        }, true);
     }
 
     /* ── Start ───────────────────────────────────── */

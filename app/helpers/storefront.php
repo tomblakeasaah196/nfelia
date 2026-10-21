@@ -13,6 +13,16 @@
  * about_text, delivery_info…) by storefront_settings_from_legacy(), so it
  * looks the way its owner left it.
  *
+ * The brand set in Settings (app/helpers/brand.php) leads: font '' and the
+ * colour set 'brand' follow it, and fall back to the look's own fonts and
+ * colours while the business has no brand. Shop Studio can still pick
+ * something else for the shop alone.
+ *
+ * A shop has pages: the home page, its full list at /shop, its contact page
+ * at /contact and its news at /news (sf_section_page says where each section
+ * lives). Every look has them; looks with 'cover' and 'backdrop' (Atelier)
+ * also open on a full-screen slideshow and keep a faint photo behind the page.
+ *
  * Every colour that reaches a page goes through sf_palette(), which darkens or
  * lightens what it must so text stays at 4.5:1 or better. assets/js/studio.js
  * repeats the same sums so colour changes show instantly in the preview; the
@@ -22,7 +32,9 @@
  * assets/js/storefront.js.
  */
 
-const STOREFRONT_SETTINGS_VERSION = 1;
+// 2: the Settings brand leads (font '', colours 'brand'), hero slides and
+// page background, the announcement's end date and the map
+const STOREFRONT_SETTINGS_VERSION = 2;
 const STOREFRONT_MAX_SETTINGS_BYTES = 65536;
 const STOREFRONT_IMAGE_WIDTHS = [320, 640, 960, 1280];
 // Link-preview copies (JPEG): this wide at most, and small enough that
@@ -50,6 +62,8 @@ const STOREFRONT_VARIANT_PATH = '(?:products|heroes|logos|storefront)/\d+/[A-Za-
  *   tiles    how "New in" draws each product
  *   off      sections that start switched off in this look
  *   labels   default words, used until the owner types their own
+ *   slides   how many hero photos the look shows (the 'cover' hero plays them in turn)
+ *   backdrop the page background photo, faint behind every page
  */
 function storefront_looks(): array {
     static $looks = null;
@@ -62,11 +76,14 @@ function storefront_looks(): array {
             'pair'    => 'bodoni',
             'colours' => ['ground' => '#F6F6F3', 'ink' => '#161A33', 'muted' => '#4A4E66', 'accent' => '#2E3F9E', 'on' => '#FFFFFF', 'motif' => '#DCE2F5', 'line' => '#DCDCE3', 'surface' => '#E8E8E2'],
             'band'    => null,
-            'shape'   => ['hero' => '0px', 'tile' => '0px', 'btn' => '0px', 'card' => '0px', 'chip' => '0px', 'field' => '0px'],
-            'hero'    => 'editorial',
+            'shape'   => ['hero' => '0px', 'tile' => '0px', 'btn' => '0px', 'card' => '2px', 'chip' => '0px', 'field' => '0px'],
+            'hero'    => 'cover',
             'items'   => 'editorial',
             'tiles'   => 'portrait',
-            'labels'  => ['button' => 'Shop now', 'catalogue' => 'All pieces', 'quote' => 'Something made for you'],
+            'slides'  => 5,
+            'backdrop' => true,
+            'labels'  => ['button' => 'Shop the collection', 'catalogue' => 'All pieces', 'quote' => 'Something made for you',
+                          'about' => 'Our story', 'location' => 'Visit us'],
         ],
         'buka' => [
             'kind'    => 'Food and drinks',
@@ -172,9 +189,9 @@ function storefront_looks(): array {
         ],
     ];
     foreach ($looks as $key => &$look) {
-        $look += STOREFRONT_LOOKS[$key] + ['off' => []];
+        $look += STOREFRONT_LOOKS[$key] + ['off' => [], 'slides' => 1, 'backdrop' => false];
         $look['labels'] += ['featured' => 'New in', 'about' => 'About us', 'delivery' => 'Delivery and payment',
-                            'faq' => 'Questions people ask', 'video' => 'Watch'];
+                            'faq' => 'Questions people ask', 'video' => 'Watch', 'location' => 'Find us'];
     }
     unset($look);
     return $looks;
@@ -229,24 +246,29 @@ function storefront_colour_sets(): array {
  * or offered (for sections still being built).
  *
  * Field kinds: line (one line), text (paragraphs), bool, youtube, image,
- * products (a list of product ids), faq (question and answer pairs).
+ * media (a list of photos and videos), backdrop (a photo, '' for the first
+ * slide, or 'none'), date (YYYY-MM-DD or ''), lat, lng, zoom, products (a
+ * list of product ids), faq (question and answer pairs).
  */
 function storefront_section_types(): array {
     return [
-        'announcement' => ['name' => 'Announcement bar', 'hint' => 'One line across the top of your shop', 'pin' => 'top', 'switch' => true, 'on' => false, 'available' => true,
-            'fields' => ['text' => ['kind' => 'line', 'max' => 120, 'label' => 'Message']]],
-        'hero' => ['name' => 'Top of your shop', 'hint' => 'Your headline, a line or two and a photo', 'pin' => 'top', 'switch' => false, 'on' => true, 'available' => true,
+        'announcement' => ['name' => 'Announcement bar', 'hint' => 'One line across the top of every page of your shop', 'pin' => 'top', 'switch' => true, 'on' => false, 'available' => true,
+            'fields' => ['text'  => ['kind' => 'line', 'max' => 120, 'label' => 'Message'],
+                         'until' => ['kind' => 'date', 'label' => 'Hide it after']]],
+        'hero' => ['name' => 'Top of your shop', 'hint' => 'Your headline, a line or two and your photos', 'pin' => 'top', 'switch' => false, 'on' => true, 'available' => true,
             'fields' => [
-                'headline' => ['kind' => 'line', 'max' => 90, 'label' => 'Headline'],
-                'text'     => ['kind' => 'text', 'max' => 300, 'label' => 'A line or two under it'],
-                'button'   => ['kind' => 'line', 'max' => 30, 'label' => 'Button'],
-                'badge'    => ['kind' => 'line', 'max' => 40, 'label' => 'Sticker'],
-                'image'    => ['kind' => 'image', 'label' => 'Photo or video'],
+                'headline'   => ['kind' => 'line', 'max' => 90, 'label' => 'Headline'],
+                'text'       => ['kind' => 'text', 'max' => 300, 'label' => 'A line or two under it'],
+                'button'     => ['kind' => 'line', 'max' => 30, 'label' => 'Button'],
+                'badge'      => ['kind' => 'line', 'max' => 40, 'label' => 'Sticker'],
+                'image'      => ['kind' => 'image', 'label' => 'Photo or video'],   // the first slide, kept for older readers
+                'slides'     => ['kind' => 'media', 'max' => 5, 'label' => 'Photos and videos'],
+                'background' => ['kind' => 'backdrop', 'label' => 'Page background'],
             ]],
         'featured' => ['name' => 'New in', 'hint' => 'A few products at the top. Pick them, or we show your newest.', 'pin' => null, 'switch' => true, 'on' => true, 'available' => true,
             'fields' => ['title' => ['kind' => 'line', 'max' => 50, 'label' => 'Title'],
                          'products' => ['kind' => 'products', 'max' => 8, 'label' => 'Products to show']]],
-        'catalogue' => ['name' => 'Everything you sell', 'hint' => 'Your products and services, with a filter by category', 'pin' => null, 'switch' => true, 'on' => true, 'available' => true,
+        'catalogue' => ['name' => 'Everything you sell', 'hint' => 'Your products and services on your shop\'s own page, with a search and a filter by category. Your home page shows your categories, with a link to it.', 'pin' => null, 'switch' => true, 'on' => true, 'available' => true,
             'fields' => ['title' => ['kind' => 'line', 'max' => 50, 'label' => 'Title'],
                          'only' => ['kind' => 'products', 'max' => 500, 'label' => 'Only show these']]],
         'about' => ['name' => 'About us', 'hint' => '', 'pin' => null, 'switch' => true, 'on' => true, 'available' => true,
@@ -255,14 +277,14 @@ function storefront_section_types(): array {
         'video' => ['name' => 'Video', 'hint' => 'A YouTube video, loaded only when someone taps play', 'pin' => null, 'switch' => true, 'on' => false, 'available' => true,
             'fields' => ['title' => ['kind' => 'line', 'max' => 50, 'label' => 'Title'],
                          'url' => ['kind' => 'youtube', 'label' => 'YouTube link']]],
-        'delivery' => ['name' => 'Delivery and payment', 'hint' => '', 'pin' => null, 'switch' => true, 'on' => true, 'available' => true,
+        'delivery' => ['name' => 'Delivery and payment', 'hint' => 'Shown on your shop\'s page, under your products.', 'pin' => null, 'switch' => true, 'on' => true, 'available' => true,
             'fields' => ['title' => ['kind' => 'line', 'max' => 50, 'label' => 'Title'],
                          'text' => ['kind' => 'text', 'max' => 500, 'label' => 'How you deliver'],
                          'show_bank' => ['kind' => 'bool', 'label' => 'Show my bank details']]],
-        'faq' => ['name' => 'Questions people ask', 'hint' => '', 'pin' => null, 'switch' => true, 'on' => false, 'available' => true,
+        'faq' => ['name' => 'Questions people ask', 'hint' => 'Shown on your contact page.', 'pin' => null, 'switch' => true, 'on' => false, 'available' => true,
             'fields' => ['title' => ['kind' => 'line', 'max' => 50, 'label' => 'Title'],
                          'items' => ['kind' => 'faq', 'max' => 10, 'label' => 'Questions']]],
-        'quote' => ['name' => 'Custom and bulk orders', 'hint' => 'A form people fill in to ask for a price', 'pin' => null, 'switch' => true, 'on' => true, 'available' => true,
+        'quote' => ['name' => 'Custom and bulk orders', 'hint' => 'A form people fill in to ask for a price, on your contact page. Your home page shows a button to it.', 'pin' => null, 'switch' => true, 'on' => true, 'available' => true,
             'fields' => [
                 'title'             => ['kind' => 'line', 'max' => 50, 'label' => 'Title'],
                 'text'              => ['kind' => 'text', 'max' => 300, 'label' => 'A line under the title'],
@@ -279,6 +301,14 @@ function storefront_section_types(): array {
                          'text' => ['kind' => 'text', 'max' => 300, 'label' => 'A line under the title']]],
         'news'    => ['name' => 'News and offers', 'hint' => 'Your newest posts. Write them in News and offers; they show once the first one is published.', 'pin' => null, 'switch' => true, 'on' => true, 'available' => true,
             'fields' => ['title' => ['kind' => 'line', 'max' => 50, 'label' => 'Title']]],
+        'location' => ['name' => 'Map and directions', 'hint' => 'Your address on a map at the bottom of your shop, with a Get directions button. It shows once you place your pin.', 'pin' => 'bottom', 'switch' => true, 'on' => true, 'available' => true,
+            'fields' => [
+                'title' => ['kind' => 'line', 'max' => 50, 'label' => 'Title'],
+                'note'  => ['kind' => 'text', 'max' => 200, 'label' => 'How to find you, like a landmark'],
+                'lat'   => ['kind' => 'lat'],
+                'lng'   => ['kind' => 'lng'],
+                'zoom'  => ['kind' => 'zoom'],
+            ]],
         'contact' => ['name' => 'Contact and footer', 'hint' => 'Your WhatsApp, socials and address', 'pin' => 'bottom', 'switch' => false, 'on' => true, 'available' => true,
             'fields' => [
                 'text'         => ['kind' => 'text', 'max' => 200, 'label' => 'A short line, like your opening hours'],
@@ -322,13 +352,14 @@ function storefront_settings_from_legacy(array $business): array {
     $hero     = (string)($business['hero_image_path'] ?? '');
 
     return storefront_normalise([
+        'v'        => STOREFRONT_SETTINGS_VERSION,
         'look'     => storefront_default_look($business),
-        'colours'  => ['set' => 'look'],
+        'colours'  => ['set' => 'brand'],
         'font'     => '',
         'sections' => [
             ['type' => 'announcement', 'on' => false, 'text' => ''],
             ['type' => 'hero', 'on' => true, 'headline' => trim((string)($business['tagline'] ?? '')) ?: (string)$business['name'],
-             'text' => '', 'button' => '', 'badge' => '', 'image' => $hero],
+             'text' => '', 'button' => '', 'badge' => '', 'image' => $hero, 'slides' => $hero !== '' ? [$hero] : []],
             // The old screen's "featured products" chose what the shop
             // showed at all, so they become the catalogue's list
             ['type' => 'featured', 'on' => !in_array('featured', storefront_looks()[storefront_default_look($business)]['off'], true), 'title' => '', 'products' => []],
@@ -370,6 +401,7 @@ function storefront_settings(array $business, string $which = 'published'): arra
  * defaults, so a settings blob can never break a page.
  */
 function storefront_normalise(array $raw, array $business): array {
+    $raw   = sf_upgrade_settings($raw, $business);
     $looks = storefront_looks();
     $look  = is_string($raw['look'] ?? null) && isset($looks[$raw['look']]) ? $raw['look'] : storefront_default_look($business);
     $font  = is_string($raw['font'] ?? null) && isset(storefront_fonts()[$raw['font']]) ? $raw['font'] : '';
@@ -390,11 +422,12 @@ function storefront_normalise(array $raw, array $business): array {
         }
     }
 
-    // Pinned sections keep their place whatever order arrives
+    // Pinned sections keep their place whatever order arrives; the footer is last
     $top    = array_values(array_filter($sections, fn($s) => $types[$s['type']]['pin'] === 'top'));
     $middle = array_values(array_filter($sections, fn($s) => $types[$s['type']]['pin'] === null));
     $bottom = array_values(array_filter($sections, fn($s) => $types[$s['type']]['pin'] === 'bottom'));
     usort($top, fn($a, $b) => $a['type'] === 'announcement' ? -1 : ($b['type'] === 'announcement' ? 1 : 0));
+    usort($bottom, fn($a, $b) => ($a['type'] === 'contact') <=> ($b['type'] === 'contact'));
 
     return [
         'v'        => STOREFRONT_SETTINGS_VERSION,
@@ -404,6 +437,48 @@ function storefront_normalise(array $raw, array $business): array {
         'sections' => array_merge($top, $middle, $bottom),
         'seo'      => sf_clean_seo(is_array($raw['seo'] ?? null) ? $raw['seo'] : [], $business),
     ];
+}
+
+/**
+ * Settings stored before version 2 (October 2026), brought up to date when
+ * read. The brand set in Settings now leads: a shop whose owner chose brand
+ * fonts or colours switches to them, whatever was picked in Shop Studio
+ * before (the owner's call), in a set as dark or light as the shop was. The
+ * look's own colours, which every shop had until its owner picked others,
+ * become 'brand', which keeps showing them until there is a brand.
+ */
+function sf_upgrade_settings(array $raw, array $business): array {
+    if ((int)($raw['v'] ?? 1) >= 2) {
+        return $raw;
+    }
+    if (brand_fonts($business) !== null) {
+        $raw['font'] = '';
+    }
+    $was = sf_clean_colours(is_array($raw['colours'] ?? null) ? $raw['colours'] : []);
+    if (brand_colours($business) !== null) {
+        $look = is_string($raw['look'] ?? null) && isset(storefront_looks()[$raw['look']]) ? $raw['look'] : storefront_default_look($business);
+        $dark = sf_palette(sf_colour_set(['look' => $look, 'colours' => $was], $business))['dark'];
+        $raw['colours'] = ['set' => 'brand', 'mode' => $dark ? 'dark' : 'light'];
+    } elseif ($was['set'] === 'look') {
+        $raw['colours'] = ['set' => 'brand'];
+    }
+    $raw['v'] = 2;
+    return $raw;
+}
+
+/**
+ * Which page of the shop a section is on: the home page, the full list
+ * ('catalogue', at /shop) or the contact page (/contact). The announcement
+ * and the footer are on every page. The home page also shows a taste of the
+ * list, the "made for you" button and the map.
+ */
+function sf_section_page(string $type): string {
+    return match ($type) {
+        'catalogue', 'delivery' => 'catalogue',
+        'quote', 'faq'          => 'contact',
+        'announcement', 'contact' => 'all',
+        default                 => 'home',
+    };
 }
 
 /**
@@ -490,21 +565,69 @@ function sf_clean_section(string $type, array $raw, int $business_id): array {
             'bool'     => sf_bool($value ?? (sf_section_defaults($type)[$key] ?? false)),
             'youtube'  => sf_youtube_id((string)(is_string($value) ? $value : '')) !== null ? sf_clean_line($value, 300) : '',
             'image'    => sf_clean_media_path($value, $business_id),
+            'media'    => sf_clean_media_list($value, $business_id, $field['max']),
+            'backdrop' => in_array($value, ['', 'none'], true) ? $value : sf_clean_photo_path($value, $business_id),
+            'date'     => is_string($value) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) && checkdate((int)substr($value, 5, 2), (int)substr($value, 8, 2), (int)substr($value, 0, 4)) ? $value : '',
+            'lat'      => is_numeric($value) && abs((float)$value) <= 90 ? round((float)$value, 6) : null,
+            'lng'      => is_numeric($value) && abs((float)$value) <= 180 ? round((float)$value, 6) : null,
+            'zoom'     => is_numeric($value) ? max(3, min(19, (int)$value)) : 16,
             'products' => sf_clean_ids($value, $field['max']),
             'faq'      => sf_clean_faq($value, $field['max']),
             'handle'   => sf_social_handle(is_string($value) ? $value : ''),
             default    => null,
         };
     }
+    if ($type === 'hero') {
+        // The slides lead; an older setting has only the one photo. The first
+        // slide stays in 'image' for whatever still reads that.
+        if (!$clean['slides'] && $clean['image'] !== '') {
+            $clean['slides'] = [$clean['image']];
+        }
+        $clean['image'] = $clean['slides'][0] ?? '';
+    }
+    if ($type === 'location' && ($clean['lat'] === null || $clean['lng'] === null)) {
+        $clean['lat'] = $clean['lng'] = null;
+    }
     return $clean;
 }
 
 /**
- * A colour choice: the look's own set, one of the four sets, three colours
- * read from the logo, or the owner's own accent over another set.
+ * Hero photos and videos, each belonging to this business, without repeats.
+ */
+function sf_clean_media_list(mixed $value, int $business_id, int $max): array {
+    $paths = [];
+    foreach (is_array($value) ? $value : [] as $one) {
+        $path = sf_clean_media_path($one, $business_id);
+        if ($path !== '' && !in_array($path, $paths, true)) {
+            $paths[] = $path;
+            if (count($paths) >= $max) {
+                break;
+            }
+        }
+    }
+    return $paths;
+}
+
+/**
+ * A still photo of this business's (no video or GIF), for the page background.
+ */
+function sf_clean_photo_path(mixed $value, int $business_id): string {
+    $path = sf_clean_media_path($value, $business_id);
+    return preg_match('/\.(png|jpe?g|webp)$/', $path) ? $path : '';
+}
+
+/**
+ * A colour choice: the brand's colours from Settings (light or dark; the
+ * look's own while there is no brand), the look's own set, one of the four
+ * sets, three colours read from the logo, or the owner's own accent over
+ * another set.
  */
 function sf_clean_colours(array $raw): array {
-    $set = is_string($raw['set'] ?? null) ? $raw['set'] : 'look';
+    $set = is_string($raw['set'] ?? null) ? $raw['set'] : 'brand';
+    if ($set === 'brand') {
+        $mode = $raw['mode'] ?? '';
+        return ['set' => 'brand', 'mode' => in_array($mode, ['light', 'dark'], true) ? $mode : ''];
+    }
     if ($set === 'look' || isset(storefront_colour_sets()[$set])) {
         return ['set' => $set];
     }
@@ -521,7 +644,7 @@ function sf_clean_colours(array $raw): array {
         $base = is_string($raw['base'] ?? null) && isset(storefront_colour_sets()[$raw['base']]) ? $raw['base'] : 'look';
         return ['set' => 'custom', 'base' => $base, 'accent' => $accent];
     }
-    return ['set' => 'look'];
+    return ['set' => 'brand', 'mode' => ''];
 }
 
 function sf_bool(mixed $value): bool {
@@ -790,13 +913,24 @@ function sf_palette(array $set, ?string $band = null): array {
 }
 
 /**
- * The colour set a settings array asks for, before contrast checks.
+ * The colour set a settings array asks for, before contrast checks. 'brand'
+ * needs the business: its colours from Settings, else the look's own.
  */
-function sf_colour_set(array $settings): array {
+function sf_colour_set(array $settings, array $business = []): array {
     $look   = storefront_looks()[$settings['look']] ?? storefront_looks()['atelier'];
     $c      = $settings['colours'];
     $sets   = storefront_colour_sets();
     $chosen = fn(string $key) => $key === 'look' ? $look['colours'] : $sets[$key];
+
+    if ($c['set'] === 'brand') {
+        $brand = brand_colours($business);
+        if ($brand === null) {
+            return $look['colours'];
+        }
+        // Light unless the owner chose dark, or the look itself is dark
+        $mode = ($c['mode'] ?? '') !== '' ? $c['mode'] : (sf_palette($look['colours'])['dark'] ? 'dark' : 'light');
+        return brand_colour_set($brand, $mode);
+    }
 
     return match ($c['set']) {
         'logo'   => ['ground' => $c['ground'], 'ink' => $c['ink'], 'accent' => $c['accent']],
@@ -809,16 +943,27 @@ function sf_colour_set(array $settings): array {
 
 /**
  * Everything a page needs to draw these settings: the look, the font pair,
- * the checked colours and the CSS custom properties that carry them.
+ * the checked colours and the CSS custom properties that carry them. With
+ * the business, font '' and colours 'brand' follow its brand from Settings.
  */
-function storefront_resolve(array $settings): array {
+function storefront_resolve(array $settings, array $business = []): array {
     $looks = storefront_looks();
     $look  = $looks[$settings['look']] ?? $looks['atelier'];
     $fonts = storefront_fonts();
-    $pair  = $settings['font'] !== '' ? $settings['font'] : $look['pair'];
-    $font  = $fonts[$pair] ?? $fonts['bodoni'];
+    $brand_pair = $settings['font'] === '' && $business ? brand_font_pair($business) : null;
+    $pair  = $brand_pair ? 'brand' : ($settings['font'] !== '' ? $settings['font'] : $look['pair']);
+    $font  = $brand_pair ?? ($fonts[$pair] ?? $fonts['bodoni']);
 
-    $palette = sf_palette(sf_colour_set($settings), $look['band']);
+    $set = sf_colour_set($settings, $business);
+    // A look's own second colour stays with it; a brand brings its own
+    $palette = sf_palette($set, $look['band'] ?? ($settings['colours']['set'] === 'brand' ? ($set['band'] ?? null) : null));
+    if ($look['backdrop']) {
+        // Text over the faint page photo: still 4.5:1 where the photo is
+        // darkest (on a light ground) or lightest (on a dark one)
+        $worst = sf_mix($palette['ground'], $palette['dark'] ? '#FFFFFF' : '#000000', 0.16);
+        $palette['muted']       = sf_readable($palette['muted'], $worst);
+        $palette['accent_text'] = sf_readable($palette['accent_text'], $worst);
+    }
     $vars = [
         '--sf-ground'      => $palette['ground'],
         '--sf-ink'         => $palette['ink'],
@@ -834,6 +979,9 @@ function storefront_resolve(array $settings): array {
         '--sf-band'        => $palette['band'],
         '--sf-band-ink'    => $palette['band_ink'],
         '--sf-tint'        => $palette['tint'],
+        // The dark of the palette, for fades over photos, and the light words on it
+        '--sf-scrim'       => $palette['dark'] ? $palette['ground'] : $palette['ink'],
+        '--sf-paper'       => $palette['dark'] ? $palette['ink'] : $palette['ground'],
         '--sf-head'        => $font['head_stack'],
         '--sf-body'        => $font['body_stack'],
         '--sf-head-weight' => (string)$font['weight'],
@@ -854,7 +1002,7 @@ function storefront_resolve(array $settings): array {
         'font'      => $font,
         'palette'   => $palette,
         'vars'      => $vars,
-        'fonts_url' => storefront_fonts_url($pair),
+        'fonts_url' => $brand_pair ? $brand_pair['url'] : storefront_fonts_url($pair),
         'classes'   => 'sf look-' . $settings['look'] . ' font-' . $pair . ($palette['dark'] ? ' is-dark' : ' is-light'),
     ];
 }
@@ -1257,6 +1405,7 @@ function sf_icon(string $name, int $size = 20, string $class = ''): string {
         'bag'       => '<path d="M6 7h12l-1 13H7L6 7z"/><path d="M9 7a3 3 0 0 1 6 0"/>',
         'basket'    => '<path d="M3 9h18l-2 10H5L3 9z"/><path d="M8 9l3-5M16 9l-3-5M9 13v3M15 13v3"/>',
         'list'      => '<path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/>',
+        'clipboard' => '<rect x="5" y="5" width="14" height="16" rx="2"/><path d="M9 3h6v4H9z"/><path d="M9 12h6M9 16h4"/>',
         'whatsapp'  => '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/><path d="M9.2 9.3c.3 1.9 2.3 4.2 4.6 4.6l.9-1 1.6.8-.4 1.3c-2.9.4-6.5-3-6.4-6.2l1.2-.5.8 1.6-1 .9" stroke-width="1.4"/>',
         'instagram' => '<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><path d="M17.5 6.5h.01"/>',
         'facebook'  => '<path d="M14 8h3V4h-3a4 4 0 0 0-4 4v3H7v4h3v6h4v-6h3l1-4h-4V8z"/>',
@@ -1287,6 +1436,9 @@ function sf_icon(string $name, int $size = 20, string $class = ''): string {
         'image'     => '<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="M21 15.5l-5-5L6 20.5"/>',
         'star'      => '<path d="M12 2.8l2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17.2l-5.6 3 1.1-6.3-4.6-4.4 6.3-.9z"/>',
         'calendar'  => '<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
+        'menu'      => '<path d="M4 7h16M4 12h16M4 17h10"/>',
+        'pause'     => '<path d="M9 6v12M15 6v12"/>',
+        'route'     => '<circle cx="6" cy="18" r="2.2"/><path d="M8.2 18H15a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h6.5"/><path d="M15 3.5L18 6l-3 2.5"/>',
     ];
     return '<svg width="' . $size . '" height="' . $size . '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"'
          . ($class !== '' ? ' class="' . e($class) . '"' : '') . '>' . ($paths[$name] ?? '') . '</svg>';
@@ -1310,7 +1462,11 @@ function sf_short_address(array $business): string {
  * and 'look' for the full-size previews on the setup screen. Previews can't
  * place orders and show empty sections as gaps to fill.
  *
- * $page says which page: ['kind' => 'shop'] (the default), or on live shops
+ * $page says which page: ['kind' => 'shop'] (the home page, the default),
+ *   ['kind' => 'catalogue']                                everything it sells (/shop)
+ *   ['kind' => 'contact']                                  the contact page (/contact)
+ *   ['kind' => 'news', 'posts' => …]                       its news (/news)
+ * or on live shops
  *   ['kind' => 'product', 'item' => …]                     a product's page
  *   ['kind' => 'order', 'order' => …]                      a tracking page
  *   ['kind' => 'review', 'review' => …, 'error', 'comment'] the review form
@@ -1318,9 +1474,36 @@ function sf_short_address(array $business): string {
  */
 function storefront_render(array $business, array $settings, string $mode = 'live', string $visibility = 'live', array $page = [], ?array $catalogue = null): void {
     $page     += ['kind' => 'shop'];
-    $theme     = storefront_resolve($settings);
+    $theme     = storefront_resolve($settings, $business);
     $catalogue = $catalogue ?? storefront_catalogue($business, $settings);
     require BASE_PATH . '/views/storefront/shell.php';
+}
+
+/**
+ * The address of one of the shop's pages ('home', 'catalogue', 'contact',
+ * 'news'), for links between them: the live shop's own paths, Shop Studio's
+ * preview of the draft, or nothing to follow in the setup screen's look
+ * previews. shell.php sets the mode for each page it draws.
+ */
+function sf_page_href(string $page, string $hash = ''): string {
+    $mode = sf_render_mode();
+    if ($mode === 'live') {
+        $path = ['catalogue' => '/shop', 'contact' => '/contact', 'news' => '/news'][$page] ?? '/';
+    } elseif ($mode === 'preview') {
+        $path = APP_URL . '/landing-page/preview' . ($page !== 'home' ? '?page=' . $page : '');
+    } else {
+        return $hash !== '' ? $hash : '#';
+    }
+    return $path . $hash;
+}
+
+/** The mode of the page being drawn: 'live', 'preview' or 'look'. */
+function sf_render_mode(?string $set = null): string {
+    static $mode = 'live';
+    if ($set !== null) {
+        $mode = $set;
+    }
+    return $mode;
 }
 
 /* ──────────────────────────────────────────

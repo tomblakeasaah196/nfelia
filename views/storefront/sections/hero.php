@@ -10,7 +10,9 @@ $headline = $hero_section['headline'] !== '' ? $hero_section['headline'] : (stri
 $button   = $hero_section['button'] !== '' ? $hero_section['button'] : $labels['button'];
 $has_items = (bool)$catalogue['items'];
 $cat_on   = $sections['catalogue']['on'] && $has_items;
-$go       = $cat_on ? '#sf-catalogue' : ($quote_on ? '#sf-quote' : '');
+// The button goes to the shop's list, else its request form
+$go       = $cat_on ? sf_page_href('catalogue') : ($quote_on ? sf_quote_href() : '');
+$quote_title = $sections['quote']['title'] !== '' ? $sections['quote']['title'] : $labels['quote'];
 
 // The photo or video, if the owner has one
 $image     = $hero_section['image'];
@@ -28,7 +30,7 @@ if ($image !== '' && is_file(BASE_PATH . '/' . $image)) {
 }
 // Looks with a drawing show it until there is a photo (and under a video
 // until it plays)
-$motif = in_array($variant, ['editorial', 'plate', 'soft', 'arch', 'stamp', 'shelf', 'facade'], true) && ($media === '' || $is_video)
+$motif = in_array($variant, ['plate', 'soft', 'arch', 'stamp', 'shelf', 'facade'], true) && ($media === '' || $is_video)
     ? sf_motif($settings['look'], $ctx) : '';
 $frame = $media !== '' || $motif !== '' ? $motif . $media : '';
 
@@ -47,17 +49,42 @@ $text_html = $hero_section['text'] !== '' ? sf_paragraphs($hero_section['text'],
 <section class="sf-hero sf-hero--<?= e($variant) ?>" id="sf-hero" aria-labelledby="sf-hero-title">
 <?php switch ($variant):
 
-    case 'editorial': ?>
-    <div class="sf-hero__grid">
-        <?php if ($frame !== ''): ?><div class="sf-hero__frame"><?= $frame ?></div><?php endif; ?>
-        <div class="sf-hero__body">
-            <?php if ($badge !== ''): ?><p class="sf-hero__badge"><?= e($badge) ?></p><?php endif; ?>
-            <h1 class="sf-h1" id="sf-hero-title"><?= e($headline) ?></h1>
-            <?= $text_html ?>
-            <div class="sf-hero__actions">
-                <?= $primary ?>
-                <?php if ($quote_on && $go !== '#sf-quote'): ?><a class="sf-link" href="#sf-quote"><?= e($sections['quote']['title'] !== '' ? $sections['quote']['title'] : 'Ask for a quote') ?></a><?php endif; ?>
-            </div>
+    case 'cover':
+        // Atelier: the photos fill the first screen and take turns, with the
+        // words on a dark fade at the bottom (storefront.js runs the slides)
+        $slides = array_values(array_filter($hero_section['slides'], fn($rel) => is_file(BASE_PATH . '/' . $rel)));
+        $count  = count($slides);
+        $second = $quote_on && $cat_on
+            ? '<a class="sf-btn sf-btn--glass" href="' . e(sf_quote_href()) . '">' . e($quote_title) . '</a>'
+            : ($wa !== '' ? '<a class="sf-btn sf-btn--glass" href="https://wa.me/' . e($wa) . '?text=' . e(rawurlencode('Hello ' . $business['name'] . ', I found your shop and I would like to order.')) . '" target="_blank" rel="noopener">' . sf_icon('whatsapp', 20) . '<span>Order on WhatsApp</span></a>' : '');
+    ?>
+    <div class="sf-cover" data-cover<?= $count > 1 ? ' data-interval="6500"' : '' ?>>
+        <div class="sf-cover__media"<?= $count > 1 ? ' role="group" aria-roledescription="carousel" aria-label="' . e('Photos from ' . $business['name']) . '"' : '' ?>>
+            <?php if (!$slides): ?>
+                <div class="sf-cover__slide sf-cover__slide--drawn is-on"><?= sf_motif($settings['look'], $ctx) ?></div>
+            <?php endif; ?>
+            <?php foreach ($slides as $i => $rel): ?>
+                <div class="sf-cover__slide<?= $i === 0 ? ' is-on' : '' ?>"<?= $count > 1 ? ' role="group" aria-roledescription="slide" aria-label="' . ($i + 1) . ' of ' . $count . '"' : '' ?><?= $i ? ' aria-hidden="true"' : '' ?>>
+                    <?= sf_cover_media($rel, $i) ?>
+                </div>
+            <?php endforeach; ?>
+        </div>
+        <div class="sf-cover__fade" aria-hidden="true"></div>
+        <div class="sf-wrap sf-cover__body">
+            <?php if ($badge !== ''): ?><p class="sf-cover__badge"><?= e($badge) ?></p><?php endif; ?>
+            <h1 class="sf-h1 sf-cover__title" id="sf-hero-title"><?= e($headline) ?></h1>
+            <?= $hero_section['text'] !== '' ? sf_paragraphs($hero_section['text'], 'sf-cover__lead') : '' ?>
+            <?php if ($primary !== '' || $second !== ''): ?>
+                <div class="sf-cover__actions"><?= $primary ?><?= $second ?></div>
+            <?php endif; ?>
+            <?php if ($count > 1): ?>
+                <div class="sf-cover__bars">
+                    <?php foreach ($slides as $i => $rel): ?>
+                        <button type="button" class="sf-cover__bar" data-slide-to="<?= $i ?>" aria-label="Show photo <?= $i + 1 ?> of <?= $count ?>"<?= $i === 0 ? ' aria-current="true"' : '' ?>><span></span></button>
+                    <?php endforeach; ?>
+                    <button type="button" class="sf-cover__pause" data-cover-pause aria-label="Pause the photos" aria-pressed="false"><?= sf_icon('pause', 18) ?><?= sf_icon('play', 16, 'sf-cover__play') ?></button>
+                </div>
+            <?php endif; ?>
         </div>
     </div>
     <?php break;
@@ -95,7 +122,7 @@ $text_html = $hero_section['text'] !== '' ? sf_paragraphs($hero_section['text'],
         <?php if (count($catalogue['categories']) >= 2 && $cat_on): ?>
             <div class="sf-cattiles">
                 <?php foreach (array_slice($catalogue['categories'], 0, 4) as $i => $category): ?>
-                    <a class="sf-cattile" href="#sf-catalogue" data-filter-go="<?= e(mb_strtolower($category)) ?>">
+                    <a class="sf-cattile" href="<?= e(sf_page_href('catalogue', '#cat=' . rawurlencode(mb_strtolower($category)))) ?>">
                         <?= sf_icon(['grid', 'tag', 'sparkle', 'bag'][$i], 24) ?><span><?= e($category) ?></span>
                     </a>
                 <?php endforeach; ?>
@@ -148,7 +175,7 @@ $text_html = $hero_section['text'] !== '' ? sf_paragraphs($hero_section['text'],
             </p>
             <div class="sf-estimator__actions">
                 <?php if ($quote_on): ?>
-                    <a class="sf-btn sf-btn--block" href="#sf-quote" data-estimate-quote>Ask for a quote</a>
+                    <a class="sf-btn sf-btn--block" href="<?= e(sf_quote_href($first['name'])) ?>" data-estimate-quote>Ask for a quote</a>
                 <?php endif; ?>
                 <button type="button" class="sf-btn <?= $quote_on ? 'sf-btn--outline' : '' ?> sf-btn--block" data-estimate-open>See details</button>
             </div>

@@ -1,0 +1,89 @@
+/* ==========================================================================
+   Settings › Branding (views/settings/index.php, assets/js/brand.js)
+
+   A small preview in the brand's own colours and fonts, the two colours,
+   and two font pickers. A picker opens under its button: a search box,
+   kinds to narrow by, and every font named in its own letters.
+   The preview's colours and fonts arrive as --bp-* from brand.js.
+   ========================================================================== */
+
+.nf-brand { margin-top: 24px; }
+
+/* The preview: the top of a shop, and an invoice line */
+.nf-bp { margin: 12px 0 4px; overflow: hidden; border-radius: 16px; box-shadow: inset 0 0 0 1px var(--line); }
+.nf-bp__cover { display: grid; gap: 8px; padding: 22px 18px 18px; background: var(--bp-dark, #1F0A14); color: var(--bp-light, #FFFFFF); }
+.nf-bp__name { margin: 0; font-family: var(--bp-head, var(--font-heading)); font-weight: var(--bp-head-weight, 700); font-size: 1.875rem; line-height: 1.05; overflow-wrap: anywhere; }
+.nf-bp__line { margin: 0; max-width: 34ch; font-family: var(--bp-body, var(--font-body)); font-size: .9375rem; line-height: 1.5; opacity: .86; }
+.nf-bp__btn { justify-self: start; display: inline-flex; align-items: center; min-height: 40px; margin-top: 4px; padding: 0 18px; border-radius: 10px;
+  background: var(--bp-primary, var(--accent)); color: var(--bp-on, #FFFFFF); font-family: var(--bp-body, var(--font-body)); font-size: .9375rem; font-weight: 600; }
+.nf-bp__doc { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 14px 18px; background: #FFFFFF; font-family: var(--bp-body, var(--font-body)); font-size: .875rem; color: var(--ink-2); }
+.nf-bp__doc-title { font-family: var(--bp-head, var(--font-heading)); font-weight: var(--bp-head-weight, 700); font-size: 1.0625rem; color: var(--bp-text, var(--accent-text)); }
+.nf-bp__doc-total b { color: var(--bp-text, var(--accent-text)); font-weight: 700; }
+
+/* Colours and fonts */
+.nf-brand-group { margin: 22px 0 0; padding: 0; border: 0; min-width: 0; }
+.nf-brand-group > legend { margin: 0 0 10px; padding: 0; font: 600 1rem/1.3 var(--font-heading); color: var(--ink); }
+.nf-brand-group[disabled] { opacity: .7; }
+.nf-brand-colours { display: grid; gap: 14px; }
+.nf-brand-colour label, .nf-font__label { display: flex; flex-direction: column; gap: 2px; font: 600 .875rem/1.3 var(--font-body); color: var(--ink); }
+.nf-brand-colour label small, .nf-font__label small { font: 400 .8125rem/1.35 var(--font-body); color: var(--ink-3); }
+.nf-brand-colour__row { display: flex; gap: 8px; margin-top: 6px; }
+.nf-brand-colour__row input[type="color"] { flex: none; width: 52px; height: 52px; padding: 4px; border: 0; border-radius: 14px; background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); cursor: pointer; }
+.nf-brand-colour__row input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+.nf-brand-colour__row input[type="color"]::-webkit-color-swatch { border: 0; border-radius: 10px; }
+.nf-brand-colour__row input[type="color"]::-moz-color-swatch { border: 0; border-radius: 10px; }
+.nf-brand-colour__row input[type="text"] { flex: 1; min-width: 0; min-height: 52px; padding: 0 14px; border: 0; border-radius: 14px; background: var(--surface); box-shadow: inset 0 0 0 1px var(--line);
+  font: 600 1rem/1 var(--font-body); font-variant-numeric: tabular-nums; letter-spacing: .02em; text-transform: uppercase; color: var(--ink); }
+.nf-brand-colour__row input:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--accent-text); }
+
+.nf-brand-logo { display: grid; gap: 8px; margin-top: 14px; }
+.nf-brand-logo > .nf-btn { justify-self: start; min-height: 48px; box-shadow: inset 0 0 0 1px var(--line); background: var(--surface); color: var(--ink); }
+.nf-brand-logo > .nf-btn:disabled { opacity: .55; cursor: default; }
+.nf-brand-logo__picks { display: grid; gap: 10px; padding: 12px; border-radius: 16px; background: rgb(31 10 20 / .035); }
+.nf-brand-logo__picks > div { display: grid; gap: 6px; }
+@media (min-width: 480px) { .nf-brand-logo__picks > div { grid-template-columns: 88px 1fr; align-items: center; gap: 8px; } }
+.nf-brand-logo__picks span { font: 600 .8125rem/1.3 var(--font-body); color: var(--ink-2); }
+.nf-swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+.nf-swatch { width: 44px; height: 44px; border: 0; border-radius: 12px; box-shadow: inset 0 0 0 1px rgb(0 0 0 / .14); cursor: pointer; }
+.nf-swatch[aria-pressed="true"] { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+/* A font picker */
+.nf-font { position: relative; margin-top: 16px; }
+.nf-font:first-of-type { margin-top: 0; }
+.nf-font__trigger { width: 100%; min-height: 58px; margin-top: 6px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 14px 0 16px;
+  border: 0; border-radius: 14px; background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); color: var(--ink); text-align: left; cursor: pointer; }
+.nf-font__trigger svg { flex: none; color: var(--ink-3); transition: transform 150ms ease; }
+.nf-font.is-open .nf-font__trigger { box-shadow: inset 0 0 0 2px var(--accent-text); }
+.nf-font.is-open .nf-font__trigger svg { transform: rotate(180deg); }
+.nf-font__value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1.3125rem; line-height: 1.25; }
+.nf-font__value.is-empty { font: 400 .9375rem/1.3 var(--font-body); color: var(--ink-3); }
+.nf-font > .nf-help { margin-top: 6px; }
+.nf-font__pop { position: absolute; z-index: 30; left: 0; right: 0; top: calc(100% + 6px); display: flex; flex-direction: column; max-height: min(64vh, 460px); padding: 8px;
+  border-radius: 18px; background: #FFFFFF; box-shadow: 0 14px 44px rgb(31 10 20 / .18), inset 0 0 0 1px var(--line); }
+.nf-font__pop[hidden] { display: none; }
+.nf-font__search { flex: none; display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 12px; border-radius: 12px; background: rgb(31 10 20 / .045); color: var(--ink-3); }
+.nf-font__search:focus-within { box-shadow: inset 0 0 0 2px var(--accent-text); }
+.nf-font__search input { flex: 1; min-width: 0; height: 46px; border: 0; background: none; font: 400 1rem/1 var(--font-body); color: var(--ink); outline: none; }
+.nf-font__search input::-webkit-search-cancel-button { cursor: pointer; }
+.nf-font__kinds { flex: none; display: flex; gap: 6px; padding: 8px 0 6px; overflow-x: auto; scrollbar-width: none; }
+.nf-font__kinds::-webkit-scrollbar { display: none; }
+.nf-font__kind { flex: none; min-height: 36px; padding: 0 12px; border: 0; border-radius: 999px; background: rgb(31 10 20 / .05); font: 600 .8125rem/1 var(--font-body); color: var(--ink-2); cursor: pointer; }
+.nf-font__kind[aria-pressed="true"] { background: var(--ink); color: #FFFFFF; }
+.nf-font__list { flex: 1; min-height: 0; margin: 0; padding: 2px 0; list-style: none; overflow-y: auto; overscroll-behavior: contain; }
+.nf-font__option { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; padding: 6px 12px; border-radius: 12px; cursor: pointer; }
+.nf-font__option.is-active { background: rgb(var(--accent-rgb) / .08); }
+.nf-font__sample { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.25; color: var(--ink); }
+.nf-font__kindname { flex: none; font: 500 .75rem/1.2 var(--font-body); color: var(--ink-3); }
+.nf-font__option[aria-selected="true"] .nf-font__kindname { color: var(--accent-text); font-weight: 700; }
+.nf-font__none { margin: 0; padding: 16px 12px; font: 400 .9375rem/1.5 var(--font-body); color: var(--ink-2); }
+
+@media (min-width: 640px) {
+  .nf-brand-colours { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .nf-bp { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); }
+  .nf-bp__cover { padding: 26px 24px 22px; }
+  .nf-bp__name { font-size: 2.25rem; }
+  .nf-bp__doc { flex-direction: column; justify-content: center; gap: 8px; border-left: 1px solid var(--line); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nf-font__trigger svg { transition: none; }
+}

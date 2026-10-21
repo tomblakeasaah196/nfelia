@@ -11,6 +11,9 @@ const nm = (p) => path.join(root, 'node_modules', p);
 const copies = [
   ['alpinejs/dist/cdn.min.js', 'assets/vendor/alpine-3.14.3.min.js'],
   ['jquery/dist/jquery.min.js', 'assets/vendor/jquery-3.7.1.min.js'],
+  // Shop Studio's map, where owners drag their shop's pin
+  ['leaflet/dist/leaflet.js', 'assets/vendor/leaflet-1.9.4/leaflet.js'],
+  ['leaflet/dist/leaflet.css', 'assets/vendor/leaflet-1.9.4/leaflet.css'],
   ['@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-latin-wght-normal.woff2', 'assets/fonts/plus-jakarta-sans-latin.woff2'],
   ['@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-latin-ext-wght-normal.woff2', 'assets/fonts/plus-jakarta-sans-latin-ext.woff2'],
   ['@fontsource-variable/bricolage-grotesque/files/bricolage-grotesque-latin-wght-normal.woff2', 'assets/fonts/bricolage-grotesque-latin.woff2'],
