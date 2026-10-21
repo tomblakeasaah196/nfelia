@@ -26,12 +26,16 @@ $show_verify_banner = $user_role === 'owner' && !is_email_verified();
 $is_boss       = in_array($user_role, ['owner', 'admin'], true);
 
 // Phase 3 — Country session bootstrap
-// Load selected country from session, fallback to cookie, fallback to Nigeria
-if (!isset($_SESSION['selected_country'])) {
+// The business's country, else the one this device last picked (cookie),
+// else Nigeria. Kept in the session with the country it was looked up for,
+// and looked up again when that changes: a country picked on the phone
+// shows here at the next page (the session's copy of the business follows
+// the database, auth_still_member()).
+$resolve_id = (int)($business['country_id'] ?? 0) ?: (int)($_COOKIE['nfelia_country'] ?? 0);
+if (!isset($_SESSION['selected_country']) || ($_SESSION['selected_country_for'] ?? null) !== $resolve_id) {
+    $_SESSION['selected_country_for'] = $resolve_id;
+    unset($_SESSION['selected_country']);
     $db_country = get_db();
-    $country_id_cookie = (int)($_COOKIE['nfelia_country'] ?? 0);
-    $biz_country_id    = (int)($business['country_id'] ?? 0);
-    $resolve_id        = $biz_country_id ?: $country_id_cookie;
 
     if ($resolve_id) {
         $stmtC = $db_country->prepare("SELECT * FROM countries WHERE id = ? AND is_active = 1");

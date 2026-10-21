@@ -893,7 +893,14 @@ class SettingsController {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') { redirect('settings?tab=business'); return; }
         csrf_verify();
 
-        $stmt = $this->db->prepare("SELECT name, primary_color, secondary_color FROM businesses WHERE id = ?");
+        // The owner's alone, like the rest of the business's look (update_business)
+        if ((auth_user()['role'] ?? 'staff') !== 'owner') {
+            flash('error', 'Only the business owner can update business settings.');
+            redirect('settings');
+            return;
+        }
+
+        $stmt = $this->db->prepare("SELECT name, primary_color, secondary_color, logo_path FROM businesses WHERE id = ?");
         $stmt->execute([$this->biz_id]);
         $business = $stmt->fetch();
 
@@ -927,12 +934,20 @@ SVG;
         $upload_dir = BASE_PATH . '/uploads/logos/' . $this->biz_id;
         if (!is_dir($upload_dir)) mkdir($upload_dir, 0755, true);
 
-        $svg_path = $upload_dir . '/logo_autogen.svg';
-        file_put_contents($svg_path, $svg);
-        $relative_path = 'uploads/logos/' . $this->biz_id . '/logo_autogen.svg';
+        // A new name each time, like every upload: phones and browsers keep
+        // uploads for a month (bin/uploads.htaccess), so a logo redrawn under
+        // the old name went on showing the old initials and colours there.
+        $filename = 'logo_autogen_' . time() . '_' . bin2hex(random_bytes(4)) . '.svg';
+        file_put_contents($upload_dir . '/' . $filename, $svg);
+        $relative_path = 'uploads/logos/' . $this->biz_id . '/' . $filename;
 
         $this->db->prepare("UPDATE businesses SET logo_path = ? WHERE id = ?")
                   ->execute([$relative_path, $this->biz_id]);
+        // A replaced logo, and its copies, stop being public (W5)
+        $old_logo = (string)($business['logo_path'] ?? '');
+        if ($old_logo !== '' && $old_logo !== $relative_path) {
+            storefront_forget_image($old_logo);
+        }
         update_business_session(['logo_path' => $relative_path]);
         storefront_purge((int)$this->biz_id);
 

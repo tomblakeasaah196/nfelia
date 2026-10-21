@@ -23,7 +23,7 @@ function account_find(string $column, string|int $value): ?array
                b.onboarding_complete, b.onboarding_step,
                b.currency_symbol, b.font_pairing,
                b.tagline, b.address, b.phone as business_phone, b.email as business_email,
-               b.business_type, b.email_verified_at
+               b.business_type, b.email_verified_at, b.country_id
         FROM users u
         JOIN businesses b ON b.id = u.business_id
         WHERE {$column} = ? AND u.is_active = 1
@@ -82,6 +82,7 @@ function signin_session(array $user): void
             'font_pairing'        => $user['font_pairing'],
             'business_type'       => $user['business_type'],
             'email_verified_at'   => $user['email_verified_at'],
+            'country_id'          => $user['country_id'],
         ]
     );
 }

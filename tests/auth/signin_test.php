@@ -3,9 +3,12 @@
  * Sign-in hardening, against the running app: wrong passwords are counted
  * and paused (per account and per connection), the owner is told, new
  * passwords must meet the rules, changing a password signs out every other
- * browser and kept device, and "keep me signed in" tokens are stored as
- * hashes (app/helpers/auth.php, app/helpers/signin.php,
- * app/controllers/AuthController.php, app/middleware/auth_check.php).
+ * browser and kept device, "keep me signed in" tokens are stored as
+ * hashes, and a profile or business change made on one device (a name, a
+ * photo, the logo, the country) shows on the others at their next page
+ * (app/helpers/auth.php, app/helpers/signin.php,
+ * app/controllers/AuthController.php, app/middleware/auth_check.php,
+ * app/controllers/SettingsController.php, views/layouts/app.php).
  *   bash tests/notifications/run.sh auth/signin
  */
 require __DIR__ . '/../notifications/lib.php';
@@ -185,5 +188,77 @@ $m->post('logout');
 eq((int)q("SELECT COUNT(*) FROM sessions WHERE user_id = ?", [ADA]), 0, 'the row is gone');
 $m->close_browser();
 ok(!signed_in($m), 'and the cookie no longer signs in');
+
+/* ══ Two devices ═══════════════════════════════════════════════ */
+const PHOTO = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAACXBIWXMAAA7EAAAOxAGVKw4bAAAADElEQVQImWNgYGAAAAAEAAGjChXjAAAAAElFTkSuQmCC';
+
+section('A new name and photo saved on the phone show on the computer at its next page');
+$computer = signin(ADA_EMAIL);
+$phone    = signin(ADA_EMAIL);
+$computer->get('dashboard');
+ok(str_contains($computer->body, '<b>Ada Obi</b>'), 'the computer shows her name as it was');
+$phone->get('settings?tab=profile');
+$phone->post('settings/update_profile', ['full_name' => 'Ada Obi-Nwosu', 'email' => ADA_EMAIL, 'avatar_base64' => PHOTO])->follow();
+ok(str_contains($phone->body, 'Profile updated'), 'the phone saves them');
+$photo = (string)q("SELECT avatar_path FROM users WHERE id = ?", [ADA]);
+$computer->get('dashboard');
+ok(str_contains($computer->body, '<b>Ada Obi-Nwosu</b>'), 'the computer shows the new name, without signing in again');
+ok($photo !== '' && str_contains($computer->body, $photo), 'and the new photo');
+$computer->get('settings?tab=profile');
+ok(str_contains($computer->body, 'value="Ada Obi-Nwosu"'), 'its profile form holds the new name, so saving there cannot put the old one back');
+
+section('A photo removed on the phone goes from the computer too');
+$phone->post('settings/update_profile', ['full_name' => 'Ada Obi-Nwosu', 'email' => ADA_EMAIL, 'remove_avatar' => 1])->follow();
+$computer->get('dashboard');
+ok(!str_contains($computer->body, $photo), 'the computer no longer shows it');
+@unlink(BASE_PATH . '/' . $photo);
+
+section('A change to the business made on the phone shows on every computer, the team\'s too');
+$chidi = signin('chidi@adashair.test');
+$phone->get('settings?tab=business');
+$phone->post('settings/update_business', ['business_name' => 'Ada Beauty Studio', 'phone' => '08035550100', 'email' => 'hello@adashair.test',
+                                          'primary_color' => '#00764A', 'secondary_color' => '#B69F5E', 'currency_symbol' => '₦'])->follow();
+ok(str_contains($phone->body, 'Business profile updated'), 'the phone saves a new business name and colour');
+$computer->get('dashboard');
+ok(str_contains($computer->body, '<b>Ada Beauty Studio</b>'), 'Ada\'s computer shows the new name');
+ok(str_contains($computer->body, '--accent: ' . theme_tokens('#00764A', null)['accent'] . ';'), 'in the new colour');
+$chidi->get('dashboard');
+ok(str_contains($chidi->body, '<b>Ada Beauty Studio</b>'), 'and so does Chidi\'s, who was already signed in');
+
+section('A redrawn auto-logo gets a name of its own, so no browser keeps showing the old one');
+$logo = fn() => (string)q("SELECT logo_path FROM businesses WHERE id = 2");
+$drawn = fn(string $rel) => (string)@file_get_contents(BASE_PATH . '/' . $rel);
+$chidi->post('settings/generate-logo')->follow();
+eq($logo(), '', 'staff cannot make one: the page offers it to the owner only');
+$phone->post('settings/generate-logo')->follow();
+$first = $logo();
+ok(preg_match('#^uploads/logos/2/logo_autogen_\d+_[a-f0-9]{8}\.svg$#', $first) === 1, 'the owner makes one: ' . $first);
+ok(str_contains($drawn($first), '>AB</text>'), 'from the initials of Ada Beauty Studio');
+$computer->get('dashboard');
+ok(str_contains($computer->body, $first), 'and the computer shows it');
+$phone->post('settings/update_business', ['business_name' => 'Kemi Styles', 'phone' => '08035550100', 'email' => 'hello@adashair.test',
+                                          'primary_color' => '#00764A', 'secondary_color' => '#B69F5E', 'currency_symbol' => '₦', 'remove_logo' => 1])->follow();
+ok(!is_file(BASE_PATH . '/' . $first), 'removed with a rename, its file goes');
+$phone->post('settings/generate-logo')->follow();
+$second = $logo();
+ok($second !== '' && $second !== $first, 'drawn again, it is saved under a new name');
+ok(str_contains($drawn($second), '>KS</text>'), 'with the new initials');
+$computer->get('dashboard');
+ok(str_contains($computer->body, $second) && !str_contains($computer->body, $first), 'which the computer shows instead');
+$phone->post('settings/generate-logo')->follow();
+$third = $logo();
+ok($third !== $second && !is_file(BASE_PATH . '/' . $second), 'drawn over a logo, the one it replaces goes too');
+@unlink(BASE_PATH . '/' . $third);
+
+section('A country picked on the phone shows on the computer at its next page');
+$phone->get('dashboard');
+$phone->post('api/set-country', ['country_id' => 2]);
+eq($phone->data()['success'] ?? null, true, 'the phone picks Ghana');
+$computer->get('more');
+ok(str_contains($computer->body, '🇬🇭 GH₵'), 'the computer shows Ghana and the cedi');
+ok(str_contains($computer->body, 'setCountry(2)" @click="countryOpen = false" aria-current="true"'), 'and ticks Ghana in its country menu');
+$fresh = signin(ADA_EMAIL);
+$fresh->get('more');
+ok(str_contains($fresh->body, '🇬🇭 GH₵'), 'so does a browser signed in afresh, with no country cookie of its own');
 
 done();

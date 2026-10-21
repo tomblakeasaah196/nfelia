@@ -36,7 +36,7 @@ if (!is_logged_in()) {
                    b.logo_path, b.onboarding_complete, b.onboarding_step,
                    b.currency_symbol, b.font_pairing,
                    b.tagline, b.address, b.phone, b.email as business_email,
-                   b.business_type, b.email_verified_at
+                   b.business_type, b.email_verified_at, b.country_id
             FROM sessions s
             JOIN users u ON u.id = s.user_id
             JOIN businesses b ON b.id = s.business_id
@@ -79,6 +79,7 @@ if (!is_logged_in()) {
                     'email'               => $session['business_email'],
                     'business_type'       => $session['business_type'] ?? 'product',
                     'email_verified_at'   => $session['email_verified_at'] ?? null,
+                    'country_id'          => $session['country_id'] ?? null,
                 ]
             );
             // The session epoch, read on its own: the column arrives with a
