@@ -368,7 +368,10 @@ function save_image(array $file, string $dest, int $max_width = 800, string $for
         return $result;
     }
 
-    // Save as PNG (logos need transparency support)
+    // Save as PNG (logos need transparency support). GD drops the alpha
+    // channel unless told to keep it, which turned the see-through parts of
+    // a logo too small to resize black.
+    imagesavealpha($src, true);
     $result = imagepng($src, $dest, 8);
     imagedestroy($src);
     return $result;
