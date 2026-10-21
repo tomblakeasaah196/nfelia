@@ -25,14 +25,18 @@ function is_owner(): bool {
 
 /**
  * Re-read the signed-in person: false (and signed out) when they were removed
- * or switched off, so their seat is really free at once. A changed role
- * applies at once too.
+ * or switched off, so their seat is really free at once. What the session
+ * keeps of them and of the business follows the database on every request
+ * too: a role, name, email or photo, and the business's name, logo, colours
+ * and currency, changed on another device or by someone else on the team,
+ * show on the next page here, not only after signing in again.
  */
 function auth_still_member(): bool {
+    $db = get_db();
     // SELECT *, not a column list: the code can arrive a minute before the
     // migration that adds session_epoch, and that minute must not sign
     // everyone out.
-    $stmt = get_db()->prepare("SELECT * FROM users WHERE id = ? AND business_id = ?");
+    $stmt = $db->prepare("SELECT * FROM users WHERE id = ? AND business_id = ?");
     $stmt->execute([(int)(auth_user()['id'] ?? 0), (int)auth_business_id()]);
     $me = $stmt->fetch();
     if (!$me || !(int)$me['is_active']) {
@@ -45,8 +49,15 @@ function auth_still_member(): bool {
         logout_user();
         return false;
     }
-    if ($me['role'] !== ($_SESSION['user']['role'] ?? null)) {
-        $_SESSION['user']['role'] = $me['role'];
+    foreach (['role', 'full_name', 'email', 'avatar_path'] as $key) {
+        $_SESSION['user'][$key] = $me[$key];
+    }
+    // Only what the session already holds of the business: Settings and
+    // Shop Studio load the rest of the row themselves.
+    $stmt = $db->prepare("SELECT * FROM businesses WHERE id = ?");
+    $stmt->execute([(int)auth_business_id()]);
+    if ($business = $stmt->fetch()) {
+        update_business_session(array_intersect_key($business, $_SESSION['business'] ?? []));
     }
     return true;
 }

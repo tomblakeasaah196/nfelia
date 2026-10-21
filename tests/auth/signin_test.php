@@ -3,8 +3,9 @@
  * Sign-in hardening, against the running app: wrong passwords are counted
  * and paused (per account and per connection), the owner is told, new
  * passwords must meet the rules, changing a password signs out every other
- * browser and kept device, and "keep me signed in" tokens are stored as
- * hashes (app/helpers/auth.php, app/helpers/signin.php,
+ * browser and kept device, "keep me signed in" tokens are stored as
+ * hashes, and a profile or business change made on one device shows on the
+ * others at their next page (app/helpers/auth.php, app/helpers/signin.php,
  * app/controllers/AuthController.php, app/middleware/auth_check.php).
  *   bash tests/notifications/run.sh auth/signin
  */
@@ -185,5 +186,41 @@ $m->post('logout');
 eq((int)q("SELECT COUNT(*) FROM sessions WHERE user_id = ?", [ADA]), 0, 'the row is gone');
 $m->close_browser();
 ok(!signed_in($m), 'and the cookie no longer signs in');
+
+/* ══ Two devices ═══════════════════════════════════════════════ */
+const PHOTO = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAACXBIWXMAAA7EAAAOxAGVKw4bAAAADElEQVQImWNgYGAAAAAEAAGjChXjAAAAAElFTkSuQmCC';
+
+section('A new name and photo saved on the phone show on the computer at its next page');
+$computer = signin(ADA_EMAIL);
+$phone    = signin(ADA_EMAIL);
+$computer->get('dashboard');
+ok(str_contains($computer->body, '<b>Ada Obi</b>'), 'the computer shows her name as it was');
+$phone->get('settings?tab=profile');
+$phone->post('settings/update_profile', ['full_name' => 'Ada Obi-Nwosu', 'email' => ADA_EMAIL, 'avatar_base64' => PHOTO])->follow();
+ok(str_contains($phone->body, 'Profile updated'), 'the phone saves them');
+$photo = (string)q("SELECT avatar_path FROM users WHERE id = ?", [ADA]);
+$computer->get('dashboard');
+ok(str_contains($computer->body, '<b>Ada Obi-Nwosu</b>'), 'the computer shows the new name, without signing in again');
+ok($photo !== '' && str_contains($computer->body, $photo), 'and the new photo');
+$computer->get('settings?tab=profile');
+ok(str_contains($computer->body, 'value="Ada Obi-Nwosu"'), 'its profile form holds the new name, so saving there cannot put the old one back');
+
+section('A photo removed on the phone goes from the computer too');
+$phone->post('settings/update_profile', ['full_name' => 'Ada Obi-Nwosu', 'email' => ADA_EMAIL, 'remove_avatar' => 1])->follow();
+$computer->get('dashboard');
+ok(!str_contains($computer->body, $photo), 'the computer no longer shows it');
+@unlink(BASE_PATH . '/' . $photo);
+
+section('A change to the business made on the phone shows on every computer, the team\'s too');
+$chidi = signin('chidi@adashair.test');
+$phone->get('settings?tab=business');
+$phone->post('settings/update_business', ['business_name' => 'Ada Beauty Studio', 'phone' => '08035550100', 'email' => 'hello@adashair.test',
+                                          'primary_color' => '#00764A', 'secondary_color' => '#B69F5E', 'currency_symbol' => '₦'])->follow();
+ok(str_contains($phone->body, 'Business profile updated'), 'the phone saves a new business name and colour');
+$computer->get('dashboard');
+ok(str_contains($computer->body, '<b>Ada Beauty Studio</b>'), 'Ada\'s computer shows the new name');
+ok(str_contains($computer->body, '--accent: ' . theme_tokens('#00764A', null)['accent'] . ';'), 'in the new colour');
+$chidi->get('dashboard');
+ok(str_contains($chidi->body, '<b>Ada Beauty Studio</b>'), 'and so does Chidi\'s, who was already signed in');
 
 done();
