@@ -117,6 +117,13 @@ if ($seo['description'] !== '') {
 $og_image = $business['logo_path'] && !str_ends_with((string)$business['logo_path'], '.svg')
     ? sf_media_url((string)$business['logo_path'])
     : APP_URL . '/og-image.php?biz=' . (int)$business['id'];
+// The tab icon is the shop's own logo, made square; without one, Nfelia's.
+// Without these tags browsers ask the shop's address for /favicon.ico,
+// which is Nfelia's.
+$icon_from = preg_match('#^uploads/(logos/\d+/[A-Za-z0-9_-][A-Za-z0-9_.-]*\.(?:png|jpe?g|webp))$#i', ltrim((string)$business['logo_path'], '/'), $m) ? $m[1] : '';
+$icons = $icon_from !== ''
+    ? array_combine(STOREFRONT_ICON_SIZES, array_map(fn($size) => sf_media_url('uploads/cache/icon/' . $size . '/' . $icon_from . '.png'), STOREFRONT_ICON_SIZES))
+    : [32 => APP_URL . '/favicon-32x32.png', 180 => APP_URL . '/apple-touch-icon.png'];
 $og_size  = null;
 $og_type  = 'business.business';
 $canonical = $shop_url;
@@ -422,6 +429,9 @@ $asset = fn(string $path) => APP_URL . '/' . $path . '?v=' . (@filemtime(BASE_PA
     <?php if ($ld !== null): ?>
     <script type="application/ld+json"><?= json_encode($ld, $json_flags) ?></script>
     <?php endif; ?>
+
+    <link rel="icon" type="image/png" sizes="32x32" href="<?= e($icons[32]) ?>">
+    <link rel="apple-touch-icon" href="<?= e($icons[180]) ?>">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

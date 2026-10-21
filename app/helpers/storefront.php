@@ -48,6 +48,9 @@ const STOREFRONT_MAIL_MAX_BYTES = 40000;
 // Uploads that get WebP copies: photos shown on shops. GIFs keep their
 // animation, so they are sent as they are.
 const STOREFRONT_VARIANT_PATH = '(?:products|heroes|logos|storefront)/\d+/[A-Za-z0-9_-][A-Za-z0-9_.-]*\.(?:png|jpe?g|webp)';
+// Square browser-tab and home-screen icons made from a shop's logo (PNG):
+// the tab icon and Apple's home-screen size.
+const STOREFRONT_ICON_SIZES = [32, 180];
 
 /* ──────────────────────────────────────────
  *  REGISTRIES
@@ -1272,6 +1275,9 @@ function storefront_forget_image(?string $rel): void {
         }
         $gone[] = 'uploads/cache/og/' . $m[1] . '.jpg';
         $gone[] = 'uploads/cache/mail/' . $m[1] . '.jpg';
+        foreach (STOREFRONT_ICON_SIZES as $size) {
+            $gone[] = 'uploads/cache/icon/' . $size . '/' . $m[1] . '.png';
+        }
     }
     foreach ($gone as $path) {
         if (is_file(BASE_PATH . '/' . $path)) {
@@ -1525,6 +1531,7 @@ function sf_render_mode(?string $set = null): string {
 /* ──────────────────────────────────────────
  *  IMAGE COPIES — /uploads/cache/{width}/{path}.webp
  *                 /uploads/cache/og/{path}.jpg (link previews)
+ *                 /uploads/cache/icon/{size}/{path}.png (shop favicons)
  * ────────────────────────────────────────── */
 
 /**
@@ -1534,6 +1541,10 @@ function sf_render_mode(?string $set = null): string {
  * hero media, logos and Shop Studio uploads. Anything else is a 404.
  */
 function storefront_serve_variant(string $url_path): void {
+    if (preg_match('#^uploads/cache/icon/(' . implode('|', STOREFRONT_ICON_SIZES) . ')/(logos/\d+/[A-Za-z0-9_-][A-Za-z0-9_.-]*\.(?:png|jpe?g|webp))\.png$#i', $url_path, $m)
+        && !str_contains($url_path, '..') && is_file(BASE_PATH . '/uploads/' . $m[2])) {
+        storefront_serve_icon(BASE_PATH . '/uploads/' . $m[2], BASE_PATH . '/' . $url_path, $url_path, (int)$m[1]);
+    }
     if (preg_match('#^uploads/cache/(og|mail)/(' . STOREFRONT_VARIANT_PATH . ')\.jpg$#i', $url_path, $m)) {
         $size = strtolower($m[1]);
         $rel  = $m[2];
@@ -1605,6 +1616,64 @@ function storefront_serve_variant(string $url_path): void {
     }
 
     header('Content-Type: image/webp');
+    header('Content-Length: ' . filesize($target));
+    header('Cache-Control: public, max-age=31536000');
+    readfile($target);
+    exit;
+}
+
+/**
+ * Make (once) and send a square PNG icon of a shop's logo: the whole logo
+ * centred with a little room around it, so a wide logo is shrunk, never
+ * squashed or cropped. The tab icon keeps the logo's see-through parts; the
+ * home-screen one sits on white, as iPhones fill see-through parts black.
+ */
+function storefront_serve_icon(string $source, string $target, string $url_path, int $size): void {
+    if (!is_file($target)) {
+        $info = @getimagesize($source);
+        $src = match ($info['mime'] ?? '') {
+            'image/png'  => @imagecreatefrompng($source),
+            'image/jpeg' => @imagecreatefromjpeg($source),
+            'image/webp' => @imagecreatefromwebp($source),
+            default      => false,
+        };
+        if (!$src) {
+            http_response_code(404);
+            exit;
+        }
+        $w = imagesx($src);
+        $h = imagesy($src);
+        $pad   = $size >= 64 ? (int)round($size * 0.1) : 1;
+        $scale = ($size - 2 * $pad) / max($w, $h);
+        $dw = max(1, (int)round($w * $scale));
+        $dh = max(1, (int)round($h * $scale));
+
+        $dst = imagecreatetruecolor($size, $size);
+        imagealphablending($dst, false);
+        imagesavealpha($dst, true);
+        $ground = $size >= 64
+            ? imagecolorallocate($dst, 255, 255, 255)
+            : imagecolorallocatealpha($dst, 0, 0, 0, 127);
+        imagefill($dst, 0, 0, $ground);
+        imagealphablending($dst, true);
+        imagecopyresampled($dst, $src, intdiv($size - $dw, 2), intdiv($size - $dh, 2), 0, 0, $dw, $dh, $w, $h);
+        imagedestroy($src);
+
+        if (!is_dir(dirname($target))) {
+            @mkdir(dirname($target), 0755, true);
+        }
+        $tmp = $target . '.' . bin2hex(random_bytes(4)) . '.tmp';
+        $ok  = @imagepng($dst, $tmp, 9);
+        imagedestroy($dst);
+        if (!$ok || !@rename($tmp, $target)) {
+            @unlink($tmp);
+            error_log('[Nfelia] Shop icon failed: ' . $url_path);
+            http_response_code(404);
+            exit;
+        }
+    }
+
+    header('Content-Type: image/png');
     header('Content-Length: ' . filesize($target));
     header('Cache-Control: public, max-age=31536000');
     readfile($target);
