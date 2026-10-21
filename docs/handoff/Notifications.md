@@ -26,7 +26,7 @@ notify('order.new', $business_id, ['order_id' => 12, 'order_number' => 'ORD-0012
 ```
 
 1. **The catalogue.** `notify_events()` has one entry per event: topic,
-   audience, urgency, push lifetime, link, push tag, title and body, the
+   audience, push lifetime, link, push tag, title and body, the
    private title (when amounts are hidden), and the email's rows and button.
    `NOTIFY_TOPICS` holds the 14 topics a person can switch, with their
    defaults, which ones are locked, and which roles see each one.
@@ -43,7 +43,10 @@ notify('order.new', $business_id, ['order_id' => 12, 'order_number' => 'ORD-0012
    answered (`after_response`), and `cron/planner.php` retries a failed send
    every 5 minutes. Push gives up after 4 tries and email after 6, with the
    reason recorded in the row. A phone that has unsubscribed is removed on its
-   first 404 or 410.
+   first 404 or 410. Every push is sent urgent (the Web Push `Urgency: high`
+   header, set once in `notify()`, never per event): Android holds anything
+   less while the phone sleeps and hands it over only when Nfelia is next
+   opened, which reads as "no notifications until I open the app".
 5. **Money.** The text gets `$m($amount)`. For staff, `$m` is null, so the
    catalogue writes a sentence without the amount. A person with
    `users.hide_amounts` gets the `private` title on the lock screen. The full

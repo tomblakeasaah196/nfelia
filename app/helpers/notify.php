@@ -55,16 +55,16 @@ const NOTIFY_FIELDS = ['quiet_hours', 'quiet_from', 'quiet_to', 'hide_amounts'];
 /* ═══════════════════════════════════════════════════════════════════
  *  THE EVENTS
  * ═══════════════════════════════════════════════════════════════════
- * Each: topic, to (owner | boss | team | user), urgency (default 'high':
- * every push shows a notification, and anything lower lets Android hold it
- * while the phone sleeps, until Nfelia is next opened), ttl
- * (seconds a push stays worth delivering), url, tag (a newer push with the
- * same tag replaces the older one on the phone), text (title and body;
- * $m formats money and is null when this person must not see amounts),
- * private (the phone title for people who hide amounts), and for email:
- * lines (label => value rows), button, template (default 'notification';
- * 'needs' names the vars a special template can't do without, else the
- * plain one is used) and brand ('business' or 'nfelia').
+ * Each: topic, to (owner | boss | team | user), ttl (seconds a push stays
+ * worth delivering), url, tag (a newer push with the same tag replaces the
+ * older one on the phone), text (title and body; $m formats money and is
+ * null when this person must not see amounts), private (the phone title
+ * for people who hide amounts), and for email: lines (label => value
+ * rows), button, template (default 'notification'; 'needs' names the vars
+ * a special template can't do without, else the plain one is used) and
+ * brand ('business' or 'nfelia'). No event sets an urgency: every push
+ * goes out 'high' (see notify()), because Android holds anything less
+ * while the phone sleeps and hands it over only when Nfelia is next opened.
  */
 function notify_events(): array
 {
@@ -79,7 +79,7 @@ function notify_events(): array
         /* ── Money in ─────────────────────────────────────────── */
         // An order's invoice opens its order, where the money is managed
         'payment.invoice' => [
-            'topic' => 'money', 'to' => 'boss', 'urgency' => 'high',
+            'topic' => 'money', 'to' => 'boss',
             'url' => fn($d) => !empty($d['order_id']) ? 'orders/view/' . (int)$d['order_id'] . '#money' : 'invoices/view/' . (int)$d['invoice_id'],
             'tag' => fn($d) => 'pay-inv-' . (int)$d['invoice_id'],
             'text' => fn($d, $m) => [
@@ -94,7 +94,7 @@ function notify_events(): array
             'button' => fn($d) => !empty($d['order_id']) ? 'Open the order' : 'Open the invoice',
         ],
         'payment.receipt' => [
-            'topic' => 'money', 'to' => 'boss', 'urgency' => 'high',
+            'topic' => 'money', 'to' => 'boss',
             'url' => fn($d) => 'receipts/view/' . (int)$d['receipt_id'],
             'tag' => fn($d) => 'pay-rec-' . (int)$d['receipt_id'],
             'text' => fn($d, $m) => [
@@ -105,7 +105,7 @@ function notify_events(): array
             'button' => 'Open the receipt',
         ],
         'payment.order' => [
-            'topic' => 'money', 'to' => 'boss', 'urgency' => 'high',
+            'topic' => 'money', 'to' => 'boss',
             'url' => fn($d) => 'orders/view/' . (int)$d['order_id'],
             'tag' => fn($d) => 'pay-ord-' . (int)$d['order_id'],
             'text' => fn($d, $m) => [
@@ -116,7 +116,7 @@ function notify_events(): array
             'button' => 'Open the order',
         ],
         'payment.debt' => [
-            'topic' => 'money', 'to' => 'boss', 'urgency' => 'high',
+            'topic' => 'money', 'to' => 'boss',
             'url' => fn($d) => 'debts/view/' . (int)$d['debt_id'],
             'tag' => fn($d) => 'pay-debt-' . (int)$d['debt_id'],
             'text' => fn($d, $m) => [
@@ -130,7 +130,7 @@ function notify_events(): array
         // Money going back: the customer filled in where their refund should
         // go (the link from refund_ask() in app/helpers/orders.php)
         'refund.details' => [
-            'topic' => 'money', 'to' => 'boss', 'urgency' => 'high',
+            'topic' => 'money', 'to' => 'boss',
             'url' => fn($d) => 'orders/view/' . (int)$d['order_id'],
             'tag' => fn($d) => 'refund-' . (int)$d['order_id'],
             'text' => fn($d, $m) => [
@@ -145,7 +145,7 @@ function notify_events(): array
 
         /* ── Shop orders, quote requests, bookings ────────────── */
         'order.new' => [
-            'topic' => 'orders', 'to' => 'team', 'urgency' => 'high',
+            'topic' => 'orders', 'to' => 'team',
             'url' => fn($d) => 'orders/view/' . (int)$d['order_id'],
             'tag' => fn($d) => 'order-' . (int)$d['order_id'],
             'text' => fn($d, $m) => [
@@ -165,7 +165,7 @@ function notify_events(): array
             'button' => 'Open the order',
         ],
         'quote_request.new' => [
-            'topic' => 'orders', 'to' => 'team', 'urgency' => 'high',
+            'topic' => 'orders', 'to' => 'team',
             'url' => fn($d) => 'quotations/requests/' . (int)$d['request_id'],
             'tag' => fn($d) => 'qreq-' . (int)$d['request_id'],
             'text' => fn($d, $m) => ['Quote request from ' . $d['name'], notify_excerpt($d['message'], 140)],
@@ -174,7 +174,7 @@ function notify_events(): array
             'button' => 'Open the request',
         ],
         'booking.new' => [
-            'topic' => 'bookings', 'to' => 'team', 'urgency' => 'high',
+            'topic' => 'bookings', 'to' => 'team',
             'url' => fn($d) => 'bookings/view/' . (int)$d['booking_id'],
             'tag' => fn($d) => 'booking-' . (int)$d['booking_id'],
             'text' => fn($d, $m) => [
@@ -191,7 +191,7 @@ function notify_events(): array
         /* ── Customers acting on what you sent ────────────────── */
         // A signed quote becomes its order (order_from_quote()): that is where to go next
         'quote.accepted' => [
-            'topic' => 'customers', 'to' => 'boss', 'urgency' => 'high',
+            'topic' => 'customers', 'to' => 'boss',
             'url' => fn($d) => !empty($d['order_id']) ? 'orders/view/' . (int)$d['order_id'] : 'quotations/view/' . (int)$d['quotation_id'],
             'tag' => fn($d) => 'quote-' . (int)$d['quotation_id'],
             'text' => fn($d, $m) => ['Quote accepted: ' . $d['quotation_number'],
@@ -279,7 +279,7 @@ function notify_events(): array
 
         /* ── Tasks and the day ────────────────────────────────── */
         'task.reminder' => [
-            'topic' => 'reminders', 'to' => 'user', 'urgency' => 'high', 'ttl' => 3 * 3600,
+            'topic' => 'reminders', 'to' => 'user', 'ttl' => 3 * 3600,
             'url' => fn($d) => 'tasks?task=' . (int)$d['task_id'],
             'tag' => fn($d) => 'task-' . (int)$d['task_id'],
             'text' => fn($d, $m) => [$d['title'], $d['line']],
@@ -330,7 +330,7 @@ function notify_events(): array
             'button' => 'Open billing',
         ],
         'billing.failed' => [
-            'topic' => 'billing', 'to' => 'owner', 'brand' => 'nfelia', 'urgency' => 'high',
+            'topic' => 'billing', 'to' => 'owner', 'brand' => 'nfelia',
             'url' => fn($d) => 'settings?tab=billing', 'tag' => fn($d) => 'billing',
             'text' => fn($d, $m) => ['Your payment didn’t go through',
                                      'We couldn’t take your Nfelia payment. Pay within 3 days to keep your account open.'],
@@ -346,7 +346,7 @@ function notify_events(): array
             'button' => 'Open billing',
         ],
         'billing.due' => [
-            'topic' => 'billing', 'to' => 'owner', 'brand' => 'nfelia', 'urgency' => 'high',
+            'topic' => 'billing', 'to' => 'owner', 'brand' => 'nfelia',
             'url' => fn($d) => 'settings?tab=billing', 'tag' => fn($d) => 'billing',
             'text' => fn($d, $m) => ['Your paid month has ended',
                                      'It ended on ' . $day($d['period_end']) . '. Pay by ' . $day($d['grace_ends']) . ' to keep Nfelia and your website open.'],
@@ -354,7 +354,7 @@ function notify_events(): array
             'button' => 'Pay now',
         ],
         'billing.ended' => [
-            'topic' => 'billing', 'to' => 'owner', 'brand' => 'nfelia', 'urgency' => 'high',
+            'topic' => 'billing', 'to' => 'owner', 'brand' => 'nfelia',
             'url' => fn($d) => 'settings?tab=billing', 'tag' => fn($d) => 'billing',
             'text' => fn($d, $m) => ['Nfelia is paused',
                                      'Pay for a month to open Nfelia and your website again. Everything you added is still here.'],
@@ -378,7 +378,7 @@ function notify_events(): array
             'button' => 'Choose a plan',
         ],
         'billing.trial_ended' => [
-            'topic' => 'billing', 'to' => 'owner', 'brand' => 'nfelia', 'urgency' => 'high',
+            'topic' => 'billing', 'to' => 'owner', 'brand' => 'nfelia',
             'url' => fn($d) => 'settings?tab=billing', 'tag' => fn($d) => 'billing',
             'text' => fn($d, $m) => ['Your free trial has ended', 'Pay for a month to carry on. Everything you added is still here.'],
             'private' => 'Free trial ended',
@@ -393,7 +393,7 @@ function notify_events(): array
             'button' => 'Open billing',
         ],
         'billing.momo_rejected' => [
-            'topic' => 'billing', 'to' => 'owner', 'brand' => 'nfelia', 'urgency' => 'high',
+            'topic' => 'billing', 'to' => 'owner', 'brand' => 'nfelia',
             'url' => fn($d) => 'momo/checkout', 'tag' => fn($d) => 'billing',
             'text' => fn($d, $m) => ['We couldn’t confirm your payment',
                                      'Your mobile money payment wasn’t approved' . (!empty($d['reason']) ? ': ' . rtrim(notify_excerpt($d['reason'], 160), '.') . '.' : '.')
@@ -418,7 +418,7 @@ function notify_events(): array
             'button' => 'Open billing',
         ],
         'billing.suspended' => [
-            'topic' => 'billing', 'to' => 'owner', 'brand' => 'nfelia', 'urgency' => 'high',
+            'topic' => 'billing', 'to' => 'owner', 'brand' => 'nfelia',
             'url' => fn($d) => 'settings?tab=billing', 'tag' => fn($d) => 'billing',
             'text' => fn($d, $m) => ['Your account is on hold', 'Open billing to restore it, or contact Nfelia support.'],
             'private' => 'Account on hold',
@@ -475,7 +475,7 @@ function notify_events(): array
             'button' => 'Open Your records',
         ],
         'records.team_built' => [
-            'topic' => 'security', 'to' => 'owner', 'brand' => 'nfelia', 'urgency' => 'high',
+            'topic' => 'security', 'to' => 'owner', 'brand' => 'nfelia',
             'url' => fn($d) => 'records', 'tag' => fn($d) => 'records-' . (int)$d['book_id'],
             'text' => fn($d, $m) => ['Nfelia made a Records Book of your records',
                                      $d['staff'] . ' from Nfelia made it: ' . notify_excerpt($d['reason'], 160) . '.'
@@ -484,7 +484,7 @@ function notify_events(): array
             'button' => 'Open Your records',
         ],
         'records.request' => [
-            'topic' => 'security', 'to' => 'owner', 'brand' => 'nfelia', 'urgency' => 'high',
+            'topic' => 'security', 'to' => 'owner', 'brand' => 'nfelia',
             'url' => fn($d) => 'records/request/' . (int)$d['request_id'], 'tag' => fn($d) => 'record-request-' . (int)$d['request_id'],
             'text' => fn($d, $m) => [$d['who'] . ' asked for your records',
                                      'They want ' . $d['what'] . ': ' . notify_excerpt($d['reason'], 160) . '. Nothing is shared unless you say yes.'],
@@ -565,7 +565,7 @@ function notify_events(): array
 
         /* ── Sign-ins and security (always by email too) ──────── */
         'security.new_device' => [
-            'topic' => 'security', 'to' => 'user', 'brand' => 'nfelia', 'urgency' => 'high',
+            'topic' => 'security', 'to' => 'user', 'brand' => 'nfelia',
             'url' => fn($d) => 'settings?tab=profile', 'tag' => fn($d) => 'security',
             'text' => fn($d, $m) => ['New sign-in to your account',
                                      $d['device'] . ', ' . $d['when'] . '. If this wasn’t you, change your password now.'],
@@ -573,7 +573,7 @@ function notify_events(): array
             'button' => 'Check your account',
         ],
         'security.view_as' => [
-            'topic' => 'security', 'to' => 'user', 'brand' => 'nfelia', 'urgency' => 'high',
+            'topic' => 'security', 'to' => 'user', 'brand' => 'nfelia',
             'url' => fn($d) => 'settings?tab=profile', 'tag' => fn($d) => 'security',
             'text' => fn($d, $m) => ['Nfelia support looked at your account',
                                      $d['staff'] . ' from Nfelia opened your account to see what you see, read-only, for 30 minutes: ' . notify_excerpt($d['reason'], 160)
@@ -582,7 +582,7 @@ function notify_events(): array
             'button' => 'Open Nfelia',
         ],
         'security.signin_blocked' => [
-            'topic' => 'security', 'to' => 'user', 'brand' => 'nfelia', 'urgency' => 'high',
+            'topic' => 'security', 'to' => 'user', 'brand' => 'nfelia',
             'url' => fn($d) => 'settings?tab=profile', 'tag' => fn($d) => 'security',
             'text' => fn($d, $m) => ['Someone tried your password ' . $d['tries'] . ' times',
                                      'Sign-in to your account is paused for ' . $d['minutes'] . ' minutes after ' . $d['tries'] . ' wrong passwords in a row, at ' . $d['when']
@@ -591,14 +591,14 @@ function notify_events(): array
             'button' => 'Check your account',
         ],
         'security.password_changed' => [
-            'topic' => 'security', 'to' => 'user', 'brand' => 'nfelia', 'urgency' => 'high',
+            'topic' => 'security', 'to' => 'user', 'brand' => 'nfelia',
             'url' => fn($d) => 'settings?tab=profile', 'tag' => fn($d) => 'security',
             'text' => fn($d, $m) => ['Your password was changed', 'If you didn’t do this, reset your password now from the sign-in page.'],
             'private' => 'Your password was changed',
             'button' => 'Check your account',
         ],
         'security.email_changed' => [
-            'topic' => 'security', 'to' => 'user', 'brand' => 'nfelia', 'urgency' => 'high',
+            'topic' => 'security', 'to' => 'user', 'brand' => 'nfelia',
             'url' => fn($d) => 'settings?tab=profile', 'tag' => fn($d) => 'security',
             'text' => fn($d, $m) => ['Your sign-in email changed', 'It is now ' . $d['new_email'] . '. If you didn’t do this, contact Nfelia support now.'],
             'private' => 'Your sign-in email changed',
@@ -630,7 +630,7 @@ function notify_events(): array
 
         /* ── Checking it works (More > Notifications) ─────────── */
         'system.test' => [
-            'topic' => null, 'to' => 'user', 'urgency' => 'high', 'ttl' => 600,
+            'topic' => null, 'to' => 'user', 'ttl' => 600,
             'url' => fn($d) => 'notifications', 'tag' => fn($d) => 'nfelia-test',
             'text' => fn($d, $m) => ['Notifications work', 'This is how Nfelia tells you about orders, payments and reminders.'],
             'private' => 'Notifications work',
@@ -723,7 +723,7 @@ function notify(string $event, int $business_id, array $data = [], array $opts =
                 // so "why didn't my phone buzz?" (More > Notifications) can say so.
                 notify_queue($db, [
                     'business_id' => $business_id, 'notification_id' => $nid, 'user_id' => $uid, 'event' => $event, 'channel' => 'push',
-                    'payload' => ['title' => $title], 'urgency' => $def['urgency'] ?? 'high', 'ttl' => $def['ttl'] ?? 86400,
+                    'payload' => ['title' => $title], 'urgency' => 'high', 'ttl' => $def['ttl'] ?? 86400,
                     'status' => 'skipped', 'error' => 'phone alerts for ' . strtolower((string)(NOTIFY_TOPICS[$topic]['label'] ?? $topic)) . ' are off',
                 ]);
             }
@@ -738,13 +738,15 @@ function notify(string $event, int $business_id, array $data = [], array $opts =
                 ];
                 // In their quiet hours the phone stays silent now, and buzzes
                 // once when they end, unless by then it would be too late to
-                // be useful (a reminder is for a moment).
+                // be useful (a reminder is for a moment). Always urgent: a
+                // normal-priority push waits on an Android phone, asleep,
+                // until Nfelia is next opened (the engine test checks this).
                 $ttl  = (int)($def['ttl'] ?? 86400);
                 $hold = empty($opts['loud']) ? notify_quiet_until($person) : null;
                 $late = $hold !== null && $hold->getTimestamp() >= planner_now()->getTimestamp() + $ttl;
                 notify_queue($db, [
                     'business_id' => $business_id, 'notification_id' => $nid, 'user_id' => $uid, 'event' => $event,
-                    'channel' => 'push', 'payload' => $message, 'urgency' => $def['urgency'] ?? 'high',
+                    'channel' => 'push', 'payload' => $message, 'urgency' => 'high',
                     'ttl' => $ttl,
                     'status' => $late ? 'skipped' : 'pending',
                     'error'  => $late ? 'quiet hours' : ($hold ? 'held for quiet hours' : null),
@@ -878,7 +880,7 @@ function notify_queue(PDO $db, array $row): ?int
         $row['channel'], $row['recipient'] ?? null, $row['recipient_name'] ?? null,
         isset($row['dedupe_key']) ? mb_substr($row['dedupe_key'], 0, 150) : null,
         json_encode($row['payload'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-        $row['urgency'] ?? 'normal', $status, $row['error'] ?? null,
+        $row['urgency'] ?? 'high', $status, $row['error'] ?? null,
     ], $later ? [$later] : []));
     $id = (int)$db->lastInsertId();
     if ($id && $status === 'pending' && !$later) {
