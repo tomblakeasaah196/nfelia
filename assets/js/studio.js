@@ -1009,8 +1009,11 @@
             case 'delivery':
                 editorEl.appendChild(field('Title', textInput(s, 'title', f.title, labelFor('delivery'))));
                 editorEl.appendChild(field('How you deliver', textInput(s, 'text', f.text, 'Where you deliver, what it costs, when people can pick up')));
-                editorEl.appendChild(checkbox(s, 'show_bank', 'Show my bank details'));
-                editorEl.appendChild(el('p', { class: 'st-help' }, 'Your bank accounts come from Settings. People also see them when they check out.'));
+                editorEl.appendChild(checkbox(s, 'show_bank', 'Show my payment accounts'));
+                var accountsHelp = el('p', { class: 'st-help' }, 'Add or change your bank accounts and Mobile Money numbers in ');
+                accountsHelp.appendChild(el('a', { href: D.urls.payments }, 'Settings'));
+                accountsHelp.appendChild(document.createTextNode('. People also see them when they check out.'));
+                editorEl.appendChild(accountsHelp);
                 break;
             case 'faq':
                 editorEl.appendChild(field('Title', textInput(s, 'title', f.title, labelFor('faq'))));

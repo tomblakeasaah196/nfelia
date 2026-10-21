@@ -6,9 +6,9 @@
  */
 $banks = $catalogue['banks'];
 if ($banks && $wa !== '') {
-    $pay_line = 'Pay by bank transfer when you order, or order on WhatsApp.';
+    $pay_line = 'Pay by ' . sf_pay_way($banks) . ' when you order, or order on WhatsApp.';
 } elseif ($banks) {
-    $pay_line = 'Pay by bank transfer when you order.';
+    $pay_line = 'Pay by ' . sf_pay_way($banks) . ' when you order.';
 } elseif ($wa !== '') {
     $pay_line = 'Order here or on WhatsApp, and we will tell you how to pay.';
 } else {

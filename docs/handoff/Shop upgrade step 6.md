@@ -22,7 +22,7 @@ panels over it. How to bring the other nine looks up to the same standard is in
   small request (Google's `&text=` subsetting: only the letters of the names). Arrow keys, Home,
   End, Enter, Escape and Tab work; the list is a proper listbox for screen readers.
 - **A live preview** of the shop's name, a button and an invoice line in the chosen brand.
-- Migration `20261028090000_brand_fonts.sql` adds `businesses.brand_font_head` and `brand_font_body`.
+- Migration `20261028100000_brand_fonts.sql` adds `businesses.brand_font_head` and `brand_font_body`.
   Owners who had picked one of the old font pairs (other than the default) keep it as their brand
   fonts. `font_pairing` is no longer written.
 

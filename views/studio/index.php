@@ -72,6 +72,7 @@ $studio = [
         'check'      => APP_URL . '/shop-setup/check',
         'products'   => APP_URL . '/products/create',
         'settings'   => APP_URL . '/settings?tab=business',
+        'payments'   => APP_URL . '/settings?tab=business#payments',
         'bookings'   => APP_URL . '/bookings/settings',
         'posts'      => APP_URL . '/posts',
         'brand'      => APP_URL . '/settings?tab=business#nf-brand-h',
