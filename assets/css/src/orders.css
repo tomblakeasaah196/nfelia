@@ -32,7 +32,9 @@
 .nf-orow-2 { flex-wrap: wrap; row-gap: 4px; }   /* a long balance tag moves under, so where it stands is never cut */
 .nf-orow-2 .nf-tag { flex: none; margin-left: auto; }
 .nf-order-row.is-off .nf-orow-1 b { color: var(--ink-2); }
-@media (max-width: 639px) { .nf-order-row .nf-face { display: none; } }
+@media (max-width: 639px) { .nf-order-row .nf-face:not(.has-photo) { display: none; } }
+.nf-face.has-photo { position: relative; }
+.nf-face.has-photo img { position: absolute; inset: 0; background: var(--surface); }
 .nf-order-ch { display: inline-flex; flex: none; color: var(--ink-3); }
 .nf-order-ch svg { width: 15px; height: 15px; }
 .nf-order-tags { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
@@ -105,9 +107,9 @@
 .nf-help { margin: 0; font: 400 .875rem/1.5 var(--font-body); color: var(--ink-2); }
 
 .nf-lines { list-style: none; margin: 0; padding: 0; }
-.nf-lines li { display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+.nf-lines li { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
 .nf-lines li:first-child { border-top: 0; padding-top: 4px; }
-.nf-line-main { min-width: 0; display: grid; gap: 2px; }
+.nf-line-main { flex: 1; min-width: 0; display: grid; gap: 2px; }
 .nf-line-main b { font: 600 1rem/1.35 var(--font-body); }
 .nf-line-main small { font: 400 .875rem/1.4 var(--font-body); color: var(--ink-2); }
 .nf-line-main .nf-line-note { font-style: italic; }
@@ -145,7 +147,7 @@ a.nf-doc-row:hover { background: rgb(31 10 20 / .05); }
 .nf-payby input[type="date"], .nf-payby input[type="email"] { flex: 1; min-width: 0; min-height: 48px; padding: 0 12px; border-radius: 12px; border: 0; background: var(--surface);
   box-shadow: inset 0 0 0 1px var(--line-2); font: 500 1rem/1.2 var(--font-body); color: var(--ink); }
 .nf-payby input.is-late { box-shadow: inset 0 0 0 1.5px var(--owed); }
-.nf-payby input:focus { outline: none; box-shadow: inset 0 0 0 2px var(--accent-text); }
+.nf-payby input:focus { outline: none; box-shadow: var(--focus-ring); }
 .nf-payby .nf-btn { flex: none; min-height: 48px; }
 .nf-callout > .nf-payby .nf-btn { width: auto; }
 .nf-payby small.is-owed { color: var(--owed); font: 600 .8125rem/1.3 var(--font-body); }
@@ -192,7 +194,7 @@ a.nf-doc-row:hover { background: rgb(31 10 20 / .05); }
 .nf-file > svg { width: 24px; height: 24px; flex: none; color: var(--accent-text); }
 .nf-file > span { display: grid; gap: 2px; }
 .nf-file input[type="file"] { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; min-height: 0; cursor: pointer; }
-.nf-file:focus-within { box-shadow: inset 0 0 0 2px var(--accent-text); }
+.nf-file:focus-within { box-shadow: var(--focus-ring); }
 .nf-more-field > summary { display: inline-flex; align-items: center; min-height: 44px; color: var(--accent-text); font: 600 .9375rem/1 var(--font-body); cursor: pointer; list-style: none; }
 .nf-more-field > summary::-webkit-details-marker { display: none; }
 .nf-more-field[open] > summary { display: none; }
@@ -213,7 +215,7 @@ a.nf-doc-row:hover { background: rgb(31 10 20 / .05); }
 .nf-chipset { display: flex; flex-wrap: wrap; gap: 8px; }
 .nf-chipset label { position: relative; display: block; cursor: pointer; }
 .nf-chipset input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; min-height: 0; }
-.nf-chipset span { display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border-radius: 999px; background: var(--surface);
+.nf-chipset label > span { display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border-radius: 999px; background: var(--surface);
   box-shadow: inset 0 0 0 1px var(--line-2); font: 500 .9375rem/1 var(--font-body); color: var(--ink); white-space: nowrap; }
 .nf-chipset input:checked + span { background: var(--accent-soft); color: var(--accent-text); box-shadow: inset 0 0 0 1.5px var(--accent-text); font-weight: 600; }
 .nf-chipset input:focus-visible + span { outline: 2px solid var(--accent-text); outline-offset: 2px; }
@@ -235,16 +237,22 @@ a.nf-doc-row:hover { background: rgb(31 10 20 / .05); }
 .nf-log-ev.is-payment .nf-log-ic, .nf-log-ev.is-done .nf-log-ic { background: var(--in-soft); color: var(--in); }
 .nf-log-ev.is-cancelled .nf-log-ic, .nf-log-ev.is-turned_down .nf-log-ic { background: var(--owed-soft); color: var(--owed); }
 
-/* ---------- New order, Quick sale, Change items ---------- */
+/* ---------- New order, Change items ----------
+   Calm on a phone: slim sections, choices one line high, one short row per
+   item. The detail of an item lives in the picker's item step. */
 .nf-oform { max-width: 640px; }
-.nf-oform .nf-segs { margin-bottom: 12px; }
-.nf-oform .nf-segs a { gap: 8px; }
-.nf-oform .nf-segs svg { width: 18px; height: 18px; }
 .nf-form .nf-field { margin: 0; }
-.nf-oform > form { display: grid; gap: 12px; }
-.nf-sec { padding: 16px; border-radius: 20px; background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); display: grid; gap: 12px; }
-.nf-sec > h2 { margin: 0; font: 600 1.0625rem/1.3 var(--font-heading); }
-.nf-sec.is-quiet { padding: 4px 16px; background: none; box-shadow: none; }
+.nf-oform > form { display: grid; gap: 10px; }
+.nf-sec { padding: 14px; border-radius: 18px; background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); display: grid; gap: 10px; }
+.nf-sec > h2 { margin: 0; font: 600 1rem/1.3 var(--font-heading); }
+.nf-sec.is-quiet { padding: 0 14px; background: none; box-shadow: none; }
+.nf-oform .nf-seg .opt { grid-auto-flow: column; justify-content: center; align-items: center; gap: 6px; min-height: 46px; padding: 6px; font-size: .875rem; }
+.nf-oform .nf-seg .opt svg { width: 18px; height: 18px; }
+.nf-oform .nf-seg.is-4 .opt { grid-auto-flow: row; gap: 2px; min-height: 52px; font-size: .8125rem; }
+.nf-oform .nf-chipset label > span { padding: 0 14px; font-size: .875rem; }
+.nf-oform label.nf-switch { display: flex; }
+.nf-oform .nf-switch { min-height: 52px; }
+.nf-findc-do { display: flex; flex-wrap: wrap; gap: 4px 16px; }
 .nf-sec .nf-field { margin: 0; }
 .nf-sec .nf-field legend { margin-bottom: 8px; font-size: .875rem; color: var(--ink-2); }
 .nf-sub-q { display: grid; gap: 10px; }
@@ -254,14 +262,24 @@ a.nf-doc-row:hover { background: rgb(31 10 20 / .05); }
   width: 100%; min-height: 48px; padding: 0 14px; border-radius: 12px; border: 0; background: var(--surface);
   box-shadow: inset 0 0 0 1px var(--line-2); font: 400 1rem/1.3 var(--font-body); color: var(--ink); }
 .nf-oform textarea { padding: 12px 14px; resize: vertical; }
-.nf-oform input:focus, .nf-oform textarea:focus { outline: none; box-shadow: inset 0 0 0 2px var(--accent-text); }
+.nf-oform input:focus, .nf-oform textarea:focus { outline: none; box-shadow: var(--focus-ring); }
 .nf-oform label { display: grid; gap: 6px; font: 600 .875rem/1.3 var(--font-body); color: var(--ink); }
 .nf-oform label small { font: 400 .8125rem/1.3 var(--font-body); color: var(--ink-3); }
 .nf-form.is-flat { padding: 0; }
 .nf-form-l { margin: 0; }
-.nf-amount { position: relative; display: block; }
-.nf-amount > span { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); font: 600 1.0625rem/1 var(--font-body); color: var(--ink-2); pointer-events: none; }
-.nf-oform .nf-amount input, .nf-amount input { padding-left: 34px; font: 600 1.125rem/1.2 var(--font-body); font-variant-numeric: tabular-nums; }
+/* A money field. The box is drawn on the wrapper so the currency sign takes
+   the room it needs (₦, GH₵, FCFA) and the number always starts after it. */
+.nf-amount { display: flex; align-items: center; gap: 6px; min-width: 0; min-height: 48px; padding-left: 14px; border-radius: 12px;
+  background: var(--surface); box-shadow: inset 0 0 0 1px var(--line-2); cursor: text; }
+.nf-amount > span { flex: none; font: 600 1.0625rem/1 var(--font-body); color: var(--ink-2); white-space: nowrap; pointer-events: none; }
+.nf-amount:focus-within { box-shadow: var(--focus-ring); }
+.nf-amount input, .nf-amount input:focus,
+.nf-oform .nf-amount input, .nf-oform .nf-amount input:focus,
+.nf-form .nf-amount input, .nf-form .nf-amount input:focus,
+.nf-pick-own .nf-amount input, .nf-pick-own .nf-amount input:focus {
+  flex: 1; width: 100%; min-width: 0; min-height: 46px; padding: 0 14px 0 0; border: 0; border-radius: 0 12px 12px 0; background: none; box-shadow: none; outline: none;
+  font: 600 1.125rem/1.2 var(--font-body); font-variant-numeric: tabular-nums; color: var(--ink); }
+.nf-form .nf-amount input { font-size: 1.25rem; }
 
 .nf-picked { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 8px 8px 8px 12px; border-radius: 16px; background: var(--accent-soft); }
 .nf-picked .nf-face { background: var(--surface); color: var(--accent-text); }
@@ -278,38 +296,58 @@ a.nf-doc-row:hover { background: rgb(31 10 20 / .05); }
 .nf-results-inline .nf-item:hover { background: rgb(31 10 20 / .025); }
 .nf-results-inline .nf-item.is-new .nf-face { background: var(--accent-soft); color: var(--accent-text); }
 
-.nf-oitems { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.nf-oitem { padding: 10px 6px 10px 12px; border-radius: 16px; box-shadow: inset 0 0 0 1px var(--line); display: grid; gap: 8px; }
-.nf-oitem-top { display: flex; align-items: center; gap: 8px; }
-.nf-oitem-name { flex: 1; min-width: 0; display: grid; gap: 2px; }
-.nf-oitem-name b { font: 600 1rem/1.3 var(--font-body); overflow-wrap: anywhere; }
-.nf-oitem-name small { font: 500 .8125rem/1.3 var(--font-body); color: var(--ink-3); }
-.nf-oitem-name small.is-owed { color: var(--owed); }
-.nf-oitem-top .nf-icon-btn { flex: none; color: var(--ink-3); }
-.nf-oitem-top .nf-icon-btn svg { width: 18px; height: 18px; }
-.nf-oitem-row { display: flex; align-items: center; gap: 8px; padding-right: 6px; }
+/* One short row per item: photo, name and choices, how many × price, the total. A tap opens its step. */
+.nf-olist { list-style: none; margin: 0; padding: 0; border-radius: 14px; box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; }
+.nf-olist > li + li { border-top: 1px solid var(--line); }
+.nf-orow-btn { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 60px; padding: 8px 12px 8px 8px; border: 0; background: none;
+  color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.nf-orow-btn:hover { background: rgb(31 10 20 / .025); }
+.nf-orow-btn:active { background: rgb(31 10 20 / .05); }
+.nf-orow-main { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.nf-orow-main b { font: 600 .9375rem/1.3 var(--font-body); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+.nf-orow-main small { font: 400 .8125rem/1.3 var(--font-body); color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nf-orow-main .is-owed { color: var(--owed); font-weight: 600; }
+.nf-orow-end { flex: none; display: grid; justify-items: end; gap: 1px; text-align: right; }
+.nf-orow-end b { font: 600 .9375rem/1.3 var(--font-body); font-variant-numeric: tabular-nums; }
+.nf-orow-end small { font: 400 .75rem/1.3 var(--font-body); color: var(--ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* A product photo, or its initials while there is none. */
+.nf-thumb { position: relative; flex: none; width: 44px; height: 44px; border-radius: 10px; overflow: hidden; display: grid; place-items: center;
+  background: var(--accent-soft); color: var(--accent-text); font: 600 .8125rem/1 var(--font-heading); }
+.nf-thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: var(--surface); }
 .nf-qty { flex: none; display: flex; align-items: center; border-radius: 12px; box-shadow: inset 0 0 0 1px var(--line-2); }
+.nf-qty:focus-within { box-shadow: var(--focus-ring); }
 .nf-qty button { width: 44px; height: 44px; display: grid; place-items: center; border: 0; background: none; color: var(--accent-text); cursor: pointer; border-radius: 12px; }
 .nf-qty button:active { background: rgb(31 10 20 / .05); }
 .nf-qty button svg { width: 18px; height: 18px; }
 .nf-oform .nf-qty input { width: 44px; min-height: 44px; padding: 0; text-align: center; box-shadow: none; background: none; font: 600 1rem/1 var(--font-body); font-variant-numeric: tabular-nums; }
-.nf-oprice { position: relative; flex: 1; min-width: 0; display: block; }
-.nf-oprice .nf-cur { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font: 500 .9375rem/1 var(--font-body); color: var(--ink-3); pointer-events: none; }
-.nf-oform .nf-oprice input { min-height: 44px; padding-left: 28px; font-variant-numeric: tabular-nums; }
-.nf-oline { flex: none; min-width: 64px; padding-left: 4px; text-align: right; font: 600 1rem/1.2 var(--font-body); font-variant-numeric: tabular-nums; }
-.nf-ovariants { display: flex; flex-wrap: wrap; gap: 8px; padding-right: 6px; }
-.nf-ovariant { flex: 1 1 140px; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.nf-ovariant > span { font: 600 .6875rem/1 var(--font-body); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); }
-.nf-oform .nf-ovariant select { width: 100%; min-height: 44px; padding: 0 32px 0 12px; border-radius: 12px; border: 0; box-shadow: inset 0 0 0 1px var(--line-2);
-  background: var(--surface); color: var(--ink); font: 500 .9375rem/1 var(--font-body); cursor: pointer;
-  -webkit-appearance: none; appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237A6570' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
-  background-repeat: no-repeat; background-position: right 10px center; background-size: 16px; }
-.nf-oform .nf-ovariant select:focus { outline: none; box-shadow: inset 0 0 0 1.5px var(--accent-text); }
-.nf-oitem-note { padding-right: 6px; }
-.nf-oitem-note .nf-link { min-height: 36px; font-size: .875rem; padding: 0; }
-.nf-oform .nf-oitem-note input { min-height: 44px; }
-.nf-add { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 56px; border-radius: 16px; border: 0;
+.nf-oform .nf-qty.is-big input { width: 48px; min-height: 48px; font-size: 1.0625rem; }
+.nf-qty.is-big button { height: 48px; }
+
+/* The picker's item step */
+.nf-pitem { display: grid; gap: 14px; padding: 0 16px 4px; }
+.nf-pitem-photo { margin: 0 -16px; height: min(30dvh, 280px); overflow: hidden; background: rgb(31 10 20 / .04); }
+.nf-pitem-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+@media (min-width: 640px) { .nf-pitem-photo { margin: 0; border-radius: 16px; } }
+.nf-pitem-sum { display: grid; gap: 8px; }
+.nf-pitem-price { margin: 0; display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; }
+.nf-pitem-price b { font: 600 1.25rem/1.2 var(--font-heading); font-variant-numeric: tabular-nums; }
+.nf-pitem-price small { font: 500 .8125rem/1.3 var(--font-body); color: var(--ink-2); }
+.nf-pitem-price small.is-owed { color: var(--owed); font-weight: 600; }
+.nf-pitem-group { margin: 0; padding: 0; border: 0; min-width: 0; }
+.nf-pitem-group legend { margin-bottom: 8px; padding: 0; font: 600 .75rem/1 var(--font-body); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); }
+.nf-pitem-group .nf-chipset label > span { gap: 6px; }
+.nf-pitem-group .nf-chipset small { font: 500 .75rem/1 var(--font-body); color: var(--ink-2); }
+.nf-pitem-group .nf-chipset input:checked + span small { color: inherit; }
+.nf-pitem-row { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: end; }
+.nf-oform .nf-pitem-l, .nf-oform .nf-pitem-name { display: grid; gap: 6px; font: 600 .8125rem/1.3 var(--font-body); color: var(--ink-2); }
+.nf-pitem-note .nf-link { min-height: 36px; padding: 0; font-size: .875rem; }
+.nf-pitem-do { position: sticky; bottom: calc(-16px - var(--safe-b)); z-index: 1; display: grid; gap: 4px; margin: 0 -16px; padding: 10px 16px calc(12px + var(--safe-b));
+  background: var(--surface); box-shadow: 0 -1px 0 var(--line); }
+.nf-pitem-do .nf-btn { width: 100%; min-height: 52px; }
+.nf-pitem-do .nf-link { justify-self: center; gap: 6px; }
+.nf-pitem-do .nf-link svg { width: 18px; height: 18px; }
+.nf-link.is-danger { color: var(--owed); }
+.nf-add { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 48px; border-radius: 14px; border: 0;
   background: none; box-shadow: inset 0 0 0 1.5px var(--line-2); color: var(--accent-text); font: 600 1rem/1 var(--font-body); cursor: pointer; }
 .nf-add:hover { box-shadow: inset 0 0 0 1.5px var(--accent-text); }
 .nf-add svg { width: 20px; height: 20px; }
@@ -319,25 +357,26 @@ a.nf-doc-row:hover { background: rgb(31 10 20 / .05); }
 
 /* The total and the one button, always in reach above the tabs. */
 .nf-sticky { position: sticky; bottom: calc(var(--tab-h) + var(--safe-b) + 8px); z-index: 20; display: flex; align-items: center; gap: 12px;
-  margin-top: 4px; padding: 10px 10px 10px 16px; border-radius: 20px; background: var(--surface); box-shadow: var(--shadow-2), inset 0 0 0 1px var(--line); }
+  margin-top: 2px; padding: 8px 8px 8px 14px; border-radius: 18px; background: var(--surface); box-shadow: var(--shadow-2), inset 0 0 0 1px var(--line); }
 @media (min-width: 1024px) { .nf-sticky { bottom: 16px; } }
+/* While the phone keyboard is up, the field gets the room (shell.js sets nf-typing). */
+html.nf-typing .nf-sticky { display: none; }
 .nf-sticky-sum { flex: 1; min-width: 0; display: grid; gap: 2px; }
-.nf-sticky-sum b { font: 600 1.375rem/1.1 var(--font-heading); font-variant-numeric: tabular-nums; }
+.nf-sticky-sum b { font: 600 1.25rem/1.1 var(--font-heading); font-variant-numeric: tabular-nums; }
 .nf-sticky-sum small { font: 500 .8125rem/1.3 var(--font-body); color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.nf-sticky .nf-btn { flex: none; min-width: 148px; min-height: 52px; }
+.nf-sticky .nf-btn { flex: none; min-width: 140px; min-height: 48px; }
 .nf-sticky .nf-btn:disabled { opacity: .6; cursor: default; }
 
 .nf-pick .nf-pick-find { padding: 4px 16px 8px; }
 .nf-pick-list { max-height: 44dvh; overflow-y: auto; margin: 0 16px; border-radius: 16px; box-shadow: inset 0 0 0 1px var(--line); }
-.nf-pick-list .nf-item { width: 100%; min-height: 60px; background: none; border-left: 0; border-right: 0; border-bottom: 0; text-align: left; font: inherit; color: var(--ink); cursor: pointer; }
+.nf-pick-list .nf-item { width: 100%; min-height: 60px; gap: 10px; padding: 8px 12px 8px 8px; background: none; border-left: 0; border-right: 0; border-bottom: 0; text-align: left; font: inherit; color: var(--ink); cursor: pointer; }
 .nf-pick-list .nf-item:first-of-type { border-top: 0; }
 .nf-pick-list .nf-item:hover { background: rgb(31 10 20 / .025); }
-.nf-pick-own { display: grid; gap: 10px; padding: 16px 16px 4px; }
+.nf-pick-own { display: grid; gap: 8px; padding: 14px 16px 4px; }
 .nf-pick-own-row { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 8px; }
 .nf-pick-own input { width: 100%; min-height: 48px; padding: 0 14px; border-radius: 12px; border: 0; background: var(--surface); box-shadow: inset 0 0 0 1px var(--line-2);
   font: 400 1rem/1.3 var(--font-body); color: var(--ink); }
-.nf-pick-own .nf-amount input { padding-left: 34px; }
-.nf-pick-own input:focus { outline: none; box-shadow: inset 0 0 0 2px var(--accent-text); }
+.nf-pick-own input:focus { outline: none; box-shadow: var(--focus-ring); }
 
 @media (prefers-reduced-motion: reduce) {
   .nf-fold > summary > svg:last-child { transition: none; }
@@ -357,7 +396,7 @@ a.nf-doc-row:hover { background: rgb(31 10 20 / .05); }
 .nf-prefix-row { display: flex; gap: 8px; }
 .nf-prefix-row input { flex: 1; min-width: 0; max-width: 200px; min-height: 52px; padding: 0 14px; border-radius: 12px; border: 0; background: var(--surface);
   box-shadow: inset 0 0 0 1px var(--line-2); font: 600 1.375rem/1 var(--font-heading); letter-spacing: .08em; color: var(--ink); text-transform: uppercase; }
-.nf-prefix-row input:focus { outline: none; box-shadow: inset 0 0 0 2px var(--accent-text); }
+.nf-prefix-row input:focus { outline: none; box-shadow: var(--focus-ring); }
 .nf-prefix-row .nf-btn { flex: none; min-height: 52px; }
 .nf-prefix-row .nf-btn:disabled { opacity: .5; cursor: default; }
 .nf-prefix-next { list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 8px 0 0; padding: 0; }

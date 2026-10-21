@@ -4,7 +4,9 @@
  * (shop_order_tell() in app/helpers/shop_orders.php).
  * Variables: $state (confirmed | preparing | ready | on_the_way | delivered |
  * collected | cancelled | turned_down), $first_name, $shop_name,
- * $order_number, $order_url, $review_url, $message (the shop's own words)
+ * $order_number, $order_url, $review_url, $message (the shop's own words),
+ * $details (confirmed, delivered and collected: the whole order, see
+ * order_mail_details())
  */
 $h = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES);
 [$headline, $line] = match ($state) {
@@ -30,6 +32,7 @@ $button = !empty($review_url) ? ['Rate your order', $review_url] : (!empty($orde
     <?= nl2br($h($message)) ?>
 </p>
 <?php endif; ?>
+<?php if (!empty($details)) { require __DIR__ . '/_order_details.php'; } ?>
 <?php if ($button): ?>
 <table cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px;">
     <tr>

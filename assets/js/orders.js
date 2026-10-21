@@ -1,10 +1,13 @@
 /**
- * Nfelia — New order, Quick sale and Change items (views/orders/form.php).
+ * Nfelia — New order and Change items (views/orders/form.php).
  *
  * One Alpine component. It keeps the lines, works out the total and the
  * balance as things are typed, finds customers as their name or phone is
  * typed, and keeps a draft on this phone so a call or a lost signal never
- * loses an order half typed. The server checks everything again.
+ * loses an order half typed. Items are chosen in the picker's item step
+ * (a copy, the draft, saved back on Add or Save). The phone remembers the
+ * last "in the shop or online" and payment choice, so each shop starts where
+ * it usually is. The server checks everything again.
  */
 function orderForm() {
     var D = JSON.parse(document.getElementById('order-form-data').textContent);
@@ -43,9 +46,15 @@ function orderForm() {
             quantity: String(src.quantity || '1'),
             unit_price: hasPrice ? String(src.unit_price) : String(round2(base + deltaSum(variants, choices))),
             note: src.note || '', variant: src.variant || variantStr(variants, choices), variants: variants, choices: choices, base: base,
-            showNote: false, stock: p ? p.stock : null, unit: p ? p.unit : ''
+            showNote: false, stock: p ? p.stock : null, unit: p ? p.unit : '', photo: p ? p.photo : null
         };
     }
+    // A line to change in the item step, without touching the one on the order
+    function copyLine(it) { var c = JSON.parse(JSON.stringify(it)); c.choices = c.choices || {}; return c; }
+    var store = {
+        get: function (k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } },
+        set: function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* not kept: next time starts from the default */ } }
+    };
     function productById(id) {
         for (var i = 0; i < D.products.length; i++) { if (D.products[i].id === id) return D.products[i]; }
         return null;
@@ -57,10 +66,28 @@ function orderForm() {
         query: '', found: [], items: [], showDiscount: num(D.old.discount) > 0, showNote: D.old.note !== '',
         whenPick: '', whenDate: '', payByPick: 'week', payByDate: '',
         pickQuery: '', ownName: '', ownPrice: '', problem: '', submitting: false,
+        pickStep: 'list', draft: null, editing: -1,
 
         init: function () {
             var self = this;
-            this.items = (D.old.items || []).map(function (it) { return line(it, it.product_id ? productById(it.product_id) : null); });
+            this.items = (D.old.items || []).map(function (it) {
+                var l = line(it, it.product_id ? productById(it.product_id) : null);
+                // Changing items: what this order holds already came off the stock
+                if (self.mode === 'edit' && l.stock !== null) l.stock = round2(l.stock + num(it.quantity));
+                return l;
+            });
+            // In the shop or online: what was sent, else what this phone did last time
+            if (this.mode !== 'edit' && !this.old.sale) {
+                var last = D.restore ? store.get(D.lastKey) : null;
+                if (last && (last.sale === 'shop' || last.sale === 'online')) {
+                    this.old.sale = last.sale;
+                    if (last.sale === 'online') this.old.fulfillment = last.fulfillment === 'delivery' ? 'delivery' : 'pickup';
+                    if (last.pay === 'now' || last.pay === 'later') this.old.pay = last.pay;   // a part payment is typed each time
+                    if (/^(cash|bank_transfer|pos|mobile_money)$/.test(last.method || '')) this.old.method = last.method;
+                } else {
+                    this.old.sale = this.old.fulfillment === 'now' ? 'shop' : 'online';
+                }
+            }
             this.setWhen(D.old.deliver_by);
             if (D.old.pay_by) { this.payByPick = 'pick'; this.payByDate = D.old.pay_by; }
             if (this.mode === 'new' && !this.customer && !this.newCustomer) { this.$nextTick(function () { self.$refs.find && self.$refs.find.focus(); }); }
@@ -85,6 +112,10 @@ function orderForm() {
                 this.$watch('old', function () { self.saveDraft(); }, { deep: true });
                 this.$watch('customer', function () { self.saveDraft(); });
             }
+            this.$watch('old.sale', function (v) {
+                if (v === 'shop') self.old.fulfillment = 'now';
+                if (v === 'online' && self.old.fulfillment === 'now') self.old.fulfillment = 'pickup';
+            });
             this.$watch('old.fulfillment', function (v) {
                 if (v === 'delivery' && self.customer && !self.old.delivery_address) self.old.delivery_address = self.customer.address || '';
                 if (v !== 'now' && self.payByPick === 'week' && self.deliverBy()) self.payByPick = 'when';
@@ -109,6 +140,15 @@ function orderForm() {
             if (it.stock < num(it.quantity)) return 'Only ' + this.fmtQty(it.stock) + ' in stock';
             return this.fmtQty(it.stock) + ' in stock';
         },
+        short: function (it) { return it.stock !== null && it.stock !== undefined && it.stock < num(it.quantity); },
+        // Under an item's name: the chosen options, then its note
+        itemWords: function (it) {
+            var bits = (it.variants && it.variants.length)
+                ? it.variants.map(function (g) { return it.choices[g.name] || ''; }).filter(Boolean)
+                : (it.variant ? [it.variant] : []);
+            if (it.note) bits.push('“' + it.note + '”');
+            return bits.join(' · ');
+        },
         lineTotal: function (it) { return round2(round2(num(it.quantity)) * round2(num(it.unit_price))); },   // as the server rounds them
         subtotal: function () { var s = 0, self = this; this.items.forEach(function (it) { s += self.lineTotal(it); }); return round2(s); },
         total: function () { return Math.max(0, round2(this.subtotal() - num(this.old.discount))); },
@@ -132,9 +172,11 @@ function orderForm() {
         buttonWords: function () {
             if (this.submitting) return 'Saving…';
             if (this.mode === 'edit') return 'Save changes';
-            if (this.mode === 'quick' && this.old.pay === 'now' && this.old.fulfillment === 'now') return 'Paid ' + this.money(this.paidNow());
+            if (this.isQuick() && this.items.length) return 'Paid ' + this.money(this.paidNow());
             return 'Save order';
         },
+        // In the shop, paid in full, taken now: a quick sale (its receipt is made at once)
+        isQuick: function () { return this.mode !== 'edit' && this.old.sale === 'shop' && this.old.fulfillment === 'now' && this.old.pay === 'now'; },
 
         // ---------- Customer ----------
         search: function () {
@@ -162,9 +204,17 @@ function orderForm() {
         },
 
         // ---------- Items ----------
+        sheet: function (open) {
+            if (open) { if (window.nfOpenSheet) window.nfOpenSheet('nf-pick'); else { var d = document.getElementById('nf-pick'); if (d && !d.open) d.showModal(); } }
+            else if (window.nfCloseSheet) window.nfCloseSheet('nf-pick');
+            else { var dlg = document.getElementById('nf-pick'); if (dlg && dlg.open) dlg.close(); }
+        },
+        scrollSheetTop: function () { var dlg = document.getElementById('nf-pick'); if (dlg) dlg.scrollTop = 0; },
         openPicker: function () {
             var self = this;
             this.pickQuery = ''; this.ownName = ''; this.ownPrice = '';
+            this.pickStep = 'list'; this.draft = null; this.editing = -1;
+            this.sheet(true);
             setTimeout(function () { self.$refs.pickq && self.$refs.pickq.focus(); }, 120);
         },
         pickList: function () {
@@ -172,17 +222,38 @@ function orderForm() {
             var list = q ? this.products.filter(function (p) { return p.name.toLowerCase().indexOf(q) !== -1; }) : this.products;
             return list.slice(0, 60);
         },
-        addProduct: function (p) {
-            // Products without variants merge into one line; a product with
-            // variants can appear several times (one per colour/size), so each
-            // gets its own line.
-            if (!(p.variants && p.variants.length)) {
+        // The item step: a photo, its colours and sizes as chips, how many, the price
+        openItem: function (p) {
+            this.draft = line({ product_id: p.id, name: p.name, quantity: '1' }, p);
+            this.editing = -1; this.pickStep = 'item';
+            this.$nextTick(this.scrollSheetTop);
+        },
+        editItem: function (i) {
+            this.draft = copyLine(this.items[i]);
+            this.editing = i; this.pickStep = 'item';
+            this.sheet(true);
+            this.$nextTick(this.scrollSheetTop);
+        },
+        backToList: function () { this.pickStep = 'list'; this.draft = null; this.editing = -1; },
+        saveItem: function () {
+            var d = this.draft;
+            if (!d || !(d.name || '').trim()) return;
+            d.name = d.name.trim();
+            d.variant = d.variants && d.variants.length ? variantStr(d.variants, d.choices) : d.variant;
+            if (this.editing >= 0) {
+                this.items.splice(this.editing, 1, d);
+            } else {
+                // The same product with the same choice and price goes onto its line
+                var same = null;
                 for (var i = 0; i < this.items.length; i++) {
-                    if (this.items[i].product_id === p.id) { this.step(this.items[i], 1); this.closePicker(); return; }
+                    var it = this.items[i];
+                    if (d.product_id && it.product_id === d.product_id && (it.variant || '') === (d.variant || '') && num(it.unit_price) === num(d.unit_price) && !it.note && !d.note) { same = it; break; }
                 }
+                if (same) same.quantity = this.fmtQty(round2(num(same.quantity) + num(d.quantity)));
+                else this.items.push(d);
             }
-            this.items.push(line({ product_id: p.id, name: p.name, quantity: '1' }, p));
-            this.closePicker();
+            this.draft = null; this.editing = -1; this.pickStep = 'list';
+            this.sheet(false);
         },
         onVariant: function (it) {
             it.variant = variantStr(it.variants, it.choices);
@@ -191,17 +262,17 @@ function orderForm() {
         addOwn: function () {
             if (!this.ownName.trim()) return;
             this.items.push(line({ name: this.ownName.trim(), quantity: '1', unit_price: this.ownPrice }));
-            this.closePicker();
-        },
-        closePicker: function () {
-            var dlg = document.getElementById('nf-pick');
-            if (dlg && dlg.open) dlg.close();
+            this.sheet(false);
         },
         step: function (it, d) {
             var q = round2(num(it.quantity) + d);
             it.quantity = this.fmtQty(q < 1 ? (num(it.quantity) > 1 ? 1 : num(it.quantity) || 1) : q);
         },
-        removeItem: function (i) { this.items.splice(i, 1); },
+        removeItem: function (i) {
+            this.items.splice(i, 1);
+            this.draft = null; this.editing = -1; this.pickStep = 'list';
+            this.sheet(false);
+        },
 
         // ---------- When, and pay by ----------
         setWhen: function (date) {
@@ -254,6 +325,7 @@ function orderForm() {
             }
             this.submitting = true;
             try { if (D.draftKey) sessionStorage.removeItem(D.draftKey); } catch (err) { /* nothing kept */ }
+            if (this.mode !== 'edit') store.set(D.lastKey, { sale: this.old.sale, fulfillment: this.old.fulfillment, pay: this.old.pay, method: this.old.method });
         }
     };
 }

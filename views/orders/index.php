@@ -75,7 +75,6 @@ $owed        = (float)($counts['balance_total'] ?? 0);
         <p>Every sale starts here: one order holds its invoice, payments, receipts and delivery. Orders from your shop come in on their own.</p>
         <div class="nf-empty-do">
             <a class="nf-btn nf-btn-primary" href="<?= APP_URL ?>/orders/create"><?= nav_icon('plus') ?>New order</a>
-            <a class="nf-btn nf-btn-ghost" href="<?= APP_URL ?>/orders/quick"><?= nav_icon('bolt') ?>Quick sale</a>
         </div>
     </div>
 <?php endif; ?>

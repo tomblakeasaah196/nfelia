@@ -1,9 +1,12 @@
 <?php
 /**
- * New order, Quick sale, and Change items: one screen, top to bottom.
- * Customer · Items · How they get it · Payment, with the total and one
- * button always in reach at the bottom. Driven by orderForm() in
- * assets/js/orders.js; the server checks everything again.
+ * New order and Change items: one screen, top to bottom. Customer · Items ·
+ * In the shop or online (and, online, pickup or delivery) · Payment, with the
+ * total and one button always in reach at the bottom. A sale in the shop,
+ * paid in full and taken now, is saved as a quick sale. Items are picked from
+ * a photo list, then chosen (colour, size, how many) in one step; on the
+ * screen each is one short row that opens that step again. Driven by
+ * orderForm() in assets/js/orders.js; the server checks everything again.
  * Renders inside views/layouts/app.php.
  *
  * Available from controller:
@@ -13,7 +16,6 @@
 $currency = $business['currency_symbol'] ?? '₦';
 $today    = planner_today();
 $is_edit  = $form_mode === 'edit';
-$is_quick = $form_mode === 'quick';
 
 $paid_so_far = 0.0;
 if ($is_edit) {
@@ -31,7 +33,8 @@ $data = [
     'customer'  => $picked,
     'paidSoFar' => $paid_so_far,
     'searchUrl' => APP_URL . '/orders/customers',
-    'draftKey'  => $is_edit ? null : 'nf-order-draft-' . $form_mode,
+    'draftKey'  => $is_edit ? null : 'nf-order-draft',
+    'lastKey'   => 'nf-order-last-' . (int)$business['id'],
     'restore'   => empty($old) && !$is_edit,
     'old'       => [
         'customer_name'    => (string)($old['customer_name'] ?? ''),
@@ -40,19 +43,21 @@ $data = [
         'items'            => array_values(array_map(fn($i) => [
             'product_id' => (int)($i['product_id'] ?? 0) ?: null, 'name' => (string)($i['name'] ?? ''),
             'quantity' => (string)($i['quantity'] ?? '1'), 'unit_price' => (string)($i['unit_price'] ?? ''), 'note' => (string)($i['note'] ?? ''),
+            'variant' => (string)($i['variant'] ?? ''),
         ], array_filter((array)($old['items'] ?? []), 'is_array'))),
         'discount'         => (string)($old['discount'] ?? ''),
-        'fulfillment'      => (string)($old['fulfillment'] ?? ($is_quick ? 'now' : 'pickup')),
+        'sale'             => in_array($old['sale'] ?? '', ['shop', 'online'], true) ? $old['sale'] : '',
+        'fulfillment'      => (string)($old['fulfillment'] ?? 'now'),
         'deliver_by'       => (string)($old['deliver_by'] ?? ''),
         'delivery_address' => (string)($old['delivery_address'] ?? ''),
-        'pay'              => (string)($old['pay'] ?? ($is_quick ? 'now' : 'later')),
+        'pay'              => (string)($old['pay'] ?? 'now'),
         'paid_now'         => (string)($old['paid_now'] ?? ''),
         'method'           => (string)($old['method'] ?? 'cash'),
         'reference'        => (string)($old['reference'] ?? ''),
         'pay_by'           => (string)($old['pay_by'] ?? ''),
         'note'             => (string)($old['note'] ?? ''),
         'use_kept'         => !empty($old['use_kept']),
-        'walk_in'          => $is_quick && empty($old['customer_name']) && empty($old['customer_id']),
+        'walk_in'          => !empty($old['walk_in']) && empty($old['customer_name']) && empty($old['customer_id']),
     ],
 ];
 $action = $is_edit ? APP_URL . '/orders/update/' . (int)$order['id'] : APP_URL . '/orders/save';
@@ -60,20 +65,14 @@ $action = $is_edit ? APP_URL . '/orders/update/' . (int)$order['id'] : APP_URL .
 <script type="application/json" id="order-form-data"><?= json_encode($data, JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) ?></script>
 
 <div class="nf-page nf-oform" x-data="orderForm()" x-cloak>
-<h1 class="sr-only"><?= $is_edit ? 'Change items' : ($is_quick ? 'Quick sale' : 'New order') ?></h1>
-<?php if (!$is_edit): ?>
-    <nav class="nf-segs" aria-label="Kind of sale">
-        <a href="<?= APP_URL ?>/orders/create"<?= !$is_quick ? ' aria-current="page"' : '' ?>><?= nav_icon('orders') ?>New order</a>
-        <a href="<?= APP_URL ?>/orders/quick"<?= $is_quick ? ' aria-current="page"' : '' ?>><?= nav_icon('bolt') ?>Quick sale</a>
-    </nav>
-<?php endif; ?>
+<h1 class="sr-only"><?= $is_edit ? 'Change items' : 'New order' ?></h1>
 <?php if ($is_edit): ?>
     <p class="nf-sub">Order <?= e($order['order_number']) ?> for <?= e($order['customer_name']) ?>. Its invoice keeps its number; stock follows the change.</p>
 <?php endif; ?>
 
 <form method="POST" action="<?= $action ?>" @submit="submit($event)" novalidate>
     <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>"><?= $is_edit ? '' : form_once() ?>
-    <input type="hidden" name="mode" value="<?= e($form_mode) ?>">
+    <?php if ($is_edit): ?><input type="hidden" name="mode" value="edit"><?php else: ?><input type="hidden" name="mode" :value="isQuick() ? 'quick' : 'new'"><input type="hidden" name="sale" :value="old.sale"><input type="hidden" name="walk_in" :value="walkIn ? '1' : ''"><?php endif; ?>
     <?php if ($error !== ''): ?><p class="nf-err" role="alert"><?= e($error) ?></p><?php endif; ?>
     <p class="nf-err" role="alert" x-show="problem" x-text="problem"></p>
 
@@ -117,11 +116,10 @@ $action = $is_edit ? APP_URL . '/orders/update/' . (int)$order['id'] : APP_URL .
                         <span class="nf-item-main"><b x-text="'New customer: ' + query.trim()"></b><small>Add their name and phone</small></span>
                     </button>
                 </div>
-                <?php if ($is_quick): ?>
-                    <button type="button" class="nf-link" x-show="query.trim() === ''" @click="walkIn = true">Walk-in customer</button>
-                <?php else: ?>
-                    <button type="button" class="nf-link" x-show="query.trim() === ''" @click="startNew()">New customer</button>
-                <?php endif; ?>
+                <div class="nf-findc-do" x-show="query.trim() === ''">
+                    <button type="button" class="nf-link" @click="startNew()">New customer</button>
+                    <button type="button" class="nf-link" @click="walkIn = true">No name, paying now</button>
+                </div>
             </div>
             <div x-show="newCustomer" class="nf-form is-flat">
                 <label>Name<input type="text" name="customer_name" x-model="old.customer_name" maxlength="100" autocomplete="off" :required="newCustomer"></label>
@@ -138,51 +136,28 @@ $action = $is_edit ? APP_URL . '/orders/update/' . (int)$order['id'] : APP_URL .
     <!-- Items -->
     <section class="nf-sec" aria-labelledby="nf-sec-i">
         <h2 id="nf-sec-i">Items</h2>
-        <ul class="nf-oitems" x-show="items.length">
+        <ul class="nf-olist" x-show="items.length">
             <template x-for="(it, i) in items" :key="it.key">
-                <li class="nf-oitem">
+                <li>
                     <input type="hidden" :name="'items[' + i + '][product_id]'" :value="it.product_id || ''">
                     <input type="hidden" :name="'items[' + i + '][variant]'" :value="it.variant || ''">
-                    <div class="nf-oitem-top">
-                        <template x-if="it.product_id">
-                            <span class="nf-oitem-name"><b x-text="it.name"></b><small x-show="it.variant" x-text="it.variant"></small><small x-show="it.stock !== null && it.stock !== undefined" :class="{ 'is-owed': it.stock < num(it.quantity) }" x-text="stockWords(it)"></small></span>
-                        </template>
-                        <template x-if="!it.product_id">
-                            <label class="nf-oitem-name"><span class="sr-only">Item</span><input type="text" x-model="it.name" placeholder="What is it?" maxlength="200"></label>
-                        </template>
-                        <input type="hidden" :name="'items[' + i + '][name]'" :value="it.name">
-                        <b class="nf-oline" x-text="money(lineTotal(it))"></b>
-                        <button type="button" class="nf-icon-btn" @click="removeItem(i)" :aria-label="'Remove ' + (it.name || 'this item')" data-tip="Remove"><?= nav_icon('close') ?></button>
-                    </div>
-                    <div class="nf-oitem-row">
-                        <div class="nf-qty" role="group" :aria-label="'How many ' + (it.name || '')">
-                            <button type="button" @click="step(it, -1)" aria-label="One less"><?= nav_icon('minus') ?></button>
-                            <input type="text" inputmode="decimal" x-model="it.quantity" :name="'items[' + i + '][quantity]'" aria-label="Quantity">
-                            <button type="button" @click="step(it, 1)" aria-label="One more"><?= nav_icon('plus') ?></button>
-                        </div>
-                        <label class="nf-oprice"><span class="sr-only">Price each</span><span class="nf-cur"><?= e($currency) ?></span>
-                            <input type="text" inputmode="decimal" x-model="it.unit_price" :name="'items[' + i + '][unit_price]'" placeholder="Price each"></label>
-                    </div>
-                    <div class="nf-ovariants" x-show="it.variants && it.variants.length" x-cloak>
-                        <template x-for="(group, gi) in (it.variants || [])" :key="gi">
-                            <label class="nf-ovariant">
-                                <span x-text="group.name"></span>
-                                <select x-model="it.choices[group.name]" @change="onVariant(it)">
-                                    <template x-for="(opt, oi) in group.options" :key="oi">
-                                        <option :value="opt.label" x-text="opt.label + (opt.delta ? '  ·  ' + (opt.delta > 0 ? '+' : '−') + money(Math.abs(opt.delta)) : '')"></option>
-                                    </template>
-                                </select>
-                            </label>
-                        </template>
-                    </div>
-                    <div class="nf-oitem-note">
-                        <button type="button" class="nf-link" x-show="!it.showNote && !it.note" @click="it.showNote = true">Add a note</button>
-                        <input type="text" x-show="it.showNote || it.note" x-model="it.note" :name="'items[' + i + '][note]'" maxlength="255" placeholder="Size, colour, measurements…" aria-label="Note for this item">
-                    </div>
+                    <input type="hidden" :name="'items[' + i + '][name]'" :value="it.name">
+                    <input type="hidden" :name="'items[' + i + '][quantity]'" :value="it.quantity">
+                    <input type="hidden" :name="'items[' + i + '][unit_price]'" :value="it.unit_price">
+                    <input type="hidden" :name="'items[' + i + '][note]'" :value="it.note">
+                    <button type="button" class="nf-orow-btn" @click="editItem(i)" :aria-label="'Change ' + (it.name || 'this item')">
+                        <span class="nf-thumb" aria-hidden="true"><span x-text="initials(it.name)"></span><template x-if="it.photo"><img :src="it.photo.src" :data-full="it.photo.full" alt="" loading="lazy" decoding="async"></template></span>
+                        <span class="nf-orow-main">
+                            <b x-text="it.name || 'Name this item'" :class="{ 'is-owed': !it.name }"></b>
+                            <small x-show="itemWords(it)" x-text="itemWords(it)"></small>
+                            <small class="is-owed" x-show="short(it)" x-text="stockWords(it)"></small>
+                        </span>
+                        <span class="nf-orow-end"><b x-text="money(lineTotal(it))"></b><small x-text="fmtQty(num(it.quantity)) + ' × ' + money(num(it.unit_price))"></small></span>
+                    </button>
                 </li>
             </template>
         </ul>
-        <button type="button" class="nf-add" data-open="nf-pick" @click="openPicker()"><?= nav_icon('plus') ?><span x-text="items.length ? 'Add another item' : 'Add an item'"></span></button>
+        <button type="button" class="nf-add" @click="openPicker()"><?= nav_icon('plus') ?><span x-text="items.length ? 'Add another item' : 'Add an item'"></span></button>
 
         <div class="nf-disc">
             <button type="button" class="nf-link" x-show="!showDiscount" @click="showDiscount = true">Add discount</button>
@@ -192,13 +167,21 @@ $action = $is_edit ? APP_URL . '/orders/update/' . (int)$order['id'] : APP_URL .
     </section>
 
     <?php if (!$is_edit): ?>
-    <!-- How they get it -->
+    <!-- In the shop, or online; online, then pickup or delivery -->
     <section class="nf-sec" aria-labelledby="nf-sec-h">
-        <h2 id="nf-sec-h">How will they get it?</h2>
-        <div class="nf-seg is-3">
-            <label><input type="radio" name="fulfillment" value="now" x-model="old.fulfillment"><span class="opt"><?= nav_icon('hand') ?>Takes it now</span></label>
-            <label><input type="radio" name="fulfillment" value="pickup" x-model="old.fulfillment"><span class="opt"><?= nav_icon('pin') ?>Picks up later</span></label>
-            <label><input type="radio" name="fulfillment" value="delivery" x-model="old.fulfillment"><span class="opt"><?= nav_icon('delivery') ?>Delivery</span></label>
+        <h2 id="nf-sec-h">Where is the customer?</h2>
+        <div class="nf-seg is-2">
+            <label><input type="radio" name="nf-sale" value="shop" x-model="old.sale"><span class="opt"><?= nav_icon('hand') ?>In the shop</span></label>
+            <label><input type="radio" name="nf-sale" value="online" x-model="old.sale"><span class="opt"><?= nav_icon('phone') ?>Online or call</span></label>
+        </div>
+        <input type="hidden" name="fulfillment" :value="old.fulfillment">
+        <template x-if="old.sale === 'shop'">
+            <label class="nf-switch"><input type="checkbox" role="switch" :checked="old.fulfillment === 'pickup'" @change="old.fulfillment = $event.target.checked ? 'pickup' : 'now'">
+                <span><b>They'll collect it another day</b><small>Made to measure, or not ready yet</small></span></label>
+        </template>
+        <div x-show="old.sale === 'online'" class="nf-seg is-2">
+            <label><input type="radio" name="nf-how" value="pickup" x-model="old.fulfillment"><span class="opt"><?= nav_icon('pin') ?>Picks up</span></label>
+            <label><input type="radio" name="nf-how" value="delivery" x-model="old.fulfillment"><span class="opt"><?= nav_icon('delivery') ?>Delivery</span></label>
         </div>
         <div x-show="old.fulfillment !== 'now'" class="nf-sub-q">
             <p class="nf-q" x-text="old.fulfillment === 'delivery' ? 'Delivery day' : 'Pickup day'"></p>
@@ -272,32 +255,84 @@ $action = $is_edit ? APP_URL . '/orders/update/' . (int)$order['id'] : APP_URL .
     </div>
 </form>
 
-<!-- Pick an item -->
+<!-- Pick an item: a photo list, then the item's own step (colour, size, how many) -->
 <dialog class="nf-sheet nf-pick" id="nf-pick" aria-labelledby="nf-pick-h">
     <div class="nf-grab"></div>
-    <div class="nf-sheet-h"><h2 id="nf-pick-h">Add an item</h2><button type="button" class="nf-icon-btn" data-close aria-label="Close"><?= nav_icon('close') ?></button></div>
-    <div class="nf-pick-find">
-        <label class="nf-search"><?= nav_icon('search') ?>
-            <input type="search" x-ref="pickq" x-model="pickQuery" placeholder="Search your stock" aria-label="Search your stock" autocomplete="off" enterkeyhint="search"></label>
+    <div class="nf-sheet-h">
+        <button type="button" class="nf-icon-btn" x-show="pickStep === 'item' && editing < 0" @click="backToList()" aria-label="Back to the list"><?= nav_icon('back') ?></button>
+        <h2 id="nf-pick-h" x-text="pickStep === 'item' ? (draft && draft.product_id ? draft.name : 'Your own item') : 'Add an item'">Add an item</h2>
+        <button type="button" class="nf-icon-btn" data-close aria-label="Close"><?= nav_icon('close') ?></button>
     </div>
-    <div class="nf-pick-list">
-        <template x-for="p in pickList()" :key="p.id">
-            <button type="button" class="nf-item" @click="addProduct(p)" :class="{ 'is-off': p.stock !== null && p.stock <= 0 }">
-                <span class="nf-item-main"><b x-text="p.name"></b><small x-text="p.stock === null ? 'Service' : (p.stock <= 0 ? 'Out of stock' : fmtQty(p.stock) + ' in stock')"></small></span>
-                <span class="nf-item-end"><b x-text="money(p.price)"></b></span>
-            </button>
-        </template>
-        <p class="nf-sheet-note" x-show="products.length && !pickList().length" x-text="'Nothing in your stock matches “' + pickQuery + '”.'"></p>
-        <p class="nf-sheet-note" x-show="!products.length">Nothing in your stock yet. Type the item below.</p>
-    </div>
-    <div class="nf-pick-own">
-        <p class="nf-q">Not in your stock? Type it</p>
-        <div class="nf-pick-own-row">
-            <input type="text" x-model="ownName" placeholder="What is it?" aria-label="Item name" maxlength="200">
-            <span class="nf-amount"><span><?= e($currency) ?></span><input type="text" inputmode="decimal" x-model="ownPrice" placeholder="Price" aria-label="Price"></span>
+
+    <div x-show="pickStep === 'list'">
+        <div class="nf-pick-find">
+            <label class="nf-search"><?= nav_icon('search') ?>
+                <input type="search" x-ref="pickq" x-model="pickQuery" placeholder="Search your stock" aria-label="Search your stock" autocomplete="off" enterkeyhint="search"></label>
         </div>
-        <button type="button" class="nf-btn nf-btn-primary" @click="addOwn()" :disabled="!ownName.trim()"><?= nav_icon('plus') ?>Add it</button>
+        <div class="nf-pick-list">
+            <template x-for="p in pickList()" :key="p.id">
+                <button type="button" class="nf-item" @click="openItem(p)" :class="{ 'is-off': p.stock !== null && p.stock <= 0 }">
+                    <span class="nf-thumb" aria-hidden="true"><span x-text="initials(p.name)"></span><template x-if="p.photo"><img :src="p.photo.src" :data-full="p.photo.full" alt="" loading="lazy" decoding="async"></template></span>
+                    <span class="nf-item-main"><b x-text="p.name"></b><small x-text="p.stock === null ? 'Service' : (p.stock <= 0 ? 'Out of stock' : fmtQty(p.stock) + ' in stock')"></small></span>
+                    <span class="nf-item-end"><b x-text="money(p.price)"></b><small x-show="p.variants.length" x-text="p.variants.map(function (g) { return g.name; }).join(' · ')"></small></span>
+                </button>
+            </template>
+            <p class="nf-sheet-note" x-show="products.length && !pickList().length" x-text="'Nothing in your stock matches “' + pickQuery + '”.'"></p>
+            <p class="nf-sheet-note" x-show="!products.length">Nothing in your stock yet. Type the item below.</p>
+        </div>
+        <div class="nf-pick-own">
+            <p class="nf-q">Not in your stock? Type it</p>
+            <div class="nf-pick-own-row">
+                <input type="text" x-model="ownName" placeholder="What is it?" aria-label="Item name" maxlength="200">
+                <span class="nf-amount"><span><?= e($currency) ?></span><input type="text" inputmode="decimal" x-model="ownPrice" placeholder="Price" aria-label="Price"></span>
+            </div>
+            <button type="button" class="nf-btn nf-btn-ghost" @click="addOwn()" :disabled="!ownName.trim()"><?= nav_icon('plus') ?>Add it</button>
+        </div>
     </div>
+
+    <template x-if="pickStep === 'item' && draft">
+        <div class="nf-pitem">
+            <template x-if="draft.photo">
+                <div class="nf-pitem-photo"><img :src="draft.photo.full" alt="" decoding="async"></div>
+            </template>
+            <div class="nf-pitem-sum">
+                <template x-if="!draft.product_id">
+                    <label class="nf-pitem-name">What is it?<input type="text" x-model="draft.name" maxlength="200"></label>
+                </template>
+                <p class="nf-pitem-price"><b x-text="money(num(draft.unit_price))"></b><small x-show="draft.stock !== null && draft.stock !== undefined" :class="{ 'is-owed': short(draft) }" x-text="stockWords(draft)"></small></p>
+            </div>
+            <template x-for="(group, gi) in (draft.variants || [])" :key="gi">
+                <fieldset class="nf-pitem-group">
+                    <legend x-text="group.name"></legend>
+                    <div class="nf-chipset">
+                        <template x-for="(opt, oi) in group.options" :key="oi">
+                            <label><input type="radio" :name="'pv-' + gi" :value="opt.label" x-model="draft.choices[group.name]" @change="onVariant(draft)">
+                                <span><span x-text="opt.label"></span><small x-show="opt.delta" x-text="(opt.delta > 0 ? '+' : '−') + money(Math.abs(opt.delta))"></small></span></label>
+                        </template>
+                    </div>
+                </fieldset>
+            </template>
+            <div class="nf-pitem-row">
+                <div class="nf-pitem-l"><span aria-hidden="true">How many</span>
+                    <span class="nf-qty is-big" role="group" aria-label="How many">
+                        <button type="button" @click="step(draft, -1)" aria-label="One less"><?= nav_icon('minus') ?></button>
+                        <input type="text" inputmode="decimal" x-model="draft.quantity" aria-label="Quantity">
+                        <button type="button" @click="step(draft, 1)" aria-label="One more"><?= nav_icon('plus') ?></button>
+                    </span></div>
+                <label class="nf-pitem-l">Price each
+                    <span class="nf-amount"><span><?= e($currency) ?></span><input type="text" inputmode="decimal" x-model="draft.unit_price" aria-label="Price each"></span></label>
+            </div>
+            <div class="nf-pitem-note">
+                <button type="button" class="nf-link" x-show="!draft.showNote && !draft.note" @click="draft.showNote = true; $nextTick(() => $refs.pnote && $refs.pnote.focus())">Add a note</button>
+                <label x-show="draft.showNote || draft.note" class="nf-pitem-l">Note <small>Measurements, a name to print…</small>
+                    <input type="text" x-ref="pnote" x-model="draft.note" maxlength="255"></label>
+            </div>
+            <div class="nf-pitem-do">
+                <button type="button" class="nf-btn nf-btn-primary" @click="saveItem()" :disabled="!(draft.name || '').trim()" x-text="(editing >= 0 ? 'Save' : 'Add') + ' · ' + money(lineTotal(draft))"></button>
+                <button type="button" class="nf-link is-danger" x-show="editing >= 0" @click="removeItem(editing)"><?= nav_icon('trash') ?>Remove from order</button>
+            </div>
+        </div>
+    </template>
 </dialog>
 </div>
 <script src="<?= APP_URL ?>/assets/js/orders.js?v=<?= (int)@filemtime(BASE_PATH . '/assets/js/orders.js') ?>"></script>

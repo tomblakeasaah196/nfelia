@@ -11,7 +11,7 @@ This fixes the bug that started it: an order showed `ORD-0001` while Tasks and i
 | Topic | Decision | In the code |
 |---|---|---|
 | Numbers | Each document's own number leads (CAS-INV-403). The order number is referenced next to it wherever possible (Order CAS-ORD-704) | `order_number_of()` in `PublicController`; the meta lines in `views/invoices/view.php`, `views/receipts/view.php`, `views/deliveries/view.php`; public pages and PDF templates |
-| Every sale is an order | Yes. Quick sale makes the order, invoice and receipt in one go. Orders replaced Sales in the bottom bar | `OrderController::quick`, `order_create()`; `views/layouts/app.php` (tabs and the + sheet) |
+| Every sale is an order | Yes. New order is the one screen: in the shop, paid now and taken now, it is saved as a quick sale, with order, invoice and receipt in one go (`orders/quick` opens New order). Orders replaced Sales in the bottom bar | `OrderController::quick`, `order_create()`; `views/layouts/app.php` (tabs and the + sheet) |
 | Prefix | Taken from the business name, changeable any time (2 to 5 letters or digits). Only new numbers change, counting carries on, and a new prefix is suggested after a rename | Settings › Document numbers (`views/settings/index.php` `#numbers`); `SettingsController::doc_prefix`, `doc_prefix_keep`; `doc_prefix_problem()`, `derive_prefix()` |
 | Old records | Keep their numbers. Past shop orders are linked to their documents; old standalone invoices show "No order" | the backfill in `db/migrations/20261023090000_orders_hub.sql` |
 | Orders tab | Holds the Orders · Quotes · Invoices · Receipts lists | `views/partials/orders_head.php` |
@@ -42,7 +42,7 @@ This fixes the bug that started it: an order showed `ORD-0001` while Tasks and i
   purge instead. Old standalone invoices purge as before.
 - **What can't be deleted on its own any more:** a receipt for a payment on an order (it stays with its
   payment) and a quote that made an order (it stays as that order's record).
-- **The old "receipt only" sale form is gone.** Its links open Quick sale, and New invoice opens New order.
+- **The old "receipt only" sale form is gone.** Its links open New order, as does New invoice.
 - **Client pages** open on the client's orders, each led by its order number, with a note when money is kept
   for their next order.
 - **New order starts on "Pay later"**, so no money is recorded unless someone chooses Paid now or Part now.

@@ -1116,6 +1116,13 @@ class PublicController
                     "total" => sf_money((float) $subtotal, (string) ($business["currency_symbol"] ?? "")),
                     "is_whatsapp" => $channel === "whatsapp",
                 ];
+                // The whole order with its photos. Nothing about payment yet:
+                // the shop checks it first. No address: the shopper typed it.
+                $placed = $this->db->prepare("SELECT * FROM orders WHERE id = ?");
+                $placed->execute([$order_id]);
+                if ($placed = $placed->fetch()) {
+                    $mail_vars["details"] = ["paid" => "", "balance" => "", "due_by" => ""] + order_mail_details($this->db, $placed, false);
+                }
                 // Through the outbox, so a mail server that is down is tried again.
                 notify_email($business_id, $customer_email, $customer_name, "Your order " . $order_number . " from " . $business["name"],
                     "order_received", $mail_vars, "order-received:" . $order_id, "shopper.order_received");

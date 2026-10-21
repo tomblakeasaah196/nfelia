@@ -106,6 +106,8 @@ $payment = match (true) {
             <ul class="sf-orderlines">
                 <?php foreach ($order['items'] as $line): ?>
                     <li class="sf-orderline">
+                        <?php $photo = !empty($line['image_path']) ? sf_img((string)$line['image_path'], '56px', '', 'sf-orderline__img') : ''; ?>
+                        <?php if ($photo !== ''): ?><span class="sf-orderline__photo" aria-hidden="true"><?= $photo ?></span><?php endif; ?>
                         <div class="sf-orderline__body">
                             <span class="sf-orderline__name"><?= e($line['product_name']) ?></span>
                             <?php $meta = array_filter([(string)$line['variant_selection'], $line['item_note'] ? 'Note: ' . $line['item_note'] : '']); ?>

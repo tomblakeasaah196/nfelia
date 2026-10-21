@@ -3,7 +3,7 @@
  * Nfelia — Orders: every sale, from the shop or typed in (docs/ORDERS_HUB.md).
  *
  * The list, the order page (the heart of a sale: its invoice, payments and
- * receipts, delivery, tasks, messages and Log), New order and Quick sale,
+ * receipts, delivery, tasks, messages and Log), New order (a quick sale too),
  * and everything done to an order from its page. The work itself is in
  * app/helpers/orders.php; this controller checks who may do it, calls it,
  * and says what happened in plain words.
@@ -70,7 +70,7 @@ class OrderController
         // What is on it, with what is in stock now: the shop doesn't show
         // stock, so the owner sees it here before confirming (S10)
         $stmt = $this->db->prepare(
-            "SELECT oi.*, p.stock_qty, p.is_service, p.unit
+            "SELECT oi.*, p.stock_qty, p.is_service, p.unit, p.image_path
              FROM order_items oi
              LEFT JOIN products p ON p.id = oi.product_id AND p.business_id = ? AND p.deleted_at IS NULL
              WHERE oi.order_id = ? ORDER BY oi.sort_order, oi.id",
@@ -169,9 +169,10 @@ class OrderController
         $this->form("new", $old);
     }
 
+    /** Quick sale is the same screen now: in the shop, paid, taken now is saved as one. */
     public function quick()
     {
-        $this->form("quick", []);
+        redirect("orders/create");
     }
 
     public function edit($id = null)
@@ -208,7 +209,7 @@ class OrderController
         try {
             $order = order_create($this->db, $this->biz_id, $in, $this->user_id());
         } catch (DomainException $e) {
-            $this->form($mode, $_POST, null, $e->getMessage());
+            $this->form("new", $_POST, null, $e->getMessage());
             return;
         }
         $symbol = $this->symbol();
@@ -820,20 +821,20 @@ class OrderController
         ];
     }
 
-    /** The New order / Quick sale / Change items screen. */
+    /** The New order / Change items screen. */
     private function form(string $mode, array $old, ?array $order = null, string $error = ""): void
     {
         $user = auth_user();
         $business = auth_business();
         $stmt = $this->db->prepare(
-            "SELECT id, name, sell_price, stock_qty, unit, is_service FROM products
+            "SELECT id, name, sell_price, stock_qty, unit, is_service, image_path FROM products
              WHERE business_id = ? AND is_active = 1 AND deleted_at IS NULL ORDER BY name LIMIT 1000",
         );
         $stmt->execute([$this->biz_id]);
         $products = array_map(fn($p) => [
             "id" => (int) $p["id"], "name" => (string) $p["name"], "price" => (float) $p["sell_price"],
             "stock" => (int) $p["is_service"] ? null : (float) $p["stock_qty"], "unit" => (string) ($p["unit"] ?? ""),
-            "variants" => [],
+            "photo" => order_photo($p["image_path"] ?? null), "variants" => [],
         ], $stmt->fetchAll());
 
         // Attach each product's variant groups and options (with price changes),
@@ -863,11 +864,7 @@ class OrderController
 
         $picked = !empty($old["customer_id"]) ? $this->customer_choice((int) $old["customer_id"]) : null;
         $form_mode = $mode;
-        $title = match ($mode) {
-            "quick" => "Quick sale",
-            "edit" => "Change items",
-            default => "New order",
-        };
+        $title = $mode === "edit" ? "Change items" : "New order";
         $view_file = BASE_PATH . "/views/orders/form.php";
         require_once BASE_PATH . "/views/layouts/app.php";
     }

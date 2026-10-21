@@ -50,9 +50,12 @@ function shop_order_by_token(PDO $db, int $business_id, string $token): ?array {
         return null;
     }
 
-    $stmt = $db->prepare("SELECT product_id, product_name, unit_price, quantity, variant_selection, item_note, line_total
-                          FROM order_items WHERE order_id = ? ORDER BY id ASC");
-    $stmt->execute([(int)$order['id']]);
+    $stmt = $db->prepare("SELECT oi.product_id, oi.product_name, oi.unit_price, oi.quantity, oi.variant_selection, oi.item_note, oi.line_total,
+                                 p.image_path
+                          FROM order_items oi
+                          LEFT JOIN products p ON p.id = oi.product_id AND p.business_id = ? AND p.deleted_at IS NULL
+                          WHERE oi.order_id = ? ORDER BY oi.id ASC");
+    $stmt->execute([$business_id, (int)$order['id']]);
     $order['items'] = $stmt->fetchAll();
 
     $order['delivery'] = null;
@@ -247,10 +250,65 @@ function shop_order_tell(PDO $db, int $order_id, string $state, string $message 
             'order_url'    => shop_order_url($db, $order, $business),
             'review_url'   => $review && $review['status'] === 'invited' ? review_url($business, $review) : null,
             'message'      => $message,
+            // The whole order, at the start and at the end (a record of what they got)
+            'details'      => in_array($state, ['confirmed', 'delivered', 'collected'], true) ? order_mail_details($db, $order) : null,
         ], 'order:' . $order_id . ':' . $state, 'shopper.order_' . $state);
     } catch (Throwable $e) {
         error_log('Nfelia shop_order_tell ' . $order_id . ' ' . $state . ': ' . $e->getMessage());
     }
+}
+
+/**
+ * The order as its emails show it (views/emails/_order_details.php): each
+ * line with its photo, options, how many and price; the money (paid, the
+ * balance and when it is due); and how and when the customer gets it. All
+ * figures are words already, as the email is drawn later from the outbox.
+ * Item notes stay out: on a shop order they are the shopper's own words.
+ * $with_where adds the delivery address (once the shop has the order in hand).
+ */
+function order_mail_details(PDO $db, array $order, bool $with_where = true): array {
+    $biz = (int)$order['business_id'];
+    $stmt = $db->prepare("SELECT currency_symbol FROM businesses WHERE id = ?");
+    $stmt->execute([$biz]);
+    $sym = trim((string)$stmt->fetchColumn()) ?: '₦';
+    $money = fn($n) => planner_money((float)$n, $sym);
+    $day = fn(?string $d) => $d ? date('l j F', strtotime($d)) : '';
+
+    $stmt = $db->prepare("SELECT oi.product_name, oi.variant_selection, oi.quantity, oi.unit_price, oi.line_total, p.image_path
+                          FROM order_items oi
+                          LEFT JOIN products p ON p.id = oi.product_id AND p.business_id = ? AND p.deleted_at IS NULL
+                          WHERE oi.order_id = ? ORDER BY oi.sort_order, oi.id");
+    $stmt->execute([$biz, (int)$order['id']]);
+    $lines = array_map(fn($l) => [
+        'name'    => (string)$l['product_name'],
+        'options' => (string)($l['variant_selection'] ?? ''),
+        'each'    => fmt_qty((float)$l['quantity']) . ' × ' . $money($l['unit_price']),
+        'total'   => $money($l['line_total']),
+        'photo'   => order_mail_photo($l['image_path'] ?? null),
+    ], $stmt->fetchAll());
+
+    $inv = order_invoice($db, $biz, $order);
+    $total = $inv ? (float)$inv['total'] : (float)$order['total'];
+    $paid  = $inv ? (float)$inv['amount_paid'] : 0.0;
+    $due   = $inv ? max(0, (float)$inv['balance_due']) : max(0, $total);
+    $now   = $inv && ($inv['deliver_mode'] ?? '') === 'immediate';
+    $when  = $now ? '' : $day($inv['deliver_by'] ?? null);
+    $how   = match (true) {
+        $now                                         => 'Taken in the shop',
+        ($order['fulfillment_type'] ?? '') === 'delivery' => 'Delivery',
+        default                                      => 'Pickup',
+    };
+    return [
+        'lines'    => $lines,
+        'discount' => (float)($order['discount_amount'] ?? 0) > 0 ? '−' . $money($order['discount_amount']) : '',
+        'total'    => $money($total),
+        'paid'     => $paid > 0 ? $money($paid) : '',
+        'balance'  => $due > 0 ? $money($due) : '',
+        'due_by'   => $due > 0 && $inv ? $day($inv['due_date'] ?? null) : '',
+        'how'      => $how,
+        'when'     => $when,
+        'address'  => $with_where && $how === 'Delivery' ? trim((string)($order['delivery_address'] ?? '')) : '',
+    ];
 }
 
 /** The same news as shop_order_tell(), ready to send on WhatsApp from the order page. */

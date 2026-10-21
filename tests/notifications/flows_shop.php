@@ -138,9 +138,11 @@ eq(count(rows("SELECT id FROM notifications WHERE event = 'review.new'")), 2, 'a
 section('A sale on the spot');
 clean_slate();
 $b->get('receipts/create');
-eq($b->to(), 'orders/quick', 'the old receipt page opens a quick sale: every sale is an order');
+eq($b->to(), 'orders/create', 'the old receipt page opens a new order: every sale is an order');
 $b->get('orders/quick');
-$b->post('orders/save', ['mode' => 'quick', 'customer_id' => '', 'pay' => 'now', 'method' => 'cash',
+eq($b->to(), 'orders/create', 'Quick sale is the same screen as New order now');
+$b->get('orders/create');
+$b->post('orders/save', ['mode' => 'quick', 'sale' => 'shop', 'fulfillment' => 'now', 'walk_in' => '1', 'customer_id' => '', 'pay' => 'now', 'method' => 'cash',
                          'items' => [['product_id' => '', 'name' => 'Edge control', 'quantity' => '2', 'unit_price' => '3500']]]);
 $oid = (int)q("SELECT id FROM orders WHERE business_id = 2 AND channel = 'quick' ORDER BY id DESC LIMIT 1");
 $rid = (int)q("SELECT id FROM receipts WHERE business_id = 2 ORDER BY id DESC LIMIT 1");

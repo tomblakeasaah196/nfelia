@@ -10,13 +10,13 @@ $orders_lists = [
     'orders'     => ['Orders',   'orders/create',     'New order'],
     'quotations' => ['Quotes',   'quotations/create', 'New quote'],
     'invoices'   => ['Invoices', 'orders/create',     'New order'],
-    'receipts'   => ['Receipts', 'orders/quick',      'Quick sale'],
+    'receipts'   => ['Receipts', 'orders/create',     'New order'],
 ];
 [$orders_title, $orders_new_url, $orders_new_label] = $orders_lists[$orders_here];
 ?>
 <div class="nf-head">
     <h1 class="nf-large-title"><?= $orders_title ?></h1>
-    <a class="nf-btn nf-btn-primary" href="<?= APP_URL ?>/<?= $orders_new_url ?>"><?= nav_icon($orders_here === 'receipts' ? 'bolt' : 'plus') ?><?= $orders_new_label ?></a>
+    <a class="nf-btn nf-btn-primary" href="<?= APP_URL ?>/<?= $orders_new_url ?>"><?= nav_icon('plus') ?><?= $orders_new_label ?></a>
 </div>
 <nav class="nf-segs" aria-label="Orders and papers">
     <?php foreach ($orders_lists as $seg => [$seg_label]): ?>

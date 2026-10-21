@@ -41,6 +41,10 @@ const STOREFRONT_IMAGE_WIDTHS = [320, 640, 960, 1280];
 // WhatsApp shows them (it skips images much over 300 KB).
 const STOREFRONT_OG_WIDTH = 1200;
 const STOREFRONT_OG_MAX_BYTES = 290000;
+// Copies for emails (JPEG, which every mail app shows): small and light,
+// as an order email can carry a photo per line.
+const STOREFRONT_MAIL_WIDTH = 240;
+const STOREFRONT_MAIL_MAX_BYTES = 40000;
 // Uploads that get WebP copies: photos shown on shops. GIFs keep their
 // animation, so they are sent as they are.
 const STOREFRONT_VARIANT_PATH = '(?:products|heroes|logos|storefront)/\d+/[A-Za-z0-9_-][A-Za-z0-9_.-]*\.(?:png|jpe?g|webp)';
@@ -1267,6 +1271,7 @@ function storefront_forget_image(?string $rel): void {
             $gone[] = 'uploads/cache/' . $w . '/' . $m[1] . '.webp';
         }
         $gone[] = 'uploads/cache/og/' . $m[1] . '.jpg';
+        $gone[] = 'uploads/cache/mail/' . $m[1] . '.jpg';
     }
     foreach ($gone as $path) {
         if (is_file(BASE_PATH . '/' . $path)) {
@@ -1529,9 +1534,9 @@ function sf_render_mode(?string $set = null): string {
  * hero media, logos and Shop Studio uploads. Anything else is a 404.
  */
 function storefront_serve_variant(string $url_path): void {
-    if (preg_match('#^uploads/cache/og/(' . STOREFRONT_VARIANT_PATH . ')\.jpg$#i', $url_path, $m)) {
-        $size = 'og';
-        $rel  = $m[1];
+    if (preg_match('#^uploads/cache/(og|mail)/(' . STOREFRONT_VARIANT_PATH . ')\.jpg$#i', $url_path, $m)) {
+        $size = strtolower($m[1]);
+        $rel  = $m[2];
     } elseif (preg_match('#^uploads/cache/(320|640|960|1280|full)/(' . STOREFRONT_VARIANT_PATH . ')\.webp$#i', $url_path, $m)) {
         $size = $m[1];
         $rel  = $m[2];
@@ -1551,6 +1556,9 @@ function storefront_serve_variant(string $url_path): void {
     }
     if ($size === 'og') {
         storefront_serve_og($source, $target, $url_path);
+    }
+    if ($size === 'mail') {
+        storefront_serve_og($source, $target, $url_path, STOREFRONT_MAIL_WIDTH, STOREFRONT_MAIL_MAX_BYTES);
     }
 
     if (!is_file($target)) {
@@ -1604,12 +1612,12 @@ function storefront_serve_variant(string $url_path): void {
 }
 
 /**
- * Make (once) and send the JPEG copy of a photo for link previews: at most
- * STOREFRONT_OG_WIDTH wide, see-through parts on white, and squeezed until it
+ * Make (once) and send the JPEG copy of a photo for link previews (and the
+ * small one for emails, STOREFRONT_MAIL_WIDTH): at most STOREFRONT_OG_WIDTH wide, see-through parts on white, and squeezed until it
  * is under STOREFRONT_OG_MAX_BYTES (the size never changes, so the width and
  * height on product pages stay true).
  */
-function storefront_serve_og(string $source, string $target, string $url_path): void {
+function storefront_serve_og(string $source, string $target, string $url_path, int $max_width = STOREFRONT_OG_WIDTH, int $max_bytes = STOREFRONT_OG_MAX_BYTES): void {
     if (!is_file($target)) {
         $info = @getimagesize($source);
         $src = match ($info['mime'] ?? '') {
@@ -1624,7 +1632,7 @@ function storefront_serve_og(string $source, string $target, string $url_path): 
         }
         $w = imagesx($src);
         $h = imagesy($src);
-        $width  = min(STOREFRONT_OG_WIDTH, $w);
+        $width  = min($max_width, $w);
         $height = max(1, (int)round($h * $width / $w));
         $dst = imagecreatetruecolor($width, $height);
         imagefill($dst, 0, 0, imagecolorallocate($dst, 255, 255, 255));
@@ -1641,7 +1649,7 @@ function storefront_serve_og(string $source, string $target, string $url_path): 
         foreach ([82, 68, 55, 42] as $quality) {
             $ok = @imagejpeg($dst, $tmp, $quality);
             clearstatcache(true, $tmp);
-            if (!$ok || filesize($tmp) <= STOREFRONT_OG_MAX_BYTES) {
+            if (!$ok || filesize($tmp) <= $max_bytes) {
                 break;
             }
         }
