@@ -179,6 +179,8 @@ $total = (float)$deed['total_amount'];
             font-weight: bold;
             margin-bottom: 10px;
         }
+        .piece-list { font-size: 10.5px; color: #3a3030; line-height: 1.6; margin-bottom: 12px; font-family: Georgia, serif; }
+        .piece-more { color: #9a9090; font-style: italic; }
         .provenance-text {
             font-size: 11px;
             color: #3a3030;
@@ -299,6 +301,24 @@ $total = (float)$deed['total_amount'];
     $first_name = $first_item['description'] ?? '';
     $has_provenance = !empty($deed['provenance_text']);
     $multi_items = count($items) > 1;
+
+    // Several pieces: the heading counts them and a short list names them,
+    // without the (Color, Size) the table below gives in full
+    $pieces = [];
+    $count  = 0;
+    foreach ($items as $it) {
+        $qty   = (float)($it['quantity'] ?? 1);
+        $name  = trim((string)($it['description'] ?? ''));
+        $short = trim((string)preg_replace('/\s*\([^()]*\)\s*$/', '', $name));
+        $pieces[] = ($short !== '' ? $short : $name) . ($qty > 1 && $qty == floor($qty) ? ' × ' . (int)$qty : '');
+        $count   += $qty >= 1 && $qty == floor($qty) ? (int)$qty : 1;
+    }
+    $words = [2 => 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve'];
+    $heading = $multi_items
+        ? ($words[$count] ?? (string)$count) . ' ' . ($biz_type === 'service' ? 'services' : 'pieces')
+        : $first_name;
+    $more   = max(0, count($pieces) - 4);
+    $pieces = array_slice($pieces, 0, 4);
     ?>
 
     <?php if ($photo_srcs || ($is_creative && ($has_provenance || !$multi_items))): ?>
@@ -329,13 +349,17 @@ $total = (float)$deed['total_amount'];
             </td>
             <?php endif; ?>
             <td class="subject-story-cell" <?= $logo_src ? '' : 'colspan="1"' ?>>
-                <div class="item-title-text"><?= e($first_name) ?></div>
+                <div class="item-title-text"><?= e($heading) ?></div>
+                <?php if ($multi_items): ?>
+                    <div class="piece-list">
+                        <?php foreach ($pieces as $piece): ?><div><?= e($piece) ?></div><?php endforeach; ?>
+                        <?php if ($more): ?><div class="piece-more">and <?= $more ?> more, listed below</div><?php endif; ?>
+                    </div>
+                <?php endif; ?>
                 <?php if ($has_provenance): ?>
                     <p class="provenance-text"><?= nl2br(e($deed['provenance_text'])) ?></p>
-                <?php else: ?>
-                    <p class="provenance-text" style="color:#bbb9b7;">
-                        <?= $multi_items ? 'See itemized list below.' : e($first_item['description'] ?? '') ?>
-                    </p>
+                <?php elseif (!$multi_items): ?>
+                    <p class="provenance-text" style="color:#bbb9b7;"><?= e($first_item['description'] ?? '') ?></p>
                 <?php endif; ?>
             </td>
         </tr>
