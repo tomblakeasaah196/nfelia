@@ -194,6 +194,16 @@ eq([$msg['_headers']['urgency'] ?? null, $msg['_headers']['content-encoding'] ??
 ok(str_starts_with($msg['_headers']['authorization'] ?? '', 'vapid t='), 'signed with Nfelia\'s VAPID key (RFC 8292)');
 eq(outbox('order.new', 'push', 20)[0]['status'] ?? null, 'sent', 'the outbox says sent');
 eq(outbox('order.new', 'push', 22)[0]['last_error'] ?? null, 'no phone has notifications on', 'Chidi has no phone on: skipped, and why');
+// Every push is urgent, whatever the event, and no event may say otherwise:
+// Android holds a normal-priority push while the phone sleeps and hands it
+// over when Nfelia is next opened, which the owner saw as "notifications
+// only come when I open the app" (21 Oct 2026).
+notify('task.assigned', 2, $sample, ['users' => [20]]);
+deliver();
+$task = array_values(array_filter(pushes_to($ada), fn($m) => ($m['tag'] ?? '') === 'task-900'))[0] ?? [];
+eq([$task['title'] ?? null, $task['_headers']['urgency'] ?? null], ['New task for you', 'high'],
+   'a task handed over is sent urgent like everything else (anything less waits on the phone until the app is opened)');
+eq(array_keys(array_filter(notify_events(), fn($e) => array_key_exists('urgency', $e))), [], 'no event carries an urgency of its own (the key would do nothing)');
 
 section('Phones that are gone, busy or refusing');
 clean_slate();
