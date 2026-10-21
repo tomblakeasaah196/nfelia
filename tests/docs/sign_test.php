@@ -354,6 +354,33 @@ $ada->post('deed/create', ['source' => 'invoice', 'source_id' => (string)$inv_id
 $deed2 = rows("SELECT * FROM deeds WHERE invoice_id = ? ORDER BY id DESC LIMIT 1", [$inv_id])[0];
 ok((int)$deed2['sign_on'] === 0 && !sigs('deed', (int)$deed2['id']), 'with the box off, the deed is not signed');
 
+section('A deed shows the photos of what was bought');
+$photo = 'uploads/products/' . BIZ . '/deed-test.jpg';
+@mkdir(dirname(BASE_PATH . '/' . $photo), 0755, true);
+$im = imagecreatetruecolor(40, 60);
+imagejpeg($im, BASE_PATH . '/' . $photo);
+imagedestroy($im);
+exec_sql("UPDATE products SET image_path = ? WHERE id = 300", [$photo]);
+$o = make_order(['customer_id' => 200, 'items' => [['product_id' => 300, 'name' => 'Body Wave 18in', 'quantity' => 1, 'unit_price' => 65000],
+                                                     ['name' => 'Custom fitting', 'quantity' => 1, 'unit_price' => 5000]]]);
+$pinv = (int)invoice_of((int)$o['id'])['id'];
+$ada->post('deed/create', ['source' => 'invoice', 'source_id' => (string)$pinv, 'provenance_text' => '']);
+$pdeed = rows("SELECT * FROM deeds WHERE invoice_id = ? ORDER BY id DESC LIMIT 1", [$pinv])[0] ?? [];
+$lines = json_decode((string)($pdeed['line_items'] ?? ''), true) ?: [];
+ok((int)($lines[0]['product_id'] ?? 0) === 300 && empty($lines[1]['product_id']), 'its lines keep the product they came from');
+$cust->get('deed/' . $pdeed['token']);
+ok(substr_count($cust->body, 'uploads/cache/640/') === 1 && str_contains($cust->body, 'uploads/cache/640/products/' . BIZ . '/deed-test.jpg.webp'),
+   'its page shows the photo of the product, and none for the typed-in line');
+$cust->get('deed/download/' . $pdeed['token']);
+ok($cust->status === 200 && str_starts_with($cust->body, '%PDF') && is_file(BASE_PATH . '/uploads/cache/og/products/' . BIZ . '/deed-test.jpg.jpg'),
+   'and so does its PDF');
+exec_sql("UPDATE deeds SET line_items = ? WHERE id = ?", [json_encode(array_map(fn($l) => array_diff_key($l, ['product_id' => 1]), $lines)), $pdeed['id']]);
+$cust->get('deed/' . $pdeed['token']);
+ok(str_contains($cust->body, 'uploads/cache/640/products/' . BIZ . '/deed-test.jpg.webp'), 'a deed issued before lines kept their product finds the photo on its invoice');
+exec_sql("UPDATE products SET image_path = NULL WHERE id = 300");
+@unlink(BASE_PATH . '/' . $photo);
+@unlink(BASE_PATH . '/uploads/cache/og/products/' . BIZ . '/deed-test.jpg.jpg');
+
 section('Quotes and delivery notes signed before keep their signatures');
 exec_sql("UPDATE quotations SET sign_on = 1, owner_signature_data = ?, owner_signed_by_name = 'Ada Obi', owner_signed_at = NOW(),
           signature_data = ?, signed_by_name = 'Ngozi Eze', signed_at = NOW() WHERE id = 504", [ADA_PEN, NGOZI_PEN]);

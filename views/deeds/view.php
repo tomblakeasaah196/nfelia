@@ -2,7 +2,8 @@
 /**
  * Nfelia — Public Deed of Acquisition View
  * Variables: $deed, $business, $customer, $items, $title,
- *            $sign (doc_sign_state(): its signature and verify code)
+ *            $sign (doc_sign_state(): its signature and verify code),
+ *            $photos (DeedController::item_photos(): the items' photos)
  */
 
 $primary  = $business['primary_color']   ?? '#1B0A11';
@@ -19,6 +20,15 @@ $logo_src = '';
 if (!empty($business['logo_path']) && file_exists(BASE_PATH . '/' . $business['logo_path'])) {
     $logo_src = APP_URL . '/' . $business['logo_path'];
 }
+
+// The items' photos, as the shop shows them (WebP copies)
+$photo_urls = array_map(
+    fn($rel) => preg_match('#^uploads/(' . STOREFRONT_VARIANT_PATH . ')$#i', $rel, $m)
+        ? sf_media_url('uploads/cache/640/' . $m[1] . '.webp')
+        : APP_URL . '/' . $rel,
+    $photos ?? []
+);
+$pdf_url = APP_URL . '/deed/download/' . $deed['token'];
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -40,7 +50,16 @@ if (!empty($business['logo_path']) && file_exists(BASE_PATH . '/' . $business['l
         .garamond { font-family: 'EB Garamond', Georgia, serif; }
     </style>
 </head>
-<body class="min-h-screen flex flex-col items-center py-10 px-4">
+<body class="min-h-screen flex flex-col items-center py-4 px-3 sm:py-10 sm:px-4">
+
+    <!-- The PDF first: on a phone it is what most people came for -->
+    <div class="w-full max-w-2xl flex justify-end mb-3 sm:mb-4">
+        <a href="<?= e($pdf_url) ?>"
+           class="w-full sm:w-auto text-center px-6 py-3 text-xs font-bold uppercase tracking-widest text-white font-sans transition-opacity hover:opacity-90"
+           style="background:<?= e($primary) ?>">
+            Download PDF
+        </a>
+    </div>
 
     <!-- Deed Card -->
     <div class="w-full max-w-2xl bg-white shadow-2xl">
@@ -49,20 +68,21 @@ if (!empty($business['logo_path']) && file_exists(BASE_PATH . '/' . $business['l
         <div style="background:<?= e($primary) ?>; height:5px;"></div>
 
         <!-- Header -->
-        <div class="px-10 pt-10 pb-7 border-b border-stone-200 flex items-start justify-between gap-6">
-            <div>
+        <div class="px-5 pt-6 pb-5 sm:px-10 sm:pt-10 sm:pb-7 border-b border-stone-200 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 sm:gap-6">
+            <div class="min-w-0">
                 <?php if ($logo_src): ?>
                     <img src="<?= e($logo_src) ?>" alt="<?= e($biz_name) ?>" class="h-12 object-contain mb-2">
                 <?php else: ?>
                     <div class="font-sans font-bold text-lg uppercase tracking-widest mb-2"
                          style="color:<?= e($primary) ?>"><?= e($biz_name) ?></div>
                 <?php endif; ?>
-                <p class="text-xs text-stone-400 leading-relaxed font-sans tracking-wide">
+                <!-- On a phone the address shows once, under Issuing Party -->
+                <p class="hidden sm:block text-xs text-stone-400 leading-relaxed font-sans tracking-wide">
                     <?= nl2br(e($business['address'] ?? '')) ?>
                 </p>
             </div>
-            <div class="text-right shrink-0">
-                <div class="font-sans font-bold text-sm uppercase tracking-[0.25em]"
+            <div class="sm:text-right sm:shrink-0">
+                <div class="font-sans font-bold text-sm uppercase tracking-[0.15em] sm:tracking-[0.25em]"
                      style="color:<?= e($primary) ?>"><?= e($deed_title) ?></div>
                 <div class="text-[10px] uppercase tracking-[0.2em] mt-1.5 font-sans"
                      style="color:<?= e($accent) ?>"><?= e($deed['doc_number']) ?></div>
@@ -73,8 +93,8 @@ if (!empty($business['logo_path']) && file_exists(BASE_PATH . '/' . $business['l
         </div>
 
         <!-- Parties -->
-        <div class="grid grid-cols-2 divide-x divide-stone-200 border-b border-stone-200">
-            <div class="px-10 py-7">
+        <div class="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-stone-200 border-b border-stone-200">
+            <div class="px-5 py-5 sm:px-10 sm:py-7 min-w-0">
                 <p class="text-[9px] uppercase tracking-[0.28em] font-bold mb-3 font-sans"
                    style="color:<?= e($accent) ?>">Issuing Party</p>
                 <p class="font-sans font-bold text-sm uppercase tracking-wide mb-2" style="color:<?= e($primary) ?>">
@@ -85,13 +105,13 @@ if (!empty($business['logo_path']) && file_exists(BASE_PATH . '/' . $business['l
                     <?= e($business['phone'] ?? '') ?>
                 </p>
             </div>
-            <div class="px-10 py-7">
+            <div class="px-5 py-5 sm:px-10 sm:py-7 min-w-0">
                 <p class="text-[9px] uppercase tracking-[0.28em] font-bold mb-3 font-sans"
                    style="color:<?= e($accent) ?>"><?= $biz_type === 'service' ? 'Client' : 'Acquired By' ?></p>
                 <p class="font-sans font-bold text-sm uppercase tracking-wide mb-2" style="color:<?= e($primary) ?>">
                     <?= e($customer['full_name'] ?? 'Client') ?>
                 </p>
-                <p class="garamond text-sm text-stone-600 leading-relaxed">
+                <p class="garamond text-sm text-stone-600 leading-relaxed break-words">
                     <?php if (!empty($customer['business_name'])): ?><?= e($customer['business_name']) ?><br><?php endif; ?>
                     <?= e($customer['phone'] ?? '') ?><br>
                     <?= e($customer['email'] ?? '') ?>
@@ -100,7 +120,7 @@ if (!empty($business['logo_path']) && file_exists(BASE_PATH . '/' . $business['l
         </div>
 
         <!-- Subject / Provenance -->
-        <div class="px-10 py-8 border-b border-stone-200">
+        <div class="px-5 py-6 sm:px-10 sm:py-8 border-b border-stone-200">
             <p class="text-[9px] uppercase tracking-[0.28em] font-bold mb-5 font-sans"
                style="color:<?= e($accent) ?>"><?= e($items_heading) ?></p>
 
@@ -112,31 +132,41 @@ if (!empty($business['logo_path']) && file_exists(BASE_PATH . '/' . $business['l
             </div>
             <?php endif; ?>
 
-            <?php foreach ($items as $it): ?>
-            <div class="flex items-baseline justify-between py-3 border-b border-stone-100 last:border-0">
-                <div>
-                    <span class="garamond text-sm text-stone-800"><?= e($it['description'] ?? '') ?></span>
-                    <span class="text-xs text-stone-400 ml-2 font-sans">× <?= number_format((float)($it['quantity'] ?? 1), 0) ?></span>
+            <?php if ($photo_urls): ?>
+            <div class="grid <?= count($photo_urls) === 1 ? 'grid-cols-1' : 'grid-cols-2' ?> gap-2 mb-5">
+                <?php foreach ($photo_urls as $url): ?>
+                <div class="bg-stone-50 flex items-center justify-center <?= count($photo_urls) === 1 ? 'h-72' : 'h-40 sm:h-56' ?>">
+                    <img src="<?= e($url) ?>" alt="" loading="lazy" class="max-w-full max-h-full object-contain">
                 </div>
-                <span class="font-sans font-bold text-sm" style="color:<?= e($primary) ?>">
+                <?php endforeach; ?>
+            </div>
+            <?php endif; ?>
+
+            <?php foreach ($items as $it): ?>
+            <div class="flex items-baseline justify-between gap-4 py-3 border-b border-stone-100 last:border-0">
+                <div class="min-w-0">
+                    <span class="garamond text-sm text-stone-800"><?= e($it['description'] ?? '') ?></span>
+                    <span class="text-xs text-stone-400 ml-2 font-sans whitespace-nowrap">× <?= number_format((float)($it['quantity'] ?? 1), 0) ?></span>
+                </div>
+                <span class="font-sans font-bold text-sm whitespace-nowrap shrink-0" style="color:<?= e($primary) ?>">
                     <?= money((float)($it['subtotal'] ?? 0), $currency) ?>
                 </span>
             </div>
             <?php endforeach; ?>
 
             <!-- Total -->
-            <div class="flex items-center justify-between pt-5 mt-3 border-t-2" style="border-color:<?= e($primary) ?>">
+            <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 pt-5 mt-3 border-t-2" style="border-color:<?= e($primary) ?>">
                 <span class="font-sans text-xs font-bold uppercase tracking-[0.18em]" style="color:<?= e($primary) ?>">
                     Total <?= $biz_type === 'service' ? 'Service Value' : 'Acquisition Value' ?>
                 </span>
-                <span class="font-sans font-bold text-xl" style="color:<?= e($primary) ?>">
+                <span class="font-sans font-bold text-xl whitespace-nowrap" style="color:<?= e($primary) ?>">
                     <?= money((float)$deed['total_amount'], $currency) ?>
                 </span>
             </div>
         </div>
 
         <!-- Footer: the signature (when signed), the verify code, and the PDF -->
-        <div class="px-10 pb-8">
+        <div class="px-5 pb-6 sm:px-10 sm:pb-8">
             <?php if (!empty($sign['can_sign'])): // the business's owner or an admin, looking at their own deed ?>
             <div class="flex flex-wrap gap-2 mb-2 font-sans">
                 <?php $sign_row = false; $sign_back = 'deed/' . $deed['token'];
@@ -144,9 +174,9 @@ if (!empty($business['logo_path']) && file_exists(BASE_PATH . '/' . $business['l
             </div>
             <?php endif; ?>
             <div class="font-sans"><?php require BASE_PATH . '/views/partials/doc_signs.php'; ?></div>
-            <div class="text-right mt-6">
-                <a href="<?= APP_URL ?>/deed/download/<?= e($deed['token']) ?>"
-                   class="inline-block px-6 py-3 text-[10px] font-bold uppercase tracking-widest text-white font-sans transition-opacity hover:opacity-90"
+            <div class="sm:text-right mt-6">
+                <a href="<?= e($pdf_url) ?>"
+                   class="block sm:inline-block text-center px-6 py-3 text-[10px] font-bold uppercase tracking-widest text-white font-sans transition-opacity hover:opacity-90"
                    style="background:<?= e($primary) ?>">
                     Download PDF
                 </a>
@@ -154,7 +184,7 @@ if (!empty($business['logo_path']) && file_exists(BASE_PATH . '/' . $business['l
         </div>
 
         <!-- Nfelia watermark -->
-        <div class="border-t border-stone-100 px-10 py-4 text-center">
+        <div class="border-t border-stone-100 px-5 sm:px-10 py-4 text-center">
             <p class="text-[9px] text-stone-300 uppercase tracking-[0.2em] font-sans">
                 Issued via Nfelia · nfelia.com
             </p>

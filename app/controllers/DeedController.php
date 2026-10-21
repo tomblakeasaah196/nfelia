@@ -47,7 +47,7 @@ class DeedController {
             if (!$doc) { not_found(); return; }
 
             $stmt = $this->db->prepare(
-                "SELECT ii.description, ii.quantity, ii.unit_price, ii.subtotal
+                "SELECT ii.description, ii.quantity, ii.unit_price, ii.subtotal, ii.product_id
                  FROM invoice_items ii WHERE ii.invoice_id = ?"
             );
             $stmt->execute([$source_id]);
@@ -65,14 +65,14 @@ class DeedController {
             // Receipts: items from receipt_items if standalone, or invoice_items if linked
             if ($doc['invoice_id']) {
                 $stmt = $this->db->prepare(
-                    "SELECT ii.description, ii.quantity, ii.unit_price, ii.subtotal
+                    "SELECT ii.description, ii.quantity, ii.unit_price, ii.subtotal, ii.product_id
                      FROM invoice_items ii WHERE ii.invoice_id = ?"
                 );
                 $stmt->execute([$doc['invoice_id']]);
                 $items = $stmt->fetchAll();
             } else {
                 $stmt = $this->db->prepare(
-                    "SELECT ri.description, ri.quantity, ri.unit_price, ri.subtotal
+                    "SELECT ri.description, ri.quantity, ri.unit_price, ri.subtotal, ri.product_id
                      FROM receipt_items ri WHERE ri.receipt_id = ?"
                 );
                 $stmt->execute([$source_id]);
@@ -165,6 +165,7 @@ class DeedController {
 
         $title     = e($deed['doc_number']) . ' — Deed of Acquisition';
         $sign      = doc_sign_state($this->db, 'deed', (int)$deed['id'], doc_sign_viewer());
+        $photos    = $this->item_photos($deed, $items);
         $view_file = BASE_PATH . '/views/deeds/view.php';
         require_once BASE_PATH . '/views/deeds/view.php';
     }
@@ -181,6 +182,7 @@ class DeedController {
         ['deed' => $deed, 'business' => $business, 'customer' => $customer] = $data;
         $items = json_decode($deed['line_items'], true) ?: [];
         $sign  = doc_sign_state($this->db, 'deed', (int)$deed['id']);
+        $photos = $this->item_photos($deed, $items);
 
         ob_start();
         require BASE_PATH . '/views/deeds/pdf_template.php';
@@ -205,6 +207,54 @@ class DeedController {
         $customer = $this->get_customer($deed['customer_id'], $deed['business_id']);
 
         return compact('deed', 'business', 'customer');
+    }
+
+    /**
+     * The photo of each product on the deed, in line order, each once, at
+     * most four: paths under uploads/ that are on disk. Deeds issued before
+     * their lines kept the product find it on the invoice or receipt they
+     * were made from, line by line.
+     */
+    private function item_photos(array $deed, array $items): array {
+        $biz = (int)$deed['business_id'];
+        $ids = array_map(fn($it) => (int)($it['product_id'] ?? 0), $items);
+        if (!array_filter($ids) && ($deed['invoice_id'] || $deed['receipt_id'])) {
+            $stmt = $deed['invoice_id']
+                ? $this->db->prepare("SELECT ii.description, ii.product_id FROM invoice_items ii
+                                      JOIN invoices i ON i.id = ii.invoice_id AND i.business_id = ?
+                                      WHERE ii.invoice_id = ? ORDER BY ii.sort_order, ii.id")
+                : $this->db->prepare("SELECT ri.description, ri.product_id FROM receipt_items ri
+                                      JOIN receipts r ON r.id = ri.receipt_id AND r.business_id = ?
+                                      WHERE ri.receipt_id = ? ORDER BY ri.sort_order, ri.id");
+            $stmt->execute([$biz, (int)($deed['invoice_id'] ?: $deed['receipt_id'])]);
+            $source = [];
+            foreach ($stmt->fetchAll() as $row) {
+                $source[(string)$row['description']] ??= (int)$row['product_id'];
+            }
+            $ids = array_map(fn($it) => $source[(string)($it['description'] ?? '')] ?? 0, $items);
+        }
+        $ids = array_values(array_unique(array_filter($ids)));
+        if (!$ids) {
+            return [];
+        }
+
+        // The cover photo, else the product's first other photo
+        $in   = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $this->db->prepare("SELECT p.id, COALESCE(NULLIF(p.image_path, ''),
+                                        (SELECT pi.image_path FROM product_images pi WHERE pi.product_id = p.id
+                                         ORDER BY pi.is_cover DESC, pi.sort_order, pi.id LIMIT 1)) AS photo
+                                    FROM products p WHERE p.business_id = ? AND p.id IN ({$in})");
+        $stmt->execute(array_merge([$biz], $ids));
+        $by_id = array_column($stmt->fetchAll(), 'photo', 'id');
+
+        $photos = [];
+        foreach ($ids as $id) {
+            $rel = ltrim((string)($by_id[$id] ?? ''), '/');
+            if ($rel !== '' && !str_contains($rel, '..') && is_file(BASE_PATH . '/' . $rel) && !in_array($rel, $photos, true)) {
+                $photos[] = $rel;
+            }
+        }
+        return array_slice($photos, 0, 4);
     }
 
     private function get_business(int $id): array {
