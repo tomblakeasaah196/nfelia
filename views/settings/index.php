@@ -276,6 +276,8 @@ $current_staff_count = count($staff);
     </div>
 </form>
 
+<?php require BASE_PATH . '/views/settings/payment_accounts.php'; ?>
+
 <?php
 // Document numbers: the prefix every order and paper number starts with,
 // the next number of each kind, and a suggestion after a rename.

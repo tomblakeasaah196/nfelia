@@ -129,7 +129,7 @@ $wa_text = 'Hello ' . $business['name'] . ', I found ' . $item['name'] . ' on yo
                             <?= sf_paragraphs($delivery['text']) ?>
                         <?php endif; ?>
                         <?php if ($catalogue['banks']): ?>
-                            <p>Pay by bank transfer when you check out<?= $wa !== '' ? ', or order on WhatsApp' : '' ?>.</p>
+                            <p>Pay by <?= e(sf_pay_way($catalogue['banks'])) ?> when you check out<?= $wa !== '' ? ', or order on WhatsApp' : '' ?>.</p>
                         <?php endif; ?>
                     </div>
                 <?php endif; ?>

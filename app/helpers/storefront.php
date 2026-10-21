@@ -258,7 +258,7 @@ function storefront_section_types(): array {
         'delivery' => ['name' => 'Delivery and payment', 'hint' => '', 'pin' => null, 'switch' => true, 'on' => true, 'available' => true,
             'fields' => ['title' => ['kind' => 'line', 'max' => 50, 'label' => 'Title'],
                          'text' => ['kind' => 'text', 'max' => 500, 'label' => 'How you deliver'],
-                         'show_bank' => ['kind' => 'bool', 'label' => 'Show my bank details']]],
+                         'show_bank' => ['kind' => 'bool', 'label' => 'Show my payment accounts']]],
         'faq' => ['name' => 'Questions people ask', 'hint' => '', 'pin' => null, 'switch' => true, 'on' => false, 'available' => true,
             'fields' => ['title' => ['kind' => 'line', 'max' => 50, 'label' => 'Title'],
                          'items' => ['kind' => 'faq', 'max' => 10, 'label' => 'Questions']]],
@@ -971,7 +971,7 @@ function storefront_catalogue(array $business, array $settings): array {
     $categories = array_keys($first_id);
 
     $stmt = $db->prepare("
-        SELECT id, bank_name, account_name, account_number, is_default
+        SELECT id, kind, bank_name, account_name, account_number, is_default
         FROM bank_accounts
         WHERE business_id = ? AND is_active = 1 AND deleted_at IS NULL
         ORDER BY is_default DESC, sort_order ASC, id ASC
@@ -991,6 +991,17 @@ function storefront_catalogue(array $business, array $settings): array {
         'has_services' => (bool)array_filter($items, fn($i) => $i['is_service']),
         'bookable'     => array_values(array_filter($items, fn($i) => $i['booking'] !== null)),
     ];
+}
+
+/**
+ * How people pay into the shop's accounts, in words for "Pay by ...":
+ * Mobile Money, bank transfer, or both (Settings › Payment accounts).
+ */
+function sf_pay_way(array $banks): string {
+    $kinds = array_unique(array_column($banks, 'kind'));
+    $momo  = in_array('mobile_money', $kinds, true);
+    $bank  = in_array('bank', $kinds, true) || !$kinds;
+    return $momo && $bank ? 'Mobile Money or bank transfer' : ($momo ? 'Mobile Money' : 'bank transfer');
 }
 
 /**

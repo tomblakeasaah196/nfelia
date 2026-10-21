@@ -509,7 +509,7 @@
         })));
         var bank = $('input[name="bank_id"]:checked', bag);
         if (channel === 'cart_pop') {
-            fd.append('payment_method', bank ? 'bank_transfer' : 'none');
+            fd.append('payment_method', bank ? (bank.getAttribute('data-method') || 'bank_transfer') : 'none');
             if (bank) { fd.append('bank_id', bank.value); }
             var proof = $('input[name="payment_proof"]', bag);
             if (proof && proof.files && proof.files[0]) { fd.append('payment_proof', proof.files[0]); }

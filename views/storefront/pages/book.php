@@ -93,9 +93,9 @@ $price_line = $item['price'] > 0 ? sf_money($item['price'], $currency) . ($night
                 <?php if ($has_dep): ?>
                     <p class="sf-total sf-total--deposit"><span>Deposit to book</span><strong data-book-deposit>—</strong></p>
                     <?php if ($banks): ?>
-                        <p class="sf-note">Transfer the deposit to one of these accounts, then book. <?= e($business['name']) ?> confirms your booking once they see it. You pay the rest on the day.</p>
+                        <p class="sf-note">Send the deposit to one of these accounts, then book. <?= e($business['name']) ?> confirms your booking once they see it. You pay the rest on the day.</p>
                         <fieldset class="sf-options">
-                            <legend>Pay by bank transfer to</legend>
+                            <legend>Pay by <?= e(sf_pay_way($banks)) ?> to</legend>
                             <?php foreach ($banks as $i => $bank): ?>
                                 <label class="sf-option sf-option--bank">
                                     <input type="radio" name="bank_id" value="<?= (int)$bank['id'] ?>" <?= $i === 0 ? 'checked' : '' ?>>
