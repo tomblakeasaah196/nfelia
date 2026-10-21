@@ -225,8 +225,10 @@ applied with CLOUDFLARE.md prompt C.
 
 The baseline is enforced. The full policy is on trial from this branch:
 `.htaccess` sends it as `Content-Security-Policy-Report-Only`, so nothing
-is blocked and browsers post what would have been to `/api/csp`
-(`api/ajax/csp.php`), which files each report as an error of kind
+is blocked and browsers post what would have been to
+`https://nfelia.com/api/csp` (`api/ajax/csp.php`; the full address, because
+a shop's own address has no `/api`, and until 21 October shop pages' reports
+were lost there), which files each report as an error of kind
 "Content policy" in Ops → Errors, grouped by directive and foreign host,
 with the page and the business. Reports caused by browser extensions are
 dropped; the endpoint is limited like the browser-error one.
@@ -235,17 +237,23 @@ The policy on trial allows what the code is known to use: our own origin,
 `cdnjs.cloudflare.com` (html2pdf.js on four pages, Chart.js on the profit
 and loss report, and Cropper.js with its stylesheet on Settings), Google
 Fonts on the document pages, `i.ytimg.com` thumbnails and
-`youtube-nocookie.com` frames for shop videos, `nfelia.com` fonts and
-images on shop subdomains, `data:` and `blob:` images, and `blob:`
+`youtube-nocookie.com` frames for shop videos, `nfelia.com` on shop
+subdomains (a shop page takes its stylesheet, script, fonts and photos from
+the main address and sends its script errors there), `data:` and `blob:`
+images, and `blob:`
 connections, which is the cropper reading the chosen photo back to find
 which way up it was taken. It also allows `static.cloudflareinsights.com`,
 which is in no file here: Cloudflare adds its analytics beacon to every
 page at the edge. Anything else that turns up in the reports is either a
 page nobody listed or an injection.
 
+`www.nfelia.com` is sent to `nfelia.com` (`.htaccess`), so the main site's
+pages are only ever served from the address their files come from.
+
 `tests/ops/policy_test.php` keeps that list honest. It reads the policy out
 of `.htaccess` and fails the build if a view loads a script or a stylesheet
-the policy does not name.
+the policy does not name, if a shop page could not load its own files or
+report from where it is, or if `www` stops being sent to the main address.
 
 What stands between the trial and enforcement, counted in the code: 40
 inline `<script>` blocks and 52 inline `on…=` handlers in `views/` (they
