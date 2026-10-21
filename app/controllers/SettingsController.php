@@ -225,6 +225,9 @@ class SettingsController {
         $primary_color   = trim($_POST['primary_color'] ?? '#1a1a2e');
         $secondary_color = trim($_POST['secondary_color'] ?? '#c5a55a');
         $currency_symbol = trim($_POST['currency_symbol'] ?? '₦');
+        // What the business sells, as at onboarding; it names the deed
+        // (services: a certificate of completion). Left as it is when not sent.
+        $business_type   = in_array($_POST['business_type'] ?? '', ['product', 'service', 'mixed'], true) ? $_POST['business_type'] : null;
         // Brand fonts from the library (app/helpers/brand.php); empty keeps none
         $fonts     = brand_font_library();
         $font_head = trim((string)($_POST['brand_font_head'] ?? ''));
@@ -297,6 +300,12 @@ class SettingsController {
             'phone'           => $phone, 
             'email'           => $email
         ];
+
+        if ($business_type !== null) {
+            $sql .= ", business_type = ?";
+            $params[] = $business_type;
+            $session_updates['business_type'] = $business_type;
+        }
 
         if ($logo_path) {
             $sql .= ", logo_path = ?";

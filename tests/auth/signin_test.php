@@ -225,6 +225,22 @@ ok(str_contains($computer->body, '--accent: ' . theme_tokens('#00764A', null)['a
 $chidi->get('dashboard');
 ok(str_contains($chidi->body, '<b>Ada Beauty Studio</b>'), 'and so does Chidi\'s, who was already signed in');
 
+section('What the business sells can change after onboarding, and names its deeds');
+$type = fn() => (string)q("SELECT business_type FROM businesses WHERE id = 2");
+$was  = $type();
+$phone->get('settings?tab=business');
+ok(str_contains($phone->body, 'name="business_type"') && str_contains($phone->body, 'value="' . $was . '" selected'), 'Settings shows what it was set to at onboarding');
+$sent = ['business_name' => 'Ada Beauty Studio', 'phone' => '08035550100', 'email' => 'hello@adashair.test',
+         'primary_color' => '#00764A', 'secondary_color' => '#B69F5E', 'currency_symbol' => '₦'];
+$phone->post('settings/update_business', $sent + ['business_type' => 'service'])->follow();
+ok($type() === 'service' && doc_label(get_db(), 'deed', 2) === 'Certificate of completion', 'set to services: its deeds are certificates of completion');
+$phone->post('settings/update_business', $sent + ['business_type' => 'mixed'])->follow();
+ok($type() === 'mixed' && doc_label(get_db(), 'deed', 2) !== 'Certificate of completion', 'products and services: deeds of acquisition again');
+$phone->post('settings/update_business', $sent + ['business_type' => 'spaceships'])->follow();
+$phone->post('settings/update_business', $sent)->follow();
+ok($type() === 'mixed', 'something else, or nothing sent, leaves it as it was');
+exec_sql("UPDATE businesses SET business_type = ? WHERE id = 2", [$was]);
+
 section('A redrawn auto-logo gets a name of its own, so no browser keeps showing the old one');
 $logo = fn() => (string)q("SELECT logo_path FROM businesses WHERE id = 2");
 $drawn = fn(string $rel) => (string)@file_get_contents(BASE_PATH . '/' . $rel);
