@@ -250,4 +250,15 @@ $third = $logo();
 ok($third !== $second && !is_file(BASE_PATH . '/' . $second), 'drawn over a logo, the one it replaces goes too');
 @unlink(BASE_PATH . '/' . $third);
 
+section('A country picked on the phone shows on the computer at its next page');
+$phone->get('dashboard');
+$phone->post('api/set-country', ['country_id' => 2]);
+eq($phone->data()['success'] ?? null, true, 'the phone picks Ghana');
+$computer->get('more');
+ok(str_contains($computer->body, '🇬🇭 GH₵'), 'the computer shows Ghana and the cedi');
+ok(str_contains($computer->body, 'setCountry(2)" @click="countryOpen = false" aria-current="true"'), 'and ticks Ghana in its country menu');
+$fresh = signin(ADA_EMAIL);
+$fresh->get('more');
+ok(str_contains($fresh->body, '🇬🇭 GH₵'), 'so does a browser signed in afresh, with no country cookie of its own');
+
 done();
