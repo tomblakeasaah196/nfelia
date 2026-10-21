@@ -10,10 +10,7 @@
  */
 $primary   = $business['primary_color'] ?? '#1a1a2e';
 $secondary = $business['secondary_color'] ?? '#c5a55a';
-// font_pairing is a key into FONT_PAIRINGS (config/app.php), not a font name:
-// the page used to ask Google Fonts for "modern_sans" and fall back to sans-serif.
-$font_pair = FONT_PAIRINGS[$business['font_pairing'] ?? ''] ?? FONT_PAIRINGS['modern_sans'];
-$font      = $font_pair['body'];
+$doc_fonts = brand_doc_fonts($business);   // the brand fonts (app/helpers/brand.php)
 $logo_url  = !empty($business['logo_path']) ? APP_URL . '/' . $business['logo_path'] : null;
 $already_signed = ($delivery['status'] === 'signed_off' && $delivery['signoff_name']);
 // A signed delivery note is received by signing it; any other with one tap
@@ -28,13 +25,13 @@ $was_signed      = !empty($delivery['signoff_signature_path']);
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Confirm Receipt — <?= e($delivery['doc_number']) ?></title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=<?= urlencode($font_pair['heading']) ?>:wght@400;600;700;800&family=<?= urlencode($font) ?>:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link href="<?= e($doc_fonts['url']) ?>" rel="stylesheet">
     <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/public.css?v=<?= @filemtime(BASE_PATH . '/assets/css/public.css') ?>">
     <script defer src="<?= APP_URL ?>/assets/vendor/alpine-3.14.3.min.js"></script>
     <style>
         [x-cloak] { display: none !important; }
         :root { --brand-primary: <?= e($primary) ?>; --brand-secondary: <?= e($secondary) ?>; }
-        body { --font-body: "<?= e($font) ?>", sans-serif; --font-heading: "<?= e($font_pair['heading']) ?>", sans-serif; font-family: '<?= e($font) ?>', sans-serif; -webkit-tap-highlight-color: transparent; }
+        body { --font-body: <?= $doc_fonts['body_stack'] ?>; --font-heading: <?= $doc_fonts['head_stack'] ?>; font-family: <?= $doc_fonts['body_stack'] ?>; -webkit-tap-highlight-color: transparent; }
         .brand-primary { color: var(--brand-primary); }
         .bg-brand-primary { background-color: var(--brand-primary); }
 

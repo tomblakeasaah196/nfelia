@@ -20,7 +20,7 @@ $looks = [];
 foreach (storefront_looks() as $key => $look) {
     $looks[] = ['key' => $key, 'name' => $look['name'], 'kind' => $look['kind'], 'pair' => $look['pair'],
                 'colours' => $look['colours'], 'band' => $look['band'], 'shape' => $look['shape'], 'labels' => $look['labels'],
-                'thumb' => STOREFRONT_LOOKS[$key]['shape']];
+                'thumb' => STOREFRONT_LOOKS[$key]['shape'], 'slides' => $look['slides'], 'backdrop' => $look['backdrop']];
 }
 $fonts = [];
 foreach (storefront_fonts() as $key => $font) {
@@ -33,6 +33,15 @@ foreach (storefront_section_types() as $key => $type) {
         $types[$key] = $type;
     }
 }
+// The brand from Settings, which leads: its fonts as a pair and its colours
+// as a light and a dark set (app/helpers/brand.php)
+$brand_pair    = brand_font_pair($business);
+$brand_colours = brand_colours($business);
+$brand = [
+    'fonts'   => $brand_pair ? array_intersect_key($brand_pair, array_flip(['name', 'head', 'body', 'head_stack', 'body_stack', 'weight', 'stretch', 'scale', 'url'])) : null,
+    'colours' => $brand_colours ? ['light' => brand_colour_set($brand_colours, 'light'), 'dark' => brand_colour_set($brand_colours, 'dark')] + $brand_colours : null,
+];
+
 $currency = trim((string)($business['currency_symbol'] ?? '')) ?: '₦';
 $product_list = [];
 foreach ($products as $p) {
@@ -66,7 +75,16 @@ $studio = [
         'payments'   => APP_URL . '/settings?tab=business#payments',
         'bookings'   => APP_URL . '/bookings/settings',
         'posts'      => APP_URL . '/posts',
+        'brand'      => APP_URL . '/settings?tab=business#nf-brand-h',
+        'find'       => APP_URL . '/landing-page/location-find',
+        'link'       => APP_URL . '/landing-page/location-link',
+        'leaflet'    => $asset('assets/vendor/leaflet-1.9.4/leaflet.js'),
+        'leafletCss' => $asset('assets/vendor/leaflet-1.9.4/leaflet.css'),
     ],
+    'brand'       => $brand,
+    // The map where owners place their pin: tiles need a key the browser may see
+    'maps'        => ['tiles' => maps_browser_key() !== '' ? maps_tiles_url() . '/v1/tile/osm-bright/{z}/{x}/{y}{r}.png?apiKey=' . rawurlencode(maps_browser_key()) : '',
+                      'find' => maps_key() !== ''],
     'settings'    => $draft,
     'unpublished' => $unpublished,
     'published'   => $published !== null,
@@ -77,7 +95,9 @@ $studio = [
     'types'       => $types,
     'products'    => $product_list,
     'business'    => ['name' => (string)$business['name'], 'logo' => $logo_url, 'currency' => $currency,
-                      'tagline' => (string)($business['tagline'] ?? ''), 'base' => shop_base_host()],
+                      'tagline' => (string)($business['tagline'] ?? ''), 'base' => shop_base_host(),
+                      'address' => (string)($business['address'] ?? ''), 'owner' => is_owner()],
+    'today'       => date('Y-m-d'),
     'visible'     => (bool)(int)$business['landing_enabled'],
 ];
 
@@ -101,6 +121,9 @@ $samples_url = 'https://fonts.googleapis.com/css2?family=' . implode('&family=',
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
     <link rel="stylesheet" href="<?= e($samples_url) ?>">
+    <?php if ($brand_pair): ?>
+    <link rel="stylesheet" href="<?= e($brand_pair['url']) ?>">
+    <?php endif; ?>
     <link rel="stylesheet" href="<?= e($asset('assets/css/studio.css')) ?>">
 </head>
 <body>
@@ -153,6 +176,10 @@ $samples_url = 'https://fonts.googleapis.com/css2?family=' . implode('&family=',
 
                 <div class="st-tabpanel" role="tabpanel" id="st-panel-colours" aria-labelledby="st-tab-colours" data-tab-panel="colours" hidden>
                     <div class="st-block">
+                        <h2 class="st-h2">Your brand</h2>
+                        <div class="st-chips st-chips--three" data-brand-sets></div>
+                    </div>
+                    <div class="st-block">
                         <h2 class="st-h2">From your logo</h2>
                         <?php if ($logo_url !== ''): ?>
                             <div class="st-logo-row">
@@ -184,6 +211,7 @@ $samples_url = 'https://fonts.googleapis.com/css2?family=' . implode('&family=',
                 </div>
 
                 <div class="st-tabpanel" role="tabpanel" id="st-panel-sections" aria-labelledby="st-tab-sections" data-tab-panel="sections" hidden>
+                    <section class="st-card st-announce" data-announce-box aria-labelledby="st-announce-h"></section>
                     <div data-section-list>
                         <div class="st-row-head">
                             <h2 class="st-h2">Sections</h2>

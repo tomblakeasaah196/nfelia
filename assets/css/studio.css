@@ -246,6 +246,47 @@ p, h1, h2, h3, ul { margin: 0; }
 
 /* ── Computers: controls on the left, preview on the right ── */
 
+/* ── The announcement, pinned above the sections ─── */
+.st-announce { margin-bottom: 18px; border-color: var(--st-brand); background: #FFFFFF; }
+.st-announce .st-switchrow { min-height: 44px; }
+.st-field input[type="date"] {
+    width: 100%; min-height: 48px; padding: 10px 12px; border: 1.5px solid var(--st-field); border-radius: 12px; background: #FFFFFF; font-size: 16px;
+}
+.st-field input[type="date"]:focus { outline: 2px solid var(--st-brand); outline-offset: 1px; border-color: var(--st-brand); }
+.st-announce__until { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; margin-top: -2px; }
+.st-announce__until .st-help:empty { display: none; }
+
+/* ── Hero photos and the page background ─────────── */
+.st-thumb { flex-shrink: 0; width: 56px; height: 56px; border-radius: 10px; object-fit: cover; background: var(--st-tint); }
+.st-thumb--none { display: block; background: repeating-linear-gradient(135deg, var(--st-tint) 0 6px, #FFFFFF 6px 12px); box-shadow: inset 0 0 0 1px var(--st-line); }
+.st-slides__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.st-slide { display: flex; align-items: center; gap: 10px; padding: 6px 4px 6px 6px; border: 1px solid var(--st-line); border-radius: 14px; background: #FFFFFF; }
+.st-slide__text { flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: 14px; line-height: 1.35; }
+.st-slide__text span { font-size: 12px; color: var(--st-muted); }
+.st-slides .st-btn, .st-bg .st-btn { align-self: flex-start; }
+.st-bg { margin: 0; padding: 0; border: 0; min-width: 0; }
+.st-bg legend { margin-bottom: 4px; padding: 0; }
+.st-bg__options { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
+.st-bg__option {
+    display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 6px; border: 1px solid var(--st-line); border-radius: 14px;
+    background: #FFFFFF; font-size: 12px; font-weight: 600; line-height: 1.25; text-align: center; color: var(--st-ink);
+}
+.st-bg__option .st-thumb { width: 100%; height: 64px; }
+.st-bg__option[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--st-brand); border-color: transparent; }
+
+/* ── Map and directions ──────────────────────────── */
+.st-location { display: flex; flex-direction: column; gap: 12px; }
+.st-location > .st-btn { align-self: flex-start; }
+.st-places { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.st-places:empty { display: none; }
+.st-places .st-btn { justify-content: flex-start; min-height: 48px; text-align: left; font-weight: 500; }
+.st-map { display: flex; flex-direction: column; gap: 8px; }
+.st-map__canvas { height: 260px; border-radius: 14px; overflow: hidden; background: var(--st-tint); border: 1px solid var(--st-line); }
+.st-map__tools { display: flex; flex-wrap: wrap; gap: 8px; }
+.st-pin { background: none; border: 0; }
+.st-pin svg { display: block; fill: var(--st-brand); filter: drop-shadow(0 2px 3px rgba(31, 10, 20, 0.35)); }
+.st-fonts__brand { padding: 4px 2px 8px; }
+
 @media (min-width: 960px) {
     .st-top { padding: 0 20px 0 8px; }
     .st-status { font-size: 13px; }

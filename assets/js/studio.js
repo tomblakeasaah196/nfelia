@@ -43,7 +43,8 @@
         down: '<path d="M6 9l6 6 6-6"/>',
         back: '<path d="M15 18l-6-6 6-6"/>',
         grip: '<circle cx="9" cy="6" r="1.4" fill="currentColor"/><circle cx="15" cy="6" r="1.4" fill="currentColor"/><circle cx="9" cy="12" r="1.4" fill="currentColor"/><circle cx="15" cy="12" r="1.4" fill="currentColor"/><circle cx="9" cy="18" r="1.4" fill="currentColor"/><circle cx="15" cy="18" r="1.4" fill="currentColor"/>',
-        check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>'
+        check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+        close: '<path d="M6 6l12 12M18 6L6 18"/>'
     };
 
     var toastEl = $('[data-toast]');
@@ -133,10 +134,13 @@
         };
     }
     function look(key) { return D.looks.filter(function (l) { return l.key === key; })[0] || D.looks[0]; }
+    // The brand's colours in light or dark; '' is light unless the look itself is dark
+    function brandMode(s) { return s.colours.mode || (palette(look(s.look).colours).dark ? 'dark' : 'light'); }
     function colourSet(s) {
         var lk = look(s.look);
         var c = s.colours;
         var chosen = function (k) { return k === 'look' || !D.sets[k] ? lk.colours : D.sets[k]; };
+        if (c.set === 'brand') { return D.brand.colours ? D.brand.colours[brandMode(s)] : lk.colours; }
         if (c.set === 'logo') { return { ground: c.ground, ink: c.ink, accent: c.accent }; }
         if (c.set === 'custom') {
             var base = Object.assign({}, chosen(c.base || 'look'));
@@ -147,20 +151,31 @@
         }
         return chosen(c.set);
     }
-    function pairKey(s) { return s.font || look(s.look).pair; }
+    // The font pair a draft shows: '' follows the brand fonts from Settings,
+    // and the look's own pair while there are none
+    function pairKey(s) { return s.font || (D.brand.fonts ? 'brand' : look(s.look).pair); }
     function themeFor(s) {
         var lk = look(s.look);
-        var p = palette(colourSet(s), lk.band);
-        var f = D.fonts[pairKey(s)];
+        var set = colourSet(s);
+        var p = palette(set, lk.band || (s.colours.set === 'brand' ? set.band : null));
+        if (lk.backdrop) {
+            // As on the server: words stay readable over the faint page photo
+            var worst = mix(p.ground, p.dark ? '#FFFFFF' : '#000000', 0.16);
+            p.muted = readable(p.muted, worst);
+            p.accent_text = readable(p.accent_text, worst);
+        }
+        var key = pairKey(s);
+        var f = key === 'brand' ? D.brand.fonts : D.fonts[key];
         return {
             vars: {
                 '--sf-ground': p.ground, '--sf-ink': p.ink, '--sf-muted': p.muted, '--sf-accent': p.accent, '--sf-on': p.on,
                 '--sf-accent-text': p.accent_text, '--sf-line': p.line, '--sf-field': p.field, '--sf-surface': p.surface,
                 '--sf-card': p.card, '--sf-motif': p.motif, '--sf-band': p.band, '--sf-band-ink': p.band_ink, '--sf-tint': p.tint,
+                '--sf-scrim': p.dark ? p.ground : p.ink, '--sf-paper': p.dark ? p.ink : p.ground,
                 '--sf-head': f.head_stack, '--sf-body': f.body_stack, '--sf-head-weight': String(f.weight),
                 '--sf-head-stretch': f.stretch, '--sf-scale': String(f.scale)
             },
-            dark: p.dark, pair: pairKey(s), fonts_url: f.url, accent: p.accent
+            dark: p.dark, pair: key, fonts_url: f.url, accent: p.accent
         };
     }
     function postTheme(theme) {
@@ -306,6 +321,20 @@
 
     /* ── Preview ─────────────────────────────────── */
 
+    // The shop's pages, as the preview asks for them (?page=): sections on
+    // the list or the contact page are shown there; the rest on the home page
+    var PAGE_OF = { catalogue: 'catalogue', delivery: 'catalogue', quote: 'contact', faq: 'contact' };
+    function previewPage() {
+        try { return new URL(frame.contentWindow.location.href).searchParams.get('page') || ''; } catch (e) { return ''; }
+    }
+    function pageFor(id) {
+        var type = (id || '').replace(/^sf-/, '');
+        if (type === 'announcement' || type === 'contact' || !D.types[type]) { return previewPage(); }
+        if (type === 'location' && previewPage() === 'contact') { return 'contact'; }
+        return PAGE_OF[type] || '';
+    }
+    function previewUrl(page) { return D.urls.preview + '?' + (page ? 'page=' + page + '&' : '') + 'r=' + Date.now(); }
+
     function wantPreview(scrollTo) {
         previewWanted = true;
         if (scrollTo) { previewScroll = scrollTo; }
@@ -314,8 +343,9 @@
         previewWanted = false;
         var target = previewScroll;
         previewScroll = null;
+        var page = target ? pageFor(target) : previewPage();
         var y = 0;
-        try { y = frame.contentWindow.scrollY; } catch (e) { y = 0; }
+        try { y = page === previewPage() ? frame.contentWindow.scrollY : 0; } catch (e) { y = 0; }
         frame.addEventListener('load', function onload() {
             frame.removeEventListener('load', onload);
             try {
@@ -323,9 +353,14 @@
                 if (node) { node.scrollIntoView({ block: 'start' }); } else { frame.contentWindow.scrollTo(0, y); }
             } catch (e) { /* the preview is on this site; nothing to do if not */ }
         });
-        frame.src = D.urls.preview + '?r=' + Date.now();
+        frame.src = previewUrl(page);
     }
     function scrollPreview(id) {
+        if (pageFor(id) !== previewPage()) {
+            previewScroll = id;
+            reloadPreview();
+            return;
+        }
         try {
             var node = frame.contentDocument.getElementById(id);
             if (node) { node.scrollIntoView({ block: 'start', behavior: 'smooth' }); }
@@ -437,9 +472,11 @@
             b.appendChild(el('span', { class: 'st-look__kind' }, lk.kind));
             b.addEventListener('click', function () {
                 if (state.look === lk.key) { return; }
+                // The brand from Settings comes along (the look's own colours
+                // and fonts while there is none)
                 commit(function (s) {
                     s.look = lk.key;
-                    s.colours = { set: 'look' };
+                    s.colours = { set: 'brand', mode: '' };
                     s.font = '';
                 }, { theme: true, reload: true });
                 renderLooks();
@@ -471,10 +508,27 @@
         commit(function (s) { s.colours = colours; }, { theme: true });
         renderColours();
     }
+    // The brand's own colours, from Settings, in a light and a dark set
+    var brandSetsEl = $('[data-brand-sets]');
+    function renderBrandSets() {
+        brandSetsEl.textContent = '';
+        if (!D.brand.colours) {
+            var none = el('p', { class: 'st-help' }, 'Set your brand colours in ');
+            none.appendChild(el('a', { href: D.urls.brand }, 'Settings'));
+            none.appendChild(document.createTextNode(' and your shop uses them. Until then it wears this look\'s own colours.'));
+            brandSetsEl.appendChild(none);
+            return;
+        }
+        ['light', 'dark'].forEach(function (mode) {
+            var on = state.colours.set === 'brand' && brandMode(state) === mode;
+            brandSetsEl.appendChild(chip(mode === 'light' ? 'Light' : 'Dark', D.brand.colours[mode], on, function () { pickColours({ set: 'brand', mode: mode }); }));
+        });
+    }
     function renderColours() {
         setsEl.textContent = '';
+        renderBrandSets();
         var lk = look(state.look);
-        setsEl.appendChild(chip('Original', lk.colours, state.colours.set === 'look', function () { pickColours({ set: 'look' }); }));
+        setsEl.appendChild(chip('This look\'s own', lk.colours, state.colours.set === 'look' || (state.colours.set === 'brand' && !D.brand.colours), function () { pickColours({ set: 'look' }); }));
         Object.keys(D.sets).forEach(function (key) {
             setsEl.appendChild(chip(D.sets[key].name, D.sets[key], state.colours.set === key, function () { pickColours({ set: key }); }));
         });
@@ -591,21 +645,38 @@
     /* ── Fonts ───────────────────────────────────── */
 
     var fontsEl = $('[data-fonts]');
+    function fontButton(f, label, pressed, onPick) {
+        var b = el('button', { type: 'button', class: 'st-font', 'aria-pressed': String(pressed) });
+        var sample = el('span', { class: 'st-font__sample' }, D.business.name);
+        sample.style.cssText = 'font-family:' + f.head_stack + ';font-weight:' + f.weight + ';font-stretch:' + f.stretch + ';font-size:' + Math.round(20 * f.scale + 2) + 'px';
+        b.appendChild(sample);
+        b.appendChild(el('span', { class: 'st-font__name' }, label));
+        b.addEventListener('click', onPick);
+        return b;
+    }
     function renderFonts() {
         fontsEl.textContent = '';
         var current = pairKey(state);
-        Object.keys(D.fonts).forEach(function (key) {
-            var f = D.fonts[key];
-            var b = el('button', { type: 'button', class: 'st-font', 'aria-pressed': String(key === current) });
-            var sample = el('span', { class: 'st-font__sample' }, D.business.name);
-            sample.style.cssText = 'font-family:' + f.head_stack + ';font-weight:' + f.weight + ';font-stretch:' + f.stretch + ';font-size:' + Math.round(20 * f.scale + 2) + 'px';
-            b.appendChild(sample);
-            b.appendChild(el('span', { class: 'st-font__name' }, f.name + (key === look(state.look).pair ? ' (this look\'s own)' : '')));
-            b.addEventListener('click', function () {
-                commit(function (s) { s.font = key === look(s.look).pair ? '' : key; }, { theme: true });
+        // The brand fonts from Settings lead; the pairs below are for this shop alone
+        if (D.brand.fonts) {
+            fontsEl.appendChild(fontButton(D.brand.fonts, 'Your brand fonts: ' + D.brand.fonts.head + ' and ' + D.brand.fonts.body, current === 'brand', function () {
+                commit(function (s) { s.font = ''; }, { theme: true });
                 renderFonts();
-            });
-            fontsEl.appendChild(b);
+            }));
+        } else {
+            var none = el('p', { class: 'st-help st-fonts__brand' }, 'Choose your brand fonts in ');
+            none.appendChild(el('a', { href: D.urls.brand }, 'Settings'));
+            none.appendChild(document.createTextNode(' and your shop uses them, with your invoices and receipts.'));
+            fontsEl.appendChild(none);
+        }
+        Object.keys(D.fonts).forEach(function (key) {
+            var own = key === look(state.look).pair;
+            fontsEl.appendChild(fontButton(D.fonts[key], D.fonts[key].name + (own ? ' (this look\'s own)' : ''), key === current, function () {
+                // With no brand fonts, the look's own pair is what '' shows, and
+                // '' keeps following Settings once fonts are chosen there
+                commit(function (s) { s.font = own && !D.brand.fonts ? '' : key; }, { theme: true });
+                renderFonts();
+            }));
         });
     }
 
@@ -619,7 +690,7 @@
     function movable(type) { return D.types[type].pin === null; }
     function labelFor(type, field) {
         var lk = look(state.look);
-        var key = { featured: 'featured', catalogue: 'catalogue', about: 'about', delivery: 'delivery', faq: 'faq', quote: 'quote', video: 'video' }[type];
+        var key = { featured: 'featured', catalogue: 'catalogue', about: 'about', delivery: 'delivery', faq: 'faq', quote: 'quote', video: 'video', location: 'location' }[type];
         if (field === 'button') { return lk.labels.button; }
         return key ? (lk.labels[key] || '') : '';
     }
@@ -638,16 +709,71 @@
             case 'delivery': return s.text ? short(s.text, 60) : 'Say how you deliver';
             case 'faq': return s.items.length ? s.items.length + ' question' + (s.items.length === 1 ? '' : 's') : 'Add the questions people ask';
             case 'quote': return s.title || labelFor('quote');
+            case 'location': return s.lat !== null ? 'Your pin is placed' : 'Place your pin to show a map';
             case 'contact': return ['instagram', 'facebook', 'tiktok', 'twitter'].filter(function (k) { return s[k]; }).length
                 ? 'WhatsApp and your socials' : 'WhatsApp, address and phone';
         }
         return '';
     }
 
+    // The announcement bar sits on its own at the top of Sections: a switch,
+    // the message and the day it stops showing
+    var announceBox = $('[data-announce-box]');
+    function dayText(ymd) {
+        var d = new Date(ymd + 'T12:00:00');
+        return d.toLocaleDateString('en-NG', { day: 'numeric', month: 'long' });
+    }
+    function renderAnnouncement() {
+        var s = sectionAt('announcement');
+        if (!announceBox || !s) { return; }
+        announceBox.textContent = '';
+        var head = el('div', { class: 'st-switchrow' });
+        head.appendChild(el('h2', { class: 'st-h2', id: 'st-announce-h' }, 'Announcement bar'));
+        var sw = el('button', { type: 'button', class: 'st-switch', role: 'switch', 'aria-checked': String(s.on), 'aria-label': 'Show the announcement bar' });
+        sw.appendChild(el('span'));
+        sw.addEventListener('click', function () {
+            commit(function () { s.on = !s.on; }, { reload: true, scrollTo: 'sf-announcement' });
+            renderAnnouncement();
+        });
+        head.appendChild(sw);
+        announceBox.appendChild(head);
+        announceBox.appendChild(el('p', { class: 'st-help' }, 'One line across the top of every page of your shop, like a sale or a delivery note.'));
+        var message = textInput(s, 'text', D.types.announcement.fields.text, 'Free delivery in Lagos this week');
+        message.setAttribute('data-announce-text', '');
+        // Writing a message means it should show
+        message.addEventListener('input', function () {
+            if (!s.on && message.value.trim()) {
+                commit(function () { s.on = true; }, { reload: true, scrollTo: 'sf-announcement' });
+                sw.setAttribute('aria-checked', 'true');
+            }
+        });
+        announceBox.appendChild(field('Message', message));
+
+        var until = el('input', { type: 'date', min: D.today, value: s.until || '' });
+        until.addEventListener('change', function () { edit(s, 'until', until.value); renderUntilNote(); });
+        announceBox.appendChild(field('Hide it after', until, 'Leave it empty to keep it up until you switch it off.'));
+        var untilRow = el('div', { class: 'st-announce__until' });
+        var note = el('p', { class: 'st-help', 'aria-live': 'polite' });
+        var clear = el('button', { type: 'button', class: 'st-btn st-btn--quiet st-btn--sm' }, 'No end date');
+        clear.addEventListener('click', function () { until.value = ''; edit(s, 'until', ''); renderUntilNote(); });
+        untilRow.appendChild(note);
+        untilRow.appendChild(clear);
+        announceBox.appendChild(untilRow);
+        function renderUntilNote() {
+            clear.hidden = !s.until;
+            note.textContent = !s.until ? '' : s.until < D.today
+                ? 'It ended on ' + dayText(s.until) + ', so shoppers no longer see it.'
+                : 'Shoppers see it until the end of ' + dayText(s.until) + '.';
+        }
+        renderUntilNote();
+    }
+
     function renderSections() {
         listEl.textContent = '';
+        renderAnnouncement();
         var middle = state.sections.filter(function (s) { return movable(s.type); });
         state.sections.forEach(function (s) {
+            if (s.type === 'announcement') { return; }   // pinned above the list
             var def = D.types[s.type];
             var li = el('li', { class: 'st-section', 'data-type': s.type });
             var grip = el('span', { class: 'st-section__grip' + (movable(s.type) ? '' : ' st-section__grip--fixed'), 'aria-hidden': 'true', title: movable(s.type) ? 'Drag to move' : '' });
@@ -738,12 +864,21 @@
     /* ── Section editor ──────────────────────────── */
 
     var editing = null;
-    function openEditor(type) {
+    // fromPreview: the owner tapped the section in the preview, which already shows it
+    function openEditor(type, fromPreview) {
+        if (type === 'announcement') {
+            if (editing) { closeEditor(); }
+            $('.st-panel__body').scrollTop = 0;
+            var text = $('[data-announce-text]', announceBox);
+            if (text) { text.focus(); }
+            return;
+        }
         editing = type;
         listWrap.hidden = true;
+        announceBox.hidden = true;
         editorEl.hidden = false;
         renderEditor();
-        scrollPreview('sf-' + type);
+        if (!fromPreview) { scrollPreview('sf-' + type); }
         $('.st-panel__body').scrollTop = 0;
         var back = $('[data-editor-back]', editorEl);
         if (back) { back.focus(); }
@@ -752,6 +887,7 @@
         var type = editing;
         editing = null;
         editorEl.hidden = true;
+        announceBox.hidden = false;
         listWrap.hidden = false;
         renderSections();
         var row = $('[data-type="' + type + '"] .st-section__main', listEl);
@@ -846,15 +982,13 @@
 
         var f = def.fields;
         switch (editing) {
-            case 'announcement':
-                editorEl.appendChild(field('Message', textInput(s, 'text', f.text, 'Free delivery in Lagos this week')));
-                break;
             case 'hero':
                 editorEl.appendChild(field('Headline', textInput(s, 'headline', f.headline, D.business.tagline || D.business.name)));
                 editorEl.appendChild(field('A line or two under it', textInput(s, 'text', f.text, 'What you sell, where, and why people come back')));
                 editorEl.appendChild(field('Button', textInput(s, 'button', f.button, labelFor('hero', 'button')), 'It takes people to your products.'));
                 editorEl.appendChild(field('Sticker', textInput(s, 'badge', f.badge, 'Delivery in 24 hours'), 'A short note in a sticker or stamp. Leave it empty for none.'));
-                editorEl.appendChild(mediaField(s));
+                editorEl.appendChild(slidesField(s));
+                if (look(state.look).backdrop) { editorEl.appendChild(backgroundField(s)); }
                 break;
             case 'featured':
                 editorEl.appendChild(field('Title', textInput(s, 'title', f.title, labelFor('featured'))));
@@ -911,6 +1045,11 @@
             case 'reviews':
                 editorEl.appendChild(field('Title', textInput(s, 'title', f.title, 'What customers say')));
                 editorEl.appendChild(el('p', { class: 'st-help' }, 'Customers rate an order once it is delivered or collected. They get the link on their order page, and right after they sign for a delivery. Nobody can write or change a review for them, which is why shoppers trust them.'));
+                break;
+            case 'location':
+                editorEl.appendChild(field('Title', textInput(s, 'title', f.title, labelFor('location'))));
+                editorEl.appendChild(locationField(s));
+                editorEl.appendChild(field('How to find you', textInput(s, 'note', f.note, 'Opposite the market gate. Ring the bell at the blue door.'), 'A landmark helps more than a street number.'));
                 break;
             case 'contact':
                 editorEl.appendChild(field('A short line', textInput(s, 'text', f.text, 'Open Monday to Saturday, 9am to 6pm')));
@@ -991,44 +1130,276 @@
         draw();
         return box;
     }
-    function mediaField(s) {
-        var box = el('div', { class: 'st-field st-media' });
-        box.appendChild(el('span', { class: 'st-label' }, 'Photo or video'));
-        box.appendChild(el('span', { class: 'st-field__hint' }, 'A wide photo works best. Videos play only on good connections and never with sound.'));
-        var preview = null;
-        if (s.image) {
-            preview = /\.mp4$/.test(s.image)
-                ? el('video', { class: 'st-media__preview', src: BASE + '/' + s.image, muted: true, playsinline: true, preload: 'metadata' })
-                : el('img', { class: 'st-media__preview', src: BASE + '/' + s.image, alt: 'Your current photo' });
-            box.appendChild(preview);
-        }
-        var actions = el('div', { class: 'st-media__actions' });
-        var pick = el('label', { class: 'st-btn st-btn--quiet st-file' });
-        pick.appendChild(el('span', {}, s.image ? 'Replace it' : 'Upload a photo or video'));
-        var input = el('input', { type: 'file', accept: 'image/jpeg,image/png,image/webp,video/mp4' });
+    // Upload a hero photo or video; done(path) gets where it was saved
+    function uploadMedia(accept, done) {
+        var input = el('input', { type: 'file', accept: accept, hidden: true });
         input.addEventListener('change', function () {
             var file = input.files && input.files[0];
+            input.remove();
             if (!file) { return; }
             var fd = new FormData();
             fd.append('media', file);
             fd.append('csrf_token', D.csrf);
             say('Uploading…');
             api(D.urls.upload, fd).then(function (json) {
-                commit(function () { s.image = json.path; }, { reload: true, scrollTo: 'sf-hero' });
-                renderEditor();
+                say('Uploaded. Saving…');
+                done(json.path);
             }).catch(function (err) { say(err.message, true); });
         });
-        pick.appendChild(input);
-        actions.appendChild(pick);
-        if (s.image) {
-            var remove = el('button', { type: 'button', class: 'st-btn st-btn--quiet' }, 'Remove it');
+        document.body.appendChild(input);
+        input.click();
+    }
+    function thumb(path, alt) {
+        return /\.mp4$/.test(path)
+            ? el('video', { class: 'st-thumb', src: BASE + '/' + path, muted: true, playsinline: true, preload: 'metadata', 'aria-label': alt })
+            : el('img', { class: 'st-thumb', src: BASE + '/' + path, alt: alt, loading: 'lazy' });
+    }
+    function isPhoto(path) { return /\.(png|jpe?g|webp)$/i.test(path); }
+
+    // The hero's photos, in the order they show. Atelier plays them in turn;
+    // other looks show the first.
+    function slidesField(s) {
+        var lk = look(state.look);
+        var max = 5;
+        var box = el('div', { class: 'st-field st-slides' });
+        box.appendChild(el('span', { class: 'st-label' }, 'Photos and videos'));
+        box.appendChild(el('span', { class: 'st-field__hint' }, lk.slides > 1
+            ? 'Up to five. They fill the first screen and take turns, with your words over them. One photo stays put. Tall photos look best on phones.'
+            : 'This look shows your first photo. Atelier shows up to five, in turn. Videos play only on good connections and never with sound.'));
+        var list = el('ul', { class: 'st-slides__list' });
+        s.slides.forEach(function (path, i) {
+            var li = el('li', { class: 'st-slide' });
+            li.appendChild(thumb(path, 'Photo ' + (i + 1)));
+            var text = el('span', { class: 'st-slide__text' });
+            text.appendChild(el('strong', {}, (/\.mp4$/.test(path) ? 'Video ' : 'Photo ') + (i + 1)));
+            var notes = [];
+            if (i === 0) { notes.push(lk.slides > 1 ? 'Shows first' : 'Shows on this look'); }
+            if (lk.backdrop && (s.background === path || (s.background === '' && path === firstPhoto(s)))) {
+                notes.push(notes.length ? 'and is the page background' : 'The page background');
+            }
+            if (notes.length) { text.appendChild(el('span', {}, notes.join(', '))); }
+            li.appendChild(text);
+            var up = el('button', { type: 'button', class: 'st-section__move', 'aria-label': 'Show photo ' + (i + 1) + ' earlier', disabled: i === 0 });
+            up.appendChild(icon(ICON.up));
+            up.addEventListener('click', function () { moveSlide(s, i, -1); });
+            var down = el('button', { type: 'button', class: 'st-section__move', 'aria-label': 'Show photo ' + (i + 1) + ' later', disabled: i === s.slides.length - 1 });
+            down.appendChild(icon(ICON.down));
+            down.addEventListener('click', function () { moveSlide(s, i, 1); });
+            var remove = el('button', { type: 'button', class: 'st-section__move', 'aria-label': 'Remove photo ' + (i + 1) });
+            remove.appendChild(icon(ICON.close));
             remove.addEventListener('click', function () {
-                commit(function () { s.image = ''; }, { reload: true, scrollTo: 'sf-hero' });
+                commit(function () {
+                    s.slides.splice(i, 1);
+                    if (s.background === path) { s.background = ''; }
+                    s.image = s.slides[0] || '';
+                }, { reload: true, scrollTo: 'sf-hero' });
                 renderEditor();
             });
-            actions.appendChild(remove);
+            li.appendChild(up);
+            li.appendChild(down);
+            li.appendChild(remove);
+            list.appendChild(li);
+        });
+        box.appendChild(list);
+        if (s.slides.length < max) {
+            var add = el('button', { type: 'button', class: 'st-btn st-btn--quiet' }, s.slides.length ? 'Add another photo or video' : 'Upload a photo or video');
+            add.addEventListener('click', function () {
+                uploadMedia('image/jpeg,image/png,image/webp,video/mp4', function (path) {
+                    commit(function () { s.slides = s.slides.concat([path]); s.image = s.slides[0]; }, { reload: true, scrollTo: 'sf-hero' });
+                    renderEditor();
+                });
+            });
+            box.appendChild(add);
         }
-        box.appendChild(actions);
+        return box;
+    }
+    function moveSlide(s, i, step) {
+        var j = i + step;
+        if (j < 0 || j >= s.slides.length) { return; }
+        commit(function () {
+            s.slides.splice(j, 0, s.slides.splice(i, 1)[0]);
+            s.image = s.slides[0];
+        }, { reload: true, scrollTo: 'sf-hero' });
+        renderEditor();
+    }
+    function firstPhoto(s) { return s.slides.filter(isPhoto)[0] || ''; }
+
+    // The page background: one photo kept faintly behind every page. The
+    // first photo unless the owner picks another, or none.
+    function backgroundField(s) {
+        var box = el('fieldset', { class: 'st-field st-bg' });
+        box.appendChild(el('legend', { class: 'st-label' }, 'Page background'));
+        box.appendChild(el('span', { class: 'st-field__hint' }, 'A photo kept faintly behind every page, about a sixth visible, so your shop sits in your world. It can be one of your photos above, or another.'));
+        var row = el('div', { class: 'st-bg__options' });
+        var option = function (value, label, path) {
+            var on = s.background === value;
+            var b = el('button', { type: 'button', class: 'st-bg__option', 'aria-pressed': String(on) });
+            if (path) { b.appendChild(thumb(path, '')); } else { b.appendChild(el('span', { class: 'st-thumb st-thumb--none', 'aria-hidden': 'true' })); }
+            b.appendChild(el('span', {}, label));
+            b.addEventListener('click', function () {
+                commit(function () { s.background = value; }, { reload: true, scrollTo: 'sf-hero' });
+                renderEditor();
+            });
+            row.appendChild(b);
+        };
+        var first = firstPhoto(s);
+        option('', first ? 'First photo' : 'First photo (none yet)', first);
+        s.slides.filter(isPhoto).slice(first ? 1 : 0).forEach(function (path, i) { option(path, 'Photo ' + (s.slides.indexOf(path) + 1), path); });
+        if (s.background && s.background !== 'none' && s.slides.indexOf(s.background) === -1) {
+            option(s.background, 'Its own photo', s.background);
+        }
+        option('none', 'No photo', '');
+        box.appendChild(row);
+        var other = el('button', { type: 'button', class: 'st-btn st-btn--quiet' }, 'Upload a different photo for it');
+        other.addEventListener('click', function () {
+            uploadMedia('image/jpeg,image/png,image/webp', function (path) {
+                commit(function () { s.background = path; }, { reload: true, scrollTo: 'sf-hero' });
+                renderEditor();
+            });
+        });
+        box.appendChild(other);
+        return box;
+    }
+
+    // Map and directions: the address (the business's own, from Settings),
+    // finding it on the map, or a pasted Google Maps link, and a pin to drag
+    // to the door. The pin goes live with Publish, like everything here.
+    var leafletLoading = null;
+    function loadLeaflet() {
+        if (window.L) { return Promise.resolve(window.L); }
+        if (!leafletLoading) {
+            leafletLoading = new Promise(function (resolve, reject) {
+                document.head.appendChild(el('link', { rel: 'stylesheet', href: D.urls.leafletCss }));
+                var script = el('script', { src: D.urls.leaflet });
+                script.onload = function () { resolve(window.L); };
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+        }
+        return leafletLoading;
+    }
+    function locationField(s) {
+        var box = el('div', { class: 'st-location' });
+        var status = el('p', { class: 'st-help', role: 'status', 'aria-live': 'polite' });
+
+        var address = el('textarea', { rows: 2, maxlength: 500, autocomplete: 'street-address', placeholder: '12 Lafenwa Road, Abeokuta, Ogun State' });
+        address.value = D.business.address;
+        if (!D.business.owner) { address.readOnly = true; }
+        box.appendChild(field('Your address', address, D.business.owner
+            ? 'As in Settings: changing it here changes it there too, and on your invoices.'
+            : 'From Settings. Only the owner can change it.'));
+
+        var places = el('ul', { class: 'st-places' });
+        var findBtn = el('button', { type: 'button', class: 'st-btn st-btn--primary' }, 'Find it on the map');
+        findBtn.hidden = !D.maps.find;
+        findBtn.addEventListener('click', function () {
+            findBtn.disabled = true;
+            status.textContent = 'Looking for your address…';
+            places.textContent = '';
+            api(D.urls.find, { address: address.value }).then(function (json) {
+                if (json.saved) { D.business.address = address.value.trim(); }
+                if (json.places.length === 1) {
+                    setPin(json.places[0].lat, json.places[0].lng, 17, 'Found it. Drag the pin to your door if it is a little off.');
+                    return;
+                }
+                status.textContent = 'Which one is yours?';
+                json.places.forEach(function (place) {
+                    var b = el('button', { type: 'button', class: 'st-btn st-btn--quiet st-btn--block' }, place.label);
+                    b.addEventListener('click', function () {
+                        places.textContent = '';
+                        setPin(place.lat, place.lng, 17, 'Pin placed. Drag it to your door if it is a little off.');
+                    });
+                    places.appendChild(el('li')).appendChild(b);
+                });
+            }).catch(function (err) { status.textContent = err.message; }).then(function () { findBtn.disabled = false; });
+        });
+        box.appendChild(findBtn);
+        box.appendChild(places);
+
+        var link = el('input', { type: 'url', inputmode: 'url', autocomplete: 'off', placeholder: 'https://maps.app.goo.gl/…' });
+        var linkBtn = el('button', { type: 'button', class: 'st-btn st-btn--quiet' }, 'Use this link');
+        linkBtn.addEventListener('click', function () {
+            if (!link.value.trim()) { link.focus(); return; }
+            linkBtn.disabled = true;
+            status.textContent = 'Reading your link…';
+            api(D.urls.link, { link: link.value }).then(function (json) {
+                setPin(json.pin.lat, json.pin.lng, json.pin.zoom || 17, 'Pin placed from your link. Drag it if it needs to move.');
+                link.value = '';
+            }).catch(function (err) { status.textContent = err.message; }).then(function () { linkBtn.disabled = false; });
+        });
+        box.appendChild(field(D.maps.find ? 'Or paste a Google Maps link' : 'Paste a Google Maps link', link,
+            'In Google Maps, tap your shop, then Share, then Copy link. We read the pin from it.'));
+        box.appendChild(linkBtn);
+
+        var mapBox = el('div', { class: 'st-map', hidden: s.lat === null });
+        var mapEl = el('div', { class: 'st-map__canvas', 'aria-label': 'Map with your pin. Drag the pin, or move the map and use the button below.' });
+        mapBox.appendChild(mapEl);
+        var centre = el('button', { type: 'button', class: 'st-btn st-btn--quiet st-btn--sm' }, 'Put the pin in the middle of the map');
+        var clear = el('button', { type: 'button', class: 'st-btn st-btn--quiet st-btn--sm' }, 'Remove the pin');
+        var tools = el('div', { class: 'st-map__tools' });
+        tools.appendChild(centre);
+        tools.appendChild(clear);
+        mapBox.appendChild(tools);
+        var check = el('a', { class: 'st-link', target: '_blank', rel: 'noopener' }, 'Check it in Google Maps');
+        mapBox.appendChild(check);
+        box.appendChild(mapBox);
+        box.appendChild(status);
+
+        var map = null, marker = null;
+        function paintCheck() {
+            check.href = s.lat === null ? '#' : 'https://www.google.com/maps/search/?api=1&query=' + s.lat + ',' + s.lng;
+        }
+        function setPin(lat, lng, zoom, text) {
+            commit(function () { s.lat = Math.round(lat * 1e6) / 1e6; s.lng = Math.round(lng * 1e6) / 1e6; s.zoom = zoom; s.on = true; }, { reload: true, scrollTo: 'sf-location' });
+            status.textContent = text + ' Shoppers see the map after you publish.';
+            mapBox.hidden = false;
+            drawMap();
+        }
+        function drawMap() {
+            paintCheck();
+            if (s.lat === null || !D.maps.tiles) { return; }
+            loadLeaflet().then(function (L) {
+                if (!map) {
+                    map = L.map(mapEl, { zoomControl: true, attributionControl: true }).setView([s.lat, s.lng], s.zoom || 17);
+                    L.tileLayer(D.maps.tiles, { maxZoom: 19, attribution: 'Powered by Geoapify | © OpenMapTiles © OpenStreetMap contributors' }).addTo(map);
+                    marker = L.marker([s.lat, s.lng], {
+                        draggable: true, keyboard: false, title: 'Your shop',
+                        icon: L.divIcon({ className: 'st-pin', html: '<svg viewBox="0 0 32 42" width="32" height="42" aria-hidden="true"><path d="M16 41s14-13.2 14-24A14 14 0 0 0 2 17c0 10.8 14 24 14 24z"/><circle cx="16" cy="16" r="5.5" fill="#FFFFFF"/></svg>', iconSize: [32, 42], iconAnchor: [16, 41] })
+                    }).addTo(map);
+                    marker.on('dragend', function () {
+                        var at = marker.getLatLng();
+                        commit(function () { s.lat = Math.round(at.lat * 1e6) / 1e6; s.lng = Math.round(at.lng * 1e6) / 1e6; s.zoom = map.getZoom(); }, { reload: true, scrollTo: 'sf-location' });
+                        status.textContent = 'Pin moved. Shoppers see it after you publish.';
+                        paintCheck();
+                    });
+                    map.on('zoomend', function () {
+                        if (s.lat !== null && s.zoom !== map.getZoom()) { commit(function () { s.zoom = map.getZoom(); }, { key: 'location.zoom', reload: true, scrollTo: 'sf-location' }); }
+                    });
+                } else {
+                    map.setView([s.lat, s.lng], s.zoom || map.getZoom());
+                    marker.setLatLng([s.lat, s.lng]);
+                }
+                setTimeout(function () { map.invalidateSize(); }, 50);
+            }).catch(function () { status.textContent = 'The map couldn\'t load just now. Your pin is still saved.'; });
+        }
+        centre.addEventListener('click', function () {
+            if (!map) { return; }
+            var mid = map.getCenter();
+            marker.setLatLng(mid);
+            commit(function () { s.lat = Math.round(mid.lat * 1e6) / 1e6; s.lng = Math.round(mid.lng * 1e6) / 1e6; s.zoom = map.getZoom(); }, { reload: true, scrollTo: 'sf-location' });
+            status.textContent = 'Pin moved to the middle of the map. Shoppers see it after you publish.';
+            paintCheck();
+        });
+        clear.addEventListener('click', function () {
+            commit(function () { s.lat = null; s.lng = null; }, { reload: true, scrollTo: 'sf-location' });
+            mapBox.hidden = true;
+            status.textContent = 'Pin removed. The map is gone from your shop once you publish.';
+        });
+        if (!D.maps.tiles && s.lat !== null) {
+            mapEl.hidden = true;
+            centre.hidden = true;
+        }
+        drawMap();
         return box;
     }
 
@@ -1173,6 +1544,17 @@
             if (input && input.type === 'checkbox') { setSeo(input.dataset.seo, input.checked, {}); }
         });
     }
+
+    // A tap on a section in the preview opens it here (storefront.js sends it)
+    window.addEventListener('message', function (e) {
+        if (e.origin !== location.origin || !e.data || e.data.type !== 'nfelia:edit') { return; }
+        var type = String(e.data.section || '');
+        if (!D.types[type] || !sectionAt(type)) { return; }
+        selectTab($('[data-tab="sections"]'));
+        panel.classList.add('is-tall');
+        $('[data-expand]').setAttribute('aria-expanded', 'true');
+        if (editing !== type) { openEditor(type, true); }
+    });
 
     function renderAll() {
         renderSeo();

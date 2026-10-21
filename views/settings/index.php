@@ -5,7 +5,7 @@
  *
  * Available from controller:
  *   $user, $business, $tab, $subscription, $staff, $payment_history,
- *   $font_options, $currency_options, $country_pricing
+ *   $currency_options, $country_pricing
  */
 $currency   = $business['currency_symbol'] ?? '₦';
 $is_owner   = ($user['role'] ?? 'staff') === 'owner';
@@ -166,110 +166,120 @@ $current_staff_count = count($staff);
         </div>
     </div>
 
-    <!-- Branding -->
-<div class="bg-brand-white border border-brand-sand rounded-xl p-5 shadow-sm"
-     x-data="{
-         primary: '<?= e($business['primary_color'] ?? '#1A1A2E') ?>',
-         secondary: '<?= e($business['secondary_color'] ?? '#C5A55A') ?>',
-         font: '<?= e($business['font_pairing'] ?? 'modern_sans') ?>',
-         
-         get fontFamily() {
-             const map = {
-                 'modern_sans': 'Inter, sans-serif',
-                 'corporate_serif': 'EB Garamond, serif',
-                 'bold_display': 'Syne, sans-serif',
-                 'classic_tech': 'Roboto Mono, monospace',
-                 'elegant_serif': 'Playfair Display, serif'
-             };
-             return map[this.font] || map['modern_sans'];
-         }
-     }">
-    
-    <h2 class="font-heading font-bold text-sm text-brand-plum mb-4 uppercase tracking-wider">Branding & Aesthetics</h2>
-
-    <!-- UX Enhancement: Live Preview Card -->
-    <div class="mb-6 p-6 rounded-xl border border-brand-sand bg-brand-cream/30 flex flex-col items-center justify-center relative overflow-hidden transition-all duration-300" :style="{ fontFamily: fontFamily }">
-        <div class="absolute top-0 left-0 w-full h-1" :style="{ backgroundColor: primary }"></div>
-        
-        <!-- Miniature Document Mockup -->
-        <div class="w-full max-w-[280px] bg-white rounded-lg shadow-sm border border-brand-sand overflow-hidden">
-            <div class="px-4 py-3 border-b border-brand-sand flex justify-between items-center bg-gray-50/50">
-                <span class="text-xs font-bold" :style="{ color: primary }">Invoice #1042</span>
-                <span class="text-[9px] px-2 py-0.5 rounded uppercase tracking-wider font-bold" 
-                      :style="{ backgroundColor: secondary + '20', color: secondary }">Paid</span>
-            </div>
-            <div class="p-5">
-                <div class="text-[10px] text-gray-400 mb-1 font-medium uppercase tracking-widest">Total Due</div>
-                <div class="text-2xl font-extrabold tracking-tight" :style="{ color: primary }"><?= e($currency) ?>45,000</div>
-                <button type="button" class="mt-4 w-full py-2.5 rounded text-[10px] font-bold text-white uppercase tracking-widest transition-opacity hover:opacity-90 shadow-sm" 
-                        :style="{ backgroundColor: primary }">Download PDF</button>
-            </div>
-        </div>
-        <div class="mt-3 text-[9px] font-bold uppercase tracking-widest text-brand-plum/40 font-mono">Live Document Preview</div>
-    </div>
-
-    <!-- Controls -->
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-5">
-        <!-- Primary Color -->
-        <div>
-            <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1.5">Primary Color</label>
-            <div class="flex items-center gap-2">
-                <input type="color" name="primary_color" 
-                       x-model="primary" 
-                       class="w-10 h-10 rounded-lg cursor-pointer border border-brand-sand p-0 bg-transparent shrink-0">
-                <input type="text" 
-                       x-model="primary" 
-                       @input="primary = primary.toUpperCase()"
-                       class="flex-1 px-3 py-2.5 text-xs font-mono font-bold uppercase bg-brand-cream border border-brand-sand rounded-lg text-brand-plum focus:outline-none focus:border-brand-gold transition-colors" 
-                       maxlength="7">
+    <!-- Branding: colours and fonts. The pickers, the logo colours and the
+         preview are assets/js/brand.js; the font library is app/helpers/brand.php. -->
+    <?php
+    $brand_keys   = brand_fonts($business);
+    $doc_fonts    = brand_doc_fonts($business);
+    $today_keys   = $brand_keys ?? array_combine(['head', 'body'], BRAND_FONT_PAIRS[$business['font_pairing'] ?? ''] ?? BRAND_FONT_PAIRS['modern_sans']);
+    $brand_lib    = brand_font_library();
+    $brand_list   = [];
+    foreach ($brand_lib as $font_key => $font) {
+        $brand_list[] = [
+            'key'   => $font_key,
+            'name'  => $font['name'],
+            'kind'  => $font['kind'],
+            'stack' => brand_font_stack($font),
+            'head'  => $font['head'],
+            'body'  => $font['body'],
+            'scale' => $font['scale'],
+            // The stylesheet each role loads, for the preview
+            'q'     => ['head' => brand_font_query($font, brand_font_weights($font, 'head')),
+                        'body' => $font['body'] ? brand_font_query($font, brand_font_weights($font, 'body')) : null],
+        ];
+    }
+    $primary_now   = strtoupper(sf_hex($business['primary_color'] ?? null) ?? '#1A1A2E');
+    $secondary_now = strtoupper(sf_hex($business['secondary_color'] ?? null) ?? '#C27A62');
+    $brand_data = [
+        'fonts'   => $brand_list,
+        'samples' => brand_font_samples_url(),
+        // Shown until the owner picks: the fonts their links use today
+        'current' => ['head' => $brand_keys['head'] ?? '', 'body' => $brand_keys['body'] ?? ''],
+        'today'   => $today_keys,
+        'logo'    => $logo_url ?: '',
+    ];
+    $json_flags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES;
+    $font_label = fn(string $role) => isset($brand_keys[$role]) ? $brand_lib[$brand_keys[$role]]['name'] : '';
+    $font_stack = fn(string $role) => isset($brand_keys[$role]) ? brand_font_stack($brand_lib[$brand_keys[$role]]) : 'inherit';
+    ?>
+    <section class="nf-card nf-brand" aria-labelledby="nf-brand-h" data-brand>
+        <div class="nf-card-h">
+            <div>
+                <h2 id="nf-brand-h">Branding</h2>
+                <p>Your colours and fonts. Your shop and the invoice, receipt and quote links your customers open use them.</p>
             </div>
         </div>
 
-        <!-- Secondary Color -->
-        <div>
-            <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1.5">Secondary Color</label>
-            <div class="flex items-center gap-2">
-                <input type="color" name="secondary_color" 
-                       x-model="secondary" 
-                       class="w-10 h-10 rounded-lg cursor-pointer border border-brand-sand p-0 bg-transparent shrink-0">
-                <input type="text" 
-                       x-model="secondary" 
-                       @input="secondary = secondary.toUpperCase()"
-                       class="flex-1 px-3 py-2.5 text-xs font-mono font-bold uppercase bg-brand-cream border border-brand-sand rounded-lg text-brand-plum focus:outline-none focus:border-brand-gold transition-colors" 
-                       maxlength="7">
+        <div class="nf-bp" data-brand-preview aria-hidden="true">
+            <link rel="stylesheet" href="<?= e($doc_fonts['url']) ?>" data-bp-fonts>
+            <div class="nf-bp__cover">
+                <p class="nf-bp__name" data-bp-head><?= e($business['name'] ?? 'Your shop') ?></p>
+                <p class="nf-bp__line" data-bp-body><?= e(trim((string)($business['tagline'] ?? '')) ?: 'New pieces every week, made to last.') ?></p>
+                <span class="nf-bp__btn" data-bp-body>Shop now</span>
+            </div>
+            <div class="nf-bp__doc">
+                <span class="nf-bp__doc-title" data-bp-head>Invoice #1042</span>
+                <span class="nf-bp__doc-total" data-bp-body>Total due <b><?= e($currency) ?>45,000</b></span>
             </div>
         </div>
 
-        <!-- Font Style -->
-        <div>
-            <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1.5">Typography</label>
-            <select name="font_pairing" 
-                    x-model="font" 
-                    class="w-full px-3 py-2.5 text-xs font-semibold bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum transition-colors cursor-pointer"
-                    :style="{ fontFamily: fontFamily }">
-                <?php foreach ($font_options as $key => $label): ?>
-                    <?php 
-                        // Backend rendering for option styles
-                        $preview_font = match($key) {
-                            'corporate_serif' => '"EB Garamond", serif',
-                            'bold_display'    => '"Syne", sans-serif',
-                            'classic_tech'    => '"Roboto Mono", monospace',
-                            'elegant_serif'   => '"Playfair Display", serif',
-                            default           => '"Inter", sans-serif'
-                        };
-                    ?>
-                    <option value="<?= $key ?>" style="font-family: <?= $preview_font ?>">
-                        <?= $label ?>
-                    </option>
+        <fieldset class="nf-brand-group"<?= $is_owner ? '' : ' disabled' ?>>
+            <legend>Colours</legend>
+            <div class="nf-brand-colours">
+                <?php foreach (['primary' => ['Primary colour', 'Buttons, links and prices', $primary_now], 'secondary' => ['Secondary colour', 'Text and dark backgrounds', $secondary_now]] as $which => [$label, $hint, $value]): ?>
+                    <div class="nf-brand-colour">
+                        <label for="nf-<?= $which ?>-hex"><?= $label ?> <small><?= $hint ?></small></label>
+                        <div class="nf-brand-colour__row">
+                            <input type="color" value="<?= e(strtolower($value)) ?>" aria-label="Pick the <?= strtolower($label) ?>" data-colour-pick="<?= $which ?>">
+                            <input type="text" id="nf-<?= $which ?>-hex" name="<?= $which ?>_color" value="<?= e($value) ?>" maxlength="7"
+                                   autocomplete="off" autocapitalize="characters" spellcheck="false" inputmode="text" pattern="#[0-9A-Fa-f]{6}" data-colour-hex="<?= $which ?>">
+                        </div>
+                    </div>
                 <?php endforeach; ?>
-            </select>
-        </div>
-    </div>
-    
-    <div class="mt-5 pt-4 border-t border-brand-sand/50 flex items-center justify-between">
-        <p class="text-[9px] text-brand-plum/40 font-medium">Applied automatically to client portals, PDFs, and checkout links.</p>
-    </div>
-</div>
+            </div>
+            <div class="nf-brand-logo">
+                <button type="button" class="nf-btn nf-btn-ghost" data-logo-colours<?= $logo_url ? '' : ' disabled' ?>>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>
+                    <span>Take colours from my logo</span>
+                </button>
+                <p class="nf-help" data-logo-help><?= $logo_url ? 'We read your logo and fill both colours. You can still change them.' : 'Add your logo above first, then we can read its colours.' ?></p>
+                <div class="nf-brand-logo__picks" data-logo-picks hidden>
+                    <div><span>Primary</span><div class="nf-swatches" role="group" aria-label="Colours from your logo for the primary colour" data-logo-for="primary"></div></div>
+                    <div><span>Secondary</span><div class="nf-swatches" role="group" aria-label="Colours from your logo for the secondary colour" data-logo-for="secondary"></div></div>
+                </div>
+            </div>
+        </fieldset>
+
+        <fieldset class="nf-brand-group"<?= $is_owner ? '' : ' disabled' ?>>
+            <legend>Fonts</legend>
+            <?php foreach (['head' => ['Primary font', 'For headlines and your shop\'s name'], 'body' => ['Secondary font', 'For everything people read']] as $role => [$label, $hint]): ?>
+                <div class="nf-font" data-font-picker="<?= $role ?>">
+                    <span class="nf-font__label" id="nf-font-<?= $role ?>-l"><?= $label ?> <small><?= $hint ?></small></span>
+                    <input type="hidden" name="brand_font_<?= $role ?>" value="<?= e($brand_keys[$role] ?? '') ?>" data-font-value>
+                    <button type="button" class="nf-font__trigger" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="nf-font-<?= $role ?>-l nf-font-<?= $role ?>-v" data-font-trigger>
+                        <span class="nf-font__value<?= isset($brand_keys[$role]) ? '' : ' is-empty' ?>" id="nf-font-<?= $role ?>-v" data-font-name style="font-family: <?= e($font_stack($role)) ?>"><?= e($font_label($role) ?: 'Choose a font') ?></span>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+                    </button>
+                    <?php if (!isset($brand_keys[$role])): ?>
+                        <p class="nf-help">Until you choose, your links use <?= e($doc_fonts[$role]) ?> and your shop uses its look's own fonts.</p>
+                    <?php endif; ?>
+                    <div class="nf-font__pop" data-font-pop hidden>
+                        <label class="nf-font__search">
+                            <span class="sr-only">Search fonts</span>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg>
+                            <input type="search" role="combobox" aria-expanded="true" aria-autocomplete="list" aria-controls="nf-font-<?= $role ?>-list" autocomplete="off" spellcheck="false" enterkeyhint="done" data-font-search>
+                        </label>
+                        <div class="nf-font__kinds" role="group" aria-label="Show one kind of font" data-font-kinds></div>
+                        <ul class="nf-font__list" role="listbox" id="nf-font-<?= $role ?>-list" aria-label="<?= $label ?>s" data-font-list></ul>
+                        <p class="nf-font__none" data-font-none hidden>No font by that name. Try another, or clear the search.</p>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+        </fieldset>
+        <p class="nf-help">Colours also go on your PDFs; PDFs keep their print fonts. Shop Studio can try other colours and fonts on your shop alone.</p>
+        <script type="application/json" id="nf-brand-data"><?= json_encode($brand_data, $json_flags) ?></script>
+        <script src="<?= e(APP_URL . '/assets/js/brand.js?v=' . (@filemtime(BASE_PATH . '/assets/js/brand.js') ?: '1')) ?>" defer></script>
+    </section>
 
     <div class="flex justify-end">
         <button type="submit" class="btn-primary text-white px-8 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-sm hover:shadow-md transition-all"><?= $is_owner ? 'Save Changes' : 'View Only (Owner Required)' ?></button>

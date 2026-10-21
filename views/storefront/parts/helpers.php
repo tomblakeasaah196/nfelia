@@ -186,6 +186,48 @@ function sf_gap(array $ctx, string $text): string {
     return $ctx['mode'] === 'live' ? '' : '<p class="sf-gap">' . e($text) . '</p>';
 }
 
+/**
+ * The link to the request form on the contact page. With a product's name,
+ * the form opens with "I would like a price for …" already written
+ * (storefront.js reads it from the address).
+ */
+function sf_quote_href(string $about = ''): string {
+    return sf_page_href('contact', $about !== '' ? '#quote=' . rawurlencode($about) : '#sf-quote');
+}
+
+/**
+ * One slide of a cover. The first photo loads at once; the others wait in
+ * data- attributes until storefront.js is about to show them, so a shopper
+ * on data pays only for what they see. Videos play only on good
+ * connections, as before.
+ */
+function sf_cover_media(string $rel, int $index): string {
+    $url = sf_media_url($rel);
+    if (str_ends_with($rel, '.mp4')) {
+        return '<video class="sf-cover__video" muted loop playsinline preload="none" data-src="' . e($url) . '" aria-hidden="true"></video>';
+    }
+    if ($index === 0) {
+        return str_ends_with($rel, '.gif')
+            ? '<img class="sf-cover__img" src="' . e($url) . '" alt="" fetchpriority="high">'
+            : sf_img($rel, '100vw', '', 'sf-cover__img', true);
+    }
+    $size = sf_image_size($rel);
+    $set  = str_ends_with($rel, '.gif') ? [] : sf_image_srcset($rel);
+    return '<img class="sf-cover__img" data-src="' . e($url) . '"' . ($set ? ' data-srcset="' . e(implode(', ', $set)) . '" sizes="100vw"' : '')
+         . ($size ? ' width="' . $size[0] . '" height="' . $size[1] . '"' : '') . ' alt="" decoding="async">';
+}
+
+/**
+ * The faint photo behind every page (looks with a backdrop): a small copy is
+ * plenty, since only a sixth of it shows through.
+ */
+function sf_backdrop(string $rel): string {
+    $set = array_values(array_filter(sf_image_srcset($rel), fn($entry) => (int)substr($entry, strrpos($entry, ' ') + 1) <= 960));
+    $src = $set ? substr(end($set), 0, strrpos(end($set), ' ')) : sf_media_url($rel);
+    return '<img src="' . e($src) . '"' . ($set ? ' srcset="' . e(implode(', ', $set)) . '" sizes="100vw"' : '')
+         . ' alt="" decoding="async" fetchpriority="low">';
+}
+
 /* ── Catalogue styles ─────────────────────── */
 
 function sf_item_editorial(array $item, array $ctx): string {
@@ -321,7 +363,7 @@ function sf_item_included(array $item, array $ctx): string {
         $body = '<p class="sf-item__desc">' . e($item['description']) . '</p>';
     }
     $ask = $ctx['quote_on']
-        ? '<a class="sf-btn sf-btn--outline sf-btn--sm" href="#sf-quote" data-quote="' . e($item['name']) . '">Ask for a quote</a>'
+        ? '<a class="sf-btn sf-btn--outline sf-btn--sm" href="' . e(sf_quote_href($item['name'])) . '" data-quote="' . e($item['name']) . '">Ask for a quote</a>'
         : '';
     return '<article ' . sf_item_attrs($item, 'sf-item sf-item--included') . '>'
          . '<div class="sf-item__top">' . ($item['images'] ? sf_open_link($item, sf_item_media($item, '56px'), 'sf-item__media', true) : '<span class="sf-item__icon">' . sf_icon($item['is_service'] ? 'sparkle' : 'tag', 22) . '</span>')

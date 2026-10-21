@@ -31,6 +31,7 @@ $indexable = $is_live && !$private && $kind !== 'book' && ($visibility ?? 'live'
 $robots    = $indexable ? 'index, follow' : ($kind === 'book' && ($visibility ?? 'live') === 'live' ? 'noindex, follow' : 'noindex, nofollow');
 $json_flags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES;
 sf_live_links($is_live);
+sf_render_mode($mode);
 
 $sections  = [];
 foreach ($settings['sections'] as $section) {
@@ -44,8 +45,42 @@ $contact   = $sections['contact'];
 $reviews = !empty($sections['reviews']['on']) && in_array($kind, ['shop', 'product'], true)
     ? shop_reviews(get_db(), (int)$business['id'])
     : null;
-// The newest posts, for the news section
+// The newest posts, for the news section; one is enough to know the news
+// page has something for the menu
 $news = !empty($sections['news']['on']) && $kind === 'shop' ? shop_posts(get_db(), (int)$business['id'], 3) : [];
+$has_news = !empty($sections['news']['on'])
+    && ($news || in_array($kind, ['news', 'post'], true) || !$is_live || shop_posts(get_db(), (int)$business['id'], 1));
+
+// The shop's pages, for its menu and footer: the full list once there is
+// something in it (previews show where it will be), and news once posted
+$list_on   = $sections['catalogue']['on'] && ($catalogue['items'] || !$is_live);
+$nav_pages = array_filter([
+    'home'      => 'Home',
+    'catalogue' => $list_on ? 'Shop' : null,
+    'news'      => $has_news ? 'News and offers' : null,
+    'contact'   => 'Contact',
+]);
+$nav_here = match ($kind) { 'shop' => 'home', 'catalogue' => 'catalogue', 'contact' => 'contact', 'news', 'post' => 'news', default => '' };
+
+// The announcement, unless it has ended (previews show it, marked as ended)
+$announcement = $sections['announcement'];
+$announce_ended = $announcement['until'] !== '' && $announcement['until'] < date('Y-m-d');
+$announce_show  = !$private && $announcement['on'] && ($is_live ? $announcement['text'] !== '' && !$announce_ended : true);
+
+// Looks with a cover open on full-screen photos; looks with a backdrop keep
+// a faint photo behind every page: the one the owner chose, else the first
+// photo among the slides
+$cover    = $look['hero'] === 'cover' && $kind === 'shop';
+$backdrop = '';
+if ($look['backdrop'] && $hero['background'] !== 'none') {
+    $candidates = $hero['background'] !== '' ? [$hero['background']] : $hero['slides'];
+    foreach ($candidates as $rel) {
+        if (preg_match('/\.(png|jpe?g|webp)$/', $rel) && sf_image_size($rel)) {
+            $backdrop = $rel;
+            break;
+        }
+    }
+}
 
 // Shared with every partial
 $ctx = [
@@ -104,8 +139,12 @@ if ($business['logo_path'])       { $ld['logo'] = $ld['image'] = sf_media_url((s
 // Only what the owner shows on the page goes into Google's data (W3)
 if ($business['phone'] && !empty($contact['show_phone']))     { $ld['telephone'] = (string)$business['phone']; }
 if ($business['email'] && !empty($contact['show_email']))     { $ld['email'] = (string)$business['email']; }
-if ($business['address'] && !empty($contact['show_address'])) { $ld['address'] = ['@type' => 'PostalAddress', 'streetAddress' => (string)$business['address'], 'addressCountry' => 'NG']; }
+// The map shows the address too, and says exactly where the shop is
+$location = $sections['location'];
+$map_on   = $location['on'] && $location['lat'] !== null;
+if ($business['address'] && (!empty($contact['show_address']) || $map_on)) { $ld['address'] = ['@type' => 'PostalAddress', 'streetAddress' => (string)$business['address'], 'addressCountry' => 'NG']; }
 if ($seo['city'] !== '')          { $ld['address'] = ($ld['address'] ?? ['@type' => 'PostalAddress', 'addressCountry' => 'NG']) + ['addressLocality' => $seo['city']]; }
+if ($map_on)                      { $ld['geo'] = ['@type' => 'GeoCoordinates', 'latitude' => $location['lat'], 'longitude' => $location['lng']]; }
 if ($catalogue['min_price'] !== null) {
     $prices = array_filter(array_column($catalogue['items'], 'price'), fn($p) => $p > 0);
     $ld['priceRange'] = sf_money(min($prices), $currency) . (max($prices) > min($prices) ? ' – ' . sf_money(max($prices), $currency) : '');
@@ -143,7 +182,7 @@ if ($catalogue['items']) {
     ];
 }
 if ($quote_on) {
-    $ld['potentialAction'] = ['@type' => 'QuoteAction', 'target' => $shop_url . '#sf-quote', 'name' => 'Ask for a quote'];
+    $ld['potentialAction'] = ['@type' => 'QuoteAction', 'target' => $shop_url . '/contact#sf-quote', 'name' => 'Ask for a quote'];
 }
 
 // A product's page speaks for the product
@@ -195,6 +234,21 @@ if ($kind === 'product') {
             ['@type' => 'ListItem', 'position' => 2, 'name' => $item['name'], 'item' => $canonical],
         ],
     ]];
+}
+
+// The full list and the contact page speak for the shop, at their own address
+if ($kind === 'catalogue') {
+    $canonical = $shop_url . '/shop';
+    $list_title = $sections['catalogue']['title'] !== '' ? $sections['catalogue']['title'] : $labels['catalogue'];
+    $seo_title = $list_title . ' — ' . $business['name'];
+    $count     = count($catalogue['items']);
+    $seo_desc  = 'Everything ' . $business['name'] . ' sells' . ($count ? ': ' . $count . ' item' . ($count === 1 ? '' : 's') . ', to order online or on WhatsApp.' : '.');
+    if ($ld) { $ld['url'] = $canonical; }
+}
+if ($kind === 'contact') {
+    $canonical = $shop_url . '/contact';
+    $seo_title = ($quote_on ? ($sections['quote']['title'] !== '' ? $sections['quote']['title'] : $labels['quote']) : 'Contact') . ' — ' . $business['name'];
+    $seo_desc  = 'Reach ' . $business['name'] . ($wa !== '' ? ' on WhatsApp' : '') . ($quote_on ? ', or tell us what you need and we reply with a price' : '') . '.';
 }
 
 // News: the list, and each post as an article
@@ -296,8 +350,12 @@ $js = [
     'items'    => (object)$js_items,
     'banks'    => array_map(fn($b) => ['id' => (int)$b['id'], 'bank' => $b['bank_name'], 'name' => $b['account_name'], 'number' => $b['account_number']], $catalogue['banks']),
     'delivery' => $sections['delivery']['on'] ? $sections['delivery']['text'] : '',
-    'urls'     => ['checkout' => '/checkout', 'quote' => '/quote-request'],
+    'urls'     => ['checkout' => '/checkout', 'quote' => '/quote-request', 'contact' => sf_page_href('contact'), 'shop' => sf_page_href('catalogue')],
 ];
+// Shop Studio's preview: tapping a section opens it in Studio
+if ($mode === 'preview') {
+    $js['sections'] = array_map(fn($t) => $t['name'], array_filter(storefront_section_types(), fn($t) => $t['available']));
+}
 if ($kind === 'book') {
     $book_info = $page['item']['booking'];
     $js['booking'] = [
@@ -315,7 +373,7 @@ if ($kind === 'book') {
 $asset = fn(string $path) => APP_URL . '/' . $path . '?v=' . (@filemtime(BASE_PATH . '/' . $path) ?: '1');
 ?>
 <!DOCTYPE html>
-<html lang="en" class="<?= e($theme['classes']) ?>" prefix="og: https://ogp.me/ns#">
+<html lang="en" class="<?= e($theme['classes'] . ($cover ? ' has-cover' : '') . ($backdrop !== '' ? ' has-backdrop' : '') . ($is_live ? '' : ' is-preview')) ?>" prefix="og: https://ogp.me/ns#">
 <head>
     <meta charset="UTF-8">
     <?= errors_script_tag() ?>
@@ -374,8 +432,12 @@ $asset = fn(string $path) => APP_URL . '/' . $path . '?v=' . (@filemtime(BASE_PA
 <body>
     <a class="sf-skip" href="#sf-main"><?= $kind === 'shop' ? 'Skip to the shop' : 'Skip to the page' ?></a>
 
+    <?php if ($backdrop !== ''): ?>
+        <div class="sf-backdrop" aria-hidden="true"><?= sf_backdrop($backdrop) ?></div>
+    <?php endif; ?>
+
     <?php
-    if (!$private && $sections['announcement']['on'] && ($sections['announcement']['text'] !== '' || !$is_live)) {
+    if ($announce_show) {
         include __DIR__ . '/sections/announcement.php';
     }
     include __DIR__ . '/parts/header.php';
@@ -384,11 +446,15 @@ $asset = fn(string $path) => APP_URL . '/' . $path . '?v=' . (@filemtime(BASE_PA
     <main id="sf-main">
         <?php
         if ($kind === 'shop') {
+            // The home page: its own sections, a taste of the list and the
+            // "made for you" button; the rest is on the shop's other pages
             foreach ($settings['sections'] as $section) {
-                if (!$section['on'] || in_array($section['type'], ['announcement', 'contact'], true)) {
+                $on_home = sf_section_page($section['type']) === 'home' || in_array($section['type'], ['catalogue', 'quote'], true);
+                if (!$section['on'] || !$on_home) {
                     continue;
                 }
-                include __DIR__ . '/sections/' . $section['type'] . '.php';
+                $partial = match ($section['type']) { 'catalogue' => 'catalogue_home', 'quote' => 'quote_cta', default => $section['type'] };
+                include __DIR__ . '/sections/' . $partial . '.php';
             }
         } else {
             include __DIR__ . '/pages/' . $kind . '.php';
@@ -397,6 +463,7 @@ $asset = fn(string $path) => APP_URL . '/' . $path . '?v=' . (@filemtime(BASE_PA
     </main>
 
     <?php include __DIR__ . '/sections/contact.php'; ?>
+    <?php include __DIR__ . '/parts/menu.php'; ?>
     <?php include __DIR__ . '/parts/bag.php'; ?>
 
     <script type="application/json" id="sf-data"><?= json_encode($js, $json_flags) ?></script>

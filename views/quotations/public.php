@@ -5,8 +5,7 @@
  */
 $currency = $business['currency_symbol'] ?? '₦';
 $primary  = $business['primary_color'] ?? '#0F172A'; // Defaulting to dark navy
-$font_heading = 'Inter';
-$font_body    = 'Inter';
+$doc_fonts    = brand_doc_fonts($business);   // the brand fonts (app/helpers/brand.php)
 $font_mono    = 'Roboto Mono';
 
 $is_active = in_array($quotation['status'], ['draft', 'sent', 'in_negotiation']);
@@ -32,13 +31,14 @@ if (!empty($activities)) {
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Roboto+Mono:wght@500;700&display=swap" rel="stylesheet">
+    <link href="<?= e($doc_fonts['url']) ?>" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@500;700&display=swap" rel="stylesheet">
     
     <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/public.css?v=<?= @filemtime(BASE_PATH . '/assets/css/public.css') ?>">
     <script defer src="<?= APP_URL ?>/assets/vendor/alpine-3.14.3.min.js"></script>
     
     <style>
-        :root { --font-heading: "<?= e($font_heading) ?>", sans-serif; --font-body: "<?= e($font_body) ?>", sans-serif; --font-mono: "<?= e($font_mono) ?>", monospace;
+        :root { --font-heading: <?= $doc_fonts['head_stack'] ?>; --font-body: <?= $doc_fonts['body_stack'] ?>; --font-mono: "<?= e($font_mono) ?>", monospace;
                 --brand-rgb: <?= e(brand_rgb($primary)) ?>; }
     </style>
     <style>

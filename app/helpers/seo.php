@@ -66,13 +66,17 @@ function shop_robots(array $business, string $visibility): string {
 }
 
 /**
- * A paid shop's sitemap: its front page, every product page and every news
- * post, with when each last changed.
+ * A paid shop's sitemap: its front page, its full list and contact page,
+ * every product page and every news post, with when each last changed.
  */
 function shop_sitemap(PDO $db, array $business): string {
     $settings  = storefront_settings($business, 'published');
     $catalogue = storefront_catalogue($business, $settings);
     $urls = [[shop_url($business['subdomain']), $business['storefront_published_at'] ?: $catalogue['updated_at']]];
+    if ((sf_section($settings, 'catalogue')['on'] ?? false) && $catalogue['items']) {
+        $urls[] = [shop_url($business['subdomain'], '/shop'), $catalogue['updated_at']];
+    }
+    $urls[] = [shop_url($business['subdomain'], '/contact'), $business['storefront_published_at']];
     $stmt = $db->prepare("SELECT id, updated_at FROM products WHERE business_id = ?");
     $stmt->execute([(int)$business['id']]);
     $changed = array_column($stmt->fetchAll(), 'updated_at', 'id');

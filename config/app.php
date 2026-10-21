@@ -92,7 +92,8 @@ define('BUSINESS_CATEGORIES', [
     'other'            => 'Other',
 ]);
 
-// Font pairings for dynamic theming
+// The font pairs Settings offered before brand fonts (app/helpers/brand.php,
+// BRAND_FONT_PAIRS). Kept for businesses that picked one and for onboarding.
 define('FONT_PAIRINGS', [
     'corporate_serif' => [
         'heading' => 'EB Garamond',
@@ -106,8 +107,6 @@ define('FONT_PAIRINGS', [
         'heading' => 'Syne',
         'body'    => 'Outfit',
     ],
-    // These two are offered in Settings (SettingsController::FONT_OPTIONS) and
-    // were missing here, so choosing them quietly showed Inter + DM Sans.
     'classic_tech' => [
         'heading' => 'Roboto Mono',
         'body'    => 'Roboto',

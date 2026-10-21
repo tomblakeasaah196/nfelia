@@ -13,8 +13,8 @@ $news_title = $section['title'] !== '' ? $section['title'] : 'News and offers';
     <div class="sf-wrap">
         <div class="sf-section__head">
             <h2 class="sf-h2" id="sf-news-title"><?= e($news_title) ?></h2>
-            <?php if ($news && $mode === 'live'): ?>
-                <a class="sf-link" href="/news">All news</a>
+            <?php if ($news && $mode !== 'look'): ?>
+                <a class="sf-link" href="<?= e(sf_page_href('news')) ?>">All news</a>
             <?php endif; ?>
         </div>
         <?php if ($news): ?>

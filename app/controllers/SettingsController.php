@@ -12,14 +12,9 @@ class SettingsController {
     private $db;
     private $biz_id;
 
-    // Available font pairings (must match DB ENUM)
-    public const FONT_OPTIONS = [
-        'modern_sans'     => 'Inter + DM Sans (Modern Tech)',
-        'corporate_serif' => 'EB Garamond + Questrial (Legal/Consulting)',
-        'bold_display'    => 'Syne + Outfit (Creative Agency)',
-        'classic_tech'    => 'Roboto Mono + Roboto (Developer/IT)',
-        'elegant_serif'   => 'Playfair Display + Lato (Luxury/Retail)',
-    ];
+    // Brand fonts come from brand_font_library() (app/helpers/brand.php). The
+    // old font_pairing column is no longer offered; brand_doc_fonts() still
+    // reads it for businesses that never picked brand fonts.
 
     public function __construct() {
         if (!is_logged_in()) { redirect('login'); }
@@ -144,7 +139,6 @@ class SettingsController {
             ];
         }
 
-        $font_options     = self::FONT_OPTIONS;
         $currency_options = $this->build_currency_options();
 
         $title     = "Settings";
@@ -230,8 +224,13 @@ class SettingsController {
         $address         = trim($_POST['address'] ?? '');
         $primary_color   = trim($_POST['primary_color'] ?? '#1a1a2e');
         $secondary_color = trim($_POST['secondary_color'] ?? '#c5a55a');
-        $font_pairing    = trim($_POST['font_pairing'] ?? 'modern_sans');
         $currency_symbol = trim($_POST['currency_symbol'] ?? '₦');
+        // Brand fonts from the library (app/helpers/brand.php); empty keeps none
+        $fonts     = brand_font_library();
+        $font_head = trim((string)($_POST['brand_font_head'] ?? ''));
+        $font_body = trim((string)($_POST['brand_font_body'] ?? ''));
+        $font_head = isset($fonts[$font_head]) && $fonts[$font_head]['head'] !== null ? $font_head : null;
+        $font_body = isset($fonts[$font_body]) && $fonts[$font_body]['body'] ? $font_body : null;
 
         if ($name === '') {
             flash('error', 'Business name is required.');
@@ -246,7 +245,6 @@ class SettingsController {
 
         if (!preg_match('/^#[0-9a-fA-F]{6}$/', $primary_color)) $primary_color = '#1a1a2e';
         if (!preg_match('/^#[0-9a-fA-F]{6}$/', $secondary_color)) $secondary_color = '#c5a55a';
-        if (!array_key_exists($font_pairing, self::FONT_OPTIONS)) $font_pairing = 'modern_sans';
 
         // Validate currency against active countries
         $valid_currencies = $this->build_currency_options();
@@ -282,16 +280,17 @@ class SettingsController {
         $sql = "UPDATE businesses SET
                     name = ?, tagline = ?, phone = ?, email = ?,
                     address = ?, primary_color = ?, secondary_color = ?,
-                    font_pairing = ?, currency_symbol = ?";
+                    brand_font_head = ?, brand_font_body = ?, currency_symbol = ?";
         $params = [$name, $tagline ?: null, $phone ?: null, $email ?: null,
                    $address ?: null, $primary_color, $secondary_color,
-                   $font_pairing, $currency_symbol];
+                   $font_head, $font_body, $currency_symbol];
 
         $session_updates = [
             'name'            => $name,
             'primary_color'   => $primary_color,
             'secondary_color' => $secondary_color,
-            'font_pairing'    => $font_pairing,
+            'brand_font_head' => $font_head,
+            'brand_font_body' => $font_body,
             'currency_symbol' => $currency_symbol,
             'tagline'         => $tagline, 
             'address'         => $address, 
