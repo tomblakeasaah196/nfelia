@@ -330,6 +330,172 @@ class SettingsController {
     }
 
     /* ──────────────────────────────────────────
+     *  PAYMENT ACCOUNTS — POST (views/settings/payment_accounts.php)
+     *  The bank accounts and Mobile Money numbers customers pay into: the
+     *  shop, its checkout and bookings, invoices and quotes. Owner only: a
+     *  changed number changes where the money goes.
+     * ────────────────────────────────────────── */
+    public const MAX_PAY_ACCOUNTS = 10;
+
+    /** POST settings/save-account[/id]: add an account, or change one. */
+    public function save_account($id = null) {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { redirect('settings#payments'); return; }
+        csrf_verify();
+        if ((auth_user()['role'] ?? 'staff') !== 'owner') {
+            flash('error', 'Only the business owner can change the accounts customers pay into.');
+            redirect('settings#payments');
+            return;
+        }
+        $was = $id !== null ? $this->pay_account((int)$id) : null;
+        if ($id !== null && !$was) {
+            flash('error', 'That account is no longer on your list.');
+            redirect('settings#payments');
+            return;
+        }
+        $id = $was ? (int)$was['id'] : null;
+
+        [$account, $problem] = $this->pay_account_from_post();
+        $active = $this->pay_accounts_count();
+        if ($problem === null && !$id && $active >= self::MAX_PAY_ACCOUNTS) {
+            $problem = 'You have ' . self::MAX_PAY_ACCOUNTS . ' accounts, the most there can be. Remove one you no longer use, then add this one.';
+        }
+        if ($problem === null) {
+            $stmt = $this->db->prepare("
+                SELECT bank_name FROM bank_accounts
+                WHERE business_id = ? AND is_active = 1 AND deleted_at IS NULL AND id <> ?
+                  AND REPLACE(REPLACE(account_number, ' ', ''), '-', '') = ?
+                LIMIT 1
+            ");
+            $stmt->execute([$this->biz_id, $id ?? 0, preg_replace('/[\s-]/', '', $account['account_number'])]);
+            if (($same = $stmt->fetchColumn()) !== false) {
+                $problem = 'That number is already on your list, as ' . $same . '. Change that one instead.';
+            }
+        }
+        if ($problem !== null) {
+            // Back to the open sheet, with what was typed and why it wasn't saved
+            $_SESSION['pay_draft'] = ['for' => $id ?: 'new', 'problem' => $problem] + $account;
+            redirect('settings?tab=business#sheet:nf-pay-' . ($id ?: 'new'));
+            return;
+        }
+
+        if ($id) {
+            $this->db->prepare("
+                UPDATE bank_accounts SET kind = ?, bank_name = ?, account_number = ?, account_name = ?
+                WHERE id = ? AND business_id = ? AND deleted_at IS NULL
+            ")->execute([$account['kind'], $account['bank_name'], $account['account_number'], $account['account_name'], $id, $this->biz_id]);
+        } else {
+            $stmt = $this->db->prepare("SELECT COALESCE(MAX(sort_order), 0) + 1 FROM bank_accounts WHERE business_id = ? AND deleted_at IS NULL");
+            $stmt->execute([$this->biz_id]);
+            $this->db->prepare("
+                INSERT INTO bank_accounts (business_id, kind, bank_name, account_number, account_name, is_default, sort_order)
+                VALUES (?, ?, ?, ?, ?, 0, ?)
+            ")->execute([$this->biz_id, $account['kind'], $account['bank_name'], $account['account_number'], $account['account_name'],
+                         min(127, (int)$stmt->fetchColumn())]);
+            $id = (int)$this->db->lastInsertId();
+        }
+        // The first account is the main one; another becomes it only when asked
+        if ($account['is_default'] || $active === 0) {
+            $this->pay_make_main($id);
+        }
+        $this->pay_keep_a_main();
+        storefront_purge((int)$this->biz_id);   // the shop shows them
+
+        flash('success', $was ? 'Saved ' . $account['bank_name'] . '.'
+            : 'Added ' . $account['bank_name'] . '. Customers see it on your shop, and you can pick it on invoices and quotes.');
+        redirect('settings#payments');
+    }
+
+    /** POST settings/remove-account/id: customers stop seeing it. Papers already sent keep showing it. */
+    public function remove_account($id = null) {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { redirect('settings#payments'); return; }
+        csrf_verify();
+        if ((auth_user()['role'] ?? 'staff') !== 'owner') {
+            flash('error', 'Only the business owner can change the accounts customers pay into.');
+            redirect('settings#payments');
+            return;
+        }
+        $account = $this->pay_account((int)$id);
+        if (!$account) {
+            flash('info', 'That account was already removed.');
+            redirect('settings#payments');
+            return;
+        }
+        $this->db->prepare("UPDATE bank_accounts SET deleted_at = NOW(), is_default = 0 WHERE id = ? AND business_id = ?")
+                 ->execute([(int)$account['id'], $this->biz_id]);
+        $this->pay_keep_a_main();
+        storefront_purge((int)$this->biz_id);
+
+        flash('success', 'Removed ' . $account['bank_name'] . ' ' . $account['account_number'] . '. Invoices and quotes already sent still show it.');
+        redirect('settings#payments');
+    }
+
+    /** One of this business's accounts still on its list. */
+    private function pay_account(int $id): ?array {
+        $stmt = $this->db->prepare("SELECT * FROM bank_accounts WHERE id = ? AND business_id = ? AND is_active = 1 AND deleted_at IS NULL");
+        $stmt->execute([$id, $this->biz_id]);
+        return $stmt->fetch() ?: null;
+    }
+
+    private function pay_accounts_count(): int {
+        $stmt = $this->db->prepare("SELECT COUNT(*) FROM bank_accounts WHERE business_id = ? AND is_active = 1 AND deleted_at IS NULL");
+        $stmt->execute([$this->biz_id]);
+        return (int)$stmt->fetchColumn();
+    }
+
+    /**
+     * The account as typed, tidied, and what stops it being saved (null when
+     * nothing does).
+     * @return array{0: array{kind: string, bank_name: string, account_number: string, account_name: string, is_default: bool}, 1: ?string}
+     */
+    private function pay_account_from_post(): array {
+        $tidy = fn(string $key) => trim((string)preg_replace('/\s+/u', ' ', (string)($_POST[$key] ?? '')));
+        $account = [
+            'kind'           => ($_POST['kind'] ?? '') === 'mobile_money' ? 'mobile_money' : 'bank',
+            'bank_name'      => $tidy('bank_name'),
+            'account_number' => $tidy('account_number'),
+            'account_name'   => $tidy('account_name'),
+            'is_default'     => !empty($_POST['is_default']),
+        ];
+        $momo   = $account['kind'] === 'mobile_money';
+        $digits = preg_replace('/[\s-]/', '', $account['account_number']);
+        $problem = match (true) {
+            $account['bank_name'] === ''           => $momo ? 'Say which Mobile Money it is, like MTN MoMo or Orange Money.' : 'Say which bank the account is with.',
+            mb_strlen($account['bank_name']) > 100 => 'Keep the name of the ' . ($momo ? 'network' : 'bank') . ' under 100 characters.',
+            $account['account_number'] === ''      => $momo ? 'Type the Mobile Money number.' : 'Type the account number.',
+            $momo && !preg_match('/^\+?\d{6,15}$/', $digits)
+                => 'Type the Mobile Money number with digits only, like 670 32 59 25.',
+            !$momo && (strlen($account['account_number']) > 40 || !preg_match('/^[A-Za-z0-9 -]+$/', $account['account_number']))
+                => 'Type the account number with letters, digits and spaces only, up to 40.',
+            $account['account_name'] === ''        => 'Type the name on the account, so customers can see it is yours.',
+            mb_strlen($account['account_name']) > 100 => 'Keep the name on the account under 100 characters.',
+            default => null,
+        };
+        return [$account, $problem];
+    }
+
+    private function pay_make_main(int $id): void {
+        $this->db->prepare("UPDATE bank_accounts SET is_default = (id = ?) WHERE business_id = ? AND deleted_at IS NULL")
+                 ->execute([$id, $this->biz_id]);
+    }
+
+    /**
+     * Whenever there are accounts, exactly one is the main one: the first in
+     * line (onboarding done twice left some businesses with two).
+     */
+    private function pay_keep_a_main(): void {
+        $stmt = $this->db->prepare("
+            SELECT id FROM bank_accounts
+            WHERE business_id = ? AND is_active = 1 AND deleted_at IS NULL
+            ORDER BY is_default DESC, sort_order ASC, id ASC
+            LIMIT 1
+        ");
+        $stmt->execute([$this->biz_id]);
+        if ($first = (int)$stmt->fetchColumn()) {
+            $this->pay_make_main($first);
+        }
+    }
+
+    /* ──────────────────────────────────────────
      *  UPDATE USER PROFILE — POST
      * ────────────────────────────────────────── */
     public function update_profile() {

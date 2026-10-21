@@ -130,6 +130,7 @@ class QuotationController {
         $editing   = false;
         $customers = $this->get_customers();
         $banks     = $this->get_bank_accounts();
+        $quotation['bank_account_id'] = $banks[0]['id'] ?? null;   // the main account first
 
         $title     = "New Quotation";
         $view_file = BASE_PATH . '/views/quotations/form.php';
@@ -218,7 +219,7 @@ class QuotationController {
 
         $editing   = true;
         $customers = $this->get_customers();
-        $banks     = $this->get_bank_accounts();
+        $banks     = $this->get_bank_accounts((int)$quotation['bank_account_id']);
 
         $title     = "Edit — " . e($quotation['doc_number']);
         $view_file = BASE_PATH . '/views/quotations/form.php';
@@ -559,7 +560,7 @@ public function update_status($id = null) {
             $quotation = array_merge($editing ? ($this->find_quotation($id) ?: []) : [], $_POST);
             $items     = posted_lines($_POST);
             $customers = $this->get_customers();
-            $banks     = $this->get_bank_accounts();
+            $banks     = $this->get_bank_accounts((int)($quotation['bank_account_id'] ?? 0));
             $title     = $editing ? "Edit Quotation" : "New Quotation";
             $view_file = BASE_PATH . '/views/quotations/form.php';
             require_once BASE_PATH . '/views/layouts/app.php';
@@ -713,13 +714,14 @@ public function update_status($id = null) {
         return $stmt->fetchAll();
     }
 
-    private function get_bank_accounts(): array {
+    /** The accounts a quote can carry, and the one it carries even if it was removed since. */
+    private function get_bank_accounts(int $keep = 0): array {
     $stmt = $this->db->prepare("
         SELECT * FROM bank_accounts 
-        WHERE business_id = ? AND deleted_at IS NULL AND is_active = 1 
+        WHERE business_id = ? AND ((deleted_at IS NULL AND is_active = 1) OR id = ?)
         ORDER BY is_default DESC, sort_order ASC
     ");
-    $stmt->execute([$this->biz_id]);
+    $stmt->execute([$this->biz_id, $keep]);
     return $stmt->fetchAll();
 }
 }

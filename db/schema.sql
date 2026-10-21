@@ -77,8 +77,9 @@ CREATE TABLE `auth_throttle` (
 CREATE TABLE `bank_accounts` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `business_id` int(11) NOT NULL,
+  `kind` enum('bank','mobile_money') NOT NULL DEFAULT 'bank',
   `bank_name` varchar(100) NOT NULL,
-  `account_number` varchar(20) NOT NULL,
+  `account_number` varchar(40) NOT NULL,
   `account_name` varchar(255) NOT NULL,
   `is_default` tinyint(1) NOT NULL DEFAULT 0,
   `sort_order` tinyint(1) NOT NULL DEFAULT 1,

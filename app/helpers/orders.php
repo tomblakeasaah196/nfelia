@@ -1396,7 +1396,12 @@ function order__default_pay_by(?string $deliver_by): string {
 /** The account shown on the invoice for paying: the quote's, else the business's default. */
 function order__bank_account(PDO $db, int $biz, array $order): ?int {
     if (!empty($order['quotation_id'])) {
-        $stmt = $db->prepare("SELECT bank_account_id FROM quotations WHERE id = ? AND business_id = ?");
+        // Not one removed since the quote went out (Settings › Payment accounts)
+        $stmt = $db->prepare("
+            SELECT q.bank_account_id FROM quotations q
+            JOIN bank_accounts b ON b.id = q.bank_account_id AND b.is_active = 1 AND b.deleted_at IS NULL
+            WHERE q.id = ? AND q.business_id = ?
+        ");
         $stmt->execute([(int)$order['quotation_id'], $biz]);
         if ($id = (int)$stmt->fetchColumn()) {
             return $id;

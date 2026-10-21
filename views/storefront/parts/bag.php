@@ -128,10 +128,10 @@ $bag_word = $settings['look'] === 'market' ? 'order' : 'bag';
             <p class="sf-total"><span>To pay</span><strong data-bag-total>₦0</strong></p>
             <?php if ($banks): ?>
                 <fieldset class="sf-options">
-                    <legend>Pay by bank transfer to</legend>
+                    <legend>Pay by <?= e(sf_pay_way($banks)) ?> to</legend>
                     <?php foreach ($banks as $i => $bank): ?>
                         <label class="sf-option sf-option--bank">
-                            <input type="radio" name="bank_id" value="<?= (int)$bank['id'] ?>" <?= $i === 0 ? 'checked' : '' ?>>
+                            <input type="radio" name="bank_id" value="<?= (int)$bank['id'] ?>" data-method="<?= ($bank['kind'] ?? 'bank') === 'mobile_money' ? 'mobile_money' : 'bank_transfer' ?>" <?= $i === 0 ? 'checked' : '' ?>>
                             <span>
                                 <strong><?= e($bank['bank_name']) ?></strong>
                                 <span class="sf-option__number"><?= e($bank['account_number']) ?></span>

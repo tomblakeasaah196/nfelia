@@ -255,7 +255,7 @@ if (empty($items_json)) {
                     <option value="">None</option>
                     <?php foreach ($banks as $b): ?>
                         <option value="<?= $b['id'] ?>" <?= (int)$q_bank === (int)$b['id'] ? 'selected' : '' ?>>
-                            <?= e($b['bank_name']) ?> — <?= e($b['account_number']) ?>
+                            <?= e($b['bank_name']) ?> — <?= e($b['account_number']) ?><?= !empty($b['deleted_at']) ? ' (removed)' : '' ?>
                         </option>
                     <?php endforeach; ?>
                 </select>

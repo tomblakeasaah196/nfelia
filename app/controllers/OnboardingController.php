@@ -155,8 +155,19 @@ class OnboardingController {
                 $stmt1->execute([$currency, $tax_rate, $this->biz_id]);
 
                 if ($bank_name && $acc_num && $acc_name) {
-                    $stmt2 = $this->db->prepare("INSERT INTO bank_accounts (business_id, bank_name, account_number, account_name, is_default) VALUES (?, ?, ?, ?, 1)");
-                    $stmt2->execute([$this->biz_id, $bank_name, $acc_num, $acc_name]);
+                    // Coming back to this step changes the account it made, not a
+                    // second copy; more are added in Settings › Payment accounts
+                    $kind = preg_match('/mobile money|momo|orange money|airtel money|m-?pesa|^mtn/i', $bank_name) ? 'mobile_money' : 'bank';
+                    $row  = [$kind, mb_substr($bank_name, 0, 100), mb_substr($acc_num, 0, 40), mb_substr($acc_name, 0, 255)];
+                    $stmt2 = $this->db->prepare("SELECT id FROM bank_accounts WHERE business_id = ? AND is_default = 1 AND deleted_at IS NULL LIMIT 1");
+                    $stmt2->execute([$this->biz_id]);
+                    if ($made = (int)$stmt2->fetchColumn()) {
+                        $this->db->prepare("UPDATE bank_accounts SET kind = ?, bank_name = ?, account_number = ?, account_name = ? WHERE id = ?")
+                                 ->execute([...$row, $made]);
+                    } else {
+                        $this->db->prepare("INSERT INTO bank_accounts (business_id, kind, bank_name, account_number, account_name, is_default) VALUES (?, ?, ?, ?, ?, 1)")
+                                 ->execute([$this->biz_id, ...$row]);
+                    }
                 }
 
                 $this->db->commit();

@@ -160,7 +160,7 @@ class InvoiceController {
 
         $editing   = true;
         $customers = $this->get_customers();
-        $banks     = $this->get_bank_accounts();
+        $banks     = $this->get_bank_accounts((int)$invoice['bank_account_id']);
 
         $title     = "Edit — " . e($invoice['doc_number']);
         $view_file = BASE_PATH . '/views/invoices/form.php';
@@ -676,7 +676,7 @@ class InvoiceController {
             $items     = posted_lines($_POST);
             $editing   = $id !== null;
             $customers = $this->get_customers();
-            $banks     = $this->get_bank_accounts();
+            $banks     = $this->get_bank_accounts((int)($invoice['bank_account_id'] ?? 0));
             $title     = $editing ? "Edit Invoice" : "New Invoice";
             $view_file = BASE_PATH . '/views/invoices/form.php';
             require_once BASE_PATH . '/views/layouts/app.php';
@@ -854,11 +854,14 @@ class InvoiceController {
         return $stmt->fetchAll();
     }
 
-    private function get_bank_accounts(): array {
+    /** The accounts an invoice can carry, and the one it carries even if it was removed since. */
+    private function get_bank_accounts(int $keep = 0): array {
         $stmt = $this->db->prepare("
-            SELECT * FROM bank_accounts WHERE business_id = ? ORDER BY is_default DESC, sort_order ASC
+            SELECT * FROM bank_accounts
+            WHERE business_id = ? AND ((deleted_at IS NULL AND is_active = 1) OR id = ?)
+            ORDER BY is_default DESC, sort_order ASC
         ");
-        $stmt->execute([$this->biz_id]);
+        $stmt->execute([$this->biz_id, $keep]);
         return $stmt->fetchAll();
     }
 
