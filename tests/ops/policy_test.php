@@ -98,7 +98,8 @@ function policy_allows(array $policy, string $directive, string $url): bool
 
 $policy = policy_from_htaccess($root);
 ok($policy !== [], 'the report-only policy is in .htaccess');
-ok(($policy['report-uri'] ?? []) === ['/api/csp'], 'and the browser reports what it would block to /api/csp');
+ok(($policy['report-uri'] ?? []) === ['https://nfelia.com/api/csp'],
+    'and every page reports what it would block to https://nfelia.com/api/csp (a shop\'s own address has no /api)');
 
 $assets = foreign_assets($root);
 ok($assets !== [], 'the views load something from another site, so there is anything to check');
@@ -115,6 +116,27 @@ ok(policy_allows($policy, 'script-src', 'https://static.cloudflareinsights.com/b
     "script-src allows Cloudflare's own beacon, which the edge adds to every page");
 ok(in_array('blob:', $policy['connect-src'] ?? [], true),
     'connect-src allows blob:, which the cropper reads the chosen photo from');
+
+// A shop page is at name.nfelia.com, where 'self' is the shop. It takes its
+// stylesheet and script from the main address and sends its script errors
+// there, so the policy must name that address or every shop breaks the day
+// the policy is enforced.
+$shell = (string)file_get_contents($root . '/views/storefront/shell.php');
+ok((bool)preg_match('/\$asset\s*=\s*fn\(string \$path\)\s*=>\s*APP_URL\b/', $shell),
+    'shop pages take their files from the main address (views/storefront/shell.php)');
+foreach ([['style-src', 'https://nfelia.com/assets/css/storefront.css'], ['script-src', 'https://nfelia.com/assets/js/storefront.js'],
+          ['connect-src', 'https://nfelia.com/api/errors']] as [$directive, $url]) {
+    ok(policy_allows($policy, $directive, $url), $directive . ' lets a shop page reach ' . preg_replace('#^https://#', '', $url));
+}
+
+// The main site is only served from the address its files come from.
+$www_rule = <<<'TXT'
+RewriteCond %{HTTP_HOST} ^www\.nfelia\.com$ [NC]
+RewriteCond %{REQUEST_URI} !^/\.well-known/
+RewriteRule ^(.*)$ https://nfelia.com/$1 [R=301,L]
+TXT;
+ok(str_contains(str_replace("\r\n", "\n", (string)file_get_contents($root . '/.htaccess')), $www_rule),
+    'www.nfelia.com is sent to https://nfelia.com, except certificate checks under .well-known/');
 
 echo $fails ? "\n{$fails} failed\n" : "\nall passed\n";
 exit($fails ? 1 : 0);
