@@ -7,6 +7,7 @@
  *   - Back goes back, and pages slide the right way
  *   - the invitation to install, after sign-in on a phone
  *   - text size and background, saved on this device
+ *   - typing on a phone: the field stays in sight above the keyboard
  *   - the service worker, for speed and offline reading
  * No dependencies. Loaded with `defer` by views/layouts/app.php.
  */
@@ -297,6 +298,58 @@
         if (meta && !root.classList.contains('nf-splashing')) meta.setAttribute('content', colour);
         if (meta) meta.setAttribute('data-theme-color', colour);
     });
+
+    // ---------- Typing: keep the field in sight ----------
+    // A tap anywhere on a money box (the currency sign too) goes to its number.
+    document.addEventListener('click', function (e) {
+        var box = e.target.closest && e.target.closest('.nf-amount, .nf-oprice');
+        if (!box || e.target.tagName === 'INPUT') return;
+        var input = box.querySelector('input:not([type="hidden"])');
+        if (input && document.activeElement !== input) input.focus();
+    });
+    // On a phone, when the keyboard comes up the tabs and the sticky Save bar
+    // step aside (html.nf-typing in shell.css) and the field is brought to the
+    // middle of what is left, clear of the app bar. They come back when the
+    // keyboard goes, even if the field keeps focus (Android's Back key).
+    var typeable = function (el) {
+        if (!el || !el.tagName || el.disabled || el.readOnly) return false;
+        if (el.isContentEditable || el.tagName === 'TEXTAREA') return true;
+        return el.tagName === 'INPUT' && !/^(checkbox|radio|range|color|file|hidden|button|submit|reset|image)$/.test(el.type);
+    };
+    if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
+        var vv = window.visualViewport;
+        var viewH = function () { return vv ? vv.height : window.innerHeight; };
+        var fullH = viewH();
+        var keyboardUp = function () { return viewH() < fullH - 120; };
+        var bring = function (el) {
+            var r = el.getBoundingClientRect();
+            var visTop = vv ? vv.offsetTop : 0;
+            var top = Math.max(visTop, bar ? bar.getBoundingClientRect().bottom : 0) + 12;
+            if (r.top >= top && r.bottom <= visTop + viewH() - 16) return;
+            el.scrollIntoView({ block: 'center', behavior: reduceMotion ? 'auto' : 'smooth' });
+        };
+        var syncTyping = function () {
+            var el = document.activeElement;
+            var up = typeable(el) && keyboardUp();
+            root.classList.toggle('nf-typing', up);
+            if (up) requestAnimationFrame(function () { bring(el); });
+        };
+        (vv || window).addEventListener('resize', function () {
+            // The full height moves with rotation; learn it while nothing is typed in.
+            if (!typeable(document.activeElement) || viewH() > fullH) fullH = viewH();
+            syncTyping();
+        });
+        document.addEventListener('focusin', function (e) {
+            if (!typeable(e.target)) return;
+            // Field to field with the keyboard already up: no resize comes.
+            if (keyboardUp()) syncTyping();
+            // In case the keyboard's resize is missed or comes late.
+            setTimeout(syncTyping, 400);
+        });
+        document.addEventListener('focusout', function () {
+            setTimeout(function () { if (!typeable(document.activeElement)) root.classList.remove('nf-typing'); }, 60);
+        });
+    }
 
     // ---------- Back, and which way pages move ----------
     document.addEventListener('click', function (e) {

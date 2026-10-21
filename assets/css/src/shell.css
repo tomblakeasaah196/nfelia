@@ -48,6 +48,8 @@
   --safe-t: env(safe-area-inset-top, 0px); --safe-b: env(safe-area-inset-bottom, 0px);
   --ease-out: cubic-bezier(.16, 1, .3, 1); --ease-in: cubic-bezier(.7, 0, .84, 0);
   --shadow-2: 0 16px 40px rgb(31 10 20 / .14), 0 2px 6px rgb(31 10 20 / .06);
+  /* The field being typed in: a firm ring and a soft halo, on every form. */
+  --focus-ring: inset 0 0 0 2px var(--accent-text), 0 0 0 4px rgb(var(--accent-rgb) / .18);
 }
 html[data-bg="cream"] { --bg: #F7F3EA; --bar-bg: #F7F3EA; }
 html[data-text="small"] { font-size: 93.75%; }
@@ -73,6 +75,13 @@ h1, h2, h3, .font-heading { font-family: var(--font-heading); }
 .data-text, .font-mono { font-family: var(--font-body); font-variant-numeric: tabular-nums; }
 [x-cloak], [hidden]:not([hidden="until-found"]) { display: none !important; }
 :focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
+/* Fields draw their focus with --focus-ring. This catches the ones no page
+   style dresses (the older forms); page styles that set a box-shadow win. */
+input:focus, select:focus, textarea:focus { outline: none; }
+input[type="checkbox"]:focus-visible, input[type="radio"]:focus-visible, input[type="range"]:focus-visible, input[type="color"]:focus-visible, input[type="file"]:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
+:where(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="hidden"]), select, textarea):focus { box-shadow: var(--focus-ring); }
+/* Scrolling to a field (shell.js, or the browser on focus) keeps it clear of the app bar. */
+html { scroll-padding-top: calc(var(--bar-h) + var(--safe-t) + 16px); scroll-padding-bottom: 24px; }
 
 /* The business colour where pages already use it. Text uses the shade that
    reads on white; fills use the colour itself with matching text. */
@@ -145,6 +154,9 @@ h1, h2, h3, .font-heading { font-family: var(--font-heading); }
 .nf-tab-create svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; }
 .nf-tab-create:active, .nf-tab:active { transform: scale(.94); }
 @media (min-width: 1024px) { .nf-tabbar { display: none; } }
+/* While the phone keyboard is up the tabs step aside, so the field has the room (shell.js). */
+html.nf-typing .nf-tabbar { display: none; }
+html.nf-typing .nf-main { padding-bottom: calc(var(--safe-b) + 24px); }
 
 /* ---------- Content area ---------- */
 .nf-main { padding-top: calc(var(--bar-h) + var(--safe-t)); padding-bottom: calc(var(--tab-h) + var(--safe-b) + 24px); min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }

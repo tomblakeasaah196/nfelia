@@ -145,7 +145,7 @@ a.nf-doc-row:hover { background: rgb(31 10 20 / .05); }
 .nf-payby input[type="date"], .nf-payby input[type="email"] { flex: 1; min-width: 0; min-height: 48px; padding: 0 12px; border-radius: 12px; border: 0; background: var(--surface);
   box-shadow: inset 0 0 0 1px var(--line-2); font: 500 1rem/1.2 var(--font-body); color: var(--ink); }
 .nf-payby input.is-late { box-shadow: inset 0 0 0 1.5px var(--owed); }
-.nf-payby input:focus { outline: none; box-shadow: inset 0 0 0 2px var(--accent-text); }
+.nf-payby input:focus { outline: none; box-shadow: var(--focus-ring); }
 .nf-payby .nf-btn { flex: none; min-height: 48px; }
 .nf-callout > .nf-payby .nf-btn { width: auto; }
 .nf-payby small.is-owed { color: var(--owed); font: 600 .8125rem/1.3 var(--font-body); }
@@ -192,7 +192,7 @@ a.nf-doc-row:hover { background: rgb(31 10 20 / .05); }
 .nf-file > svg { width: 24px; height: 24px; flex: none; color: var(--accent-text); }
 .nf-file > span { display: grid; gap: 2px; }
 .nf-file input[type="file"] { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; min-height: 0; cursor: pointer; }
-.nf-file:focus-within { box-shadow: inset 0 0 0 2px var(--accent-text); }
+.nf-file:focus-within { box-shadow: var(--focus-ring); }
 .nf-more-field > summary { display: inline-flex; align-items: center; min-height: 44px; color: var(--accent-text); font: 600 .9375rem/1 var(--font-body); cursor: pointer; list-style: none; }
 .nf-more-field > summary::-webkit-details-marker { display: none; }
 .nf-more-field[open] > summary { display: none; }
@@ -254,14 +254,24 @@ a.nf-doc-row:hover { background: rgb(31 10 20 / .05); }
   width: 100%; min-height: 48px; padding: 0 14px; border-radius: 12px; border: 0; background: var(--surface);
   box-shadow: inset 0 0 0 1px var(--line-2); font: 400 1rem/1.3 var(--font-body); color: var(--ink); }
 .nf-oform textarea { padding: 12px 14px; resize: vertical; }
-.nf-oform input:focus, .nf-oform textarea:focus { outline: none; box-shadow: inset 0 0 0 2px var(--accent-text); }
+.nf-oform input:focus, .nf-oform textarea:focus { outline: none; box-shadow: var(--focus-ring); }
 .nf-oform label { display: grid; gap: 6px; font: 600 .875rem/1.3 var(--font-body); color: var(--ink); }
 .nf-oform label small { font: 400 .8125rem/1.3 var(--font-body); color: var(--ink-3); }
 .nf-form.is-flat { padding: 0; }
 .nf-form-l { margin: 0; }
-.nf-amount { position: relative; display: block; }
-.nf-amount > span { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); font: 600 1.0625rem/1 var(--font-body); color: var(--ink-2); pointer-events: none; }
-.nf-oform .nf-amount input, .nf-amount input { padding-left: 34px; font: 600 1.125rem/1.2 var(--font-body); font-variant-numeric: tabular-nums; }
+/* A money field. The box is drawn on the wrapper so the currency sign takes
+   the room it needs (₦, GH₵, FCFA) and the number always starts after it. */
+.nf-amount { display: flex; align-items: center; gap: 6px; min-width: 0; min-height: 48px; padding-left: 14px; border-radius: 12px;
+  background: var(--surface); box-shadow: inset 0 0 0 1px var(--line-2); cursor: text; }
+.nf-amount > span { flex: none; font: 600 1.0625rem/1 var(--font-body); color: var(--ink-2); white-space: nowrap; pointer-events: none; }
+.nf-amount:focus-within { box-shadow: var(--focus-ring); }
+.nf-amount input, .nf-amount input:focus,
+.nf-oform .nf-amount input, .nf-oform .nf-amount input:focus,
+.nf-form .nf-amount input, .nf-form .nf-amount input:focus,
+.nf-pick-own .nf-amount input, .nf-pick-own .nf-amount input:focus {
+  flex: 1; width: 100%; min-width: 0; min-height: 46px; padding: 0 14px 0 0; border: 0; border-radius: 0 12px 12px 0; background: none; box-shadow: none; outline: none;
+  font: 600 1.125rem/1.2 var(--font-body); font-variant-numeric: tabular-nums; color: var(--ink); }
+.nf-form .nf-amount input { font-size: 1.25rem; }
 
 .nf-picked { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 8px 8px 8px 12px; border-radius: 16px; background: var(--accent-soft); }
 .nf-picked .nf-face { background: var(--surface); color: var(--accent-text); }
@@ -289,13 +299,18 @@ a.nf-doc-row:hover { background: rgb(31 10 20 / .05); }
 .nf-oitem-top .nf-icon-btn svg { width: 18px; height: 18px; }
 .nf-oitem-row { display: flex; align-items: center; gap: 8px; padding-right: 6px; }
 .nf-qty { flex: none; display: flex; align-items: center; border-radius: 12px; box-shadow: inset 0 0 0 1px var(--line-2); }
+.nf-qty:focus-within { box-shadow: var(--focus-ring); }
 .nf-qty button { width: 44px; height: 44px; display: grid; place-items: center; border: 0; background: none; color: var(--accent-text); cursor: pointer; border-radius: 12px; }
 .nf-qty button:active { background: rgb(31 10 20 / .05); }
 .nf-qty button svg { width: 18px; height: 18px; }
 .nf-oform .nf-qty input { width: 44px; min-height: 44px; padding: 0; text-align: center; box-shadow: none; background: none; font: 600 1rem/1 var(--font-body); font-variant-numeric: tabular-nums; }
-.nf-oprice { position: relative; flex: 1; min-width: 0; display: block; }
-.nf-oprice .nf-cur { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font: 500 .9375rem/1 var(--font-body); color: var(--ink-3); pointer-events: none; }
-.nf-oform .nf-oprice input { min-height: 44px; padding-left: 28px; font-variant-numeric: tabular-nums; }
+/* Price each: same idea as .nf-amount, the sign sits beside the number. */
+.nf-oform .nf-oprice { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; min-height: 44px; padding-left: 12px; border-radius: 12px;
+  background: var(--surface); box-shadow: inset 0 0 0 1px var(--line-2); cursor: text; }
+.nf-oprice .nf-cur { flex: none; font: 500 .9375rem/1 var(--font-body); color: var(--ink-3); white-space: nowrap; pointer-events: none; }
+.nf-oform .nf-oprice:focus-within { box-shadow: var(--focus-ring); }
+.nf-oform .nf-oprice input, .nf-oform .nf-oprice input:focus { flex: 1; width: 100%; min-width: 0; min-height: 42px; padding: 0 12px 0 0; border-radius: 0 12px 12px 0;
+  background: none; box-shadow: none; font-variant-numeric: tabular-nums; }
 .nf-oline { flex: none; min-width: 64px; padding-left: 4px; text-align: right; font: 600 1rem/1.2 var(--font-body); font-variant-numeric: tabular-nums; }
 .nf-ovariants { display: flex; flex-wrap: wrap; gap: 8px; padding-right: 6px; }
 .nf-ovariant { flex: 1 1 140px; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
@@ -305,7 +320,7 @@ a.nf-doc-row:hover { background: rgb(31 10 20 / .05); }
   -webkit-appearance: none; appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237A6570' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat; background-position: right 10px center; background-size: 16px; }
-.nf-oform .nf-ovariant select:focus { outline: none; box-shadow: inset 0 0 0 1.5px var(--accent-text); }
+.nf-oform .nf-ovariant select:focus { outline: none; box-shadow: var(--focus-ring); }
 .nf-oitem-note { padding-right: 6px; }
 .nf-oitem-note .nf-link { min-height: 36px; font-size: .875rem; padding: 0; }
 .nf-oform .nf-oitem-note input { min-height: 44px; }
@@ -321,6 +336,8 @@ a.nf-doc-row:hover { background: rgb(31 10 20 / .05); }
 .nf-sticky { position: sticky; bottom: calc(var(--tab-h) + var(--safe-b) + 8px); z-index: 20; display: flex; align-items: center; gap: 12px;
   margin-top: 4px; padding: 10px 10px 10px 16px; border-radius: 20px; background: var(--surface); box-shadow: var(--shadow-2), inset 0 0 0 1px var(--line); }
 @media (min-width: 1024px) { .nf-sticky { bottom: 16px; } }
+/* While the phone keyboard is up, the field gets the room (shell.js sets nf-typing). */
+html.nf-typing .nf-sticky { display: none; }
 .nf-sticky-sum { flex: 1; min-width: 0; display: grid; gap: 2px; }
 .nf-sticky-sum b { font: 600 1.375rem/1.1 var(--font-heading); font-variant-numeric: tabular-nums; }
 .nf-sticky-sum small { font: 500 .8125rem/1.3 var(--font-body); color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -336,8 +353,7 @@ a.nf-doc-row:hover { background: rgb(31 10 20 / .05); }
 .nf-pick-own-row { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 8px; }
 .nf-pick-own input { width: 100%; min-height: 48px; padding: 0 14px; border-radius: 12px; border: 0; background: var(--surface); box-shadow: inset 0 0 0 1px var(--line-2);
   font: 400 1rem/1.3 var(--font-body); color: var(--ink); }
-.nf-pick-own .nf-amount input { padding-left: 34px; }
-.nf-pick-own input:focus { outline: none; box-shadow: inset 0 0 0 2px var(--accent-text); }
+.nf-pick-own input:focus { outline: none; box-shadow: var(--focus-ring); }
 
 @media (prefers-reduced-motion: reduce) {
   .nf-fold > summary > svg:last-child { transition: none; }
@@ -357,7 +373,7 @@ a.nf-doc-row:hover { background: rgb(31 10 20 / .05); }
 .nf-prefix-row { display: flex; gap: 8px; }
 .nf-prefix-row input { flex: 1; min-width: 0; max-width: 200px; min-height: 52px; padding: 0 14px; border-radius: 12px; border: 0; background: var(--surface);
   box-shadow: inset 0 0 0 1px var(--line-2); font: 600 1.375rem/1 var(--font-heading); letter-spacing: .08em; color: var(--ink); text-transform: uppercase; }
-.nf-prefix-row input:focus { outline: none; box-shadow: inset 0 0 0 2px var(--accent-text); }
+.nf-prefix-row input:focus { outline: none; box-shadow: var(--focus-ring); }
 .nf-prefix-row .nf-btn { flex: none; min-height: 52px; }
 .nf-prefix-row .nf-btn:disabled { opacity: .5; cursor: default; }
 .nf-prefix-next { list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 8px 0 0; padding: 0; }
