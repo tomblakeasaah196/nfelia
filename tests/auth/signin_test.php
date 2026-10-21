@@ -4,9 +4,11 @@
  * and paused (per account and per connection), the owner is told, new
  * passwords must meet the rules, changing a password signs out every other
  * browser and kept device, "keep me signed in" tokens are stored as
- * hashes, and a profile or business change made on one device shows on the
- * others at their next page (app/helpers/auth.php, app/helpers/signin.php,
- * app/controllers/AuthController.php, app/middleware/auth_check.php).
+ * hashes, and a profile or business change made on one device (a name, a
+ * photo, the logo, the country) shows on the others at their next page
+ * (app/helpers/auth.php, app/helpers/signin.php,
+ * app/controllers/AuthController.php, app/middleware/auth_check.php,
+ * app/controllers/SettingsController.php, views/layouts/app.php).
  *   bash tests/notifications/run.sh auth/signin
  */
 require __DIR__ . '/../notifications/lib.php';
@@ -222,5 +224,30 @@ ok(str_contains($computer->body, '<b>Ada Beauty Studio</b>'), 'Ada\'s computer s
 ok(str_contains($computer->body, '--accent: ' . theme_tokens('#00764A', null)['accent'] . ';'), 'in the new colour');
 $chidi->get('dashboard');
 ok(str_contains($chidi->body, '<b>Ada Beauty Studio</b>'), 'and so does Chidi\'s, who was already signed in');
+
+section('A redrawn auto-logo gets a name of its own, so no browser keeps showing the old one');
+$logo = fn() => (string)q("SELECT logo_path FROM businesses WHERE id = 2");
+$drawn = fn(string $rel) => (string)@file_get_contents(BASE_PATH . '/' . $rel);
+$chidi->post('settings/generate-logo')->follow();
+eq($logo(), '', 'staff cannot make one: the page offers it to the owner only');
+$phone->post('settings/generate-logo')->follow();
+$first = $logo();
+ok(preg_match('#^uploads/logos/2/logo_autogen_\d+_[a-f0-9]{8}\.svg$#', $first) === 1, 'the owner makes one: ' . $first);
+ok(str_contains($drawn($first), '>AB</text>'), 'from the initials of Ada Beauty Studio');
+$computer->get('dashboard');
+ok(str_contains($computer->body, $first), 'and the computer shows it');
+$phone->post('settings/update_business', ['business_name' => 'Kemi Styles', 'phone' => '08035550100', 'email' => 'hello@adashair.test',
+                                          'primary_color' => '#00764A', 'secondary_color' => '#B69F5E', 'currency_symbol' => '₦', 'remove_logo' => 1])->follow();
+ok(!is_file(BASE_PATH . '/' . $first), 'removed with a rename, its file goes');
+$phone->post('settings/generate-logo')->follow();
+$second = $logo();
+ok($second !== '' && $second !== $first, 'drawn again, it is saved under a new name');
+ok(str_contains($drawn($second), '>KS</text>'), 'with the new initials');
+$computer->get('dashboard');
+ok(str_contains($computer->body, $second) && !str_contains($computer->body, $first), 'which the computer shows instead');
+$phone->post('settings/generate-logo')->follow();
+$third = $logo();
+ok($third !== $second && !is_file(BASE_PATH . '/' . $second), 'drawn over a logo, the one it replaces goes too');
+@unlink(BASE_PATH . '/' . $third);
 
 done();
