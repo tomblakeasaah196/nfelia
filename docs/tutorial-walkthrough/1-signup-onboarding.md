@@ -68,3 +68,26 @@ Test: `tests/auth/onboarding_test.php` (`bash tests/notifications/run.sh auth/on
 ## Still to decide
 
 - **The category can't be changed after onboarding.** Settings has no category field, so a hair vendor who picked Fashion or Other before Hair & Beauty existed (or by mistake) is stuck with it. The category sets their first shop look and their product suggestions. *Recommendation:* add it to Settings › Business, and offer existing Fashion and Other shops on the Glow look a one-tap switch.
+
+## Round 3: sentence case
+
+These screens are filmed in Videos 3 and 4, and they still used the older all-caps style. They now use sentence case and readable sizes, like the rest of the app.
+
+- **What changed.** `uppercase` and its wide tracking are gone. Labels, headings, tabs, chips, tags and buttons are in sentence case. Text that was 9–11px is now 12px or more (labels 14px).
+- **Wording.** Text written in capitals was rewritten in sentence case, for example "New order", "Total invoiced", "Remove customer" and "Step 1: send this exact amount". A few labels also got plainer words:
+  - "Personal Information" is now "Contact details".
+  - "I Have Paid — Submit for Verification" is now "I have paid: send my receipt" (it shows "Sending…" while it sends).
+  - "Update Customer" is now "Save changes".
+- **Touch targets.** Buttons and tabs are at least 44px tall.
+- **Tables.** On the client page, cells stay on one line and the table scrolls inside its card.
+- **What didn't change.** Every field name, value, id, data- hook and behaviour is the same, including the "Kept with you" tab and its "Add money" sheet.
+
+Files:
+- `views/customers/view.php` and `views/customers/form.php`, both still CRLF.
+- `views/billing/momo_checkout.php`.
+- `views/deeds/view.php`. This public page is styled by `public.css`, which isn't rebuilt this round, so it only uses classes that file already has. Its wording follows `pdf_template.php`: "Deed of acquisition", "Issuing party", "Acquired by", "Subject of acquisition", "Total acquisition value".
+- `views/customers/index.php` was already sentence case, so it is unchanged.
+
+Checks:
+- Each changed page was rendered with sample data at 384px: no sideways scroll, no text under 12px, nothing in all caps.
+- `php -l` passes on every changed file, and `node --check` on the MoMo page's script.
