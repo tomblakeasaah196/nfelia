@@ -508,11 +508,12 @@
             return { product_id: l.id, quantity: l.qty, variant_selection: l.variant, item_note: l.note };
         })));
         var bank = $('input[name="bank_id"]:checked', bag);
+        var withProof = false;
         if (channel === 'cart_pop') {
             fd.append('payment_method', bank ? (bank.getAttribute('data-method') || 'bank_transfer') : 'none');
             if (bank) { fd.append('bank_id', bank.value); }
             var proof = $('input[name="payment_proof"]', bag);
-            if (proof && proof.files && proof.files[0]) { fd.append('payment_proof', proof.files[0]); }
+            if (proof && proof.files && proof.files[0]) { fd.append('payment_proof', proof.files[0]); withProof = true; }
         }
         var buttons = $$('[data-place], [data-place-wa]', bag);
         buttons.forEach(function (b) { b.disabled = true; });
@@ -563,9 +564,15 @@
                     $('[data-done-text]', bag).textContent = 'Send it to ' + S.name + ' on WhatsApp so they can confirm it with you.';
                 } else {
                     wa.hidden = true;
-                    $('[data-done-text]', bag).textContent = bank
+                    // Only a screenshot that arrived says the transfer is made;
+                    // one the shop couldn't read is said plainly, not dropped
+                    $('[data-done-text]', bag).textContent = !bank
+                        ? S.name + ' will contact you on the number you gave.'
+                        : json.proof_failed
+                        ? 'Your payment screenshot didn\'t come through. ' + (S.wa ? 'Send it to ' + S.name + ' on WhatsApp' : 'Keep it to show ' + S.name) + ', and they will contact you on the number you gave.'
+                        : withProof
                         ? S.name + ' will check your transfer and contact you on the number you gave.'
-                        : S.name + ' will contact you on the number you gave.';
+                        : 'If you haven\'t paid yet, pay into the account you picked. ' + S.name + ' will check for your transfer and contact you on the number you gave.';
                 }
                 showStep('done');
             })
