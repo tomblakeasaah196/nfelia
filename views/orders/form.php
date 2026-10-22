@@ -1,6 +1,7 @@
 <?php
 /**
- * New order and Change items: one screen, top to bottom. Customer · Items ·
+ * New order and Change items: one screen, top to bottom. The day of the sale
+ * (one line: today, or an earlier day when it is typed in late) · Customer · Items ·
  * In the shop or online (and, online, pickup or delivery) · Payment, with the
  * total and one button always in reach at the bottom. A sale in the shop,
  * paid in full and taken now, is saved as a quick sale. Items are picked from
@@ -28,6 +29,7 @@ $data = [
     'currency'  => $currency,
     'today'     => $today,
     'tomorrow'  => planner_add_days($today, 1),
+    'yesterday' => planner_add_days($today, -1),
     'week'      => planner_add_days($today, 7),
     'products'  => $products,
     'customer'  => $picked,
@@ -57,6 +59,7 @@ $data = [
         'pay_by'           => (string)($old['pay_by'] ?? ''),
         'note'             => (string)($old['note'] ?? ''),
         'use_kept'         => !empty($old['use_kept']),
+        'sale_date'        => (string)($old['sale_date'] ?? ''),
         'walk_in'          => !empty($old['walk_in']) && empty($old['customer_name']) && empty($old['customer_id']),
     ],
 ];
@@ -77,6 +80,19 @@ $action = $is_edit ? APP_URL . '/orders/update/' . (int)$order['id'] : APP_URL .
     <p class="nf-err" role="alert" x-show="problem" x-text="problem"></p>
 
     <?php if (!$is_edit): ?>
+    <!-- The day of the sale: today, unless it is typed in after the day it happened -->
+    <div class="nf-dated" :class="{ 'is-past': isPast() }">
+        <div class="nf-dated-row">
+            <label class="nf-dated-l" for="nf-sale-day"><?= nav_icon('clock') ?>Date</label>
+            <b x-show="!pickDay" x-text="dayWords()">Today</b>
+            <input id="nf-sale-day" type="date" x-ref="day" x-show="pickDay" x-cloak x-model="old.sale_date" :max="today" @change="pickDay = false">
+            <button type="button" class="nf-link" x-show="!pickDay" @click="openDay()">Change</button>
+            <button type="button" class="nf-link" x-show="isPast() && !pickDay" x-cloak @click="old.sale_date = ''">Today</button>
+        </div>
+        <input type="hidden" name="sale_date" :value="saleDay()">
+        <p class="nf-help" x-show="isPast()" x-cloak>The invoice, what is paid now and its receipt are dated this day too, and your reports count it then. The customer gets no message about it.</p>
+    </div>
+
     <!-- Customer -->
     <section class="nf-sec" aria-labelledby="nf-sec-c">
         <h2 id="nf-sec-c">Customer</h2>

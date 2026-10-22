@@ -323,3 +323,17 @@ named after the agent; run `npm run build:css` and commit `assets/css/app.css` o
 | B3 Tasks, alerts, debts, deliveries | app/helpers/planner.php; TasksController.php; views/tasks/*; assets/js/planner.js; app/helpers/notify.php; views/emails/* (except refund_details.php); app/helpers/shop_orders.php; DebtController.php; views/debts/*; DeliveryController.php; views/deliveries/index.php, form.php, view.php |
 | B4 Documents and clients | QuotationController.php; views/quotations/view.php, form.php; InvoiceController.php; views/invoices/view.php, form.php; ReceiptController.php; views/receipts/view.php, form.php; CustomerController.php; views/customers/*; PurgeController.php; views/purge/*; app/helpers/screens.php |
 | B5 Customer-facing | PublicController.php; views/invoices/public.php, pdf_template.php; views/receipts/public.php, pdf_template.php; views/quotations/public.php, pdf_template.php; views/deliveries/public.php, signoff.php; views/public/refund.php (new); views/emails/refund_details.php (new); StorefrontController.php; views/storefront/pages/order.php |
+
+## 9. Sales typed in late, money paid in advance (October 2026)
+
+Asked for by a shop (Studio 12 O'Clock) that types sales in after the day, takes money before the
+customer chooses, and wanted a mistaken order gone with its number back. Decisions are Tom's.
+Tests: `tests/orders/late_test.php` (`run.sh orders/late`).
+
+| # | Topic | Decision |
+|---|---|---|
+| 15 | Date of a new order | One line on top of New order: "Date · Today · Change". An earlier day dates the order, its invoice, what is paid now and its receipt, so reports count it then. Never a day after today. The customer gets no message about a dated sale. `order_create($in['date'])`. |
+| 16 | Changing dates | Owners and admins, from the order's More › Change dates (also linked from its invoice and receipts): the order and invoice date, and each payment's "paid on" with its receipt. What happened on the old day follows (pay-by of an invoice paid that day, "taken now", collected). Every change goes on the Log. `order_set_dates()`. |
+| 17 | Deleting | The owner only, a cancelled or turned-down order, with its invoice, payments and refunds, receipts, delivery note, debt and Log. Not when money from it stayed with the business (kept for the customer, or never given back). Each of its numbers that is still the newest of its kind is freed for the next paper; older ones stay gaps, so no two papers share a number. The purge ledger records it. `order_delete()`, `doc_numbers_free()`. |
+| 18 | Money paid in advance | Clients › Kept with you (a tab) › Add money: amount, method, the day it came in, reference. A receipt with no invoice, so money in counts it on that day; it is kept money, offered on the next order. Anyone who records payments may add it. The word stays "kept with you", never "credit" (in Nigeria "on credit" means pay later). `kept_add()`, `kept_lines()`; `kept_money.receipt_id`. |
+| 19 | Cancelling a paid order | The cancel sheet offers "Cancel and keep ₦X" for a named customer (the money moves to Kept with you, as money paid over does) or "Give it back instead". A walk-in, or an order with a refund waiting, only gives it back. `order_cancel(..., $keep)`. |

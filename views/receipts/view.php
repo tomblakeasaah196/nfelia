@@ -5,7 +5,7 @@
  *
  * Available from controller:
  *   $user, $business, $receipt, $customer, $invoice, $items,
- *   $payment, $public_url, $is_standalone, $order,
+ *   $payment, $public_url, $is_standalone, $is_advance (money paid in advance, kept with you), $order,
  *   $sign (doc_sign_state(): its signature and verify code)
  */
 $currency = $business['currency_symbol'] ?? '₦';
@@ -36,7 +36,7 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
         <?php else: ?>
             <span>Walk-in customer</span>
         <?php endif; ?>
-        <span class="nf-tag <?= $is_standalone ? 'is-accent' : 'is-in' ?>"><?= $is_standalone ? 'Paid on the spot' : 'Invoice payment' ?></span>
+        <span class="nf-tag <?= $is_standalone ? 'is-accent' : 'is-in' ?>"><?= $is_advance ? 'Paid in advance' : ($is_standalone ? 'Paid on the spot' : 'Invoice payment') ?></span>
     </p>
     <p class="nf-doc-amt is-in"><?= planner_money((float)$receipt['amount'], $currency) ?></p>
     <p class="nf-doc-meta"><?= e($receipt['doc_number']) ?><?php if ($order): ?> · order <a href="<?= APP_URL ?>/orders/view/<?= (int)$order['id'] ?>" data-prefetch><?= e($order['order_number']) ?></a><?php endif; ?> · <?= e(screen_date($receipt['issue_date'])) ?> · <?= e($receipt['method'] === 'kept' ? 'Kept money' : screen_method($receipt['method'])) ?></p>
@@ -254,9 +254,12 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
         <a class="nf-row" href="<?= e($public_url) ?>" target="_blank" rel="noopener"><span class="nf-tile-ic"><?= nav_icon('open') ?></span>Open the customer's page</a>
         <?php $sign_row = true; $sign_back = 'receipts/view/' . (int)$receipt['id'];
               require BASE_PATH . '/views/partials/doc_sign_control.php'; ?>
+        <?php if (!empty($order) && is_boss()): // an order's receipt is dated with its payment, on the order ?>
+            <a class="nf-row" href="<?= APP_URL ?>/orders/view/<?= (int)$order['id'] ?>#sheet:nf-dates"><span class="nf-tile-ic"><?= nav_icon('clock') ?></span>Change dates</a>
+        <?php endif; ?>
         <?php if (empty($order)): // an order's receipt stays with its payment ?>
         <form method="POST" action="<?= APP_URL ?>/receipts/delete/<?= (int)$receipt['id'] ?>"
-              onsubmit="return confirm('Delete receipt <?= e($receipt['doc_number']) ?>? <?= $invoice ? 'The payment stays recorded on ' . e($invoice['doc_number']) . '.' : 'What it sold goes back on your shelves.' ?>');">
+              onsubmit="return confirm('Delete receipt <?= e($receipt['doc_number']) ?>? <?= $invoice ? 'The payment stays recorded on ' . e($invoice['doc_number']) . '.' : ($is_advance ? 'The money it kept for their next order goes with it.' : 'What it sold goes back on your shelves.') ?>');">
             <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
             <button class="nf-row is-danger"><span class="nf-tile-ic"><?= nav_icon('trash') ?></span>Delete the receipt</button>
         </form>

@@ -539,6 +539,9 @@ if ($quotation) {
             <?php if (is_boss() && $live && !in_array($order['status'], ['fulfilled', 'cancelled', 'rejected'], true)): ?>
                 <a class="nf-row" href="<?= APP_URL ?>/orders/edit/<?= (int)$order['id'] ?>"><span class="nf-tile-ic"><?= nav_icon('edit') ?></span>Change the items</a>
             <?php endif; ?>
+            <?php if (is_boss()): // an order's invoice is dated with its order ?>
+                <a class="nf-row" href="<?= APP_URL ?>/orders/view/<?= (int)$order['id'] ?>#sheet:nf-dates"><span class="nf-tile-ic"><?= nav_icon('clock') ?></span>Change dates</a>
+            <?php endif; ?>
         <?php elseif (in_array($invoice['status'], ['draft', 'sent'], true)): ?>
             <a class="nf-row" href="<?= APP_URL ?>/invoices/edit/<?= (int)$invoice['id'] ?>"><span class="nf-tile-ic"><?= nav_icon('edit') ?></span>Edit the invoice</a>
         <?php endif; ?>

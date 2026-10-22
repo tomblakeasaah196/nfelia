@@ -237,6 +237,7 @@ class ReceiptController {
 
         $public_url = APP_URL . '/doc/' . $receipt['token'];
         $is_standalone = !$receipt['invoice_id'];
+        $is_advance = $is_standalone && $this->kept_line((int)$receipt['id']) !== null;   // paid in advance, kept for their next order
         $order = !empty($receipt['order_id']) ? order_find($this->db, $this->biz_id, (int)$receipt['order_id'])
                : ($receipt['invoice_id'] ? order_by_invoice($this->db, $this->biz_id, (int)$receipt['invoice_id']) : null);
         $sign = doc_sign_state($this->db, 'receipt', (int)$receipt['id'], doc_sign_viewer());
@@ -267,8 +268,19 @@ class ReceiptController {
         // A receipt for an invoice payment is only its paperwork: the payment
         // stays on the invoice (and in the books). A direct sale's receipt is
         // the sale itself, so its stock goes back and its money comes off.
+        // Money paid in advance goes with its receipt, while none of it was used.
         $this->db->beginTransaction();
         try {
+            if ($kept = $this->kept_line((int)$id)) {
+                $this->db->prepare("SELECT id FROM customers WHERE id = ? AND business_id = ? FOR UPDATE")->execute([(int)$kept['customer_id'], $this->biz_id]);
+                if (kept_balance($this->db, $this->biz_id, (int)$kept['customer_id']) < (float)$kept['amount'] - 0.004) {
+                    $this->db->rollBack();
+                    flash('error', 'Some of the money on ' . $receipt['doc_number'] . ' was already used on an order, so the receipt stays.');
+                    redirect('receipts/view/' . (int)$id);
+                    return;
+                }
+                $this->db->prepare("DELETE FROM kept_money WHERE id = ? AND business_id = ?")->execute([(int)$kept['id'], $this->biz_id]);
+            }
             if (!$receipt['invoice_id']) {
                 stock_settle($this->db, $this->biz_id, 'receipt', (int)$id, [], 'receipt ' . $receipt['doc_number'] . ' deleted');
                 $this->db->prepare("DELETE FROM receipt_items WHERE receipt_id = ?")->execute([$id]);
@@ -294,6 +306,13 @@ class ReceiptController {
     /* ══════════════════════════════════════════
      *  PRIVATE HELPERS
      * ══════════════════════════════════════════ */
+
+    /** The kept money a receipt for money paid in advance put there, or null. */
+    private function kept_line(int $receipt_id): ?array {
+        $stmt = $this->db->prepare("SELECT * FROM kept_money WHERE receipt_id = ? AND business_id = ?");
+        $stmt->execute([$receipt_id, $this->biz_id]);
+        return $stmt->fetch() ?: null;
+    }
 
     private function find_receipt($id): ?array {
         if (!$id) return null;

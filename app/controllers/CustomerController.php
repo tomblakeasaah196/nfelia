@@ -156,9 +156,11 @@ class CustomerController {
 
         $currency = $business['currency_symbol'] ?? '₦';
 
-        // Orders: every sale with this client, and money kept for their next one
-        $orders = order_rows($this->db, $this->biz_id, ['customer_id' => (int)$id], 20);
-        $kept   = kept_balance($this->db, $this->biz_id, (int)$id);
+        // Orders: every sale with this client, and money kept for their next
+        // one (paid in advance, or kept from an order), line by line
+        $orders     = order_rows($this->db, $this->biz_id, ['customer_id' => (int)$id], 20);
+        $kept       = kept_balance($this->db, $this->biz_id, (int)$id);
+        $kept_lines = kept_lines($this->db, $this->biz_id, (int)$id);
 
         // Quotations
         $stmtQ = $this->db->prepare("
@@ -194,7 +196,8 @@ class CustomerController {
 
         // Receipts
         $stmtR = $this->db->prepare("
-            SELECT id, doc_number, issue_date, amount, method, invoice_id
+            SELECT id, doc_number, issue_date, amount, method, invoice_id,
+                   EXISTS (SELECT 1 FROM kept_money k WHERE k.receipt_id = receipts.id AND k.business_id = receipts.business_id) AS is_advance
             FROM receipts
             WHERE customer_id = ? AND business_id = ?
             ORDER BY created_at DESC LIMIT 20
@@ -246,6 +249,34 @@ class CustomerController {
         $title     = $customer['full_name'];
         $view_file = BASE_PATH . '/views/customers/view.php';
         require_once BASE_PATH . '/views/layouts/app.php';
+    }
+
+    /* ──────────────────────────────────────────
+     *  ADD MONEY — paid in advance, kept with you
+     * ────────────────────────────────────────── */
+    public function add_money($id = null) {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { redirect('customers/view/' . (int)$id); return; }
+        csrf_verify();
+
+        $customer = $this->find_customer($id);
+        if (!$customer) { not_found(); return; }
+        $back = 'customers/view/' . (int)$id . '?tab=kept';
+        if (form_once_used()) {
+            flash('info', 'That money was already saved.');
+            redirect($back);
+        }
+        $currency = auth_business()['currency_symbol'] ?? '₦';
+        try {
+            $receipt = kept_add($this->db, $this->biz_id, (int)$id, (float)str_replace([',', ' '], '', (string)($_POST['amount'] ?? '0')),
+                                (string)($_POST['date'] ?? ''), (string)($_POST['method'] ?? 'cash'), (string)($_POST['reference'] ?? ''),
+                                (int)auth_user()['id']);
+        } catch (DomainException $e) {
+            flash('error', $e->getMessage());
+            redirect($back);
+        }
+        flash('success', planner_money($receipt['amount'], $currency) . ' kept for ' . (planner_first_name($customer['full_name']) ?: 'them')
+            . '. Receipt ' . $receipt['doc_number'] . ' made. Their next order offers it.');
+        redirect($back);
     }
 
     /* ──────────────────────────────────────────

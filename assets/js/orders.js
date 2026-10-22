@@ -64,7 +64,7 @@ function orderForm() {
         mode: D.mode, today: D.today, products: D.products, old: D.old,
         customer: D.customer, walkIn: !!D.old.walk_in && !D.customer, newCustomer: !D.customer && D.old.customer_name !== '',
         query: '', found: [], items: [], showDiscount: num(D.old.discount) > 0, showNote: D.old.note !== '',
-        whenPick: '', whenDate: '', payByPick: 'week', payByDate: '',
+        whenPick: '', whenDate: '', payByPick: 'week', payByDate: '', pickDay: false,
         pickQuery: '', ownName: '', ownPrice: '', problem: '', submitting: false,
         pickStep: 'list', draft: null, editing: -1,
 
@@ -272,6 +272,31 @@ function orderForm() {
             this.items.splice(i, 1);
             this.draft = null; this.editing = -1; this.pickStep = 'list';
             this.sheet(false);
+        },
+
+        // ---------- The day of the sale ----------
+        // Today unless an earlier day is picked; a day after today never goes
+        saleDay: function () {
+            var d = this.old.sale_date || '';
+            return /^\d{4}-\d{2}-\d{2}$/.test(d) && d < D.today ? d : D.today;
+        },
+        isPast: function () { return this.saleDay() < D.today; },
+        dayWords: function () {
+            var d = this.saleDay();
+            if (d === D.today) return 'Today';
+            if (d === D.yesterday) return 'Yesterday';
+            return new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+        },
+        openDay: function () {
+            var self = this;
+            this.pickDay = true;
+            this.$nextTick(function () {
+                var el = self.$refs.day;
+                if (!el) return;
+                if (!self.old.sale_date) self.old.sale_date = D.today;
+                el.focus();
+                try { if (el.showPicker) el.showPicker(); } catch (e) { /* the field itself is there to type in */ }
+            });
         },
 
         // ---------- When, and pay by ----------
