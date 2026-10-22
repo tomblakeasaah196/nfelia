@@ -297,21 +297,26 @@ if (empty($initial_items)) {
     </div>
 </form>
 
+<?php
+// Words put into the script as JSON, not HTML-escaped: an address on two
+// lines, or a name with an apostrophe, can't break it or show as &#039;
+$json_flags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES;
+?>
 <script>
 function deliveryForm() {
     return {
         invoiceId: <?= (int)($delivery['invoice_id'] ?? ($pre_invoice['id'] ?? 0)) ?>,
-        invoiceNumber: '<?= e($delivery['invoice_doc_number'] ?? ($pre_invoice['doc_number'] ?? '')) ?>',
-        invoiceCustomer: '<?= e($pre_customer['full_name'] ?? '') ?>',
+        invoiceNumber: <?= json_encode((string)($delivery['invoice_doc_number'] ?? ($pre_invoice['doc_number'] ?? '')), $json_flags) ?>,
+        invoiceCustomer: <?= json_encode((string)($pre_customer['full_name'] ?? ''), $json_flags) ?>,
         customerId: <?= (int)($delivery['customer_id'] ?? ($pre_customer['id'] ?? 0)) ?>,
         invoiceSearch: '',
         invoiceResults: [],
 
-        recipientName: '<?= e($delivery['recipient_name'] ?? ($pre_customer['full_name'] ?? '')) ?>',
-        recipientPhone: '<?= e($delivery['recipient_phone'] ?? ($pre_customer['phone'] ?? '')) ?>',
-        deliveryAddress: '<?= e($delivery['delivery_address'] ?? ($pre_customer['address'] ?? '')) ?>',
+        recipientName: <?= json_encode((string)($delivery['recipient_name'] ?? ($pre_customer['full_name'] ?? '')), $json_flags) ?>,
+        recipientPhone: <?= json_encode((string)($delivery['recipient_phone'] ?? ($pre_customer['phone'] ?? '')), $json_flags) ?>,
+        deliveryAddress: <?= json_encode((string)($delivery['delivery_address'] ?? ($pre_customer['address'] ?? '')), $json_flags) ?>,
 
-        items: <?= json_encode($initial_items, JSON_UNESCAPED_UNICODE) ?>,
+        items: <?= json_encode($initial_items, $json_flags) ?>,
 
         addItem() {
             this.items.push({ description: '', quantity: 1, unit: '', product_id: 0, notes: '' });

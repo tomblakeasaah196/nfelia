@@ -95,7 +95,7 @@ class QuotationController {
         $stmtS->execute([$this->biz_id]);
         $summary = $stmtS->fetch();
 
-        $title     = "Quotations";
+        $title     = "Quotes";
         // Quote requests from the shop still waiting on an answer.
         $stmt = $this->db->prepare("SELECT COUNT(*) FROM quote_requests WHERE business_id = ? AND status IN ('new','reviewed')");
         $stmt->execute([$this->biz_id]);
@@ -132,7 +132,7 @@ class QuotationController {
         $banks     = $this->get_bank_accounts();
         $quotation['bank_account_id'] = $banks[0]['id'] ?? null;   // the main account first
 
-        $title     = "New Quotation";
+        $title     = "New quote";
         $view_file = BASE_PATH . '/views/quotations/form.php';
         require_once BASE_PATH . '/views/layouts/app.php';
     }
@@ -196,7 +196,7 @@ class QuotationController {
 
         // Only draft, sent, or in_negotiation can be edited
         if (!in_array($quotation['status'], ['draft', 'sent', 'in_negotiation'])) {
-            flash('error', 'This quotation is locked and can no longer be edited.');
+            flash('error', 'This quote is locked and can no longer be edited.');
             redirect('quotations/view/' . $id);
             return;
         }
@@ -320,7 +320,7 @@ class QuotationController {
 
         $quotation = $this->find_quotation($id);
         if (!$quotation || $quotation['status'] !== 'draft') {
-            flash('error', 'Only draft quotations can be sent.');
+            flash('error', 'Only a draft quote can be sent.');
             redirect('quotations');
             return;
         }
@@ -561,7 +561,7 @@ public function update_status($id = null) {
             $items     = posted_lines($_POST);
             $customers = $this->get_customers();
             $banks     = $this->get_bank_accounts((int)($quotation['bank_account_id'] ?? 0));
-            $title     = $editing ? "Edit Quotation" : "New Quotation";
+            $title     = $editing ? "Edit quote" : "New quote";
             $view_file = BASE_PATH . '/views/quotations/form.php';
             require_once BASE_PATH . '/views/layouts/app.php';
             return;
@@ -634,7 +634,7 @@ public function update_status($id = null) {
                     $this->db->prepare("
                         INSERT INTO quotation_activities 
                         (business_id, quotation_id, actor_type, user_id, action, message, old_status, new_status) 
-                        VALUES (?, ?, 'business', ?, 'quote_revised', 'Quotation pricing or terms were updated.', ?, ?)
+                        VALUES (?, ?, 'business', ?, 'quote_revised', 'Prices or terms on this quote were updated.', ?, ?)
                     ")->execute([
                         $this->biz_id, $id, auth_user()['id'], 
                         $old_status, $old_status
@@ -682,12 +682,14 @@ public function update_status($id = null) {
             }
 
             $this->db->commit();
-            flash('success', 'Quotation saved.');
+            flash('success', 'Quote saved.');
             redirect('quotations/view/' . $id);
 
         } catch (\Throwable $e) {
             $this->db->rollBack();
-            flash('error', 'Save failed: ' . $e->getMessage());
+            // The detail goes to the error log (Ops → Errors), not to the screen
+            errors_report_throwable($e);
+            flash('error', 'That quote didn\'t save. Please try again.');
             redirect('quotations');
         }
     }

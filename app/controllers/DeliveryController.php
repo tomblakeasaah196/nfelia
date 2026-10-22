@@ -477,6 +477,8 @@ class DeliveryController {
         if ($recipient_name === '') $errors[] = 'Recipient name is required.';
         if ($delivery_address === '') $errors[] = 'Delivery address is required.';
         if ($p = phone_problem($recipient_phone, 50) ?? phone_problem($rider_phone, 50)) $errors[] = $p;   // D4
+        // The tracking link opens for the owner and the customer: a web address only
+        if ($tracking_url !== '' && !preg_match('#^https?://#i', $tracking_url)) $errors[] = 'Start the tracking link with https:// (or leave it empty).';
         if ($invoice_id && !owned_by_business($this->db, 'invoices', $invoice_id, $this->biz_id)) {
             $errors[] = 'Please pick one of your invoices.';
             $invoice_id = null;
