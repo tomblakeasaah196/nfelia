@@ -22,6 +22,14 @@
         get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
         set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
     };
+    // The business's colours, for the page shown with no connection
+    // (offline.html): a file kept on the phone, it can't ask whose app it is in.
+    var css = getComputedStyle(root);
+    store.set('nf.colours', JSON.stringify(['accent', 'on-accent', 'accent-text', 'glow', 'glow-2'].reduce(function (saved, k) {
+        saved[k] = css.getPropertyValue('--' + k).trim();
+        return saved;
+    }, {})));
+
     // A copy of the page kept on the phone (sw.js), shown with no network.
     var kept = document.querySelector('meta[name="nf-cached"]');
     if (kept) {

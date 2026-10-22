@@ -14,7 +14,7 @@
  * sends X-Nfelia-Page). Never kept: anything but GET, /api, sign-in pages,
  * documents shared with customers (/doc) and downloads.
  */
-var VERSION = '2026-10-23.1';
+var VERSION = '2026-10-23.2';
 var FILES = 'nf-files-' + VERSION; // the app's own files, replaced with each version
 var PAGES = 'nf-pages';            // pages someone opened, kept for offline reading
 var SLOW_MS = 8000;                // after this long, show the kept copy instead of waiting

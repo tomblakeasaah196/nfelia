@@ -199,12 +199,15 @@ function doc_verify_url(string $code): string
     return APP_URL . '/verify/' . $code;
 }
 
-/** The QR code that opens the document's verify page, as a data: URI (no Nfelia mark: it is small on a page). */
-function doc_qr_uri(string $code): string
+/**
+ * The QR code that opens the document's verify page, as a data: URI, in the
+ * business's colour, $colour (no Nfelia mark: it is small on a page).
+ */
+function doc_qr_uri(string $code, ?string $colour = null): string
 {
-    return signing_safely(function () use ($code) {
+    return signing_safely(function () use ($code, $colour) {
         require_once __DIR__ . '/qr.php';
-        return 'data:image/png;base64,' . base64_encode(qr_png(doc_verify_url($code), 4, false));
+        return 'data:image/png;base64,' . base64_encode(qr_png(doc_verify_url($code), 4, false, qr_inks($colour)));
     }, '');
 }
 
@@ -531,9 +534,12 @@ function doc__sign_state(PDO $db, string $type, int $id, ?int $viewer_id, bool $
     $facts = $business && !$business['legacy'] ? doc_facts($db, $type, $id) : null;
     $count = $db->prepare("SELECT COUNT(*) FROM doc_signatures WHERE doc_type = ? AND doc_id = ? AND party = 'business'");
     $count->execute([$type, $id]);
+    $colour = $db->prepare("SELECT primary_color FROM businesses WHERE id = ?");   // the QR code's colour
+    $colour->execute([$biz]);
+    $colour = $colour->fetchColumn() ?: null;
     return [
         'type' => $type, 'id' => $id, 'label' => doc_label($db, $type, $biz), 'on' => !empty($row['sign_on']),
-        'code' => $code, 'display' => doc_code_display($code), 'url' => doc_verify_url($code), 'qr' => $with_qr ? doc_qr_uri($code) : '',
+        'code' => $code, 'display' => doc_code_display($code), 'url' => doc_verify_url($code), 'qr' => $with_qr ? doc_qr_uri($code, $colour) : '',
         'business' => $business, 'customer' => $customer,
         'changed' => $business && $facts !== null && !hash_equals((string)$business['content_hash'], doc_hash($facts)),
         'versions' => (int)$count->fetchColumn(),

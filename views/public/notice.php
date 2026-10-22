@@ -85,7 +85,7 @@ header('X-Robots-Tag: noindex, nofollow');
         </div>
         <?php endif; ?>
     </main>
-    <footer><a href="<?= e(APP_URL) ?>">Nfelia</a></footer>
+    <footer><a href="<?= e(APP_URL . '/') ?>">Nfelia</a></footer>
     <script src="<?= APP_URL ?>/assets/js/wa.js?v=<?= (int)@filemtime(BASE_PATH . '/assets/js/wa.js') ?>" defer></script>
 </body>
 </html>

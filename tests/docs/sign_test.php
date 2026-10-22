@@ -65,6 +65,24 @@ ok(preg_match('/^[0-9A-HJKMNP-TV-Z]{10}$/', $state['code']) === 1 && $state['dis
    'but it has its verify code, like K7Q2M-XA9WT');
 eq(doc_sign_state($db, 'invoice', (int)$inv['id'])['code'], $state['code'], 'one code per document, the same every time');
 ok(str_starts_with($state['qr'], 'data:image/png;base64,') && strlen($state['qr']) > 200, 'and its QR code, as a picture for the page and the PDF');
+// In the business's colour, deepened until a phone still reads it
+q("UPDATE businesses SET primary_color = '#C08436' WHERE id = ?", [BIZ]);
+$png = base64_decode(substr(doc_sign_state($db, 'invoice', (int)$inv['id'])['qr'], strlen('data:image/png;base64,')));
+q("UPDATE businesses SET primary_color = '#8B004A' WHERE id = ?", [BIZ]);
+$im = imagecreatefromstring($png);
+$inks = [];
+for ($x = 0; $x < imagesx($im); $x++) {
+    for ($y = 0; $y < imagesy($im); $y++) {
+        $c = imagecolorsforindex($im, imagecolorat($im, $x, $y));
+        $inks[sprintf('#%02X%02X%02X', $c['red'], $c['green'], $c['blue'])] = true;
+    }
+}
+$inks = array_keys($inks);
+$want = array_merge(['#FFFFFF'], array_map(fn($rgb) => sprintf('#%02X%02X%02X', ...$rgb), qr_inks('#C08436')));
+sort($inks);
+sort($want);
+eq($inks, $want, 'a gold business\'s QR code is drawn in its deep gold, on white');
+eq(qr_read($png), doc_verify_url($state['code']), 'and a phone still reads it');
 
 section('Settings › Signatures: owners and admins choose');
 $ada = signin('ada@adashair.test');
