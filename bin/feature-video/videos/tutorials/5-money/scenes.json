@@ -135,7 +135,7 @@
    ],
    "caption": "A new supplier",
    "sub": "Saved for next time.",
-   "say": "Add the supplier once, with a phone number. Next time, just pick them."
+   "say": "Add the supplier once, with a phone number. Next time, just pick their name."
   },
   {
    "chapter": "What you spend",
@@ -214,7 +214,7 @@
    ],
    "caption": "What you bought",
    "sub": "It goes straight into your stock.",
-   "say": "Add what you bought, how many, and what each one cost. Nfelia adds them to your stock."
+   "say": "Add what you bought, how many, and what each one cost. Your stock goes up by itself."
   },
   {
    "chapter": "What you spend",
@@ -317,8 +317,8 @@
      "unspot"
     ]
    ],
-   "caption": "Who owes you, and who you owe",
-   "say": "Debts shows who owes you, and who you owe. The bride still owes the rest of her order, and we owe our supplier."
+   "caption": "Who owes you, who you owe",
+   "say": "Debts shows the people who owe you, and the people you owe. The bride still owes the rest of her order, and we owe our supplier."
   },
   {
    "chapter": "Debts",
@@ -385,7 +385,7 @@
    ],
    "caption": "A friendly reminder",
    "sub": "On WhatsApp, written for you.",
-   "say": "Open her order to see what is left to pay. Tap WhatsApp, and send a friendly balance reminder, already written for you."
+   "say": "Open her order, and you see what is left to pay. Tap WhatsApp, and send a friendly balance reminder, already written for you."
   },
   {
    "open": "/tasks",
@@ -424,7 +424,7 @@
    ],
    "caption": "Tasks and reminders",
    "sub": "Nfelia reminds you on the day.",
-   "say": "Use Tasks for things you must not forget. Type it, choose the day, and Nfelia reminds you. Deliveries and payments due show here by themselves."
+   "say": "Use Tasks for things you must not forget. Type it, choose the day, and you get a reminder. Deliveries and payments due show here by themselves."
   },
   {
    "chapter": "Tasks and calendar",
@@ -532,7 +532,7 @@
      1400
     ]
    ],
-   "caption": "Someone asks for your records",
+   "caption": "Asked for your records",
    "sub": "A lender, landlord or buyer.",
    "say": "A bank or a savings group can check your records with that code, and ask to see them. Here, Kemi from a savings group wants to check our sales, for a loan."
   },
