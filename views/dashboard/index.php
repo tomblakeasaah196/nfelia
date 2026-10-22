@@ -6,8 +6,9 @@
  *   $greeting, $money (in, owed, spent: this month), $overdue_count,
  *   $overdue_value, $orders_waiting, $low_stock_count, $deliveries_open,
  *   $quotes_accepted, $plan (Tasks and Calendar items, late first),
- *   $recent_orders
- * Money is shown to owners and admins only ($is_boss, from the layout).
+ *   $recent_orders, $trial_days_left (null unless an owner on the free trial)
+ * Money is shown to owners and admins only ($is_boss, from the layout), and
+ * stock is not mentioned to a business that only sells services ($business_type).
  */
 $currency = $business['currency_symbol'] ?? '₦';
 $today    = planner_today();
@@ -38,6 +39,10 @@ if ($deliveries_open > 0) {
 <div class="nf-hello">
     <h1 class="nf-large-title"><?= e($greeting) ?>, <?= e($first_name) ?></h1>
     <p><?= e(planner_now()->format('l j F')) ?></p>
+    <?php if ($trial_days_left !== null): ?>
+        <p><?= $trial_days_left === 0 ? 'Your free trial ends today.' : $plural($trial_days_left, 'day', 'days') . ' left of your free trial.' ?>
+            <a class="nf-link" href="<?= APP_URL ?>/settings?tab=billing">Open Billing</a></p>
+    <?php endif; ?>
 </div>
 
 <div class="nf-find is-home" data-omni>
@@ -82,7 +87,7 @@ if ($deliveries_open > 0) {
                     <?php endforeach; ?>
                 </div>
             <?php else: ?>
-                <p class="nf-card-note">All clear: nothing overdue, no orders waiting, and stock is fine.</p>
+                <p class="nf-card-note">All clear: nothing overdue<?= $business_type === 'service' ? ' and no orders waiting' : ', no orders waiting, and stock is fine' ?>.</p>
             <?php endif; ?>
         </section>
     </div>

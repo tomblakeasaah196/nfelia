@@ -70,6 +70,18 @@ class DashboardController {
         $stmt_loose->execute([$this->biz_id]);
         $owed_url = (int)$stmt_loose->fetchColumn() > 0 ? 'invoices?status=unpaid' : 'orders?view=balance';
 
+        // The free trial's days left, for the owner, who pays: counted as
+        // Billing counts them (none on the last day), from billing_access()
+        $trial_days_left = null;
+        if (is_owner()) {
+            $stmt_sub = $this->db->prepare("SELECT * FROM subscriptions WHERE business_id = ?");
+            $stmt_sub->execute([$this->biz_id]);
+            $sub = $stmt_sub->fetch() ?: null;
+            if ($sub && $sub['status'] === 'trial' && !empty($sub['trial_ends_at']) && billing_access($sub) === 'trial') {
+                $trial_days_left = max(0, (int)round((strtotime(substr($sub['trial_ends_at'], 0, 10)) - strtotime(date('Y-m-d'))) / 86400));
+            }
+        }
+
         $hour = (int)$now->format('G');
         $greeting = $hour < 12 ? 'Good morning' : ($hour < 17 ? 'Good afternoon' : 'Good evening');
 
