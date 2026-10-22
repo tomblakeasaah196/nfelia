@@ -45,7 +45,7 @@ $cta_url = $verify_url ?? APP_URL . '/dashboard';
 ?>
 <?php if (isset($verify_url)): ?>
 <p style="margin:0 0 16px;color:#3a2f2b;">
-    Confirm your email address with the button below. It also opens your workspace.
+    Confirm your email address with the button below, so we can reach you and you can reset your password if you ever forget it. It also opens your workspace.
     The link works for <strong><?= (int)($expires_hours ?? 48) ?> hours</strong>.
 </p>
 <?php endif; ?>

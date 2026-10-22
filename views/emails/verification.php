@@ -6,7 +6,7 @@
     Hello <?= htmlspecialchars($owner_name ?? 'Director', ENT_QUOTES) ?>,
 </p>
 <p style="margin:0 0 24px;color:#3a2f2b;">
-    To unlock document sharing with your clients, please verify your email address.
+    Please verify your email address, so we can reach you and you can reset your password if you ever forget it.
     This link expires in <strong><?= (int)($expires_hours ?? 48) ?> hours</strong>.
 </p>
 

@@ -80,9 +80,11 @@ date_default_timezone_set(APP_TIMEZONE);
 // Document prefix for each type
 define('DOC_TYPES', ['QUO', 'INV', 'REC', 'DEL']);
 
-// Business categories
+// Business categories. A new key also goes in businesses.category's ENUM
+// (a migration) and in STOREFRONT_LOOK_BY_CATEGORY (app/helpers/shop_links.php).
 define('BUSINESS_CATEGORIES', [
     'fashion'          => 'Fashion & Apparel',
+    'beauty'           => 'Hair & Beauty',
     'food_beverage'    => 'Food & Beverage',
     'tech_repair'      => 'Tech Repair',
     'distribution'     => 'Distribution & Logistics',

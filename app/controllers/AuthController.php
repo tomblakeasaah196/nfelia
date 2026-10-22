@@ -90,10 +90,12 @@ class AuthController {
      * Handle Pilot Registration (The 3-Step Create)
      */
     public function register() {
+        // Signed in already: a POST too, or it would make a second business
+        // and switch this browser to it
+        if (is_logged_in()) {
+            redirect('dashboard');
+        }
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            if (is_logged_in()) {
-                redirect('dashboard');
-            }
             require_once BASE_PATH . '/views/auth/register.php';
             return;
         }
@@ -205,63 +207,6 @@ class AuthController {
                ->execute([ReferralController::new_code($db), $business_id]);
 
             $db->commit();
-
-            // PATCH: Process Referral Code if present
-            $ref_code = trim($_POST['ref_code'] ?? '');
-            if (!empty($ref_code)) {
-                require_once BASE_PATH . '/app/controllers/ReferralController.php'; // NFELIA AUDIT FIX H03 — 2026-06-03
-                // Pass the new business ID and their email to enforce identity matching
-                ReferralController::convert_referral($db, $ref_code, $business_id, $email);
-            }
-
-            // Auto-login after registration, with the same session a sign-in
-            // makes, so no page meets a missing field (D11)
-            $account = account_find('id', (int)$user_id);
-            if ($account) {
-                signin_session($account);
-            } else login_user(
-                ['id' => $user_id, 'full_name' => $full_name, 'email' => $email, 'role' => 'owner'],
-                [
-                    'id'                  => $business_id, 
-                    'name'                => $biz_name, 
-                    'slug'                => $slug, 
-                    'doc_prefix'          => $prefix, 
-                    'primary_color'       => '#8B004A', 
-                    'secondary_color'     => '#B69F5E', 
-                    'logo_path'           => null, 
-                    'onboarding_complete' => 0,
-                    'onboarding_step'     => 1,
-                    'currency_symbol'     => '₦',
-                    'font_pairing'        => 'modern_sans'
-                ]
-            );
-
-            // Send welcome + email verification
-            try {
-                send_branded_mail(
-                    $email, $full_name,
-                    'Welcome to Nfelia — Verify Your Email',
-                    'welcome',
-                    [
-                        'owner_name'     => $full_name,
-                        'workspace_name' => $biz_name,
-                        'trial_days'     => TRIAL_DAYS,
-                        'verify_url'     => $this->verification_url((int)$user_id, (int)$business_id),
-                        'expires_hours'  => self::VERIFY_LINK_HOURS,
-                    ],
-                    [
-                        'name'          => 'Nfelia',
-                        'primary_color' => '#8B004A',
-                        'tagline'       => 'Track everything. Carry nothing.',
-                    ]
-                );
-            } catch (\Exception $mail_e) {
-                error_log('[Nfelia] Welcome email failed: ' . $mail_e->getMessage());
-                // Non-fatal — registration still succeeds
-            }
-
-            redirect('onboarding/step1');
-
         } catch (Exception $e) {
             $db->rollBack();
             
@@ -269,6 +214,67 @@ class AuthController {
             flash('error', 'Your account could not be created. Please try again, or message us on WhatsApp.');
             $this->back_to_register();
         }
+
+        // The account exists from here on, so nothing below may say it
+        // could not be created: a referral that fails is logged, like the
+        // welcome email.
+        $ref_code = trim($_POST['ref_code'] ?? '');
+        if (!empty($ref_code)) {
+            try {
+                // Pass the new business ID and their email to enforce identity matching
+                ReferralController::convert_referral($db, $ref_code, $business_id, $email);
+            } catch (Exception $ref_e) {
+                error_log('[Nfelia] Referral not recorded: ' . $ref_e->getMessage());
+            }
+        }
+
+        // Auto-login after registration, with the same session a sign-in
+        // makes, so no page meets a missing field (D11)
+        $account = account_find('id', (int)$user_id);
+        if ($account) {
+            signin_session($account);
+        } else login_user(
+            ['id' => $user_id, 'full_name' => $full_name, 'email' => $email, 'role' => 'owner'],
+            [
+                'id'                  => $business_id, 
+                'name'                => $biz_name, 
+                'slug'                => $slug, 
+                'doc_prefix'          => $prefix, 
+                'primary_color'       => '#8B004A', 
+                'secondary_color'     => '#B69F5E', 
+                'logo_path'           => null, 
+                'onboarding_complete' => 0,
+                'onboarding_step'     => 1,
+                'currency_symbol'     => '₦',
+                'font_pairing'        => 'modern_sans'
+            ]
+        );
+
+        // Send welcome + email verification
+        try {
+            send_branded_mail(
+                $email, $full_name,
+                'Welcome to Nfelia — Verify Your Email',
+                'welcome',
+                [
+                    'owner_name'     => $full_name,
+                    'workspace_name' => $biz_name,
+                    'trial_days'     => TRIAL_DAYS,
+                    'verify_url'     => $this->verification_url((int)$user_id, (int)$business_id),
+                    'expires_hours'  => self::VERIFY_LINK_HOURS,
+                ],
+                [
+                    'name'          => 'Nfelia',
+                    'primary_color' => '#8B004A',
+                    'tagline'       => 'Track everything. Carry nothing.',
+                ]
+            );
+        } catch (\Exception $mail_e) {
+            error_log('[Nfelia] Welcome email failed: ' . $mail_e->getMessage());
+            // Non-fatal — registration still succeeds
+        }
+
+        redirect('onboarding/step1');
     }
 
     /**
@@ -594,7 +600,7 @@ class AuthController {
         $db->prepare("UPDATE businesses SET email_verified_at = COALESCE(email_verified_at, NOW()) WHERE id = ?")
            ->execute([$business_id]);
 
-        flash('success', 'Email verified. Your workspace is fully unlocked.');
+        flash('success', 'Email verified. Now we can reach you, and you can reset your password if you ever forget it.');
         redirect(is_logged_in() ? 'dashboard' : 'login');
     }
 
