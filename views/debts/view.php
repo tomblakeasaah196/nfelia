@@ -15,12 +15,13 @@ $days_late  = $is_overdue ? planner_days_between($debt['due_date'], planner_toda
 $is_open    = in_array($debt['status'], ['active', 'settling']);
 $pct_settled = $debt['total_amount'] > 0 ? min(100, round((float)$debt['amount_settled'] / (float)$debt['total_amount'] * 100)) : 0;
 
-$status_class = match($debt['status']) {
-    'active'      => 'bg-red-100 text-red-700',
-    'settling'    => 'bg-amber-100 text-amber-700',
-    'cleared'     => 'bg-green-100 text-green-700',
-    'written_off' => 'bg-gray-200 text-gray-500',
-    default       => 'bg-gray-100 text-gray-700',
+// The same words and tag as the debts list (views/debts/index.php)
+[$status_word, $status_tone] = match (true) {
+    $debt['status'] === 'cleared'      => ['Paid off', 'is-in'],
+    $debt['status'] === 'written_off'  => ['Written off', 'is-line'],
+    $is_overdue                        => ['Late', 'is-owed'],
+    (float)$debt['amount_settled'] > 0 => ['Part paid', 'is-warn'],
+    default                            => ['Not paid', ''],
 };
 
 // WhatsApp reminder message
@@ -46,14 +47,14 @@ if ($wa_link && $debt['type'] === 'receivable' && $is_open) {
                 <a href="<?= APP_URL ?>/orders/view/<?= (int)$order['id'] ?>#money" class="inline-flex items-center min-h-[44px] text-sm font-semibold text-accent-text">Open order <?= e($order['order_number']) ?></a>
             <?php endif; ?>
             <div class="flex items-center gap-2 mt-0.5">
-                <span class="data-text text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded <?= $debt['type'] === 'receivable' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600' ?>">
+                <span class="nf-tag <?= $debt['type'] === 'receivable' ? 'is-in' : 'is-owed' ?>">
                     <?= $debt['type'] === 'receivable' ? 'Owed to me' : 'I owe' ?>
                 </span>
-                <span class="data-text text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded <?= $status_class ?>">
-                    <?= $is_overdue ? 'Late' : ucfirst(str_replace('_', ' ', $debt['status'])) ?>
+                <span class="nf-tag <?= $status_tone ?>">
+                    <?= $status_word ?>
                 </span>
                 <?php if ($debt['source'] !== 'manual'): ?>
-                    <span class="data-text text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-50 text-blue-500"><?= $order ? 'From an order' : ($debt['source'] === 'invoice' ? 'From an invoice' : 'From an expense') ?></span>
+                    <span class="nf-tag is-line"><?= $order ? 'From an order' : ($debt['source'] === 'invoice' ? 'From an invoice' : 'From an expense') ?></span>
                 <?php endif; ?>
             </div>
         </div>
@@ -63,7 +64,7 @@ if ($wa_link && $debt['type'] === 'receivable' && $is_open) {
         <?php if ($is_open && isset($wa_reminder_link)): ?>
         <a href="<?= $wa_reminder_link ?>" target="_blank" class="flex items-center gap-1.5 bg-green-500 text-white px-3 py-2 rounded-lg hover:bg-green-600 transition-all">
             <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-            <span class="text-[10px] font-bold uppercase tracking-widest">Send a reminder</span>
+            <span class="text-sm font-semibold">Send a reminder</span>
         </a>
         <?php endif; ?>
     </div>
@@ -73,7 +74,7 @@ if ($wa_link && $debt['type'] === 'receivable' && $is_open) {
 <div class="bg-brand-white border border-brand-sand rounded-xl p-5 shadow-sm mb-6">
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-5">
         <div>
-            <div class="text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">
+            <div class="text-sm font-semibold text-brand-plum/60 mb-1">
                 <?= $debt['type'] === 'receivable' ? 'Customer' : 'Supplier' ?>
             </div>
             <?php if ($party): ?>
@@ -83,7 +84,7 @@ if ($wa_link && $debt['type'] === 'receivable' && $is_open) {
                 <a href="<?= APP_URL ?>/<?= $debt['type'] === 'receivable' ? 'customers' : 'suppliers' ?>/view/<?= $party['id'] ?>"
                    class="text-sm font-bold text-blue-600 hover:text-blue-800"><?= e($party['full_name']) ?></a>
                 <?php endif; ?>
-                <?php if ($party['phone']): ?><div class="text-[10px] text-brand-plum/40"><?= e($party['phone']) ?></div><?php endif; ?>
+                <?php if ($party['phone']): ?><div class="text-xs text-brand-plum/40"><?= e($party['phone']) ?></div><?php endif; ?>
             <?php else: ?>
                 <span class="text-sm text-brand-plum/40">No party linked</span>
             <?php endif; ?>
@@ -91,18 +92,18 @@ if ($wa_link && $debt['type'] === 'receivable' && $is_open) {
 
         <?php if ($source_doc): ?>
         <div>
-            <div class="text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">Source Invoice</div>
+            <div class="text-sm font-semibold text-brand-plum/60 mb-1">Source invoice</div>
             <a href="<?= APP_URL ?>/invoices/view/<?= $source_doc['id'] ?>" class="text-sm font-bold text-blue-600 hover:text-blue-800"><?= e($source_doc['doc_number']) ?></a>
-            <div class="text-[10px] text-brand-plum/40">Total: <?= money((float)$source_doc['total'], $currency) ?></div>
+            <div class="text-xs text-brand-plum/40">Total: <?= money((float)$source_doc['total'], $currency) ?></div>
         </div>
         <?php endif; ?>
 
         <div>
-            <div class="text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">Due Date</div>
+            <div class="text-sm font-semibold text-brand-plum/60 mb-1">Due date</div>
             <div class="text-sm font-medium <?= $is_overdue ? 'text-red-600 font-bold' : 'text-brand-plum' ?>">
                 <?= $debt['due_date'] ? fmt_date($debt['due_date'], 'd M Y') : 'No due date set' ?>
                 <?php if ($is_overdue): ?>
-                    <span class="text-[9px] font-bold text-red-500 ml-1">(<?= $days_late ?> day<?= $days_late === 1 ? '' : 's' ?> late)</span>
+                    <span class="text-xs font-bold text-red-500 ml-1">(<?= $days_late ?> day<?= $days_late === 1 ? '' : 's' ?> late)</span>
                 <?php endif; ?>
             </div>
         </div>
@@ -114,15 +115,15 @@ if ($wa_link && $debt['type'] === 'receivable' && $is_open) {
     <!-- Stacked rows on phones: three amounts side by side do not fit at 390px. -->
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4 mb-4">
         <div class="flex items-baseline justify-between sm:block sm:text-center">
-            <div class="data-text text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">Total Owed</div>
+            <div class="data-text text-sm font-semibold text-brand-plum/60 mb-1">Total owed</div>
             <div class="font-heading font-extrabold text-xl text-brand-plum"><?= money((float)$debt['total_amount'], $currency) ?></div>
         </div>
         <div class="flex items-baseline justify-between sm:block sm:text-center">
-            <div class="data-text text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">Paid</div>
+            <div class="data-text text-sm font-semibold text-brand-plum/60 mb-1">Paid</div>
             <div class="font-heading font-extrabold text-xl text-green-600"><?= money((float)$debt['amount_settled'], $currency) ?></div>
         </div>
         <div class="flex items-baseline justify-between sm:block sm:text-center">
-            <div class="data-text text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">Remaining</div>
+            <div class="data-text text-sm font-semibold text-brand-plum/60 mb-1">Remaining</div>
             <div class="font-heading font-extrabold text-xl <?= (float)$debt['balance'] > 0 ? 'text-red-600' : 'text-green-600' ?>">
                 <?= (float)$debt['balance'] > 0 ? money((float)$debt['balance'], $currency) : 'Cleared' ?>
             </div>
@@ -131,7 +132,7 @@ if ($wa_link && $debt['type'] === 'receivable' && $is_open) {
 
     <!-- Progress bar -->
     <div class="flex items-center justify-between mb-2">
-        <span class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest">Paid so far</span>
+        <span class="text-sm font-semibold text-brand-plum/60">Paid so far</span>
         <span class="data-text text-xs font-bold text-brand-plum"><?= $pct_settled ?>%</span>
     </div>
     <div class="w-full bg-brand-cream rounded-full h-3 overflow-hidden">
@@ -143,31 +144,31 @@ if ($wa_link && $debt['type'] === 'receivable' && $is_open) {
 <!-- Record Settlement (AJAX Modal) -->
 <?php if ($is_open): ?>
 <div class="bg-brand-white border border-brand-sand rounded-xl p-6 shadow-sm mb-6" x-data="settlementModal()">
-    <h3 class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest mb-4">Record a payment</h3>
+    <h3 class="font-heading text-base font-semibold text-brand-plum mb-4">Record a payment</h3>
 
     <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
         <div>
-            <label class="text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest block mb-1">Amount (<?= $currency ?>)</label>
+            <label class="text-sm font-semibold text-brand-plum block mb-1">Amount (<?= $currency ?>)</label>
             <input type="number" x-model.number="amount" step="0.01" min="0.01" max="<?= (float)$debt['balance'] ?>"
                    class="w-full px-3 py-2.5 text-sm font-bold bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
         </div>
         <div>
-            <label class="text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest block mb-1">Method</label>
-            <select x-model="method" class="w-full px-3 py-2.5 text-xs font-semibold bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum uppercase tracking-wider">
+            <label class="text-sm font-semibold text-brand-plum block mb-1">Method</label>
+            <select x-model="method" class="w-full px-3 py-2.5 text-xs font-semibold bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
                 <option value="cash">Cash</option>
-                <option value="bank_transfer">Bank Transfer</option>
+                <option value="bank_transfer">Bank transfer</option>
                 <option value="pos">POS or card</option>
-                <option value="mobile_money">Mobile Money</option>
+                <option value="mobile_money">Mobile money</option>
                 <option value="other">Other (cheque and the rest)</option>
             </select>
         </div>
         <div>
-            <label class="text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest block mb-1">Date</label>
+            <label class="text-sm font-semibold text-brand-plum block mb-1">Date</label>
             <input type="date" x-model="date" class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
         </div>
         <div class="flex items-end">
             <button type="button" @click="recordSettlement()" :disabled="submitting || amount <= 0"
-                    class="w-full btn-primary text-white py-2.5 rounded-lg text-[10px] font-bold uppercase tracking-widest disabled:opacity-50 transition-all">
+                    class="w-full nf-btn nf-btn-primary">
                 <span x-show="!submitting">Record</span>
                 <span x-show="submitting">Saving...</span>
             </button>
@@ -176,14 +177,14 @@ if ($wa_link && $debt['type'] === 'receivable' && $is_open) {
 
     <!-- Quick amount buttons -->
     <div class="flex gap-2 mt-3">
-        <button type="button" @click="amount = <?= (float)$debt['balance'] ?>" class="text-[9px] font-bold text-accent-text uppercase tracking-widest hover:text-accent-text">Full Balance</button>
-        <button type="button" @click="amount = Math.round(<?= (float)$debt['balance'] ?> / 2 * 100) / 100" class="text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest hover:text-accent-text">Half</button>
+        <button type="button" @click="amount = <?= (float)$debt['balance'] ?>" class="text-sm font-semibold text-accent-text hover:text-accent-text">Full balance</button>
+        <button type="button" @click="amount = Math.round(<?= (float)$debt['balance'] ?> / 2 * 100) / 100" class="text-sm font-semibold text-brand-plum/60 hover:text-accent-text">Half</button>
     </div>
 
     <!-- Reference + Note (collapsible) -->
     <div class="mt-3">
-        <button type="button" @click="showMore = !showMore" class="text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest hover:text-brand-plum">
-            + Reference & Note
+        <button type="button" @click="showMore = !showMore" class="text-sm font-semibold text-brand-plum/60 hover:text-brand-plum">
+            + Reference and note
         </button>
         <div x-show="showMore" x-transition class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
             <input type="text" x-model="reference" placeholder="Receipt/reference number"
@@ -244,34 +245,34 @@ function settlementModal() {
 <!-- Settlement History -->
 <div class="bg-brand-white border border-brand-sand rounded-xl shadow-sm overflow-hidden mb-6">
     <div class="px-5 py-3 border-b border-brand-sand bg-brand-cream/30">
-        <h3 class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest">Payments (<?= count($settlements) ?>)</h3>
+        <h3 class="font-heading text-base font-semibold text-brand-plum">Payments (<?= count($settlements) ?>)</h3>
     </div>
     <?php if (!empty($settlements)): ?>
     <div class="overflow-x-auto">
         <table class="w-full text-left">
             <thead>
                 <tr class="border-b border-brand-sand bg-brand-cream/50">
-                    <th class="px-5 py-3 text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest">Date</th>
-                    <th class="px-5 py-3 text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest text-right">Amount</th>
-                    <th class="px-5 py-3 text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest">Method</th>
-                    <th class="px-5 py-3 text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest">Reference</th>
-                    <th class="px-5 py-3 text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest">Note</th>
+                    <th class="px-5 py-3 text-[13px] font-semibold text-brand-plum/60">Date</th>
+                    <th class="px-5 py-3 text-[13px] font-semibold text-brand-plum/60 text-right">Amount</th>
+                    <th class="px-5 py-3 text-[13px] font-semibold text-brand-plum/60">Method</th>
+                    <th class="px-5 py-3 text-[13px] font-semibold text-brand-plum/60">Reference</th>
+                    <th class="px-5 py-3 text-[13px] font-semibold text-brand-plum/60">Note</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-brand-sand/50">
                 <?php foreach ($settlements as $s): ?>
                     <tr class="hover:bg-brand-cream/30">
-                        <td class="px-5 py-3 data-text text-[10px] text-brand-plum/60"><?= fmt_date($s['settlement_date'], 'd M Y') ?></td>
+                        <td class="px-5 py-3 data-text text-xs text-brand-plum/60"><?= fmt_date($s['settlement_date'], 'd M Y') ?></td>
                         <td class="px-5 py-3 data-text text-xs font-bold text-green-600 text-right"><?= money((float)$s['amount'], $currency) ?></td>
                         <td class="px-5 py-3">
                             <?php if ($s['method']): ?>
-                                <span class="data-text text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-gray-100 text-gray-600"><?= ucfirst(str_replace('_', ' ', $s['method'])) ?></span>
+                                <span class="nf-tag"><?= e(screen_method($s['method'])) ?></span>
                             <?php else: ?>
-                                <span class="text-[10px] text-brand-plum/30">—</span>
+                                <span class="text-xs text-brand-plum/30">—</span>
                             <?php endif; ?>
                         </td>
-                        <td class="px-5 py-3 data-text text-[10px] text-brand-plum/50"><?= $s['reference'] ? e($s['reference']) : '—' ?></td>
-                        <td class="px-5 py-3 text-[10px] text-brand-plum/50"><?= $s['note'] ? e($s['note']) : '—' ?></td>
+                        <td class="px-5 py-3 data-text text-xs text-brand-plum/50"><?= $s['reference'] ? e($s['reference']) : '—' ?></td>
+                        <td class="px-5 py-3 text-xs text-brand-plum/50"><?= $s['note'] ? e($s['note']) : '—' ?></td>
                     </tr>
                 <?php endforeach; ?>
             </tbody>
@@ -288,7 +289,7 @@ function settlementModal() {
         <form method="POST" action="<?= APP_URL ?>/debts/write_off/<?= $debt['id'] ?>" class="inline"
               onsubmit="return confirm('Write off this debt? The remaining balance will be marked as unrecoverable.');">
             <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
-            <button class="text-[10px] font-bold text-amber-500 uppercase tracking-widest hover:text-amber-700 transition-colors">Write Off Debt</button>
+            <button class="nf-link">Write off debt</button>
         </form>
     <?php else: ?>
         <div></div>
@@ -298,7 +299,7 @@ function settlementModal() {
         <form method="POST" action="<?= APP_URL ?>/debts/delete/<?= $debt['id'] ?>" class="inline"
               onsubmit="return confirm('Delete this debt record?');">
             <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
-            <button class="text-[10px] font-bold text-red-400 uppercase tracking-widest hover:text-red-600 transition-colors">Delete</button>
+            <button class="nf-link is-danger">Delete</button>
         </form>
     <?php endif; ?>
 </div>

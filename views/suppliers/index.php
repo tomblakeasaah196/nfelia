@@ -18,29 +18,29 @@ $currency = $business['currency_symbol'] ?? '₦';
     </div>
     <a href="<?= APP_URL ?>/suppliers/create" class="flex items-center gap-2 btn-primary text-white px-5 py-2.5 rounded-xl shadow-sm hover:shadow-md transition-all">
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
-        <span class="text-[10px] font-bold uppercase tracking-widest">New Supplier</span>
+        <span class="text-sm font-semibold">Add a supplier</span>
     </a>
 </div>
 
 <!-- Summary Cards -->
 <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
     <div class="bg-brand-white p-4 rounded-xl border border-brand-sand shadow-sm">
-        <div class="data-text text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">Total Suppliers</div>
+        <div class="data-text text-sm font-semibold text-brand-plum/60 mb-1">Suppliers</div>
         <div class="font-heading font-extrabold text-xl text-brand-plum"><?= (int)($summary['total_suppliers'] ?? 0) ?></div>
     </div>
     <div class="bg-brand-white p-4 rounded-xl border border-brand-sand shadow-sm">
-        <div class="data-text text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">Total Purchased</div>
+        <div class="data-text text-sm font-semibold text-brand-plum/60 mb-1">Bought from them</div>
         <div class="font-heading font-extrabold text-xl text-brand-plum truncate"><?= money((float)($summary['total_purchased'] ?? 0), $currency) ?></div>
     </div>
     <div class="bg-brand-white p-4 rounded-xl border border-brand-sand shadow-sm">
-        <div class="data-text text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">Total Paid</div>
+        <div class="data-text text-sm font-semibold text-brand-plum/60 mb-1">Paid to them</div>
         <div class="font-heading font-extrabold text-xl text-green-600 truncate"><?= money((float)($summary['total_paid'] ?? 0), $currency) ?></div>
     </div>
     <div class="bg-brand-white p-4 rounded-xl border border-brand-sand shadow-sm relative overflow-hidden">
-        <div class="data-text text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">You Owe</div>
+        <div class="data-text text-sm font-semibold text-brand-plum/60 mb-1">You owe</div>
         <div class="font-heading font-extrabold text-xl text-red-600 truncate"><?= money((float)($summary['total_outstanding'] ?? 0), $currency) ?></div>
         <?php if ((int)($summary['owing_count'] ?? 0) > 0): ?>
-            <div class="data-text text-[9px] font-semibold text-red-500 mt-0.5"><?= (int)$summary['owing_count'] ?> supplier<?= (int)$summary['owing_count'] > 1 ? 's' : '' ?> owed</div>
+            <div class="data-text text-xs font-semibold text-red-500 mt-0.5"><?= (int)$summary['owing_count'] ?> supplier<?= (int)$summary['owing_count'] > 1 ? 's' : '' ?> owed</div>
             <div class="absolute top-3 right-3 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse"></div>
         <?php endif; ?>
     </div>
@@ -54,24 +54,24 @@ $currency = $business['currency_symbol'] ?? '₦';
             <input type="text" name="q" value="<?= e($search) ?>" placeholder="Search by name, phone, email..."
                    class="w-full pl-10 pr-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/30">
         </div>
-        <select name="filter" class="text-xs font-semibold text-brand-plum bg-brand-cream border border-brand-sand rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent-text uppercase tracking-wider">
+        <select name="filter" class="text-xs font-semibold text-brand-plum bg-brand-cream border border-brand-sand rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent-text">
             <option value="">Active</option>
             <option value="all" <?= $filter === 'all' ? 'selected' : '' ?>>All</option>
-            <option value="owing" <?= $filter === 'owing' ? 'selected' : '' ?>>You Owe</option>
-            <option value="clear" <?= $filter === 'clear' ? 'selected' : '' ?>>Clear Balance</option>
+            <option value="owing" <?= $filter === 'owing' ? 'selected' : '' ?>>You owe them</option>
+            <option value="clear" <?= $filter === 'clear' ? 'selected' : '' ?>>Nothing owed</option>
             <option value="inactive" <?= $filter === 'inactive' ? 'selected' : '' ?>>Inactive</option>
         </select>
-        <select name="sort" class="text-xs font-semibold text-brand-plum bg-brand-cream border border-brand-sand rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent-text uppercase tracking-wider">
-            <option value="name" <?= $sort === 'name' ? 'selected' : '' ?>>Name A-Z</option>
+        <select name="sort" class="text-xs font-semibold text-brand-plum bg-brand-cream border border-brand-sand rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent-text">
+            <option value="name" <?= $sort === 'name' ? 'selected' : '' ?>>Name A to Z</option>
             <option value="newest" <?= $sort === 'newest' ? 'selected' : '' ?>>Newest</option>
             <option value="oldest" <?= $sort === 'oldest' ? 'selected' : '' ?>>Oldest</option>
-            <option value="highest_purchased" <?= $sort === 'highest_purchased' ? 'selected' : '' ?>>Most Purchased</option>
-            <option value="highest_owing" <?= $sort === 'highest_owing' ? 'selected' : '' ?>>Highest Owed</option>
-            <option value="highest_paid" <?= $sort === 'highest_paid' ? 'selected' : '' ?>>Most Paid</option>
+            <option value="highest_purchased" <?= $sort === 'highest_purchased' ? 'selected' : '' ?>>Most bought from</option>
+            <option value="highest_owing" <?= $sort === 'highest_owing' ? 'selected' : '' ?>>Most owed</option>
+            <option value="highest_paid" <?= $sort === 'highest_paid' ? 'selected' : '' ?>>Most paid</option>
         </select>
-        <button type="submit" class="btn-primary text-white px-4 py-2.5 rounded-lg text-[10px] font-bold uppercase tracking-widest">Filter</button>
+        <button type="submit" class="btn-primary text-white px-4 py-2.5 rounded-lg text-sm font-semibold">Filter</button>
         <?php if ($search || $filter || $sort !== 'name'): ?>
-            <a href="<?= APP_URL ?>/suppliers" class="text-[10px] font-bold text-brand-plum/40 uppercase tracking-widest hover:text-accent-text">Clear</a>
+            <a href="<?= APP_URL ?>/suppliers" class="text-sm font-semibold text-brand-plum/60 hover:text-accent-text">Clear</a>
         <?php endif; ?>
     </div>
 </form>
@@ -83,12 +83,12 @@ $currency = $business['currency_symbol'] ?? '₦';
             <table class="w-full text-left">
                 <thead>
                     <tr class="border-b border-brand-sand bg-brand-cream/50">
-                        <th class="px-5 py-3 text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest">Supplier</th>
-                        <th class="px-5 py-3 text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest">Contact</th>
-                        <th class="px-5 py-3 text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest text-right">Purchased</th>
-                        <th class="px-5 py-3 text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest text-right">Paid</th>
-                        <th class="px-5 py-3 text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest text-right">You Owe</th>
-                        <th class="px-5 py-3 text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest text-center">Status</th>
+                        <th class="px-5 py-3 text-[13px] font-semibold text-brand-plum/60">Supplier</th>
+                        <th class="px-5 py-3 text-[13px] font-semibold text-brand-plum/60">Contact</th>
+                        <th class="px-5 py-3 text-[13px] font-semibold text-brand-plum/60 text-right">Purchased</th>
+                        <th class="px-5 py-3 text-[13px] font-semibold text-brand-plum/60 text-right">Paid</th>
+                        <th class="px-5 py-3 text-[13px] font-semibold text-brand-plum/60 text-right">You owe</th>
+                        <th class="px-5 py-3 text-[13px] font-semibold text-brand-plum/60 text-center">Status</th>
                         <th class="px-5 py-3"></th>
                     </tr>
                 </thead>
@@ -101,13 +101,13 @@ $currency = $business['currency_symbol'] ?? '₦';
                             <td class="px-5 py-4">
                                 <a href="<?= APP_URL ?>/suppliers/view/<?= $s['id'] ?>" class="text-xs font-bold text-brand-plum hover:text-accent-text"><?= e($s['full_name']) ?></a>
                                 <?php if ($s['business_name']): ?>
-                                    <div class="text-[10px] text-brand-plum/50"><?= e($s['business_name']) ?></div>
+                                    <div class="text-xs text-brand-plum/50"><?= e($s['business_name']) ?></div>
                                 <?php endif; ?>
                             </td>
                             <td class="px-5 py-4">
-                                <div class="text-[10px] text-brand-plum/60"><?= e($s['phone'] ?? '—') ?></div>
+                                <div class="text-xs text-brand-plum/60"><?= e($s['phone'] ?? '—') ?></div>
                                 <?php if ($s['email']): ?>
-                                    <div class="text-[10px] text-brand-plum/40"><?= e($s['email']) ?></div>
+                                    <div class="text-xs text-brand-plum/40"><?= e($s['email']) ?></div>
                                 <?php endif; ?>
                             </td>
                             <td class="px-5 py-4 data-text text-xs font-bold text-brand-plum text-right"><?= money((float)$s['total_purchased'], $currency) ?></td>
@@ -117,17 +117,17 @@ $currency = $business['currency_symbol'] ?? '₦';
                             </td>
                             <td class="px-5 py-4 text-center">
                                 <?php if (!$s['is_active']): ?>
-                                    <span class="data-text text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-gray-200 text-gray-500">Inactive</span>
+                                    <span class="nf-tag is-line">Inactive</span>
                                 <?php elseif ($has_unpaid): ?>
-                                    <span class="data-text text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-red-100 text-red-700">Unpaid</span>
+                                    <span class="nf-tag is-owed">Unpaid</span>
                                 <?php elseif ($has_debt): ?>
-                                    <span class="data-text text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-100 text-amber-700">Owing</span>
+                                    <span class="nf-tag is-warn">Owing</span>
                                 <?php else: ?>
-                                    <span class="data-text text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-green-100 text-green-700">Clear</span>
+                                    <span class="nf-tag is-in">Nothing owed</span>
                                 <?php endif; ?>
                             </td>
                             <td class="px-5 py-4 text-right">
-                                <a href="<?= APP_URL ?>/suppliers/view/<?= $s['id'] ?>" class="text-[10px] font-bold text-accent-text uppercase tracking-widest hover:text-accent-text">Profile</a>
+                                <a href="<?= APP_URL ?>/suppliers/view/<?= $s['id'] ?>" class="text-sm font-semibold text-accent-text hover:text-accent-text">Open</a>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -141,13 +141,13 @@ $currency = $business['currency_symbol'] ?? '₦';
         <nav class="flex items-center justify-center gap-2 mb-8">
             <?php $qp = $_GET; unset($qp['page']); $base = APP_URL . '/suppliers?' . http_build_query($qp); ?>
             <?php if ($page > 1): ?>
-                <a href="<?= $base ?>&page=<?= $page - 1 ?>" class="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-brand-plum/60 bg-brand-white border border-brand-sand rounded-lg hover:border-accent">Prev</a>
+                <a href="<?= $base ?>&page=<?= $page - 1 ?>" class="px-3 py-2 text-sm font-semibold text-brand-plum/60 bg-brand-white border border-brand-sand rounded-lg hover:border-accent">Prev</a>
             <?php endif; ?>
             <?php for ($i = max(1, $page - 2); $i <= min($total_pages, $page + 2); $i++): ?>
-                <a href="<?= $base ?>&page=<?= $i ?>" class="w-9 h-9 flex items-center justify-center text-[10px] font-bold rounded-lg <?= $i === $page ? 'btn-primary text-white' : 'text-brand-plum/60 bg-brand-white border border-brand-sand hover:border-accent' ?>"><?= $i ?></a>
+                <a href="<?= $base ?>&page=<?= $i ?>" class="w-9 h-9 flex items-center justify-center text-xs font-bold rounded-lg <?= $i === $page ? 'btn-primary text-white' : 'text-brand-plum/60 bg-brand-white border border-brand-sand hover:border-accent' ?>"><?= $i ?></a>
             <?php endfor; ?>
             <?php if ($page < $total_pages): ?>
-                <a href="<?= $base ?>&page=<?= $page + 1 ?>" class="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-brand-plum/60 bg-brand-white border border-brand-sand rounded-lg hover:border-accent">Next</a>
+                <a href="<?= $base ?>&page=<?= $page + 1 ?>" class="px-3 py-2 text-sm font-semibold text-brand-plum/60 bg-brand-white border border-brand-sand rounded-lg hover:border-accent">Next</a>
             <?php endif; ?>
         </nav>
     <?php endif; ?>
@@ -159,11 +159,11 @@ $currency = $business['currency_symbol'] ?? '₦';
         </div>
         <?php if ($search || $filter): ?>
             <h3 class="font-heading font-bold text-lg text-brand-plum mb-2">No suppliers match your filters</h3>
-            <a href="<?= APP_URL ?>/suppliers" class="text-[10px] font-bold text-accent-text uppercase tracking-widest">Clear Filters</a>
+            <a href="<?= APP_URL ?>/suppliers" class="text-sm font-semibold text-accent-text">Clear filters</a>
         <?php else: ?>
             <h3 class="font-heading font-bold text-lg text-brand-plum mb-2">No suppliers yet</h3>
             <p class="text-xs text-brand-plum/50 font-medium mb-6">Add your suppliers to track purchases, expenses, and what you owe them.</p>
-            <a href="<?= APP_URL ?>/suppliers/create" class="btn-primary text-white px-6 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-sm">Add First Supplier</a>
+            <a href="<?= APP_URL ?>/suppliers/create" class="btn-primary text-white px-6 py-3 rounded-xl text-sm font-semibold shadow-sm">Add your first supplier</a>
         <?php endif; ?>
     </div>
 <?php endif; ?>

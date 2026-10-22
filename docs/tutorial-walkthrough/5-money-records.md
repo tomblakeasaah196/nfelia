@@ -109,3 +109,41 @@ Where it deliberately differs, or still has a gap:
 - **Later: "profit on what you sold"** (sales less the cost price of what was
   sold, less running costs) is a second figure for later, once cost prices
   are reliably filled in. Not built.
+
+## Round 3: sentence case
+
+These screens no longer use all-caps labels: debts (add and view), expenses
+(list, add and view), suppliers (list, add and view), the profit and loss
+screen, and Purge data. They now use the app's own styles:
+
+- labels at 14px, as on the order form
+- section headings at 16px
+- table heads at 13px
+- tags in the same words as the lists: Paid, Part paid, Unpaid, Late, Paid
+  off, Written off
+- the main buttons in the app's button style
+
+Nothing is under 12px.
+
+The wording changed too:
+
+- Text written in capitals or Title Case now reads in sentence case.
+- Payment methods print as "POS", "Bank transfer" and so on, and category
+  names in sentence case. The old CSS capitals used to hide raw values like
+  "pos".
+- The Purge page's capitalised jargon is now plain words ("Delete for good",
+  "Purge log"). Its heading matches the menu: "Purge data".
+- The debt page's tag now matches the debts list ("Part paid", not
+  "Settling").
+
+At 384px, each page renders without sideways scroll. This was checked
+offline in Chromium, with sample data and long amounts. The expense page's
+three amounts now stack on a phone. Before, ₦1,250,000.00 made that page 9px
+too wide.
+
+Left as it was:
+
+- The P&L PDF template is unchanged, as asked.
+- One error message in `ExpenseController` still says "choose Paid in
+  Full". The option now reads "Paid in full", so the message's capitals no
+  longer match it. That file wasn't in this round's list.
