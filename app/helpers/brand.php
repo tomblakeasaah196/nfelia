@@ -279,6 +279,18 @@ function brand_colours(array $business): ?array {
 }
 
 /**
+ * The colours of a business's documents: the invoice, receipt, quotation,
+ * delivery and deed pages customers open, their PDFs, and the app's own view
+ * of them. The brand colours when the business chose them; Nfelia's wine and
+ * gold when it never did, as the app shows it.
+ *
+ * @return array{primary:string, secondary:string}
+ */
+function brand_doc_colours(array $business): array {
+    return brand_colours($business) ?? ['primary' => THEME_NFELIA, 'secondary' => '#B69F5E'];
+}
+
+/**
  * A full colour set for the shop from the two brand colours, light or dark.
  * The primary colour is the accent. The secondary becomes the text colour
  * when it is dark enough (or the ground, in the dark set); otherwise it is

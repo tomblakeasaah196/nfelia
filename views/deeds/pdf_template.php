@@ -9,8 +9,7 @@
  * the signature when signed and the verify code, brand colors injected per business.
  */
 
-$primary  = $business['primary_color']   ?? '#1B0A11';
-$accent   = $business['secondary_color'] ?? '#B69F5E';
+['primary' => $primary, 'secondary' => $accent] = brand_doc_colours($business);   // the brand colours, else Nfelia's (app/helpers/brand.php)
 $biz_name = $business['name']            ?? 'Nfelia';
 $tagline  = $business['tagline']         ?? '';
 $currency = $deed['currency_symbol']     ?? '₦';

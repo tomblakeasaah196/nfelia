@@ -13,6 +13,12 @@
  * own emails. Tasks & Calendar and Shop Studio kept Nfelia's wine long after
  * the rest of the app took the business's colour; this fails when a fixed
  * wine or gold comes back anywhere a business's colour should be.
+ *
+ * A business that never chose a colour still has the column's default
+ * (#1A1A2E, a navy nobody picked) and gets Nfelia's colours, in the app and
+ * on its documents alike. Its invoices, receipts and quotes went out navy
+ * while the app showed it wine, because each document read the colour
+ * itself; documents now ask brand_doc_colours().
  */
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 
@@ -20,6 +26,8 @@ $root  = dirname(__DIR__, 2);
 $fails = 0;
 require $root . '/app/helpers/theme.php';
 require $root . '/app/helpers/planner.php';
+require $root . '/app/helpers/storefront.php';
+require $root . '/app/helpers/brand.php';
 
 function ok(bool $cond, string $what): void
 {
@@ -82,9 +90,24 @@ foreach ($files as $path) {
     }
 }
 ok($checked > 50, "the app's pages, scripts and styles were read ({$checked} files)");
+
 ok(fixed_colours('<a class="text-brand-burgundy">') && fixed_colours('style="color:#B69F5E"') && fixed_colours('class="bg-[#F8EEF3]"')
    && !fixed_colours("color: <?= e(\$business['primary_color'] ?? '#8B004A') ?>;"),
    'and the check knows a fixed colour from a fallback');
+
+// No page reads a business's stored colour itself: documents ask
+// brand_doc_colours() and the app theme_tokens(), which both know a colour
+// nobody chose. Settings and onboarding show and save the stored value.
+foreach ($files as $path) {
+    if (!str_starts_with($path, 'views/') || str_starts_with($path, 'views/settings/') || str_starts_with($path, 'views/onboarding/')) {
+        continue;
+    }
+    foreach (preg_split('/\R/', (string)file_get_contents($root . '/' . $path)) as $i => $line) {
+        if (preg_match("/\['(?:primary|secondary)_color'\]/", $line) && !str_contains($line, 'theme_tokens(')) {
+            ok(false, "{$path} line " . ($i + 1) . " asks brand_doc_colours() or theme_tokens() for the business's colour, not the stored value (" . trim(mb_substr($line, 0, 100)) . ')');
+        }
+    }
+}
 
 // The app's frame and Shop Studio, which stands outside it, hand the
 // business's colour to their stylesheets; the shop's notice page works it
@@ -113,6 +136,12 @@ ok($t['accent'] === '#C08436' && $t['on_accent'] === THEME_INK, 'a light gold ge
 ok(theme_contrast(theme_hex_to_rgb($t['accent_text']), [255, 255, 255]) >= 4.5, 'and a text shade that reads on white');
 ok($t['accent_text_rgb'] === implode(' ', theme_hex_to_rgb($t['accent_text'])), 'whose channels Tailwind reads as --accent-text-rgb');
 ok(theme_tokens('#1A1A2E', null)['accent'] === THEME_NFELIA, 'a colour nobody chose is Nfelia\'s wine');
+
+// Documents: the brand colours, else Nfelia's
+ok(brand_doc_colours(['primary_color' => '#1A1A2E', 'secondary_color' => '#C27A62']) === ['primary' => THEME_NFELIA, 'secondary' => '#B69F5E'],
+   'a business that never chose a colour gets Nfelia\'s wine and gold on its documents, not navy');
+ok(brand_doc_colours(['primary_color' => '#c08436', 'secondary_color' => '#3B2414']) === ['primary' => '#C08436', 'secondary' => '#3B2414'],
+   'and one that chose gets its own');
 
 // Appointments on the calendar: the business's colour, kept apart from the other dots
 ok(planner_appointment_colour(['primary_color' => THEME_NFELIA]) === THEME_NFELIA, 'wine appointments stay wine');

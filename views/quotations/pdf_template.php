@@ -4,7 +4,7 @@
  * Expects: $business, $customer, $quotation, $items, $bank, $sign (doc_sign_state)
  */
 $currency = $business['currency_symbol'] ?? '₦';
-$primary_color = $business['primary_color'] ?? '#0F172A';
+$primary_color = brand_doc_colours($business)['primary'];   // the brand colour, else Nfelia's (app/helpers/brand.php)
 
 // Convert logo to base64 to ensure Dompdf renders it flawlessly
 $logo_src = '';

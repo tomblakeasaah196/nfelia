@@ -6,8 +6,7 @@
  *            $photos (DeedController::item_photos(): the items' photos)
  */
 
-$primary  = $business['primary_color']   ?? '#1B0A11';
-$accent   = $business['secondary_color'] ?? '#B69F5E';
+['primary' => $primary, 'secondary' => $accent] = brand_doc_colours($business);   // the brand colours, else Nfelia's (app/helpers/brand.php)
 $biz_name = $business['name']            ?? 'Nfelia';
 $biz_type = $business['business_type']   ?? 'product';
 $currency = $deed['currency_symbol']     ?? '₦';

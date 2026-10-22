@@ -23,7 +23,9 @@ Inside the app, in Shop Studio, on a shop's own pages and in the emails a busine
 | `accent-text` | `--accent-text` | Text, links, icons, selected borders and rings on white (4.5:1) |
 | `accent-soft` | `--accent-soft` | The pale tint behind a selected chip |
 
-A filled button is `bg-accent text-on-accent`, never `text-white`: a light brand colour gets ink. A business that never chose a colour gets Nfelia's wine through the same variables.
+A filled button is `bg-accent text-on-accent`, never `text-white`: a light brand colour gets ink. A business that never chose a colour (its `primary_color` is still the column's default, `#1A1A2E`) gets Nfelia's wine through the same variables.
+
+Documents (the invoice, receipt, quotation, delivery and deed pages customers open, their PDFs, and the app's own view of them) take their two colours from `brand_doc_colours()` in `app/helpers/brand.php`: the brand colours, else Nfelia's wine and gold. No page reads `primary_color` itself.
 
 The neutrals are the same for everyone:
 

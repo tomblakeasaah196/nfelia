@@ -9,6 +9,7 @@
  *   $sign (doc_sign_state(): its signature and verify code)
  */
 $currency = $business['currency_symbol'] ?? '₦';
+$doc_colours = brand_doc_colours($business);   // the document in the brand colours, else Nfelia's (app/helpers/brand.php)
 
 // WhatsApp share: the receipt leads, its order is named
 $wa_number = wa_digits($customer && empty($customer['is_walk_in']) ? (($customer['whatsapp'] ?? '') ?: ($customer['phone'] ?? '')) : '', $business);
@@ -97,7 +98,7 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
     <div class="nf-sheet-doc">
 <div id="receipt-document" class="bg-white overflow-hidden">
 
-    <div class="p-8 sm:p-10" style="border-top: 4px solid <?= e($business['primary_color'] ?? '#8B004A') ?>;">
+    <div class="p-8 sm:p-10" style="border-top: 4px solid <?= e($doc_colours['primary']) ?>;">
 
         <!-- Header -->
         <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-6 mb-8">
@@ -107,7 +108,7 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
                         <img src="<?= APP_URL ?>/<?= e($business['logo_path']) ?>" alt="" class="h-12 w-12 object-contain rounded">
                     <?php endif; ?>
                     <div>
-                        <h2 class="font-heading font-extrabold text-lg" style="color: <?= e($business['primary_color'] ?? '#8B004A') ?>;"><?= e($business['name']) ?></h2>
+                        <h2 class="font-heading font-extrabold text-lg" style="color: <?= e($doc_colours['primary']) ?>;"><?= e($business['name']) ?></h2>
                         <?php if ($business['tagline']): ?>
                             <p class="text-[10px] text-gray-500"><?= e($business['tagline']) ?></p>
                         <?php endif; ?>
@@ -121,7 +122,7 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
             </div>
 
             <div class="text-right">
-                <h1 class="font-heading font-extrabold text-2xl uppercase tracking-wider" style="color: <?= e($business['primary_color'] ?? '#8B004A') ?>;">Receipt</h1>
+                <h1 class="font-heading font-extrabold text-2xl uppercase tracking-wider" style="color: <?= e($doc_colours['primary']) ?>;">Receipt</h1>
                 <div class="data-text text-sm font-bold text-gray-700 mt-1"><?= e($receipt['doc_number']) ?></div>
                 <?php if ($order): ?><div class="data-text text-xs text-gray-600 mt-0.5">Order: <?= e($order['order_number']) ?></div><?php endif; ?>
                 <div class="text-[10px] text-gray-500 mt-2 space-y-0.5">
@@ -133,8 +134,8 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
 
         <!-- Customer Block -->
         <?php if ($customer): ?>
-        <div class="mb-8 p-4 rounded-lg" style="background: <?= e($business['primary_color'] ?? '#8B004A') ?>0A;">
-            <div class="text-[9px] font-bold uppercase tracking-widest mb-1" style="color: <?= e($business['primary_color'] ?? '#8B004A') ?>;">Received From</div>
+        <div class="mb-8 p-4 rounded-lg" style="background: <?= e($doc_colours['primary']) ?>0A;">
+            <div class="text-[9px] font-bold uppercase tracking-widest mb-1" style="color: <?= e($doc_colours['primary']) ?>;">Received From</div>
             <div class="text-sm font-bold text-gray-800"><?= e($customer['full_name']) ?></div>
             <?php if (!empty($customer['business_name'])): ?><div class="text-[10px] text-gray-600"><?= e($customer['business_name']) ?></div><?php endif; ?>
             <?php if (!empty($customer['phone'])): ?><div class="text-[10px] text-gray-500"><?= e($customer['phone']) ?></div><?php endif; ?>
@@ -163,7 +164,7 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
         <div class="overflow-x-auto mb-6">
             <table class="w-full text-left">
                 <thead>
-                    <tr style="border-bottom: 2px solid <?= e($business['primary_color'] ?? '#8B004A') ?>;">
+                    <tr style="border-bottom: 2px solid <?= e($doc_colours['primary']) ?>;">
                         <th class="pb-2 text-[9px] font-bold uppercase tracking-widest text-gray-500">#</th>
                         <th class="pb-2 text-[9px] font-bold uppercase tracking-widest text-gray-500">Description</th>
                         <th class="pb-2 text-[9px] font-bold uppercase tracking-widest text-gray-500 text-center">Qty</th>
@@ -194,12 +195,12 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
         <!-- Amount -->
         <div class="flex justify-end mb-8">
             <div class="w-72 space-y-2">
-                <div class="flex justify-between text-sm pt-2" style="border-top: 2px solid <?= e($business['primary_color'] ?? '#8B004A') ?>;">
-                    <span class="font-heading font-bold uppercase tracking-wider" style="color: <?= e($business['primary_color'] ?? '#8B004A') ?>;">Amount Received</span>
+                <div class="flex justify-between text-sm pt-2" style="border-top: 2px solid <?= e($doc_colours['primary']) ?>;">
+                    <span class="font-heading font-bold uppercase tracking-wider" style="color: <?= e($doc_colours['primary']) ?>;">Amount Received</span>
                     <span class="font-heading font-extrabold text-xl text-green-600"><?= money((float)$receipt['amount'], $currency) ?></span>
                 </div>
                 <?php if ((float)$receipt['balance_remaining'] > 0): ?>
-                    <div class="flex justify-between text-xs pt-1" style="border-top: 1px dashed <?= e($business['primary_color'] ?? '#8B004A') ?>66;">
+                    <div class="flex justify-between text-xs pt-1" style="border-top: 1px dashed <?= e($doc_colours['primary']) ?>66;">
                         <span class="text-red-600 font-semibold">Balance Remaining</span>
                         <span class="data-text font-bold text-red-600"><?= money((float)$receipt['balance_remaining'], $currency) ?></span>
                     </div>
@@ -230,7 +231,7 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
         <!-- Footer -->
         <?php if ($business['tagline']): ?>
         <div class="mt-8 text-center">
-            <p class="text-[9px] uppercase tracking-[.3em] font-bold" style="color: <?= e($business['secondary_color'] ?? '#B69F5E') ?>;"><?= e($business['tagline']) ?></p>
+            <p class="text-[9px] uppercase tracking-[.3em] font-bold" style="color: <?= e($doc_colours['secondary']) ?>;"><?= e($business['tagline']) ?></p>
         </div>
         <?php endif; ?>
     </div>

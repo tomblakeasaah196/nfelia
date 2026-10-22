@@ -174,7 +174,7 @@ class ReportController {
             $ext = strtolower(pathinfo($business['logo_path'], PATHINFO_EXTENSION));
             $logo_src = 'data:image/' . $ext . ';base64,' . base64_encode(file_get_contents(BASE_PATH . '/' . $business['logo_path']));
         }
-        $primary = $business['primary_color'] ?? '#0F172A';
+        $primary = brand_doc_colours($business)['primary'];   // the brand colour, else Nfelia's (app/helpers/brand.php)
 
         ob_start();
         require BASE_PATH . '/views/reports/profit_loss_pdf.php';

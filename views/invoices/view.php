@@ -10,6 +10,7 @@
  *   $sign (doc_sign_state(): its signatures and verify code)
  */
 $currency = $business['currency_symbol'] ?? '₦';
+$doc_colours = brand_doc_colours($business);   // the document in the brand colours, else Nfelia's (app/helpers/brand.php)
 $today    = planner_today();
 [$status_words, $status_cls] = screen_invoice_tag($invoice['status']);
 
@@ -263,7 +264,7 @@ if ($quotation) {
     <?php endif; ?>
 
     <!-- Document Header (Branded) -->
-    <div class="p-8 sm:p-10 relative z-20" style="border-top: 4px solid <?= e($business['primary_color'] ?? '#8B004A') ?>;">
+    <div class="p-8 sm:p-10 relative z-20" style="border-top: 4px solid <?= e($doc_colours['primary']) ?>;">
 
         <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-6 mb-8">
             <!-- Business Info (Left) -->
@@ -273,7 +274,7 @@ if ($quotation) {
                         <img src="<?= APP_URL ?>/<?= e($business['logo_path']) ?>" alt="" class="h-12 w-12 object-contain rounded">
                     <?php endif; ?>
                     <div>
-                        <h2 class="font-heading font-extrabold text-lg" style="color: <?= e($business['primary_color'] ?? '#8B004A') ?>;"><?= e($business['name']) ?></h2>
+                        <h2 class="font-heading font-extrabold text-lg" style="color: <?= e($doc_colours['primary']) ?>;"><?= e($business['name']) ?></h2>
                         <?php if ($business['tagline']): ?>
                             <p class="text-[10px] text-gray-500"><?= e($business['tagline']) ?></p>
                         <?php endif; ?>
@@ -289,7 +290,7 @@ if ($quotation) {
 
             <!-- Doc Info (Right) -->
             <div class="text-right">
-                <h1 class="font-heading font-extrabold text-2xl uppercase tracking-wider" style="color: <?= e($business['primary_color'] ?? '#8B004A') ?>;">Invoice</h1>
+                <h1 class="font-heading font-extrabold text-2xl uppercase tracking-wider" style="color: <?= e($doc_colours['primary']) ?>;">Invoice</h1>
                 <div class="data-text text-sm font-bold text-gray-700 mt-1"><?= e($invoice['doc_number']) ?></div>
                 <?php if ($order): ?><div class="data-text text-xs text-gray-600 mt-0.5">Order: <?= e($order['order_number']) ?></div><?php endif; ?>
                 <div class="text-[10px] text-gray-500 mt-2 space-y-0.5">
@@ -306,8 +307,8 @@ if ($quotation) {
 
         <!-- Client Block -->
         <?php if ($customer): ?>
-        <div class="mb-8 p-4 rounded-lg" style="background: <?= e($business['primary_color'] ?? '#8B004A') ?>0A;">
-            <div class="text-[9px] font-bold uppercase tracking-widest mb-1" style="color: <?= e($business['primary_color'] ?? '#8B004A') ?>;">Bill To</div>
+        <div class="mb-8 p-4 rounded-lg" style="background: <?= e($doc_colours['primary']) ?>0A;">
+            <div class="text-[9px] font-bold uppercase tracking-widest mb-1" style="color: <?= e($doc_colours['primary']) ?>;">Bill To</div>
             <div class="text-sm font-bold text-gray-800"><?= e($customer['full_name']) ?></div>
             <?php if (!empty($customer['business_name'])): ?><div class="text-[10px] text-gray-600"><?= e($customer['business_name']) ?></div><?php endif; ?>
             <?php if (!empty($customer['phone'])): ?><div class="text-[10px] text-gray-500"><?= e($customer['phone']) ?></div><?php endif; ?>
@@ -320,7 +321,7 @@ if ($quotation) {
         <div class="overflow-x-auto mb-6">
             <table class="w-full text-left">
                 <thead>
-                    <tr style="border-bottom: 2px solid <?= e($business['primary_color'] ?? '#8B004A') ?>;">
+                    <tr style="border-bottom: 2px solid <?= e($doc_colours['primary']) ?>;">
                         <th class="pb-2 text-[9px] font-bold uppercase tracking-widest text-gray-500">#</th>
                         <th class="pb-2 text-[9px] font-bold uppercase tracking-widest text-gray-500">Description</th>
                         <th class="pb-2 text-[9px] font-bold uppercase tracking-widest text-gray-500 text-center">Qty</th>
@@ -368,9 +369,9 @@ if ($quotation) {
                         <span class="data-text font-bold text-gray-700"><?= money((float)$invoice['tax_amount'], $currency) ?></span>
                     </div>
                 <?php endif; ?>
-                <div class="flex justify-between text-sm pt-2" style="border-top: 2px solid <?= e($business['primary_color'] ?? '#8B004A') ?>;">
-                    <span class="font-heading font-bold uppercase tracking-wider" style="color: <?= e($business['primary_color'] ?? '#8B004A') ?>;">Grand Total</span>
-                    <span class="font-heading font-extrabold text-lg" style="color: <?= e($business['primary_color'] ?? '#8B004A') ?>;"><?= money((float)$invoice['total'], $currency) ?></span>
+                <div class="flex justify-between text-sm pt-2" style="border-top: 2px solid <?= e($doc_colours['primary']) ?>;">
+                    <span class="font-heading font-bold uppercase tracking-wider" style="color: <?= e($doc_colours['primary']) ?>;">Grand Total</span>
+                    <span class="font-heading font-extrabold text-lg" style="color: <?= e($doc_colours['primary']) ?>;"><?= money((float)$invoice['total'], $currency) ?></span>
                 </div>
 
                 <!-- Amount Paid / Balance Due -->
@@ -379,7 +380,7 @@ if ($quotation) {
                         <span class="text-green-600 font-semibold">Amount Paid</span>
                         <span class="data-text font-bold text-green-600">-<?= money((float)$invoice['amount_paid'], $currency) ?></span>
                     </div>
-                    <div class="flex justify-between text-sm pt-1" style="border-top: 1px dashed <?= e($business['primary_color'] ?? '#8B004A') ?>66;">
+                    <div class="flex justify-between text-sm pt-1" style="border-top: 1px dashed <?= e($doc_colours['primary']) ?>66;">
                         <span class="font-heading font-bold uppercase tracking-wider <?= (float)$invoice['balance_due'] > 0 ? 'text-red-600' : 'text-green-600' ?>">Balance Due</span>
                         <span class="font-heading font-extrabold text-lg <?= (float)$invoice['balance_due'] > 0 ? 'text-red-600' : 'text-green-600' ?>">
                             <?= (float)$invoice['balance_due'] > 0 ? money((float)$invoice['balance_due'], $currency) : 'PAID' ?>
@@ -423,7 +424,7 @@ if ($quotation) {
         <!-- Footer -->
         <?php if ($business['tagline']): ?>
         <div class="mt-8 text-center">
-            <p class="text-[9px] uppercase tracking-[.3em] font-bold" style="color: <?= e($business['secondary_color'] ?? '#B69F5E') ?>;"><?= e($business['tagline']) ?></p>
+            <p class="text-[9px] uppercase tracking-[.3em] font-bold" style="color: <?= e($doc_colours['secondary']) ?>;"><?= e($business['tagline']) ?></p>
         </div>
         <?php endif; ?>
     </div>

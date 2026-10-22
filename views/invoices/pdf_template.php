@@ -4,7 +4,7 @@
  * Variables: $business, $customer, $invoice, $items, $bank, $payments, $sign (doc_sign_state)
  */
 $currency = $business['currency_symbol'] ?? '₦';
-$primary  = $business['primary_color']   ?? '#0F172A';
+$primary  = brand_doc_colours($business)['primary'];   // the brand colour, else Nfelia's (app/helpers/brand.php)
 
 $logo_src = '';
 if (!empty($business['logo_path']) && file_exists(BASE_PATH . '/' . $business['logo_path'])) {
