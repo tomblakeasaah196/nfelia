@@ -18,7 +18,8 @@ YarnGPT (saheedniyi/YarnGPT2b, Nigerian English) runs in its own virtualenv
 punctuation, so a line is spoken a sentence at a time and joined with a
 "pause" of silence; a sentence under 7 words rides with its neighbour, since
 the model says short ones badly. Whisper (small.en) listens to every
-sentence and compares it with the words meant; one that doesn't match is made
+sentence and compares it with the words meant (its figures written out in
+words first, as the lines are); one that doesn't match is made
 again, up to 4 times in all, and the best kept (named on stderr if still
 below the bar; the last try takes any take the model finishes). Words in "loose" (names the listener can't know, like
 "Nfelia") are left out of the comparison. Sentences are kept in
@@ -50,6 +51,28 @@ def spoken(text):
 def words(text):
     """The words of a line as the checks compare them: lower case, letters only."""
     return re.sub(r"[^a-z' ]", ' ', text.lower().replace('-', ' ')).replace("'", '').split()
+
+
+def in_words(n):
+    """A number as the lines spell it: 115000 is "one hundred and fifteen thousand"."""
+    ones = ('zero one two three four five six seven eight nine ten eleven twelve thirteen '
+            'fourteen fifteen sixteen seventeen eighteen nineteen').split()
+    tens = 'zero ten twenty thirty forty fifty sixty seventy eighty ninety'.split()
+    if n < 20:
+        return ones[n]
+    if n < 100:
+        return tens[n // 10] + ('' if n % 10 == 0 else ' ' + ones[n % 10])
+    if n < 1000:
+        return ones[n // 100] + ' hundred' + ('' if n % 100 == 0 else ' and ' + in_words(n % 100))
+    for size, word in ((10 ** 9, 'billion'), (10 ** 6, 'million'), (1000, 'thousand')):
+        if n >= size:
+            rest = n % size
+            return in_words(n // size) + ' ' + word + ('' if not rest else (' and ' if rest < 100 else ' ') + in_words(rest))
+
+
+def heard(text):
+    """Whisper's words, with its figures ("115,000", "18") written out as the lines say them."""
+    return words(re.sub(r'\d+(?:,\d{3})*', lambda m: ' ' + in_words(int(m.group().replace(',', ''))) + ' ', text))
 
 
 if engine == 'kokoro':
@@ -115,7 +138,7 @@ elif engine == 'yarngpt':
             a16 = torchaudio.functional.resample(torch.from_numpy(audio.astype(np.float32)), RATE, 16000).numpy()
             got = ear.transcribe(a16, language='en', fp16=False, temperature=0)['text'].strip()
             m = [w for w in words(meant) if w not in loose]
-            return difflib.SequenceMatcher(None, m, words(got)).ratio(), got
+            return difflib.SequenceMatcher(None, m, heard(got)).ratio(), got
 
         def make(batch, attempt):
             """One take of each sentence in the batch: greedy first, then sampled."""
