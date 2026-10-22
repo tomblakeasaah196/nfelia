@@ -8,7 +8,12 @@ $currency = $business['currency_symbol'] ?? '₦';
 $doc_fonts    = brand_doc_fonts($business);   // the brand fonts (app/helpers/brand.php)
 $font_mono    = 'Roboto Mono';
 
-$is_active = in_array($quotation['status'], ['draft', 'sent', 'in_negotiation']);
+// Open to an answer in the same states PublicController::document_action() takes
+$is_active = in_array($quotation['status'], ['draft', 'sent', 'in_negotiation', 'pending_signature'], true);
+// Past its "Valid until" day it can't be accepted: they ask for a fresh quote
+$past_date = !empty($quotation['expiry_date']) && $quotation['expiry_date'] < planner_today();
+// Accepted, and made into its order: to the customer it reads Accepted
+$badge = $quotation['status'] === 'converted' ? 'accepted' : $quotation['status'];
 // A quote set to be signed is accepted by signing it; any other with one tap
 $sign_to_accept = !empty($quotation['sign_on']);
 
@@ -26,8 +31,8 @@ if (!empty($activities)) {
 <head>
     <meta charset="UTF-8">
     <?= errors_script_tag() ?>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Proposal <?= e($quotation['doc_number']) ?> — <?= e($business['name']) ?></title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quote <?= e($quotation['doc_number']) ?> — <?= e($business['name']) ?></title>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -60,15 +65,15 @@ if (!empty($activities)) {
                         <img src="<?= APP_URL ?>/<?= e($business['logo_path']) ?>" class="h-12 w-auto mb-3" alt="Logo">
                     <?php endif; ?>
                     <h1 class="font-heading font-extrabold text-2xl tracking-tight text-slate-900"><?= e($business['name']) ?></h1>
-                    <p class="text-sm font-medium text-slate-500">Proposal Ref: <span class="font-mono text-slate-900"><?= e($quotation['doc_number']) ?></span></p>
+                    <p class="text-sm font-medium text-slate-500">Quote <span class="font-mono text-slate-900"><?= e($quotation['doc_number']) ?></span></p>
                 </div>
                 
                 <div class="text-right flex flex-col items-end gap-3">
-                    <span class="inline-flex px-3 py-1 text-[10px] font-bold uppercase tracking-widest rounded-sm border-2 
-                        <?= $quotation['status'] === 'accepted' ? 'border-green-600 text-green-700 bg-green-50' : 
-                           ($quotation['status'] === 'declined' ? 'border-red-600 text-red-700 bg-red-50' : 
+                    <span class="inline-flex px-3 py-1 text-xs font-bold rounded-sm border-2 
+                        <?= $badge === 'accepted' ? 'border-green-600 text-green-700 bg-green-50' : 
+                           ($badge === 'declined' ? 'border-red-600 text-red-700 bg-red-50' : 
                            'border-slate-800 text-slate-800 bg-slate-50') ?>">
-                        <?= str_replace('_', ' ', $quotation['status']) ?>
+                        <?= e(ucfirst(str_replace('_', ' ', $badge))) ?>
                     </span>
                     
                     <a href="<?= APP_URL ?>/doc/<?= e($quotation['token']) ?>?format=pdf" target="_blank" 
@@ -107,6 +112,12 @@ if (!empty($activities)) {
         <main class="flex-1 overflow-y-auto p-5 sm:p-8">
             
             <div x-show="tab === 'offer'" x-transition.opacity>
+                <?php if ($quotation['status'] === 'expired' || ($is_active && $past_date)): ?>
+                    <div class="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm font-medium text-amber-900">
+                        <?= $quotation['expiry_date'] ? 'This quote was valid until ' . fmt_date($quotation['expiry_date'], 'j M Y') . '.' : 'This quote has expired.' ?>
+                        Ask <?= e($business['name']) ?> for a fresh quote.
+                    </div>
+                <?php endif; ?>
                 <div class="space-y-4 mb-8">
                     <?php foreach ($items as $idx => $it): ?>
                         <div class="p-4 border border-slate-200 rounded-lg bg-white shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -222,7 +233,11 @@ if (!empty($activities)) {
                 <button @click="modals.decline = true" class="flex-1 py-3.5 border-2 border-slate-200 text-slate-600 text-xs font-bold uppercase tracking-widest rounded-lg hover:bg-slate-50 transition-colors">
                     Decline
                 </button>
-                <?php if ($sign_to_accept): ?>
+                <?php if ($past_date): ?>
+                <button @click="switchTab('discuss')" class="flex-[2] py-3.5 bg-brand text-on-brand text-xs font-bold uppercase tracking-widest rounded-lg shadow-lg hover:shadow-xl transition-all">
+                    Ask for a fresh quote
+                </button>
+                <?php elseif ($sign_to_accept): ?>
                 <button @click="openSignatureModal()" class="flex-[2] py-3.5 bg-brand text-on-brand text-xs font-bold uppercase tracking-widest rounded-lg shadow-lg hover:shadow-xl transition-all">
                     Sign & Accept
                 </button>
@@ -236,7 +251,7 @@ if (!empty($activities)) {
         
         <div x-show="modals.decline" x-cloak class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
             <div @click.away="modals.decline = false" x-transition.translate.y.bottom class="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl">
-                <h3 class="font-heading font-bold text-lg text-slate-900 mb-2">Decline Proposal</h3>
+                <h3 class="font-heading font-bold text-lg text-slate-900 mb-2">Decline this quote</h3>
                 <p class="text-xs text-slate-500 mb-4">Please let us know why so we can improve.</p>
                 <textarea x-model="declineReason" rows="3" class="w-full p-3 border-2 border-slate-200 rounded-lg mb-4 text-sm focus:border-brand-text outline-none resize-none"></textarea>
                 <div class="flex gap-3">
@@ -271,7 +286,7 @@ if (!empty($activities)) {
                 <div class="p-5 border-t border-slate-100 flex gap-3 bg-white">
                     <button @click="modals.sign = false" class="py-3.5 px-6 text-xs font-bold text-slate-600 border-2 border-slate-200 rounded-lg uppercase tracking-widest hover:bg-slate-50">Cancel</button>
                     <button @click="submitSignature()" :disabled="!signName.trim() || isSubmitting" class="flex-1 py-3.5 text-xs font-bold text-on-brand bg-brand rounded-lg uppercase tracking-widest shadow-md disabled:opacity-50">
-                        <span x-text="isSubmitting ? 'Processing...' : 'Accept Proposal'"></span>
+                        <span x-text="isSubmitting ? 'Processing...' : 'Accept quote'"></span>
                     </button>
                 </div>
             </div>
@@ -287,7 +302,7 @@ if (!empty($activities)) {
                 unreadCount: <?= $unread_count ?>,
                 commentText: '',
                 declineReason: '',
-                signName: '<?= e($customer['contact_name'] ?? $customer['full_name'] ?? '') ?>',
+                signName: <?= json_encode((string)($customer['contact_name'] ?? $customer['full_name'] ?? ''), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>,
                 modals: { sign: false, decline: false },
                 isSubmitting: false,
                 ctx: null,

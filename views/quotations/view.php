@@ -18,16 +18,15 @@ $status_cfg = match($quotation['status']) {
     'accepted'  => ['bg-green-100 text-green-700 border-green-300', 'Accepted', 'green'],
     'declined'  => ['bg-red-100 text-red-700 border-red-300', 'Declined', 'red'],
     'expired'   => ['bg-amber-100 text-amber-700 border-amber-300', 'Expired', 'amber'],
-    'converted' => ['bg-purple-100 text-purple-700 border-purple-300', !empty($quote_order) ? 'Ordered' : 'Converted to Invoice', 'purple'],
+    'converted' => ['bg-purple-100 text-purple-700 border-purple-300', !empty($quote_order) ? 'Ordered' : 'Made into an invoice', 'purple'],
     default     => ['bg-gray-100 text-gray-700 border-gray-300', ucfirst($quotation['status']), 'gray'],
 };
 
-$wa_number = $customer['whatsapp'] ?: $customer['phone'] ?: '';
-$wa_number = preg_replace('/[^0-9]/', '', $wa_number);
-if (str_starts_with($wa_number, '0')) $wa_number = '234' . substr($wa_number, 1);
+// A local number takes the business's own country code (M23)
+$wa_number = wa_digits($customer ? (($customer['whatsapp'] ?? '') ?: ($customer['phone'] ?? '')) : '', $business);
 $wa_text = urlencode(
     "Hello" . ($customer ? ' ' . $customer['full_name'] : '') . "!\n\n"
-    . "Please find your *Quotation* from *{$business['name']}*:\n\n"
+    . "Please find your *quote* from *{$business['name']}*:\n\n"
     . "{$quotation['doc_number']}\n"
     . "Total: {$currency}" . number_format((float)$quotation['total'], 2) . "\n"
     . ($quotation['expiry_date'] ? "Valid until: " . fmt_date($quotation['expiry_date'], 'd M Y') . "\n" : '')
@@ -95,11 +94,13 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
                 <span class="text-sm font-semibold">Open order <?= e($quote_order['order_number']) ?></span>
             </a>
         <?php elseif (in_array($quotation['status'], ['accepted', 'in_negotiation', 'pending_signature'], true)): ?>
+            <!-- Accepted, but its order wasn't made; or still being talked over, and
+                 the owner accepts it for the customer (after a call, say), as for a sent one -->
             <form method="POST" action="<?= APP_URL ?>/quotations/convert/<?= $quotation['id'] ?>" class="inline">
                 <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
                 <button class="flex items-center gap-1.5 bg-purple-500 text-white px-3 py-2 rounded-lg hover:bg-purple-600 transition-all min-h-[44px]">
                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
-                    <span class="text-sm font-semibold">Make it an order</span>
+                    <span class="text-sm font-semibold"><?= $quotation['status'] === 'accepted' ? 'Make it an order' : 'Accept and make the order' ?></span>
                 </button>
             </form>
         <?php endif; ?>
@@ -140,7 +141,7 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
     <!-- Delete (not once it made an order: it stays as that order's record) -->
     <?php if (empty($quote_order)): ?>
     <form method="POST" action="<?= APP_URL ?>/quotations/delete/<?= $quotation['id'] ?>" class="inline ml-auto"
-          onsubmit="return confirm('Permanently delete this quotation?');">
+          onsubmit="return confirm('Permanently delete this quote?');">
         <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
         <button class="text-[10px] font-bold text-red-400 uppercase tracking-widest hover:text-red-600 transition-colors">Delete</button>
     </form>

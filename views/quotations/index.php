@@ -37,7 +37,7 @@ $sorts    = ['newest' => 'Newest first', 'oldest' => 'Oldest first', 'total_desc
             No quote is waiting on a customer.
         <?php endif; ?>
         <?php if ($accepted > 0): ?>
-            <a href="<?= e(screen_url('quotations', ['status' => 'accepted'])) ?>"><?= $accepted ?> accepted, ready to invoice</a>.
+            <a href="<?= e(screen_url('quotations', ['status' => 'accepted'])) ?>"><?= $accepted ?> accepted, not yet <?= $accepted === 1 ? 'an order' : 'orders' ?></a>.
         <?php endif; ?>
     </p>
 </section>
@@ -125,7 +125,7 @@ $sorts    = ['newest' => 'Newest first', 'oldest' => 'Oldest first', 'total_desc
     <div class="nf-empty">
         <span class="nf-tile-ic"><?= nav_icon('quote') ?></span>
         <h2>No quotes yet</h2>
-        <p>Send a price before the job: when the customer says yes, it becomes an invoice in one tap.</p>
+        <p>Send a price before the job: when the customer says yes, it becomes an order.</p>
         <a class="nf-btn nf-btn-primary" href="<?= APP_URL ?>/quotations/create"><?= nav_icon('plus') ?>Create a quote</a>
     </div>
 <?php endif; ?>

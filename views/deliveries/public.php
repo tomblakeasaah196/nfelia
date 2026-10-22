@@ -15,6 +15,8 @@ $logo_url  = !empty($business['logo_path']) ? APP_URL . '/' . $business['logo_pa
 
 $status_label = $statuses[$delivery['status']]['label'] ?? ucfirst($delivery['status']);
 $status_color = $statuses[$delivery['status']]['color'] ?? 'bg-gray-100 text-gray-700';
+// A tracking link is a web address (DeliveryController checks it): never javascript:
+$tracking_link = preg_match('#^https?://#i', (string)$delivery['tracking_url']) ? $delivery['tracking_url'] : '';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -204,7 +206,7 @@ $status_color = $statuses[$delivery['status']]['color'] ?? 'bg-gray-100 text-gra
                 <?php endif; ?>
 
                 <!-- Tracking -->
-                <?php if ($delivery['tracking_number'] || $delivery['tracking_url']): ?>
+                <?php if ($delivery['tracking_number'] || $tracking_link): ?>
                 <div>
                     <div class="text-[9px] font-bold uppercase tracking-widest text-gray-400 mb-3">Tracking</div>
                     <div class="bg-blue-50 rounded-lg p-4 flex items-center justify-between">
@@ -213,8 +215,8 @@ $status_color = $statuses[$delivery['status']]['color'] ?? 'bg-gray-100 text-gra
                                 <span class="text-xs font-bold text-blue-800"><?= e($delivery['tracking_number']) ?></span>
                             <?php endif; ?>
                         </div>
-                        <?php if ($delivery['tracking_url']): ?>
-                            <a href="<?= e($delivery['tracking_url']) ?>" target="_blank" class="text-[10px] font-bold text-blue-600 uppercase tracking-widest hover:text-blue-800">Track Shipment &rarr;</a>
+                        <?php if ($tracking_link): ?>
+                            <a href="<?= e($tracking_link) ?>" target="_blank" class="text-[10px] font-bold text-blue-600 uppercase tracking-widest hover:text-blue-800">Track Shipment &rarr;</a>
                         <?php endif; ?>
                     </div>
                 </div>

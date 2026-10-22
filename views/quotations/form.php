@@ -45,12 +45,12 @@ if (empty($items_json)) {
     <a href="<?= APP_URL ?>/quotations" class="text-brand-plum/40 hover:text-brand-plum transition-colors">
         <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
     </a>
-    <h1 class="font-heading font-extrabold text-2xl text-brand-plum tracking-tight"><?= $editing ? 'Edit Quotation' : 'New Request for Engagement' ?></h1>
+    <h1 class="font-heading font-extrabold text-2xl text-brand-plum tracking-tight"><?= $editing ? 'Edit quote' : 'New quote' ?></h1>
 </div>
 
 <form method="POST" id="quotation-form"
       action="<?= APP_URL ?>/quotations/<?= $editing ? 'edit/' . (int)$quotation['id'] : 'create' ?>"
-      x-data="quotationBuilder()" x-init="init()">
+      x-data="quotationBuilder()" x-init="init()" @submit="checkClient($event)">
     <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
     <input type="hidden" name="current_status" value="<?= $quotation['status'] ?? 'draft' ?>">
 
@@ -75,9 +75,10 @@ if (empty($items_json)) {
                     </div>
                 </div>
 
-                <!-- Existing Client Selector -->
+                <!-- Existing Client Selector (required only while it shows: a hidden
+                     required field makes the browser refuse to send without a word) -->
                 <div x-show="!showNewClient">
-                    <select name="customer_id" x-model="customerId" required
+                    <select name="customer_id" x-model="customerId" :required="!showNewClient"
                             class="w-full px-4 py-3 text-sm font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
                         <option value="">Select a client...</option>
                         <?php foreach ($customers as $c): ?>
@@ -307,7 +308,7 @@ if (empty($items_json)) {
             <!-- Action Buttons -->
             <div class="space-y-3">
                 <button type="submit" class="w-full btn-primary text-white py-3.5 rounded-xl text-[11px] font-bold uppercase tracking-widest shadow-sm hover:shadow-md transition-all">
-                    <?= $editing ? 'Update Quotation' : 'Save as Draft' ?>
+                    <?= $editing ? 'Save changes' : 'Save as Draft' ?>
                 </button>
                 <a href="<?= APP_URL ?>/quotations<?= $editing ? '/view/' . (int)$quotation['id'] : '' ?>"
                    class="block w-full text-center bg-brand-cream border border-brand-sand text-brand-plum py-3.5 rounded-xl text-[11px] font-bold uppercase tracking-widest hover:border-accent transition-all">Cancel</a>
@@ -421,6 +422,15 @@ function quotationBuilder() {
             });
         },
 
+        // Sent while a new client is half added: say what to do, not nothing
+        checkClient(e) {
+            if (this.showNewClient) {
+                e.preventDefault();
+                this.clientError = 'Save the new client first, or tap Cancel to pick one from the list.';
+                e.target.querySelector('[x-model="newClient.name"]').focus();
+            }
+        },
+
         lineSubtotal(idx) {
             const item = this.lineItems[idx];
             const raw  = item.quantity * item.unit_price;
@@ -435,13 +445,18 @@ function quotationBuilder() {
             return total;
         },
 
+        // The discount up to the subtotal, as the server keeps it
+        discount() {
+            return Math.min(Math.max(Number(this.discountAmount) || 0, 0), this.subtotal());
+        },
+
         taxAmount() {
-            const afterDiscount = this.subtotal() - this.discountAmount;
+            const afterDiscount = this.subtotal() - this.discount();
             return Math.round(afterDiscount * this.taxRate / 100 * 100) / 100;
         },
 
         grandTotal() {
-            return this.subtotal() - this.discountAmount + this.taxAmount();
+            return this.subtotal() - this.discount() + this.taxAmount();
         },
 
         formatMoney(val) {

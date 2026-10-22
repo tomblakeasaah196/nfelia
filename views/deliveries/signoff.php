@@ -11,7 +11,8 @@
 ['primary' => $primary, 'secondary' => $secondary, 'text' => $text, 'on' => $on] = brand_doc_colours($business);   // the brand colours, else Nfelia's (app/helpers/brand.php)
 $doc_fonts = brand_doc_fonts($business);   // the brand fonts (app/helpers/brand.php)
 $logo_url  = !empty($business['logo_path']) ? APP_URL . '/' . $business['logo_path'] : null;
-$already_signed = ($delivery['status'] === 'signed_off' && $delivery['signoff_name']);
+// Received: signed for here, or marked received by the business (no name then)
+$already_signed = $delivery['status'] === 'signed_off';
 // A signed delivery note is received by signing it; any other with one tap
 $sign_to_receive = !empty($delivery['sign_on']);
 $was_signed      = !empty($delivery['signoff_signature_path']);
@@ -21,7 +22,7 @@ $was_signed      = !empty($delivery['signoff_signature_path']);
 <head>
     <meta charset="UTF-8">
     <?= errors_script_tag() ?>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Confirm Receipt — <?= e($delivery['doc_number']) ?></title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="<?= e($doc_fonts['url']) ?>" rel="stylesheet">
@@ -58,7 +59,7 @@ $was_signed      = !empty($delivery['signoff_signature_path']);
             <div class="bg-green-500 text-white px-6 py-5 text-center">
                 <svg class="w-10 h-10 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                 <h2 class="text-xl font-extrabold">Receipt Confirmed</h2>
-                <p class="text-xs opacity-80 mt-1"><?= $was_signed ? 'This delivery was signed for.' : 'This delivery was confirmed received.' ?></p>
+                <p class="text-xs opacity-80 mt-1"><?= $was_signed ? 'This delivery was signed for.' : ($delivery['signoff_name'] ? 'This delivery was confirmed received.' : e($business['name']) . ' marked this delivery received.') ?></p>
             </div>
             <div class="p-6 space-y-4">
                 <div class="grid grid-cols-2 gap-4">
@@ -66,13 +67,16 @@ $was_signed      = !empty($delivery['signoff_signature_path']);
                         <div class="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Delivery</div>
                         <div class="text-sm font-bold text-gray-800"><?= e($delivery['doc_number']) ?></div>
                     </div>
+                    <?php if ($delivery['signoff_name']): ?>
                     <div>
                         <div class="text-[9px] font-bold text-gray-400 uppercase tracking-widest"><?= $was_signed ? 'Signed By' : 'Received By' ?></div>
                         <div class="text-sm font-bold text-gray-800"><?= e($delivery['signoff_name']) ?></div>
                     </div>
+                    <?php endif; ?>
+                    <?php $received_at = $delivery['signoff_timestamp'] ?: $delivery['actual_delivery']; ?>
                     <div class="col-span-2">
                         <div class="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Date & Time</div>
-                        <div class="text-sm text-gray-800"><?= $delivery['signoff_timestamp'] ? fmt_date($delivery['signoff_timestamp'], 'd M Y \a\t H:i') : '—' ?></div>
+                        <div class="text-sm text-gray-800"><?= $received_at ? fmt_date($received_at, 'd M Y \a\t H:i') : '—' ?></div>
                     </div>
                 </div>
 

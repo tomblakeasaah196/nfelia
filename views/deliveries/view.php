@@ -36,6 +36,8 @@ $next_statuses = $valid_transitions[$delivery['status']] ?? [];
 // Sign-off link
 $signoff_url = APP_URL . '/sign/' . $delivery['signoff_token'];
 $public_url  = APP_URL . '/delivery/' . $delivery['token'];
+// A tracking link is a web address (save_delivery() checks it): never javascript:
+$tracking_link = preg_match('#^https?://#i', (string)$delivery['tracking_url']) ? $delivery['tracking_url'] : '';
 ?>
 
 <!-- Page Header -->
@@ -57,7 +59,7 @@ $public_url  = APP_URL . '/delivery/' . $delivery['token'];
             <?php endif; ?>
         </div>
     </div>
-    <div class="flex items-center gap-2">
+    <div class="flex flex-wrap items-center gap-2">
         <?php if (in_array($delivery['status'], ['pending_dispatch', 'dispatched'])): ?>
             <a href="<?= APP_URL ?>/deliveries/edit/<?= $delivery['id'] ?>" class="flex items-center gap-2 text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest hover:text-brand-plum bg-brand-white border border-brand-sand px-4 py-2.5 rounded-xl hover:border-accent transition-colors">
                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
@@ -258,7 +260,7 @@ $public_url  = APP_URL . '/delivery/' . $delivery['token'];
             </div>
             <?php endif; ?>
 
-            <?php if ($delivery['tracking_number'] || $delivery['tracking_url']): ?>
+            <?php if ($delivery['tracking_number'] || $tracking_link): ?>
             <div class="mt-4 pt-4 border-t border-brand-sand/50">
                 <div class="text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-3">Tracking</div>
                 <div class="flex flex-wrap gap-4">
@@ -268,10 +270,10 @@ $public_url  = APP_URL . '/delivery/' . $delivery['token'];
                         <div class="data-text text-xs font-bold text-brand-plum"><?= e($delivery['tracking_number']) ?></div>
                     </div>
                     <?php endif; ?>
-                    <?php if ($delivery['tracking_url']): ?>
+                    <?php if ($tracking_link): ?>
                     <div>
                         <div class="text-[9px] text-brand-plum/40">Link</div>
-                        <a href="<?= e($delivery['tracking_url']) ?>" target="_blank" class="text-xs font-bold text-blue-500 hover:text-blue-700 flex items-center gap-1">
+                        <a href="<?= e($tracking_link) ?>" target="_blank" class="text-xs font-bold text-blue-500 hover:text-blue-700 flex items-center gap-1">
                             Track Shipment
                             <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
                         </a>

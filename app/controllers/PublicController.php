@@ -94,13 +94,16 @@ class PublicController
             json_response(["success" => true]);
         }
         /* The client can answer a quote only while it is open: not once it is
-           accepted, declined, expired or turned into an invoice. */
+           accepted, declined, expired or turned into an invoice. Its page
+           (views/quotations/public.php) offers the same states. */
         $open = ["draft", "sent", "in_negotiation", "pending_signature"];
         if (!in_array($quotation["status"], $open, true)) {
             json_response(
                 [
                     "success" => false,
-                    "error" => "This quotation has already been answered. Ask the business if anything needs to change.",
+                    "error" => $quotation["status"] === "expired"
+                        ? "This quote has expired. Please ask the business for a fresh quote."
+                        : "This quote has already been answered. Ask the business if anything needs to change.",
                 ],
                 409,
             );
@@ -145,14 +148,18 @@ class PublicController
                 );
                 $stmtState->execute([$quotation["id"]]);
                 if ($stmtState->rowCount() === 0 && $quotation["status"] !== "in_negotiation") {
-                    throw new Exception("This quotation has already been answered.");
+                    throw new Exception("This quote has already been answered.");
                 }
                 $tell = ["quote.comment", ["comment" => $message], ["dedupe" => "comment-" . $comment_id]];
             } elseif ($action === "sign" || $action === "accept") {
                 /* A quote set to be signed is accepted by signing it: the
                    drawing is kept with the hash of what was signed
                    (app/helpers/signing.php). Any other quote is accepted
-                   with one tap (Tom: signatures only when wanted). */
+                   with one tap (Tom: signatures only when wanted). Not past
+                   its "Valid until" day: the price no longer stands. */
+                if (!empty($quotation["expiry_date"]) && $quotation["expiry_date"] < planner_today()) {
+                    throw new Exception("This quote was valid until " . fmt_date($quotation["expiry_date"], "j M Y") . ". Please ask the business for a fresh quote.");
+                }
                 $name = mb_substr(trim($_POST["name"] ?? ""), 0, 150);
                 $drawing = null;
                 if ($action === "sign") {
@@ -176,7 +183,7 @@ class PublicController
                     $quotation["id"],
                 ]);
                 if ($stmtUpd->rowCount() === 0) {
-                    throw new Exception("This quotation has already been answered.");
+                    throw new Exception("This quote has already been answered.");
                 }
                 if ($drawing) {
                     doc_customer_sign($db, "quote", (int) $quotation["id"], $name, $drawing, $client_ip);
@@ -203,7 +210,7 @@ class PublicController
                 );
                 $stmtState->execute([$quotation["id"]]);
                 if ($stmtState->rowCount() === 0) {
-                    throw new Exception("This quotation has already been answered.");
+                    throw new Exception("This quote has already been answered.");
                 }
                 $stmtLog = $db->prepare(
                     " INSERT INTO quotation_activities (business_id, quotation_id, actor_type, action, message, old_status, new_status, meta_data) VALUES (?, ?, 'client', 'declined', ?, ?, 'declined', JSON_OBJECT('ip', ?)) ",
