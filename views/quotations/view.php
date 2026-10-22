@@ -18,16 +18,15 @@ $status_cfg = match($quotation['status']) {
     'accepted'  => ['bg-green-100 text-green-700 border-green-300', 'Accepted', 'green'],
     'declined'  => ['bg-red-100 text-red-700 border-red-300', 'Declined', 'red'],
     'expired'   => ['bg-amber-100 text-amber-700 border-amber-300', 'Expired', 'amber'],
-    'converted' => ['bg-purple-100 text-purple-700 border-purple-300', !empty($quote_order) ? 'Ordered' : 'Converted to Invoice', 'purple'],
-    default     => ['bg-gray-100 text-gray-700 border-gray-300', ucfirst($quotation['status']), 'gray'],
+    'converted' => ['bg-purple-100 text-purple-700 border-purple-300', !empty($quote_order) ? 'Ordered' : 'Made into an invoice', 'purple'],
+    default     => ['bg-gray-100 text-gray-700 border-gray-300', screen_quote_tag($quotation['status'])[0], 'gray'],   // Customer replied, Waiting to sign
 };
 
-$wa_number = $customer['whatsapp'] ?: $customer['phone'] ?: '';
-$wa_number = preg_replace('/[^0-9]/', '', $wa_number);
-if (str_starts_with($wa_number, '0')) $wa_number = '234' . substr($wa_number, 1);
+// A local number takes the business's own country code (M23)
+$wa_number = wa_digits($customer ? (($customer['whatsapp'] ?? '') ?: ($customer['phone'] ?? '')) : '', $business);
 $wa_text = urlencode(
     "Hello" . ($customer ? ' ' . $customer['full_name'] : '') . "!\n\n"
-    . "Please find your *Quotation* from *{$business['name']}*:\n\n"
+    . "Please find your *quote* from *{$business['name']}*:\n\n"
     . "{$quotation['doc_number']}\n"
     . "Total: {$currency}" . number_format((float)$quotation['total'], 2) . "\n"
     . ($quotation['expiry_date'] ? "Valid until: " . fmt_date($quotation['expiry_date'], 'd M Y') . "\n" : '')
@@ -45,7 +44,7 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
         </a>
         <div>
             <h1 class="font-heading font-extrabold text-xl text-brand-plum tracking-tight"><?= e($quotation['doc_number']) ?></h1>
-            <span class="data-text text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded <?= $status_cfg[0] ?>"><?= $status_cfg[1] ?></span>
+            <span class="data-text text-xs font-semibold px-2 py-0.5 rounded <?= $status_cfg[0] ?>" data-quote-status><?= $status_cfg[1] ?></span>
         </div>
     </div>
 
@@ -55,19 +54,19 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
         <?php $sign_row = false; $sign_back = 'quotations/view/' . (int)$quotation['id'];
               require BASE_PATH . '/views/partials/doc_sign_control.php'; ?>
 
-        <?php if (in_array($quotation['status'], ['draft', 'sent', 'in_negotiation'])): ?>
+        <?php if (in_array($quotation['status'], QuotationController::EDITABLE, true)): ?>
             <a href="<?= APP_URL ?>/quotations/edit/<?= $quotation['id'] ?>" class="flex items-center gap-1.5 bg-brand-white border border-brand-sand hover:border-accent px-3 py-2 rounded-lg transition-all">
                 <svg class="w-3.5 h-3.5 text-accent-text" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                <span class="text-[10px] font-bold text-brand-plum uppercase tracking-widest">Edit</span>
+                <span class="text-sm font-semibold text-brand-plum">Edit</span>
             </a>
         <?php endif; ?>
 
         <?php if ($quotation['status'] === 'draft'): ?>
-            <form method="POST" action="<?= APP_URL ?>/quotations/send/<?= $quotation['id'] ?>" class="inline">
+            <form method="POST" action="<?= APP_URL ?>/quotations/send/<?= $quotation['id'] ?>" class="inline" data-mark-sent>
                 <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
                 <button class="flex items-center gap-1.5 btn-primary text-white px-3 py-2 rounded-lg transition-all">
                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
-                    <span class="text-[10px] font-bold uppercase tracking-widest">Mark Sent</span>
+                    <span class="text-sm font-semibold">Mark sent</span>
                 </button>
             </form>
         <?php endif; ?>
@@ -78,14 +77,14 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
                 <input type="hidden" name="status" value="accepted">
                 <button class="flex items-center gap-1.5 bg-green-500 text-white px-3 py-2 rounded-lg hover:bg-green-600 transition-all">
                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-                    <span class="text-[10px] font-bold uppercase tracking-widest">Accept and make the order</span>
+                    <span class="text-sm font-semibold">Accept and make the order</span>
                 </button>
             </form>
             <form method="POST" action="<?= APP_URL ?>/quotations/update-status/<?= $quotation['id'] ?>" class="inline">
                 <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
                 <input type="hidden" name="status" value="declined">
                 <button class="flex items-center gap-1.5 bg-brand-white border border-red-200 hover:border-red-400 text-red-600 px-3 py-2 rounded-lg transition-all">
-                    <span class="text-[10px] font-bold uppercase tracking-widest">Decline</span>
+                    <span class="text-sm font-semibold">Decline</span>
                 </button>
             </form>
         <?php endif; ?>
@@ -95,54 +94,56 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
                 <span class="text-sm font-semibold">Open order <?= e($quote_order['order_number']) ?></span>
             </a>
         <?php elseif (in_array($quotation['status'], ['accepted', 'in_negotiation', 'pending_signature'], true)): ?>
+            <!-- Accepted, but its order wasn't made; or still being talked over, and
+                 the owner accepts it for the customer (after a call, say), as for a sent one -->
             <form method="POST" action="<?= APP_URL ?>/quotations/convert/<?= $quotation['id'] ?>" class="inline">
                 <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
                 <button class="flex items-center gap-1.5 bg-purple-500 text-white px-3 py-2 rounded-lg hover:bg-purple-600 transition-all min-h-[44px]">
                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
-                    <span class="text-sm font-semibold">Make it an order</span>
+                    <span class="text-sm font-semibold"><?= $quotation['status'] === 'accepted' ? 'Make it an order' : 'Accept and make the order' ?></span>
                 </button>
             </form>
         <?php endif; ?>
     </div>
 </div>
 
-<!-- Share Actions Bar -->
-<div class="bg-brand-white border border-brand-sand rounded-xl p-4 mb-6 shadow-sm flex flex-wrap items-center gap-3">
+<!-- Share Actions Bar (Share PDF, Copy Link and WhatsApp send a draft: see the script at the foot) -->
+<div class="bg-brand-white border border-brand-sand rounded-xl p-4 mb-6 shadow-sm flex flex-wrap items-center gap-3" data-quote-share>
     <?php $share_pdf = ['url' => $public_url, 'name' => $quotation['doc_number'] . '.pdf', 'title' => 'Quote ' . $quotation['doc_number'],
                         'text' => 'Quote ' . $quotation['doc_number'] . ' from ' . $business['name'] . ': ' . $public_url];
           require BASE_PATH . '/views/partials/share_pdf.php'; ?>
 
     <!-- Copy Link -->
-    <button onclick="navigator.clipboard.writeText('<?= e($public_url) ?>'); this.querySelector('span').textContent = 'Copied!'; setTimeout(() => this.querySelector('span').textContent = 'Copy Link', 2000);"
-            class="flex items-center gap-1.5 bg-brand-cream border border-brand-sand hover:border-accent px-3 py-2 rounded-lg transition-all">
+    <button onclick="navigator.clipboard.writeText('<?= e($public_url) ?>'); this.querySelector('span').textContent = 'Copied!'; setTimeout(() => this.querySelector('span').textContent = 'Copy link', 2000);"
+            class="flex items-center gap-1.5 bg-brand-cream border border-brand-sand hover:border-accent px-3 py-2 rounded-lg transition-all" data-shares>
         <svg class="w-3.5 h-3.5 text-brand-plum/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
-        <span class="text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest">Copy Link</span>
+        <span class="text-sm font-semibold text-brand-plum/60">Copy link</span>
     </button>
 
     <!-- WhatsApp -->
-    <a href="<?= $wa_link ?>" target="_blank" class="flex items-center gap-1.5 bg-green-500 text-white px-3 py-2 rounded-lg hover:bg-green-600 transition-all">
+    <a href="<?= $wa_link ?>" target="_blank" class="flex items-center gap-1.5 bg-green-500 text-white px-3 py-2 rounded-lg hover:bg-green-600 transition-all" data-shares>
         <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-        <span class="text-[10px] font-bold uppercase tracking-widest">WhatsApp</span>
+        <span class="text-sm font-semibold">WhatsApp</span>
     </a>
 
     <!-- Download PDF -->
     <a href="<?= APP_URL ?>/doc/<?= e($quotation['token']) ?>?format=pdf" target="_blank" class="flex items-center gap-1.5 bg-brand-cream border border-brand-sand hover:border-accent px-3 py-2 rounded-lg transition-all">
         <svg class="w-3.5 h-3.5 text-brand-plum/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-        <span class="text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest">Download PDF</span>
+        <span class="text-sm font-semibold text-brand-plum/60">Download PDF</span>
     </a>
 
     <!-- Open Public -->
     <a href="<?= e($public_url) ?>" target="_blank" class="flex items-center gap-1.5 bg-brand-cream border border-brand-sand hover:border-accent px-3 py-2 rounded-lg transition-all">
         <svg class="w-3.5 h-3.5 text-brand-plum/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
-        <span class="text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest">Public View</span>
+        <span class="text-sm font-semibold text-brand-plum/60">Public view</span>
     </a>
 
     <!-- Delete (not once it made an order: it stays as that order's record) -->
     <?php if (empty($quote_order)): ?>
     <form method="POST" action="<?= APP_URL ?>/quotations/delete/<?= $quotation['id'] ?>" class="inline ml-auto"
-          onsubmit="return confirm('Permanently delete this quotation?');">
+          onsubmit="return confirm('Permanently delete this quote?');">
         <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
-        <button class="text-[10px] font-bold text-red-400 uppercase tracking-widest hover:text-red-600 transition-colors">Delete</button>
+        <button class="text-sm font-semibold text-red-400 hover:text-red-600 transition-colors">Delete</button>
     </form>
     <?php endif; ?>
 </div>
@@ -163,11 +164,11 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
                     <div>
                         <h2 class="font-heading font-extrabold text-lg" style="color: <?= e($doc_colours['text']) ?>;"><?= e($business['name']) ?></h2>
                         <?php if ($business['tagline']): ?>
-                            <p class="text-[10px] text-gray-500"><?= e($business['tagline']) ?></p>
+                            <p class="text-xs text-gray-500"><?= e($business['tagline']) ?></p>
                         <?php endif; ?>
                     </div>
                 </div>
-                <div class="text-[10px] text-gray-500 space-y-0.5">
+                <div class="text-xs text-gray-500 space-y-0.5">
                     <?php if ($business['address']): ?><div><?= e($business['address']) ?></div><?php endif; ?>
                     <?php if ($business['phone']): ?><div>Tel: <?= e($business['phone']) ?></div><?php endif; ?>
                     <?php if ($business['email']): ?><div><?= e($business['email']) ?></div><?php endif; ?>
@@ -179,10 +180,10 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
             <div class="text-right">
                 <h1 class="font-heading font-extrabold text-2xl uppercase tracking-wider" style="color: <?= e($doc_colours['text']) ?>;">Quotation</h1>
                 <div class="data-text text-sm font-bold text-gray-700 mt-1"><?= e($quotation['doc_number']) ?></div>
-                <div class="text-[10px] text-gray-500 mt-2 space-y-0.5">
+                <div class="text-xs text-gray-500 mt-2 space-y-0.5">
                     <div>Issued: <?= fmt_date($quotation['issue_date'], 'd M Y') ?></div>
                     <?php if ($quotation['expiry_date']): ?>
-                        <div>Valid Until: <?= fmt_date($quotation['expiry_date'], 'd M Y') ?></div>
+                        <div>Valid until: <?= fmt_date($quotation['expiry_date'], 'd M Y') ?></div>
                     <?php endif; ?>
                 </div>
             </div>
@@ -191,12 +192,12 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
         <!-- Client Block -->
         <?php if ($customer): ?>
         <div class="mb-8 p-4 rounded-lg" style="background: <?= e($doc_colours['primary']) ?>0A;">
-            <div class="text-[9px] font-bold uppercase tracking-widest mb-1" style="color: <?= e($doc_colours['text']) ?>;">Prepared For</div>
+            <div class="text-xs font-semibold mb-1" style="color: <?= e($doc_colours['text']) ?>;">Prepared for</div>
             <div class="text-sm font-bold text-gray-800"><?= e($customer['full_name']) ?></div>
-            <?php if ($customer['business_name']): ?><div class="text-[10px] text-gray-600"><?= e($customer['business_name']) ?></div><?php endif; ?>
-            <?php if ($customer['phone']): ?><div class="text-[10px] text-gray-500"><?= e($customer['phone']) ?></div><?php endif; ?>
-            <?php if ($customer['email']): ?><div class="text-[10px] text-gray-500"><?= e($customer['email']) ?></div><?php endif; ?>
-            <?php if ($customer['address']): ?><div class="text-[10px] text-gray-500"><?= e($customer['address']) ?></div><?php endif; ?>
+            <?php if ($customer['business_name']): ?><div class="text-xs text-gray-600"><?= e($customer['business_name']) ?></div><?php endif; ?>
+            <?php if ($customer['phone']): ?><div class="text-xs text-gray-500"><?= e($customer['phone']) ?></div><?php endif; ?>
+            <?php if ($customer['email']): ?><div class="text-xs text-gray-500"><?= e($customer['email']) ?></div><?php endif; ?>
+            <?php if ($customer['address']): ?><div class="text-xs text-gray-500"><?= e($customer['address']) ?></div><?php endif; ?>
         </div>
         <?php endif; ?>
 
@@ -205,22 +206,22 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
             <table class="w-full text-left">
                 <thead>
                     <tr style="border-bottom: 2px solid <?= e($doc_colours['primary']) ?>;">
-                        <th class="pb-2 text-[9px] font-bold uppercase tracking-widest text-gray-500">#</th>
-                        <th class="pb-2 text-[9px] font-bold uppercase tracking-widest text-gray-500">Description</th>
-                        <th class="pb-2 text-[9px] font-bold uppercase tracking-widest text-gray-500 text-center">Qty</th>
-                        <th class="pb-2 text-[9px] font-bold uppercase tracking-widest text-gray-500 text-right">Unit Price</th>
-                        <th class="pb-2 text-[9px] font-bold uppercase tracking-widest text-gray-500 text-center">Discount</th>
-                        <th class="pb-2 text-[9px] font-bold uppercase tracking-widest text-gray-500 text-right">Subtotal</th>
+                        <th class="pb-2 text-xs font-semibold text-gray-500">#</th>
+                        <th class="pb-2 text-xs font-semibold text-gray-500">Description</th>
+                        <th class="pb-2 text-xs font-semibold text-gray-500 text-center">Qty</th>
+                        <th class="pb-2 text-xs font-semibold text-gray-500 text-right">Unit price</th>
+                        <th class="pb-2 text-xs font-semibold text-gray-500 text-center">Discount</th>
+                        <th class="pb-2 text-xs font-semibold text-gray-500 text-right">Subtotal</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
                     <?php foreach ($items as $idx => $it): ?>
                         <tr>
-                            <td class="py-3 text-[10px] text-gray-400"><?= $idx + 1 ?></td>
+                            <td class="py-3 text-xs text-gray-400"><?= $idx + 1 ?></td>
                             <td class="py-3">
                                 <div class="text-xs font-semibold text-gray-800"><?= e($it['description']) ?></div>
                                 <?php if (!empty($it['product_sku'])): ?>
-                                    <div class="data-text text-[9px] text-gray-400"><?= e($it['product_sku']) ?></div>
+                                    <div class="data-text text-xs text-gray-400"><?= e($it['product_sku']) ?></div>
                                 <?php endif; ?>
                             </td>
                             <td class="py-3 data-text text-xs text-gray-700 text-center"><?= number_format((float)$it['quantity'], 2) ?></td>
@@ -253,7 +254,7 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
                     </div>
                 <?php endif; ?>
                 <div class="flex justify-between text-sm pt-2" style="border-top: 2px solid <?= e($doc_colours['primary']) ?>;">
-                    <span class="font-heading font-bold uppercase tracking-wider" style="color: <?= e($doc_colours['text']) ?>;">Grand Total</span>
+                    <span class="font-heading font-semibold" style="color: <?= e($doc_colours['text']) ?>;">Grand total</span>
                     <span class="font-heading font-extrabold text-lg" style="color: <?= e($doc_colours['text']) ?>;"><?= money((float)$quotation['total'], $currency) ?></span>
                 </div>
             </div>
@@ -262,11 +263,11 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
         <!-- Bank Details -->
         <?php if ($bank): ?>
         <div class="mt-8 p-4 rounded-lg bg-gray-50 border border-gray-200">
-            <div class="text-[9px] font-bold uppercase tracking-widest text-gray-500 mb-2">Payment Details</div>
+            <div class="text-xs font-semibold text-gray-500 mb-2">Payment details</div>
             <div class="data-text text-xs text-gray-700 space-y-0.5">
                 <div>Bank: <?= e($bank['bank_name']) ?></div>
-                <div>Account Name: <?= e($bank['account_name']) ?></div>
-                <div>Account Number: <strong><?= e($bank['account_number']) ?></strong></div>
+                <div>Account name: <?= e($bank['account_name']) ?></div>
+                <div>Account number: <strong><?= e($bank['account_number']) ?></strong></div>
             </div>
         </div>
         <?php endif; ?>
@@ -274,7 +275,7 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
         <!-- Notes -->
         <?php if ($quotation['notes']): ?>
         <div class="mt-6">
-            <div class="text-[9px] font-bold uppercase tracking-widest text-gray-500 mb-1">Notes & Terms</div>
+            <div class="text-xs font-semibold text-gray-500 mb-1">Notes and terms</div>
             <p class="text-xs text-gray-600 leading-relaxed whitespace-pre-line"><?= e($quotation['notes']) ?></p>
         </div>
         <?php endif; ?>
@@ -285,7 +286,7 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
         <!-- Footer -->
         <?php if ($business['tagline']): ?>
         <div class="mt-8 text-center">
-            <p class="text-[9px] uppercase tracking-[.3em] font-bold" style="color: <?= e($doc_colours['secondary_text']) ?>;"><?= e($business['tagline']) ?></p>
+            <p class="text-xs font-semibold" style="color: <?= e($doc_colours['secondary_text']) ?>;"><?= e($business['tagline']) ?></p>
         </div>
         <?php endif; ?>
     </div>
@@ -294,7 +295,7 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
 <!-- ===== INTERNAL CHAT & AUDIT LOG ===== -->
 <div class="mt-8 bg-brand-white border border-brand-sand rounded-xl shadow-sm overflow-hidden mb-8">
     <div class="px-6 py-4 border-b border-brand-sand bg-brand-cream/30 flex justify-between items-center">
-        <h2 class="font-heading font-bold text-xs text-brand-plum uppercase tracking-widest">Client Discussion & Audit Log</h2>
+        <h2 class="font-heading font-semibold text-base text-brand-plum">Discussion and history</h2>
     </div>
     
     <div class="p-6 space-y-4 max-h-96 overflow-y-auto bg-slate-50">
@@ -304,7 +305,7 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
             <?php foreach ($activities as $act): ?>
                 <?php $is_internal = $act['actor_type'] === 'business'; ?>
                 <div class="flex flex-col <?= $is_internal ? 'items-end' : 'items-start' ?>">
-                    <span class="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1 mx-1">
+                    <span class="text-xs font-semibold text-gray-500 mb-1 mx-1">
                         <?= $is_internal ? e($act['full_name']) : e($customer['full_name'] ?? 'Client') ?> 
                         • <?= date('M d, H:i', strtotime($act['created_at'])) ?>
                     </span>
@@ -314,7 +315,7 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
                             <?= nl2br(e($act['message'])) ?>
                         </div>
                     <?php else: ?>
-                        <div class="px-3 py-1.5 bg-gray-100 border border-gray-200 rounded-md text-[10px] font-medium text-gray-500 uppercase tracking-wider">
+                        <div class="px-3 py-1.5 bg-gray-100 border border-gray-200 rounded-md text-xs font-medium text-gray-500">
                             <i class="fas fa-info-circle mr-1"></i> <?= e($act['message']) ?>
                         </div>
                     <?php endif; ?>
@@ -331,7 +332,7 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
                 <div class="flex gap-3">
                     <textarea name="message" rows="2" required placeholder="Reply to the client..." 
                               class="flex-1 px-4 py-3 text-sm bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum resize-none"></textarea>
-                    <button type="submit" class="btn-primary text-white px-6 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest self-end h-11">
+                    <button type="submit" class="btn-primary text-white px-6 py-2 rounded-lg text-sm font-semibold self-end h-11">
                         Send
                     </button>
                 </div>
@@ -339,3 +340,32 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
         </div>
     <?php endif; ?>
 </div>
+
+<?php if ($quotation['status'] === 'draft'): ?>
+<script>
+// A draft whose link goes out (Share PDF, Copy Link, WhatsApp) is Sent, so
+// the list counts it as waiting (QuotationController::mark_shared()). Once.
+(function () {
+    var bar = document.querySelector('[data-quote-share]');
+    var asked = false;
+    if (!bar) return;
+    bar.addEventListener('click', function (e) {
+        if (asked || !e.target.closest('[data-share-pdf], [data-shares]')) return;
+        asked = true;
+        var fd = new FormData();
+        fd.append('csrf_token', <?= json_encode((string)($_SESSION['csrf_token'] ?? '')) ?>);
+        fetch(<?= json_encode(APP_URL . '/quotations/mark-shared/' . (int)$quotation['id'], JSON_UNESCAPED_SLASHES) ?>,
+              { method: 'POST', body: fd, credentials: 'same-origin', keepalive: true })
+            .then(function (r) { return r.json(); })
+            .then(function (res) {
+                if (!res.success || res.status !== 'sent') return;
+                var tag = document.querySelector('[data-quote-status]');
+                var mark = document.querySelector('[data-mark-sent]');
+                if (tag) { tag.textContent = 'Sent'; tag.className = tag.className.replace(/bg-gray-100 text-gray-700 border-gray-300/, 'bg-blue-100 text-blue-700 border-blue-300'); }
+                if (mark) mark.remove();
+            })
+            .catch(function () { asked = false; });
+    });
+})();
+</script>
+<?php endif; ?>

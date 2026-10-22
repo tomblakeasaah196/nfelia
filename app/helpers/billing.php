@@ -17,6 +17,9 @@
 /** Days after a paid month ends before the app and the shop lock. */
 const BILLING_GRACE_DAYS = 3;
 
+/** Staff a business may add during its free trial, beside the owner (Tom, October 2026). */
+const TRIAL_STAFF_SEATS = 1;
+
 /**
  * What the business may use today, from its subscriptions row (null when it
  * has none, which is let through as before):
@@ -67,6 +70,19 @@ function billing_access(?array $sub, ?string $today = null): string {
         default: // suspended
             return 'locked';
     }
+}
+
+/**
+ * How many people the business may have, the owner included: the seats it
+ * pays for (user_seats + extra_seats), and during the free trial at least the
+ * owner and TRIAL_STAFF_SEATS staff. Every seat check reads this (adding
+ * staff, the Team tab, check_subscription()). After the trial the paid seats
+ * apply again: staff added during it keep their accounts, and only adding
+ * more is limited.
+ */
+function billing_seats(?array $sub, ?string $today = null): int {
+    $paid = max(1, (int)($sub['user_seats'] ?? 1)) + max(0, (int)($sub['extra_seats'] ?? 0));
+    return billing_access($sub, $today) === 'trial' ? max($paid, 1 + TRIAL_STAFF_SEATS) : $paid;
 }
 
 /** $date plus $days, as Y-m-d. */

@@ -609,6 +609,26 @@ p, h1, h2, h3, figure, dl, dd { margin: 0; }
 .sf-field input[type="file"] { min-height: 0; padding: 10px; }
 .sf-field input::placeholder, .sf-field textarea::placeholder { color: var(--sf-muted); opacity: 0.85; }
 .sf-field input:focus, .sf-field textarea:focus, .sf-search input:focus { outline: 2px solid var(--sf-accent-text); outline-offset: 1px; border-color: var(--sf-accent-text); }
+/* Proof of payment (sf_proof_field): a box to tap, like the bank choices
+   above it; the file box stays inside it, out of sight */
+.sf-proof { cursor: pointer; }
+.sf-proof__box {
+    position: relative; display: flex; align-items: center; min-height: 56px; padding: 10px 14px;
+    border: 1.5px solid var(--sf-field); border-radius: var(--sf-r-field); background: var(--sf-ground);
+}
+.sf-proof__box:hover { border-color: var(--sf-accent-text); }
+.sf-proof__box:focus-within { outline: 2px solid var(--sf-accent-text); outline-offset: 1px; border-color: var(--sf-accent-text); }
+.sf-proof .sf-proof__input[type="file"] {
+    position: absolute; left: 0; bottom: 0; width: 1px; height: 1px; min-height: 0; margin: 0; padding: 0; border: 0;
+    opacity: 0; overflow: hidden; pointer-events: none;
+}
+.sf-proof .sf-proof__input[type="file"]:focus { outline: none; }
+.sf-proof__add { display: flex; align-items: center; gap: 10px; color: var(--sf-accent-text); font-size: 16px; font-weight: 700; }
+.sf-proof__add svg { flex-shrink: 0; }
+.sf-proof__picked { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; }
+.sf-proof__thumb { flex-shrink: 0; width: 44px; height: 44px; border-radius: calc(var(--sf-r-field) / 2); object-fit: cover; background: var(--sf-surface); }
+.sf-proof__name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; }
+.sf-proof__change { flex-shrink: 0; font-weight: 600; text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 1.5px; }
 .sf-form__foot { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; }
 .sf-form__status { font-size: 15px; font-weight: 600; }
 .sf-form__status.is-error, .sf-form__error { color: var(--sf-error, #B42318); }

@@ -6,16 +6,24 @@
  * Available from controller:
  *   $user, $business, $currency, $period (app/helpers/report_period.php),
  *   $period_start, $period_end, $month_label (the period in words),
- *   $revenue, $expenses_total, $gross_profit,
- *   $prev_revenue, $prev_expenses, $prev_profit (the period before),
- *   $expense_categories, $pending_revenue, $pending_count,
+ *   $revenue (money in), $money_out (money paid out), $stock_out (the part
+ *   of it spent on stock), $left (in less out), $left_reads (money_left_reads():
+ *   up, stock or down), $prev_revenue, $prev_out, $prev_left (the period before),
+ *   $expense_categories (money out by category), $pending_revenue, $pending_count,
  *   $debts_receivable, $debts_receivable_count, $collectable_extra,
- *   $debts_payable, $debts_payable_count,
+ *   $owe_total, $owe_unpaid, $owe_unpaid_count, $owe_debts, $owe_debts_count,
  *   $trend (the period by day or by month), $invoices_issued,
  *   $available_months, $available_years
  */
-$profit_positive = $gross_profit >= 0;
-$margin_pct = $revenue > 0 ? round(($gross_profit / $revenue) * 100) : 0;
+// Up is good news, stock is money put into stock (not lost), down is a real gap
+$tone = [
+    'up'    => ['card' => 'bg-green-50/50 border-green-200', 'icon' => 'bg-green-100', 'ink' => 'text-green-600', 'value' => 'text-green-700'],
+    'stock' => ['card' => 'bg-amber-50 border-amber-200',    'icon' => 'bg-amber-100', 'ink' => 'text-amber-700', 'value' => 'text-amber-700'],
+    'down'  => ['card' => 'bg-red-50/50 border-red-200',     'icon' => 'bg-red-100',   'ink' => 'text-red-600',   'value' => 'text-red-700'],
+][$left_reads];
+$kept_per_100 = $revenue > 0 ? round($left / $revenue * 100) : 0;
+$out_per_100  = $revenue > 0 ? round($money_out / $revenue * 100) : 0;
+$stock_text   = $currency . number_format($stock_out, 0);
 
 /**
  * "▲ 12% vs September 2026" under a card. $good says which way is good news:
@@ -41,14 +49,14 @@ $compare = function (float $now, float $before, string $good) use ($period, $cur
 
 // Category labels
 $cat_labels = [
-    'stock_purchase'  => 'Stock Purchase',
+    'stock_purchase'  => 'Stock purchase',
     'rent'            => 'Rent',
     'utilities'       => 'Utilities',
     'transport'       => 'Transport',
-    'salary'          => 'Salary / Wages',
+    'salary'          => 'Salary / wages',
     'marketing'       => 'Marketing',
     'maintenance'     => 'Maintenance',
-    'office_supplies' => 'Office Supplies',
+    'office_supplies' => 'Office supplies',
     'miscellaneous'   => 'Miscellaneous',
 ];
 ?>
@@ -56,8 +64,8 @@ $cat_labels = [
 <!-- Page Header + Period Selector -->
 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
     <div>
-        <h1 class="font-heading font-extrabold text-2xl sm:text-3xl text-brand-plum tracking-tight">Profit & Loss</h1>
-        <p class="text-xs text-brand-plum/50 font-medium mt-1">Your business performance for <strong class="text-brand-plum"><?= $month_label ?></strong></p>
+        <h1 class="font-heading font-extrabold text-2xl sm:text-3xl text-brand-plum tracking-tight">Profit and loss</h1>
+        <p class="text-xs text-brand-plum/50 font-medium mt-1">Money that came in and went out in <strong class="text-brand-plum"><?= $month_label ?></strong></p>
     </div>
     <div class="flex items-center gap-2">
         <!-- Period: one button, presets and a month range in its menu -->
@@ -102,14 +110,14 @@ $cat_labels = [
                             </select>
                         </fieldset>
                     <?php endforeach; ?>
-                    <button type="submit" class="btn-primary w-full text-white px-4 py-2.5 rounded-lg text-xs font-bold">Show These Months</button>
+                    <button type="submit" class="btn-primary w-full text-white px-4 py-2.5 rounded-lg text-sm font-semibold">Show these months</button>
                 </form>
             </div>
         </div>
         <!-- PDF Download -->
         <button onclick="downloadReport()" class="flex items-center gap-2 bg-brand-white border border-brand-sand px-4 py-2.5 rounded-lg hover:border-accent transition-colors">
             <svg class="w-3.5 h-3.5 text-brand-plum/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-            <span class="text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest">PDF</span>
+            <span class="text-sm font-semibold text-brand-plum/60">Download PDF</span>
         </button>
     </div>
 </div>
@@ -124,45 +132,57 @@ $cat_labels = [
             <div class="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center">
                 <svg class="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             </div>
-            <div class="text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest">Money In</div>
+            <div class="text-sm font-semibold text-brand-plum/60">Money in</div>
         </div>
         <div class="font-heading font-extrabold text-2xl text-green-600"><?= $currency ?><?= number_format($revenue, 0) ?></div>
-        <p class="text-[10px] text-brand-plum/40 mt-1">Payments received in <?= e($month_label) ?></p>
-        <p class="text-[10px] mt-1"><?= $compare($revenue, $prev_revenue, 'up') ?></p>
+        <p class="text-xs text-brand-plum/40 mt-1">Payments received in <?= e($month_label) ?></p>
+        <p class="text-xs mt-1"><?= $compare($revenue, $prev_revenue, 'up') ?></p>
     </div>
 
-    <!-- Expenses -->
+    <!-- Money out: what was paid, when it was paid. Stock bought is part of it, shown on its own line -->
     <div class="bg-brand-white border border-brand-sand rounded-xl p-5 shadow-sm">
         <div class="flex items-center gap-2 mb-1">
             <div class="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center">
                 <svg class="w-4 h-4 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
             </div>
-            <div class="text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest">Money Out</div>
+            <div class="text-sm font-semibold text-brand-plum/60">Money out</div>
         </div>
-        <div class="font-heading font-extrabold text-2xl text-red-600"><?= $currency ?><?= number_format($expenses_total, 0) ?></div>
-        <p class="text-[10px] text-brand-plum/40 mt-1">Total spent in <?= e($month_label) ?></p>
-        <p class="text-[10px] mt-1"><?= $compare($expenses_total, $prev_expenses, 'down') ?></p>
+        <div class="font-heading font-extrabold text-2xl text-red-600"><?= $currency ?><?= number_format($money_out, 0) ?></div>
+        <p class="text-xs text-brand-plum/40 mt-1">Paid out in <?= e($month_label) ?></p>
+        <?php if ($stock_out > 0): ?>
+            <p class="flex items-baseline justify-between gap-2 text-xs mt-2 pt-2 border-t border-brand-sand">
+                <span class="font-semibold text-brand-plum/60">Spent on stock</span>
+                <span class="font-semibold text-brand-plum"><?= $stock_text ?></span>
+            </p>
+        <?php endif; ?>
+        <p class="text-xs mt-1"><?= $compare($money_out, $prev_out, 'down') ?></p>
     </div>
 
-    <!-- Profit -->
-    <div class="border-2 rounded-xl p-5 shadow-sm <?= $profit_positive ? 'bg-green-50/50 border-green-200' : 'bg-red-50/50 border-red-200' ?>">
+    <!-- Left after spending: in less out, as on Home -->
+    <div class="border-2 rounded-xl p-5 shadow-sm <?= $tone['card'] ?>">
         <div class="flex items-center gap-2 mb-1">
-            <div class="w-8 h-8 rounded-lg <?= $profit_positive ? 'bg-green-100' : 'bg-red-100' ?> flex items-center justify-center">
-                <svg class="w-4 h-4 <?= $profit_positive ? 'text-green-600' : 'text-red-600' ?>" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+            <div class="w-8 h-8 rounded-lg <?= $tone['icon'] ?> flex items-center justify-center">
+                <svg class="w-4 h-4 <?= $tone['ink'] ?>" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
             </div>
-            <div class="text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest"><?= $profit_positive ? 'Profit' : 'Loss' ?></div>
+            <div class="text-sm font-semibold text-brand-plum/60">Left after spending</div>
         </div>
-        <div class="font-heading font-extrabold text-2xl <?= $profit_positive ? 'text-green-700' : 'text-red-700' ?>">
-            <?= $profit_positive ? '' : '-' ?><?= $currency ?><?= number_format(abs($gross_profit), 0) ?>
+        <div class="font-heading font-extrabold text-2xl <?= $tone['value'] ?>">
+            <?= $left < 0 ? '−' : '' ?><?= $currency ?><?= number_format(abs($left), 0) ?>
         </div>
-        <p class="text-[10px] <?= $profit_positive ? 'text-green-600' : 'text-red-600' ?> mt-1 font-medium">
-            <?php if ($revenue > 0): ?>
-                <?= abs($margin_pct) ?>% margin &middot; For every <?= $currency ?>100 earned, you <?= $profit_positive ? 'kept' : 'lost' ?> <?= $currency ?><?= abs($margin_pct) ?>
+        <p class="text-xs <?= $tone['ink'] ?> mt-1 font-medium">
+            <?php if ($left_reads === 'stock'): ?>
+                <?= $stock_text ?> of it went into stock you can still sell
+            <?php elseif ($revenue > 0 && $left_reads === 'up'): ?>
+                For every <?= $currency ?>100 that came in, you kept <?= $currency ?><?= $kept_per_100 ?>
+            <?php elseif ($revenue > 0): ?>
+                For every <?= $currency ?>100 that came in, <?= $currency ?><?= $out_per_100 ?> went out
+            <?php elseif ($money_out > 0): ?>
+                No money came in this period
             <?php else: ?>
-                No revenue recorded in this period
+                Nothing came in or went out
             <?php endif; ?>
         </p>
-        <p class="text-[10px] mt-1"><?= $compare($gross_profit, $prev_profit, 'up') ?></p>
+        <p class="text-xs mt-1"><?= $compare($left, $prev_left, 'up') ?></p>
     </div>
 </div>
 
@@ -173,22 +193,29 @@ $cat_labels = [
             <svg class="w-4 h-4 text-brand-plum/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
         </div>
         <div class="text-xs text-brand-plum/70 leading-relaxed">
-            <?php if ($revenue == 0 && $expenses_total == 0): ?>
-                <strong class="text-brand-plum">No activity recorded for <?= $month_label ?>.</strong> Revenue and expenses will appear here as you create invoices, record payments, and log expenses.
-            <?php elseif ($profit_positive): ?>
-                <strong class="text-brand-plum">Good news!</strong> <?= $period['months'] === 1 ? 'In' : 'From' ?> <?= e($month_label) ?>, your business received <strong class="text-green-600"><?= $currency ?><?= number_format($revenue, 0) ?></strong> in payments and spent <strong class="text-red-600"><?= $currency ?><?= number_format($expenses_total, 0) ?></strong>. That means you made a profit of <strong class="text-green-600"><?= $currency ?><?= number_format($gross_profit, 0) ?></strong>.
-                <?php if ($margin_pct >= 50): ?> Your profit margin is strong.<?php elseif ($margin_pct >= 20): ?> Your margin is healthy — keep an eye on costs.<?php else: ?> Your margin is thin — consider reviewing your biggest expenses.<?php endif; ?>
+            <?php $in_when = ($period['months'] === 1 ? 'In ' : 'From ') . e($month_label); ?>
+            <?php if ($revenue == 0 && $money_out == 0): ?>
+                <strong class="text-brand-plum">Nothing came in or went out <?= lcfirst($in_when) ?>.</strong> Money shows here as customers pay you and as you pay for things.
+            <?php elseif ($left_reads === 'up'): ?>
+                <strong class="text-brand-plum">Good news!</strong> <?= $in_when ?>, <strong class="text-green-600"><?= $currency ?><?= number_format($revenue, 0) ?></strong> came in and you paid out <strong class="text-red-600"><?= $currency ?><?= number_format($money_out, 0) ?></strong>, so <strong class="text-green-600"><?= $currency ?><?= number_format($left, 0) ?></strong> was left.
+                <?php if ($stock_out > 0): ?> <?= $stock_text ?> of what you paid went on stock.<?php endif; ?>
+                <?php if ($kept_per_100 >= 50): ?> You kept more than half of what came in.<?php elseif ($kept_per_100 >= 20): ?> A healthy share was left: keep an eye on costs.<?php else: ?> Little was left: look at your biggest costs below.<?php endif; ?>
+            <?php elseif ($left_reads === 'stock'): ?>
+                <strong class="text-brand-plum">Money into stock.</strong> <?= $in_when ?>, you paid out <?= $currency ?><?= number_format($money_out, 0) ?>, more than the <?= $currency ?><?= number_format($revenue, 0) ?> that came in, but <strong class="text-amber-700"><?= $stock_text ?></strong> of it went on stock, which is still yours to sell.
+                Not counting stock, <?= $currency ?><?= number_format($left + $stock_out, 0) ?> was left.
             <?php else: ?>
-                <strong class="text-brand-plum">Heads up.</strong> <?= $period['months'] === 1 ? 'In' : 'From' ?> <?= e($month_label) ?>, you spent more (<?= $currency ?><?= number_format($expenses_total, 0) ?>) than you received (<?= $currency ?><?= number_format($revenue, 0) ?>). The gap is <strong class="text-red-600"><?= $currency ?><?= number_format(abs($gross_profit), 0) ?></strong>.
-                <?php if ($pending_revenue > 0): ?> However, you have <?= $currency ?><?= number_format($pending_revenue, 0) ?> in unpaid invoices — collecting those would help.<?php endif; ?>
+                <strong class="text-brand-plum">Heads up.</strong> <?= $in_when ?>, you paid out more (<?= $currency ?><?= number_format($money_out, 0) ?>) than came in (<?= $currency ?><?= number_format($revenue, 0) ?>). The gap is <strong class="text-red-600"><?= $currency ?><?= number_format(abs($left), 0) ?></strong>.
+                <?php if ($stock_out > 0): ?> <?= $stock_text ?> of what you paid went on stock.<?php endif; ?>
+                <?php if ($pending_revenue > 0): ?> You have <?= $currency ?><?= number_format($pending_revenue, 0) ?> in unpaid invoices: collecting those would help.<?php endif; ?>
             <?php endif; ?>
+            <?php if ($owe_total > 0): ?> Bills you haven't paid yet (<?= $currency ?><?= number_format($owe_total, 0) ?>) count once you pay them; they are under Money you owe.<?php endif; ?>
         </div>
     </div>
 </div>
 
 <!-- Trend Chart: the period by day (a month or less) or by month -->
 <div class="bg-brand-white border border-brand-sand rounded-xl p-5 shadow-sm mb-6">
-    <h2 class="font-heading font-bold text-sm text-brand-plum mb-4 uppercase tracking-wider"><?= $period['by'] === 'day' ? 'Day by Day' : 'Month by Month' ?></h2>
+    <h2 class="font-heading font-semibold text-base text-brand-plum mb-4"><?= $period['by'] === 'day' ? 'Day by day' : 'Month by month' ?></h2>
     <div style="height: 240px; position: relative;">
         <canvas id="trendChart"></canvas>
     </div>
@@ -199,14 +226,14 @@ $cat_labels = [
 
     <!-- Expense Breakdown -->
     <div class="bg-brand-white border border-brand-sand rounded-xl p-5 shadow-sm">
-        <h2 class="font-heading font-bold text-sm text-brand-plum mb-4 uppercase tracking-wider">Where the Money Went</h2>
+        <h2 class="font-heading font-semibold text-base text-brand-plum mb-4">Where the money went</h2>
         <?php if (empty($expense_categories)): ?>
-            <p class="text-xs text-brand-plum/40">No expenses recorded in this period.</p>
+            <p class="text-xs text-brand-plum/40">Nothing was paid out in this period.</p>
         <?php else: ?>
             <div class="space-y-3">
                 <?php foreach ($expense_categories as $cat): ?>
                     <?php
-                        $pct = $expenses_total > 0 ? round(($cat['total'] / $expenses_total) * 100) : 0;
+                        $pct = $money_out > 0 ? round(($cat['total'] / $money_out) * 100) : 0;
                         $label = $cat_labels[$cat['category']] ?? ucfirst(str_replace('_', ' ', $cat['category']));
                     ?>
                     <div>
@@ -217,7 +244,7 @@ $cat_labels = [
                         <div class="w-full h-2 bg-brand-cream rounded-full overflow-hidden">
                             <div class="h-full bg-red-400 rounded-full transition-all" style="width: <?= $pct ?>%"></div>
                         </div>
-                        <div class="text-[9px] text-brand-plum/30 mt-0.5"><?= $pct ?>% of total spend</div>
+                        <div class="text-xs text-brand-plum/30 mt-0.5"><?= $pct ?>% of money out</div>
                     </div>
                 <?php endforeach; ?>
             </div>
@@ -228,39 +255,51 @@ $cat_labels = [
     <div class="space-y-4">
         <!-- Pending Revenue -->
         <div class="bg-brand-white border border-brand-sand rounded-xl p-5 shadow-sm">
-            <h2 class="font-heading font-bold text-sm text-brand-plum mb-3 uppercase tracking-wider">Money Still Owed to You</h2>
+            <h2 class="font-heading font-semibold text-base text-brand-plum mb-3">Money still owed to you</h2>
             <div class="grid grid-cols-2 gap-4">
                 <div>
-                    <div class="text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">Unpaid Invoices</div>
+                    <div class="text-sm font-semibold text-brand-plum/60 mb-1">Unpaid invoices</div>
                     <div class="font-heading font-extrabold text-xl text-amber-600"><?= $currency ?><?= number_format($pending_revenue, 0) ?></div>
-                    <div class="text-[10px] text-brand-plum/40"><?= $pending_count ?> invoice<?= $pending_count !== 1 ? 's' : '' ?></div>
+                    <div class="text-xs text-brand-plum/40"><?= $pending_count ?> invoice<?= $pending_count !== 1 ? 's' : '' ?></div>
                 </div>
                 <div>
-                    <div class="text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">Owed to me</div>
+                    <div class="text-sm font-semibold text-brand-plum/60 mb-1">Owed to me</div>
                     <div class="font-heading font-extrabold text-xl text-amber-600"><?= $currency ?><?= number_format($debts_receivable, 0) ?></div>
-                    <div class="text-[10px] text-brand-plum/40"><?= $debts_receivable_count ?> debt<?= $debts_receivable_count !== 1 ? 's' : '' ?></div>
+                    <div class="text-xs text-brand-plum/40"><?= $debts_receivable_count ?> debt<?= $debts_receivable_count !== 1 ? 's' : '' ?></div>
                 </div>
             </div>
             <?php if ($pending_revenue > 0 || $debts_receivable > 0): ?>
-                <p class="text-[10px] text-brand-plum/50 mt-3 leading-relaxed border-t border-brand-sand/50 pt-3">
+                <p class="text-xs text-brand-plum/50 mt-3 leading-relaxed border-t border-brand-sand/50 pt-3">
                     If you collect everything, that's an extra <strong class="text-green-600"><?= $currency ?><?= number_format($pending_revenue + $collectable_extra, 0) ?></strong> coming in.
                 </p>
             <?php endif; ?>
         </div>
 
-        <!-- Payables -->
+        <!-- Payables: unpaid expenses and debts typed in. Not money out until paid -->
         <div class="bg-brand-white border border-brand-sand rounded-xl p-5 shadow-sm">
-            <h2 class="font-heading font-bold text-sm text-brand-plum mb-3 uppercase tracking-wider">Money You Owe</h2>
-            <div>
-                <div class="text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">I owe</div>
-                <div class="font-heading font-extrabold text-xl text-red-600"><?= $currency ?><?= number_format($debts_payable, 0) ?></div>
-                <div class="text-[10px] text-brand-plum/40"><?= $debts_payable_count ?> debt<?= $debts_payable_count !== 1 ? 's' : '' ?> to suppliers</div>
+            <h2 class="font-heading font-semibold text-base text-brand-plum mb-3">Money you owe</h2>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <div class="text-sm font-semibold text-brand-plum/60 mb-1">Unpaid expenses</div>
+                    <div class="font-heading font-extrabold text-xl text-red-600"><?= $currency ?><?= number_format($owe_unpaid, 0) ?></div>
+                    <div class="text-xs text-brand-plum/40"><?= (int)$owe_unpaid_count ?> expense<?= (int)$owe_unpaid_count !== 1 ? 's' : '' ?></div>
+                </div>
+                <div>
+                    <div class="text-sm font-semibold text-brand-plum/60 mb-1">Other debts</div>
+                    <div class="font-heading font-extrabold text-xl text-red-600"><?= $currency ?><?= number_format($owe_debts, 0) ?></div>
+                    <div class="text-xs text-brand-plum/40"><?= (int)$owe_debts_count ?> debt<?= (int)$owe_debts_count !== 1 ? 's' : '' ?></div>
+                </div>
             </div>
+            <?php if ($owe_total > 0): ?>
+                <p class="text-xs text-brand-plum/50 mt-3 leading-relaxed border-t border-brand-sand/50 pt-3">
+                    Not in money out until you pay it. Then it counts on the day you pay.
+                </p>
+            <?php endif; ?>
         </div>
 
         <!-- Invoices Issued -->
         <div class="bg-brand-white border border-brand-sand rounded-xl p-5 shadow-sm">
-            <h2 class="font-heading font-bold text-sm text-brand-plum mb-3 uppercase tracking-wider">Invoices Issued</h2>
+            <h2 class="font-heading font-semibold text-base text-brand-plum mb-3">Invoices issued</h2>
             <div class="flex items-baseline gap-3">
                 <div class="font-heading font-extrabold text-xl text-brand-plum"><?= (int)$invoices_issued['count'] ?></div>
                 <div class="text-xs text-brand-plum/50">totalling <?= $currency ?><?= number_format((float)$invoices_issued['total'], 0) ?></div>
@@ -285,7 +324,7 @@ new Chart(ctx, {
         labels: trend.map(t => t.label),
         datasets: [
             {
-                label: 'Revenue',
+                label: 'Money in',
                 data: trend.map(t => t.revenue),
                 backgroundColor: 'rgba(34, 197, 94, 0.7)',
                 borderRadius: 6,
@@ -293,7 +332,7 @@ new Chart(ctx, {
                 categoryPercentage: 0.7,
             },
             {
-                label: 'Expenses',
+                label: 'Money out',
                 data: trend.map(t => t.expenses),
                 backgroundColor: 'rgba(239, 68, 68, 0.7)',
                 borderRadius: 6,
@@ -347,4 +386,4 @@ function downloadReport() {
     };
     html2pdf().set(opt).from(el).save();
 }
-</script>
+</script>

@@ -262,6 +262,7 @@
                 if (!r.ok || json.error) {
                     var err = new Error(json.error || 'Something went wrong. Try again.');
                     err.status = r.status;
+                    err.json = json;   // what else the server said (location-find: whether the address was saved)
                     throw err;
                 }
                 return json;
@@ -1297,12 +1298,13 @@
             status.textContent = 'Looking for your address…';
             places.textContent = '';
             api(D.urls.find, { address: address.value }).then(function (json) {
-                if (json.saved) { D.business.address = address.value.trim(); }
+                // One address for the business: a changed one is Settings' too, and says so
+                var saved = json.saved ? ' ' + addressSaved() : '';
                 if (json.places.length === 1) {
-                    setPin(json.places[0].lat, json.places[0].lng, 17, 'Found it. Drag the pin to your door if it is a little off.');
+                    setPin(json.places[0].lat, json.places[0].lng, 17, 'Found it. Drag the pin to your door if it is a little off.' + saved);
                     return;
                 }
-                status.textContent = 'Which one is yours?';
+                status.textContent = 'Which one is yours?' + saved;
                 json.places.forEach(function (place) {
                     var b = el('button', { type: 'button', class: 'st-btn st-btn--quiet st-btn--block' }, place.label);
                     b.addEventListener('click', function () {
@@ -1311,8 +1313,16 @@
                     });
                     places.appendChild(el('li')).appendChild(b);
                 });
-            }).catch(function (err) { status.textContent = err.message; }).then(function () { findBtn.disabled = false; });
+            }).catch(function (err) {
+                // Not found on the map, but the address may still have been saved
+                status.textContent = err.message + (err.json && err.json.saved ? ' ' + addressSaved() : '');
+            }).then(function () { findBtn.disabled = false; });
         });
+        // The server saved the typed address as the business's own: keep it, and the words that say so
+        function addressSaved() {
+            D.business.address = address.value.trim();
+            return 'Saved as your address in Settings too.';
+        }
         box.appendChild(findBtn);
         box.appendChild(places);
 
@@ -1455,6 +1465,18 @@
             visible.setAttribute('aria-checked', String(json.on));
             toast(json.on ? 'Your shop is open to customers.' : 'Your shop is hidden. Your link says there is no shop there.');
         }).catch(function (err) { say(err.message, true); }).then(function () { visible.disabled = false; });
+    });
+
+    // Saved at once, like the switch above; the preview redraws to show it
+    var soldOut = $('[data-sold-out]');
+    soldOut.addEventListener('click', function () {
+        var on = soldOut.getAttribute('aria-checked') !== 'true';
+        soldOut.disabled = true;
+        api(D.urls.soldOut, { on: on }).then(function (json) {
+            soldOut.setAttribute('aria-checked', String(json.on));
+            reloadPreview();
+            toast(json.on ? 'Items with no stock left now say Sold out.' : 'Items stay on sale whatever their stock.');
+        }).catch(function (err) { say(err.message, true); }).then(function () { soldOut.disabled = false; });
     });
 
     $$('[data-copy]').forEach(function (b) {

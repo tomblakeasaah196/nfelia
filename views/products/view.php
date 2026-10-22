@@ -1,267 +1,175 @@
 <?php
 /**
- * Nfelia — Product Detail + Stock Movements View
- * Renders inside views/layouts/app.php
+ * An item in the catalogue: its photo, price and stock; adding stock,
+ * taking some out or setting the count (the stock sheet at the bottom); its
+ * stock history; and Edit, Hide, Clone and Remove. Phone first, in the
+ * app's own cards, tags and sheets. Renders inside views/layouts/app.php.
  *
  * Available from controller:
  *   $user, $business, $product, $movements, $move_summary,
  *   $margin_pct, $stock_value, $move_filter
  */
-$currency = $business['currency_symbol'] ?? '₦';
-$is_svc   = (int)$product['is_service'];
-$qty      = (float)$product['stock_qty'];
+$currency  = $business['currency_symbol'] ?? '₦';
+$pid       = (int)$product['id'];
+$is_svc    = (int)$product['is_service'] === 1;
+$qty       = (float)$product['stock_qty'];
 $threshold = (float)$product['low_stock_threshold'];
+$unit      = (string)($product['unit'] ?? '');
+$sell      = (float)$product['sell_price'];
+$cost      = (float)$product['cost_price'];
+$csrf      = '<input type="hidden" name="csrf_token" value="' . e($_SESSION['csrf_token'] ?? '') . '">';
+
+[$stock_tag, $stock_cls] = match (true) {
+    $is_svc             => ['Service', 'is-line'],
+    $qty <= 0           => ['Out of stock', 'is-owed'],
+    $qty <= $threshold  => ['Running low', 'is-warn'],
+    default             => ['In stock', 'is-in'],
+};
+// Each kind of stock change, in words, with its icon; the filter uses the same words
+$kinds   = ['stock_in' => ['Added', 'plus'], 'stock_out' => ['Taken out', 'minus'], 'sale' => ['Sold', 'sales'],
+            'return' => ['Returned', 'refund'], 'adjustment' => ['Count corrected', 'edit']];
+$filters = ['' => 'All', 'stock_in' => 'Added', 'stock_out' => 'Taken out', 'sale' => 'Sales', 'return' => 'Returns', 'adjustment' => 'Corrections'];
+$filter  = (string)($move_filter ?? '');
 ?>
+<div class="nf-page nf-pview" x-data="{ adjType: 'stock_in' }">
 
-<!-- Breadcrumb + Actions -->
-<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
-    <div class="flex items-center gap-3">
-        <a href="<?= APP_URL ?>/products" class="text-brand-plum/40 hover:text-brand-plum transition-colors">
-            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
-        </a>
-        <h1 class="font-heading font-extrabold text-2xl text-brand-plum tracking-tight truncate"><?= e($product['name']) ?></h1>
-        <?php if (!$product['is_active']): ?>
-            <span class="text-[9px] font-bold text-brand-plum/40 bg-brand-sand px-2 py-1 rounded uppercase tracking-widest">Inactive</span>
+<!-- What it is: photo, name, price and where its stock stands -->
+<section class="nf-card nf-pv-hero" aria-labelledby="nf-pv-name">
+    <?php if (!empty($product['image_path'])): ?>
+        <img class="nf-pv-photo" src="<?= APP_URL ?>/<?= e($product['image_path']) ?>" alt="" decoding="async">
+    <?php endif; ?>
+    <div class="nf-pv-main">
+        <h1 class="nf-pv-name" id="nf-pv-name"><?= e($product['name']) ?></h1>
+        <?php if ($sell > 0): ?>
+            <p class="nf-pv-price"><?= planner_money($sell, $currency) ?><?php if (!$is_svc && $unit !== ''): ?><small> per <?= e(unit_word($unit, 1)) ?></small><?php endif; ?></p>
+        <?php else: ?>
+            <p class="nf-pv-price is-none">No price yet<small>Your shop shows “Ask for the price”</small></p>
         <?php endif; ?>
+        <p class="nf-pv-tags">
+            <?php if (!$product['is_active']): ?><span class="nf-tag is-line">Hidden</span><?php endif; ?>
+            <span class="nf-tag <?= $stock_cls ?>"><?= e($stock_tag) ?></span>
+            <?php if ($product['category']): ?><span class="nf-tag is-line"><?= e($product['category']) ?></span><?php endif; ?>
+            <?php if ($product['sku']): ?><span class="nf-tag is-line" title="Item code"><?= e($product['sku']) ?></span><?php endif; ?>
+        </p>
     </div>
-    <div class="flex items-center gap-2">
-        <a href="<?= APP_URL ?>/products/edit/<?= $product['id'] ?>" class="flex items-center gap-2 bg-brand-white border border-brand-sand hover:border-accent px-4 py-2.5 rounded-xl transition-all">
-            <svg class="w-4 h-4 text-accent-text" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-            <span class="text-[10px] font-bold text-brand-plum uppercase tracking-widest">Edit</span>
-        </a>
-        <form method="POST" action="<?= APP_URL ?>/products/duplicate/<?= $product['id'] ?>" class="inline">
-            <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
-            <button type="submit" class="flex items-center gap-2 bg-brand-white border border-brand-sand hover:border-accent px-4 py-2.5 rounded-xl transition-all">
-                <svg class="w-4 h-4 text-brand-plum/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
-                <span class="text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest">Clone</span>
-            </button>
-        </form>
-        <form method="POST" action="<?= APP_URL ?>/products/delete/<?= $product['id'] ?>"
-              onsubmit="return confirm('Remove <?= e(addslashes($product['name'])) ?> from inventory? This can be undone by support.');">
-            <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
-            <button type="submit" class="flex items-center gap-2 bg-brand-white border border-red-200 hover:border-red-400 px-4 py-2.5 rounded-xl transition-all">
-                <svg class="w-4 h-4 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                <span class="text-[10px] font-bold text-red-500 uppercase tracking-widest">Remove</span>
-            </button>
-        </form>
-    </div>
+    <?php if ($product['description']): ?>
+        <p class="nf-pv-desc"><?= e($product['description']) ?></p>
+    <?php endif; ?>
+    <?php if (!$product['is_active']): ?>
+        <p class="nf-help">Hidden: it isn't on your shop, and it doesn't come up when you add items to an invoice, quote or order. Its stock and history stay.</p>
+    <?php endif; ?>
+</section>
+
+<!-- Edit, Hide, Clone, Remove. Their forms sit below, so the tiles stay one row. -->
+<div class="nf-do">
+    <a href="<?= APP_URL ?>/products/edit/<?= $pid ?>"><?= nav_icon('edit') ?><span>Edit</span></a>
+    <?php /* Hidden: off the shop and out of the item pickers (toggle_status) */ ?>
+    <button type="submit" form="nf-pv-toggle"><?= nav_icon('eye') ?><span><?= $product['is_active'] ? 'Hide' : 'Show again' ?></span></button>
+    <button type="submit" form="nf-pv-clone"><?= nav_icon('copy') ?><span>Clone</span></button>
+    <button type="submit" form="nf-pv-remove" class="is-danger"><?= nav_icon('trash') ?><span>Remove</span></button>
 </div>
-
-<!-- ===== PRODUCT HEADER CARD ===== -->
-<div class="bg-brand-white border border-brand-sand rounded-xl shadow-sm overflow-hidden mb-6">
-    <div class="flex flex-col sm:flex-row">
-        <!-- Image -->
-        <div class="sm:w-48 h-48 sm:h-auto bg-brand-cream flex items-center justify-center shrink-0">
-            <?php if (!empty($product['image_path'])): ?>
-                <img src="<?= APP_URL ?>/<?= e($product['image_path']) ?>" alt="" class="w-full h-full object-cover">
-            <?php else: ?>
-                <svg class="w-16 h-16 text-brand-plum/10" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
-            <?php endif; ?>
-        </div>
-
-        <!-- Details -->
-        <div class="flex-1 p-6">
-            <div class="flex flex-wrap items-center gap-3 mb-4">
-                <span class="data-text text-xs font-bold text-brand-plum/50 bg-brand-cream px-3 py-1 rounded-lg"><?= e($product['sku'] ?: 'No SKU') ?></span>
-                <?php if ($product['category']): ?>
-                    <span class="text-[10px] font-bold text-brand-plum/50 bg-brand-cream px-3 py-1 rounded-lg uppercase tracking-wider"><?= e($product['category']) ?></span>
-                <?php endif; ?>
-                <span class="text-[10px] font-bold px-3 py-1 rounded-lg uppercase tracking-wider <?= $is_svc ? 'bg-blue-100 text-blue-700' : ($qty <= 0 ? 'bg-red-100 text-red-700' : ($qty <= $threshold ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700')) ?>">
-                    <?= $is_svc ? 'Service' : ($qty <= 0 ? 'Out of Stock' : ($qty <= $threshold ? 'Low Stock' : 'In Stock')) ?>
-                </span>
-            </div>
-
-            <?php if ($product['description']): ?>
-                <p class="text-sm text-brand-plum/60 leading-relaxed mb-4"><?= e($product['description']) ?></p>
-            <?php endif; ?>
-
-            <!-- Metrics Grid -->
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div>
-                    <div class="text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">Sell Price</div>
-                    <div class="font-heading font-extrabold text-lg text-brand-plum"><?= money((float)$product['sell_price'], $currency) ?></div>
-                </div>
-                <div>
-                    <div class="text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">Cost Price</div>
-                    <div class="data-text font-bold text-sm text-brand-plum/70"><?= money((float)$product['cost_price'], $currency) ?></div>
-                </div>
-                <div>
-                    <div class="text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">Margin</div>
-                    <div class="data-text font-bold text-sm <?= $margin_pct > 30 ? 'text-green-600' : ($margin_pct > 0 ? 'text-amber-600' : 'text-red-600') ?>"><?= $margin_pct ?>%</div>
-                </div>
-                <?php if (!$is_svc): ?>
-                <div>
-                    <div class="text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">Stock Value</div>
-                    <div class="data-text font-bold text-sm text-accent-text"><?= money($stock_value, $currency) ?></div>
-                </div>
-                <?php else: ?>
-                <div>
-                    <div class="text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">Type</div>
-                    <div class="text-sm font-bold text-blue-600">Service</div>
-                </div>
-                <?php endif; ?>
-            </div>
-
-            <?php if (!$is_svc): ?>
-            <div class="mt-4 pt-4 border-t border-brand-sand/50 flex items-center gap-6">
-                <div>
-                    <span class="text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest">Current Stock:</span>
-                    <span class="data-text font-bold text-sm text-brand-plum ml-1"><?= number_format($qty, $qty == (int)$qty ? 0 : 2) ?> <?= e($product['unit'] ?? 'pcs') ?></span>
-                </div>
-                <div>
-                    <span class="text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest">Alert At:</span>
-                    <span class="data-text font-bold text-sm text-brand-plum/60 ml-1"><?= number_format($threshold, $threshold == (int)$threshold ? 0 : 2) ?> <?= e($product['unit'] ?? 'pcs') ?></span>
-                </div>
-            </div>
-            <?php endif; ?>
-        </div>
-    </div>
-</div>
+<form id="nf-pv-toggle" method="POST" action="<?= APP_URL ?>/products/toggle-status/<?= $pid ?>" hidden><?= $csrf ?></form>
+<form id="nf-pv-clone" method="POST" action="<?= APP_URL ?>/products/duplicate/<?= $pid ?>" hidden><?= $csrf ?></form>
+<form id="nf-pv-remove" method="POST" action="<?= APP_URL ?>/products/delete/<?= $pid ?>" hidden
+      onsubmit="return confirm('Remove <?= e(addslashes($product['name'])) ?> from your catalogue? Support can bring it back.');"><?= $csrf ?></form>
 
 <?php if (!$is_svc): ?>
-<!-- ===== STOCK ADJUSTMENT FORM ===== -->
-<div class="bg-brand-white border border-brand-sand rounded-xl shadow-sm p-6 mb-6"
-     x-data="{ adjOpen: false, adjType: 'stock_in' }">
-    <div class="flex items-center justify-between">
-        <h2 class="font-heading font-bold text-xs text-brand-plum uppercase tracking-widest">Stock Adjustment</h2>
-        <button @click="adjOpen = !adjOpen" class="text-[10px] font-bold text-accent-text uppercase tracking-widest hover:text-accent-text transition-colors flex items-center gap-1">
-            <svg class="w-3.5 h-3.5" :class="adjOpen ? 'rotate-45' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
-            <span x-text="adjOpen ? 'Close' : 'Adjust Stock'"></span>
-        </button>
+<!-- Stock: how many, and the two things done most -->
+<section class="nf-money nf-pv-stock" aria-labelledby="nf-pv-stock-h">
+    <p class="nf-money-k" id="nf-pv-stock-h">In stock</p>
+    <p class="nf-money-v<?= $qty <= 0 ? ' is-owed' : '' ?>"><?= e(stock_count($qty, $unit)) ?></p>
+    <p class="nf-money-sub">
+        <?php if ($qty > 0 && $cost > 0): ?>Worth <?= planner_money((float)$stock_value, $currency) ?> at cost. <?php endif; ?>
+        You get a reminder to restock at <?= e(stock_count($threshold, $unit)) ?>.
+    </p>
+    <div class="nf-pv-stock-do">
+        <button type="button" class="nf-btn nf-btn-primary" data-open="nf-stock" data-stock-add @click="adjType = 'stock_in'"><?= nav_icon('plus') ?>Add stock</button>
+        <button type="button" class="nf-btn nf-btn-ghost" data-open="nf-stock" data-stock-out @click="adjType = 'stock_out'"><?= nav_icon('minus') ?>Take out</button>
     </div>
+</section>
+<?php endif; ?>
 
-    <form method="POST" action="<?= APP_URL ?>/products/adjust-stock/<?= $product['id'] ?>" x-show="adjOpen" x-transition class="mt-5">
-        <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
+<!-- Price -->
+<section class="nf-card" aria-labelledby="nf-pv-price-h">
+    <div class="nf-card-h"><h2 id="nf-pv-price-h">Price</h2></div>
+    <dl class="nf-kv">
+        <div><dt>Selling price</dt><dd><?= $sell > 0 ? planner_money($sell, $currency) : 'Not set' ?></dd></div>
+        <div><dt>Cost price</dt><dd><?= $cost > 0 ? planner_money($cost, $currency) : 'Not set' ?></dd></div>
+        <?php /* Neutral until both prices are in; red only when it sells below its cost */ ?>
+        <div><dt>Margin</dt><dd class="<?= $sell > 0 && $cost > 0 && $sell < $cost ? 'is-owed' : '' ?>"><?= $sell > 0 && $cost > 0 ? e($margin_pct . '%') : '—' ?></dd></div>
+    </dl>
+</section>
 
-        <div class="grid sm:grid-cols-4 gap-4 mb-4">
-            <div>
-                <label class="block text-[10px] font-bold text-brand-plum/70 uppercase tracking-widest mb-2">Type</label>
-                <select name="adj_type" x-model="adjType"
-                        class="w-full px-3 py-2.5 text-xs font-semibold bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
-                    <option value="stock_in">Stock In (+)</option>
-                    <option value="stock_out">Stock Out (−)</option>
-                    <option value="adjustment">Set Exact Quantity</option>
-                </select>
-            </div>
-            <div>
-                <label class="block text-[10px] font-bold text-brand-plum/70 uppercase tracking-widest mb-2" x-text="adjType === 'adjustment' ? 'New Quantity' : 'Quantity'">Quantity</label>
-                <input type="number" name="quantity" step="0.01" min="0" required placeholder="0"
-                       class="w-full px-3 py-2.5 text-xs font-mono font-bold bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
-            </div>
-            <div>
-                <label class="block text-[10px] font-bold text-brand-plum/70 uppercase tracking-widest mb-2">Unit Cost (<?= e($currency) ?>)</label>
-                <input type="number" name="unit_cost" step="0.01" min="0" value="<?= e($product['cost_price']) ?>" placeholder="0.00"
-                       class="w-full px-3 py-2.5 text-xs font-mono bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
-            </div>
-            <div>
-                <label class="block text-[10px] font-bold text-brand-plum/70 uppercase tracking-widest mb-2">Reason / Note</label>
-                <input type="text" name="note" placeholder="e.g. Restocked from supplier"
-                       class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/25">
-            </div>
-        </div>
-
-        <div class="flex items-center gap-3">
-            <button type="submit" class="btn-primary text-white px-6 py-2.5 rounded-lg text-[10px] font-bold uppercase tracking-widest shadow-sm">Apply Adjustment</button>
-            <span class="data-text text-[10px] text-brand-plum/30">Current stock: <strong><?= number_format($qty, $qty == (int)$qty ? 0 : 2) ?></strong> <?= e($product['unit'] ?? 'pcs') ?></span>
-        </div>
-    </form>
-</div>
-
-<!-- ===== STOCK MOVEMENT HISTORY ===== -->
-<div class="bg-brand-white border border-brand-sand rounded-xl shadow-sm overflow-hidden mb-6">
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between px-6 py-4 border-b border-brand-sand gap-3">
-        <h2 class="font-heading font-bold text-xs text-brand-plum uppercase tracking-widest">Stock Movement History</h2>
-
-        <!-- Movement type filter -->
-        <div class="flex items-center gap-2 overflow-x-auto no-scrollbar">
-            <?php
-            $move_types = [
-                ''           => 'All',
-                'stock_in'   => 'In',
-                'stock_out'  => 'Out',
-                'sale'       => 'Sale',
-                'return'     => 'Return',
-                'adjustment' => 'Adj.',
-            ];
-            foreach ($move_types as $mv_val => $mv_label):
-                $mv_active = ($move_filter ?? '') === $mv_val;
-            ?>
-                <a href="<?= APP_URL ?>/products/view/<?= $product['id'] ?><?= $mv_val ? '?move_type=' . $mv_val : '' ?>"
-                   class="shrink-0 text-[9px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg transition-all <?= $mv_active ? 'btn-primary text-white' : 'text-brand-plum/50 bg-brand-cream hover:bg-brand-sand' ?>"><?= $mv_label ?></a>
-            <?php endforeach; ?>
-        </div>
-    </div>
+<?php if (!$is_svc): ?>
+<!-- Stock history: the last 50 changes, newest first -->
+<section class="nf-card is-flush nf-pv-history" aria-labelledby="nf-pv-hist-h">
+    <div class="nf-card-h"><div><h2 id="nf-pv-hist-h">Stock history</h2><p>The last 50 changes, newest first</p></div></div>
+    <nav class="nf-chips" aria-label="Show">
+        <?php foreach ($filters as $key => $label): ?>
+            <a href="<?= APP_URL ?>/products/view/<?= $pid ?><?= $key !== '' ? '?move_type=' . $key : '' ?>"<?= $filter === $key ? ' aria-current="true"' : '' ?>><?= e($label) ?></a>
+        <?php endforeach; ?>
+    </nav>
 
     <?php if (!empty($movements)): ?>
-        <div class="overflow-x-auto">
-            <table class="w-full text-left">
-                <thead>
-                    <tr class="border-b border-brand-sand bg-brand-cream/50">
-                        <th class="px-6 py-3 text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest">Date</th>
-                        <th class="px-6 py-3 text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest">Type</th>
-                        <th class="px-6 py-3 text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest text-right">Qty</th>
-                        <th class="px-6 py-3 text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest text-right">Before</th>
-                        <th class="px-6 py-3 text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest text-right">After</th>
-                        <th class="px-6 py-3 text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest">Note</th>
-                        <th class="px-6 py-3 text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest">By</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-brand-sand/50">
-                    <?php foreach ($movements as $mv):
-                        $type_config = match($mv['type']) {
-                            'stock_in'   => ['icon' => '↑', 'color' => 'text-green-600 bg-green-100', 'label' => 'Stock In'],
-                            'stock_out'  => ['icon' => '↓', 'color' => 'text-red-600 bg-red-100',     'label' => 'Stock Out'],
-                            'sale'       => ['icon' => '◆', 'color' => 'text-blue-600 bg-blue-100',   'label' => 'Sale'],
-                            'return'     => ['icon' => '↩', 'color' => 'text-purple-600 bg-purple-100', 'label' => 'Return'],
-                            'adjustment' => ['icon' => '⟳', 'color' => 'text-amber-600 bg-amber-100', 'label' => 'Adjustment'],
-                            default      => ['icon' => '·', 'color' => 'text-gray-600 bg-gray-100',   'label' => ucfirst($mv['type'])],
-                        };
-                    ?>
-                        <tr class="hover:bg-brand-cream/30 transition-colors">
-                            <td class="px-6 py-3 data-text text-[10px] text-brand-plum/60 whitespace-nowrap"><?= fmt_date($mv['movement_date'], 'd M Y') ?></td>
-                            <td class="px-6 py-3">
-                                <span class="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded <?= $type_config['color'] ?>">
-                                    <?= $type_config['icon'] ?> <?= $type_config['label'] ?>
-                                </span>
-                            </td>
-                            <td class="px-6 py-3 data-text text-xs font-bold text-brand-plum text-right"><?= number_format((float)$mv['quantity'], 2) ?></td>
-                            <td class="px-6 py-3 data-text text-[10px] text-brand-plum/40 text-right"><?= number_format((float)$mv['stock_before'], 2) ?></td>
-                            <td class="px-6 py-3 data-text text-[10px] font-bold text-brand-plum text-right"><?= number_format((float)$mv['stock_after'], 2) ?></td>
-                            <td class="px-6 py-3 text-[10px] text-brand-plum/60 max-w-[200px] truncate"><?= e($mv['note'] ?? '—') ?></td>
-                            <td class="px-6 py-3 text-[10px] text-brand-plum/40 whitespace-nowrap"><?= e($mv['user_name'] ?? 'System') ?></td>
-                        </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
+        <div class="nf-items">
+            <?php foreach ($movements as $mv):
+                [$kind, $icon] = $kinds[$mv['type']] ?? [ucfirst(str_replace('_', ' ', (string)$mv['type'])), 'stock'];
+                $up    = (float)$mv['stock_after'] >= (float)$mv['stock_before'];
+                $moved = rtrim(rtrim(number_format((float)$mv['quantity'], 2), '0'), '.');
+                $line  = implode(' · ', array_filter([fmt_date($mv['movement_date'], 'j M Y'), trim((string)($mv['note'] ?? '')), $mv['user_name'] ?? '']));
+            ?>
+                <div class="nf-item">
+                    <span class="nf-tile-ic" aria-hidden="true"><?= nav_icon($icon) ?></span>
+                    <span class="nf-item-main"><b><?= e($kind) ?></b><small><?= e($line) ?></small></span>
+                    <span class="nf-item-end">
+                        <b class="<?= $up ? 'is-in' : '' ?>"><?= ($up ? '+' : '−') . e($moved) ?></b>
+                        <small><?= e(stock_count((float)$mv['stock_after'], $unit)) ?> after</small>
+                    </span>
+                </div>
+            <?php endforeach; ?>
         </div>
     <?php else: ?>
-        <div class="px-6 py-12 text-center">
-            <p class="text-xs text-brand-plum/40 font-medium">No stock movements recorded yet.</p>
-        </div>
+        <p class="nf-card-note"><?= $filter === '' ? 'No changes yet. Adding stock, sales and corrections show here.' : 'None of these yet.' ?></p>
     <?php endif; ?>
 
-    <!-- Movement Summary -->
     <?php if (!empty($move_summary)): ?>
-    <div class="px-6 py-4 bg-brand-cream/30 border-t border-brand-sand flex flex-wrap gap-4">
-        <?php foreach ($move_summary as $type => $ms):
-            $ms_label = match($type) {
-                'stock_in' => 'Total In', 'stock_out' => 'Total Out', 'sale' => 'Sales',
-                'return' => 'Returns', 'adjustment' => 'Adjustments', default => ucfirst($type),
-            };
-        ?>
-            <div class="text-[9px]">
-                <span class="font-bold text-brand-plum/40 uppercase tracking-widest"><?= $ms_label ?>:</span>
-                <span class="data-text font-bold text-brand-plum ml-1"><?= (int)$ms['cnt'] ?> (<?= number_format((float)$ms['total_qty'], 2) ?> units)</span>
-            </div>
-        <?php endforeach; ?>
-    </div>
+        <p class="nf-card-note nf-pv-totals"><?= e(implode(' · ', array_map(
+            fn($type, $ms) => ($filters[$type] ?? ucfirst((string)$type)) . ': ' . stock_count((float)$ms['total_qty'], $unit),
+            array_keys($move_summary), $move_summary
+        ))) ?></p>
     <?php endif; ?>
-</div>
-<?php endif; /* end !$is_svc */ ?>
+</section>
 
-<!-- ===== PRODUCT METADATA ===== -->
-<div class="text-center text-[9px] text-brand-plum/25 font-medium space-x-4 mb-4">
-    <span>Created: <?= fmt_date($product['created_at'], 'd M Y H:i') ?></span>
-    <span>Updated: <?= fmt_date($product['updated_at'], 'd M Y H:i') ?></span>
-    <span>ID: <?= $product['id'] ?></span>
+<!-- Add stock, take some out, or set the count -->
+<dialog class="nf-sheet" id="nf-stock" aria-labelledby="nf-stock-h">
+    <div class="nf-grab"></div>
+    <div class="nf-sheet-h">
+        <h2 id="nf-stock-h" x-text="adjType === 'adjustment' ? 'Set the count' : (adjType === 'stock_out' ? 'Take out stock' : 'Add stock')">Add stock</h2>
+        <button type="button" class="nf-icon-btn" data-close aria-label="Close"><?= nav_icon('close') ?></button>
+    </div>
+    <form method="POST" action="<?= APP_URL ?>/products/adjust-stock/<?= $pid ?>" class="nf-form" data-once><?= $csrf ?>
+        <div class="nf-seg is-3" role="radiogroup" aria-label="What happened">
+            <label><input type="radio" name="adj_type" value="stock_in" x-model="adjType"><span class="opt"><?= nav_icon('plus') ?>Add stock</span></label>
+            <label><input type="radio" name="adj_type" value="stock_out" x-model="adjType"><span class="opt"><?= nav_icon('minus') ?>Take out</span></label>
+            <label><input type="radio" name="adj_type" value="adjustment" x-model="adjType"><span class="opt"><?= nav_icon('edit') ?>Set the count</span></label>
+        </div>
+        <label for="nf-stock-qty">
+            <span x-text="adjType === 'adjustment' ? 'How many you have now' : (adjType === 'stock_out' ? 'How many to take out' : 'How many came in')">How many came in</span>
+            <small>You have <?= e(stock_count($qty, $unit)) ?> now</small>
+            <input id="nf-stock-qty" type="number" name="quantity" step="0.01" min="0" inputmode="decimal" required placeholder="0">
+        </label>
+        <?php /* Sent with every kind, as before; asked only when stock comes in */ ?>
+        <label x-show="adjType === 'stock_in'">Cost each <small>What you paid<?= $unit !== '' ? ' per ' . e(unit_word($unit, 1)) : '' ?>. Optional.</small>
+            <span class="nf-amount"><span><?= e($currency) ?></span><input id="nf-stock-cost" type="number" name="unit_cost" step="0.01" min="0" inputmode="decimal" value="<?= e((string)$product['cost_price']) ?>"></span>
+        </label>
+        <label for="nf-stock-note">Note <small>Optional. For example: new stock from the supplier.</small>
+            <input id="nf-stock-note" type="text" name="note" maxlength="500" autocomplete="off">
+        </label>
+        <button type="submit" id="nf-stock-save" class="nf-btn nf-btn-primary nf-sheet-go"
+                x-text="adjType === 'adjustment' ? 'Save the count' : (adjType === 'stock_out' ? 'Take out' : 'Add stock')">Add stock</button>
+    </form>
+</dialog>
+<?php endif; ?>
+
+<p class="nf-help nf-pv-meta">Added <?= fmt_date($product['created_at'], 'j M Y') ?> · Last changed <?= fmt_date($product['updated_at'], 'j M Y, H:i') ?></p>
 </div>

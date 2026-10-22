@@ -26,7 +26,8 @@ function sf_paragraphs(string $text, string $class = ''): string {
 }
 
 /**
- * " each", " per kg", or '' when the product has no unit.
+ * " each", " per kg", " per bundle" (one of them: unit_word()), or '' when
+ * the product has no unit.
  */
 function sf_unit_text(string $unit): string {
     $unit = trim($unit);
@@ -36,19 +37,59 @@ function sf_unit_text(string $unit): string {
     if (in_array(strtolower($unit), ['pc', 'pcs', 'piece', 'pieces', 'unit', 'units', 'each', 'item', 'items', 'ea'], true)) {
         return ' each';
     }
-    return ' per ' . $unit;
+    return ' per ' . unit_word($unit, 1);
+}
+
+/**
+ * The least a shopper can pay for one: every choice group has an option
+ * picked (the first, until they change it), so it is the price plus the
+ * cheapest option of each group. Booked products don't use their choices.
+ */
+function sf_lowest_price(array $item): float {
+    $low = $item['price'];
+    if (empty($item['booking'])) {
+        foreach ($item['variants'] as $group) {
+            if (!empty($group['deltas'])) {
+                $low += min(array_map(fn($option) => (float)($group['deltas'][$option] ?? 0), $group['options']));
+            }
+        }
+    }
+    return max(0.0, round($low, 2));
+}
+
+/**
+ * The price a tile shows: "From ₦80,000" when the choices move it off the
+ * product's own price, else that price; "Sold out" when it is
+ * (shop_sold_out). Text; null when there is none.
+ */
+function sf_price_text(array $item, string $currency): ?string {
+    if (!empty($item['sold_out'])) {
+        return 'Sold out';
+    }
+    if ($item['price'] <= 0) {
+        return null;
+    }
+    $low = sf_lowest_price($item);
+    return $low > 0 && $low != $item['price'] ? 'From ' . sf_money($low, $currency) : sf_money($item['price'], $currency);
 }
 
 /**
  * A product's price as HTML: the amount, then its unit in a smaller span.
- * A price of zero reads "Ask for the price".
+ * A price of zero reads "Ask for the price"; one the choices change starts
+ * "From" with the lowest. A sold-out product reads "Sold out" instead.
  */
 function sf_price_html(array $item, array $ctx, bool $with_unit = true): string {
+    if (!empty($item['sold_out'])) {
+        return '<span class="sf-amount sf-amount--ask">Sold out</span>';
+    }
     if ($item['price'] <= 0) {
         return '<span class="sf-amount sf-amount--ask">Ask for the price</span>';
     }
     $unit = $with_unit ? sf_unit_text($item['unit']) : '';
-    return '<span class="sf-amount">' . e(sf_money($item['price'], $ctx['currency'])) . '</span>'
+    $low  = sf_lowest_price($item);
+    $from = $low > 0 && $low != $item['price'];
+    return ($from ? '<span class="sf-unit">From </span>' : '')
+         . '<span class="sf-amount">' . e(sf_money($from ? $low : $item['price'], $ctx['currency'])) . '</span>'
          . ($unit !== '' ? '<span class="sf-unit">' . e($unit) . '</span>' : '');
 }
 
@@ -101,9 +142,35 @@ function sf_add_button(array $item, string $label, string $class = 'sf-btn sf-bt
         return '<a class="' . e($class) . '" href="' . e($href) . '" data-book="' . (int)$item['id'] . '"' . $aria . '>'
              . ($icon ? sf_icon('calendar', 18) : '') . ($label !== '' ? '<span>Book</span>' : '') . '</a>';
     }
+    // Sold out: a switched-off button where there are words, none where
+    // there is only a "+" (the price already says "Sold out")
+    if (!empty($item['sold_out'])) {
+        return $label === '' ? '' : '<button type="button" class="' . e($class) . '" disabled><span>Sold out</span></button>';
+    }
     $aria = $label === '' ? ' aria-label="Add ' . e($item['name']) . ' to your bag"' : '';
     return '<button type="button" class="' . e($class) . '" data-add="' . (int)$item['id'] . '"' . $aria . '>'
          . ($icon ? sf_icon('plus', 18) : '') . ($label !== '' ? '<span>' . e($label) . '</span>' : '') . '</button>';
+}
+
+/**
+ * The proof-of-payment picker, in the bag and on a booking: a box that
+ * reads "Add a screenshot of your transfer", then shows the picture picked,
+ * its name and "Change" (storefront.js fills that in). The file box is the
+ * same one as ever (payment_proof, the same pictures, sent with the form),
+ * only out of sight inside the label, so a tap anywhere opens it.
+ */
+function sf_proof_field(string $hint): string {
+    return '<label class="sf-field sf-proof" data-proof>'
+         . '<span class="sf-field__label">Proof of payment <span class="sf-field__opt">(optional)</span></span>'
+         . '<span class="sf-field__hint">' . e($hint) . '</span>'
+         . '<span class="sf-proof__box">'
+         . '<input type="file" name="payment_proof" accept="image/jpeg,image/png,image/webp" class="sf-proof__input">'
+         . '<span class="sf-proof__add" data-proof-empty>' . sf_icon('image', 22) . '<span>Add a screenshot of your transfer</span></span>'
+         . '<span class="sf-proof__picked" data-proof-picked hidden>'
+         . '<img class="sf-proof__thumb" data-proof-thumb alt="" width="44" height="44">'
+         . '<span class="sf-proof__name" data-proof-name></span>'
+         . '<span class="sf-proof__change" aria-hidden="true">Change</span>'
+         . '</span></span></label>';
 }
 
 /**
@@ -264,7 +331,7 @@ function sf_item_pricerow(array $item, array $ctx): string {
 }
 
 function sf_item_spec(array $item, array $ctx): string {
-    $sticker = $item['price'] > 0 ? '<span class="sf-sticker">' . e(sf_money($item['price'], $ctx['currency'])) . '</span>' : '';
+    $sticker = $item['price'] > 0 ? '<span class="sf-sticker">' . e(sf_price_text($item, $ctx['currency'])) . '</span>' : '';
     return '<article ' . sf_item_attrs($item, 'sf-item sf-item--spec') . '>'
          . '<div class="sf-item__visual">' . sf_open_link($item, sf_item_media($item, '120px'), 'sf-item__media', true) . $sticker . '</div>'
          . '<div class="sf-item__body">'
@@ -312,7 +379,7 @@ function sf_item_crate(array $item, array $ctx): string {
          . '<h3 class="sf-item__name">' . sf_open_link($item, e($item['name'])) . '</h3>'
          . ($item['description'] !== '' ? '<p class="sf-item__desc">' . e($item['description']) . '</p>' : '')
          . '<div class="sf-item__foot"><span class="sf-item__price">' . sf_price_html($item, $ctx, false)
-         . ($unit !== '' && $item['price'] > 0 ? '<small>' . e(trim($unit)) . '</small>' : '') . '</span>'
+         . ($unit !== '' && $item['price'] > 0 && empty($item['sold_out']) ? '<small>' . e(trim($unit)) . '</small>' : '') . '</span>'
          . sf_add_button($item, 'Add') . '</div>'
          . '</div></article>';
 }
@@ -378,7 +445,7 @@ function sf_item_included(array $item, array $ctx): string {
  * A product in "New in": a tile in the look's own frame.
  */
 function sf_tile(array $item, array $ctx, string $style): string {
-    $sticker = $style === 'sticker' && $item['price'] > 0 ? '<span class="sf-sticker">' . e(sf_money($item['price'], $ctx['currency'])) . '</span>' : '';
+    $sticker = $style === 'sticker' && $item['price'] > 0 ? '<span class="sf-sticker">' . e(sf_price_text($item, $ctx['currency'])) . '</span>' : '';
     $sizes = match ($style) {
         'plate'  => '(min-width: 720px) 200px, 30vw',
         default  => '(min-width: 1080px) 260px, (min-width: 720px) 30vw, 46vw',

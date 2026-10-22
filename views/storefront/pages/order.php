@@ -13,7 +13,9 @@ $track   = shop_order_steps($order, $shop);
 $review  = $order['review'];
 $is_wa   = $order['channel'] === 'whatsapp';
 $dstatus = (string)($order['delivery']['status'] ?? '');
-$moving  = in_array($dstatus, ['dispatched', 'in_transit'], true);
+// 'ready' on a delivery is "sent out", as the steps say (shop_order_steps)
+$moving  = in_array($dstatus, ['dispatched', 'in_transit'], true)
+        || ($order['status'] === 'ready' && $order['fulfillment_type'] === 'delivery');
 $money   = fn($amount) => sf_money((float)$amount, $currency);
 $when    = fn(?string $at) => $at ? date('j M, g:ia', strtotime($at)) : '';
 $here    = $shop_url . '/order/' . $order['public_token'];
@@ -24,15 +26,18 @@ $lead = match (true) {
     $track['state'] === 'done'        => ($order['fulfillment_type'] === 'delivery' ? 'Delivered' : 'Collected') . '. Thank you for shopping with ' . $shop . '.',
     $dstatus === 'delivered'          => 'Your order has been delivered.',
     $moving                           => 'Your order is on its way.',
+    $order['status'] === 'ready'      => 'Your order is ready. Pick it up from ' . $shop . '.',
     in_array($order['status'], ['approved', 'processing'], true) => $shop . ' is getting your order ready.',
     $is_wa                            => 'Send your order to ' . $shop . ' on WhatsApp so they can confirm it with you.',
+    // No transfer was made (the shop shows no account): nothing to check yet
+    $order['payment_method'] === 'none' => $shop . ' will contact you on the number you gave to confirm it. This page shows each step as it happens.',
     default                           => $shop . ' is checking your payment. This page shows each step as it happens.',
 };
 
-// The order's lines, for WhatsApp and for "order again" (only what's still on sale)
+// The order's lines, for WhatsApp and for "order again" (only what's still on sale and not sold out)
 $lines = [];
 $again = [];
-$on_sale = array_column($catalogue['items'], null, 'id');
+$on_sale = array_column(array_filter($catalogue['items'], fn($i) => !$i['sold_out']), null, 'id');
 foreach ($order['items'] as $i => $line) {
     $lines[] = ($i + 1) . '. ' . $line['product_name'] . ' x' . (int)$line['quantity'] . ($line['variant_selection'] ? ' (' . $line['variant_selection'] . ')' : '');
     if (isset($on_sale[(int)$line['product_id']])) {

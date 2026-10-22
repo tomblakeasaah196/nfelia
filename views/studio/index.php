@@ -77,6 +77,7 @@ $studio = [
         'restore'    => APP_URL . '/landing-page/restore-version',
         'upload'     => APP_URL . '/landing-page/upload-image',
         'visibility' => APP_URL . '/landing-page/visibility',
+        'soldOut'    => APP_URL . '/landing-page/sold-out',
         'preview'    => APP_URL . '/landing-page/preview',
         'check'      => APP_URL . '/shop-setup/check',
         'products'   => APP_URL . '/products/create',
@@ -277,7 +278,10 @@ $samples_url = 'https://fonts.googleapis.com/css2?family=' . implode('&family=',
                         <?php if ($public_url): ?>
                             <p class="st-linkline">
                                 <a href="<?= e($public_url) ?>" target="_blank" rel="noopener"><?= e($shop_host) ?></a>
-                                <button type="button" class="st-btn st-btn--quiet st-btn--sm" data-copy="<?= e($public_url) ?>">Copy link</button>
+                                <span style="display: inline-flex; flex-wrap: wrap; gap: 8px">
+                                    <button type="button" class="st-btn st-btn--quiet st-btn--sm" data-copy="<?= e($public_url) ?>">Copy link</button>
+                                    <a class="st-btn st-btn--quiet st-btn--sm" href="https://wa.me/?text=<?= e(rawurlencode('Have a look at my shop: ' . $public_url)) ?>" target="_blank" rel="noopener">Share on WhatsApp</a>
+                                </span>
                             </p>
                         <?php else: ?>
                             <p class="st-help">Your shop doesn't have a live link yet.</p>
@@ -295,11 +299,11 @@ $samples_url = 'https://fonts.googleapis.com/css2?family=' . implode('&family=',
                                     <?= csrf_field() ?>
                                     <label class="st-label" for="st-rename-name">New shop name</label>
                                     <div class="st-namefield">
-                                        <input id="st-rename-name" name="shop_name" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="40" aria-describedby="st-rename-status st-rename-rules" data-name-input>
+                                        <input id="st-rename-name" name="shop_name" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="<?= SHOP_NAME_MAX ?>" aria-describedby="st-rename-status st-rename-rules" data-name-input>
                                         <span>.<?= e(shop_base_host()) ?></span>
                                     </div>
                                     <p class="st-namestatus" id="st-rename-status" role="status" data-name-status></p>
-                                    <p class="st-help" id="st-rename-rules">You can change your link once. Your old link keeps sending people to the new one for 90 days, so update it where you've shared it.</p>
+                                    <p class="st-help" id="st-rename-rules">Use <?= SHOP_NAME_MIN ?> to <?= SHOP_NAME_MAX ?> letters, numbers or hyphens; spaces become hyphens. You can change your link once. Your old link keeps sending people to the new one for 90 days, so update it where you've shared it.</p>
                                     <button type="submit" class="st-btn st-btn--primary" data-name-submit disabled>Change my link</button>
                                 </form>
                             </details>
@@ -315,6 +319,16 @@ $samples_url = 'https://fonts.googleapis.com/css2?family=' . implode('&family=',
                             <button type="button" class="st-switch" role="switch" aria-checked="<?= (int)$business['landing_enabled'] ? 'true' : 'false' ?>" aria-labelledby="st-visible-label" data-visibility><span></span></button>
                         </div>
                         <p class="st-help">When it's off, your link says there is no shop at that address. Your products and orders stay as they are.</p>
+                    </section>
+
+                    <?php /* shop_sold_out(): saved at once, like the switch above */ ?>
+                    <section class="st-card">
+                        <h2 class="st-h2">Sold out</h2>
+                        <div class="st-switchrow">
+                            <span id="st-soldout-label">Show items as sold out when their stock runs out</span>
+                            <button type="button" class="st-switch" role="switch" aria-checked="<?= (int)($business['shop_sold_out'] ?? 0) ? 'true' : 'false' ?>" aria-labelledby="st-soldout-label" data-sold-out><span></span></button>
+                        </div>
+                        <p class="st-help">When it's on, an item with no stock left says “Sold out” and can't be ordered until you add stock. Leave it off if you don't count your stock in Nfelia. Services and things people book are never sold out.</p>
                     </section>
 
                     <section class="st-card">
@@ -341,5 +355,6 @@ $samples_url = 'https://fonts.googleapis.com/css2?family=' . implode('&family=',
 
 <script type="application/json" id="st-data"><?= json_encode($studio, $json_flags) ?></script>
 <script src="<?= e($asset('assets/js/studio.js')) ?>" defer></script>
+<script src="<?= e($asset('assets/js/wa.js')) ?>" defer></script>
 </body>
 </html>

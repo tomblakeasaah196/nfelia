@@ -163,9 +163,12 @@ if (!$business['onboarding_complete'] && !in_array($controller ?? '', ['onboardi
 
 // Owners choose their shop link and look before carrying on (see
 // ShopSetupController). Staff are never sent. Billing, settings and support
-// stay open, so a locked-out owner can still pay or ask for help.
+// stay open, so a locked-out owner can still pay or ask for help. So do More
+// (the bell's settings link) and the saves on Settings › Signatures, which
+// would otherwise be lost on the way.
 $shop_setup_exempt = ['shop-setup', 'onboarding', 'logout', 'settings', 'account', 'billing', 'momo', 'countries',
-                      'resend-verification', 'contact-support', 'support', 'user-guide', 'admin', 'notifications'];
-if (is_owner() && !in_array($controller ?? '', $shop_setup_exempt, true) && shop_setup_needed()) {
+                      'resend-verification', 'contact-support', 'support', 'user-guide', 'admin', 'notifications', 'more'];
+$signatures_save   = ($controller ?? '') === 'signing' && in_array($action ?? '', ['settings', 'mine'], true);
+if (is_owner() && !in_array($controller ?? '', $shop_setup_exempt, true) && !$signatures_save && shop_setup_needed()) {
     redirect('shop-setup');
 }

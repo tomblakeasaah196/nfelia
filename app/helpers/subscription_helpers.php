@@ -115,8 +115,9 @@ function check_subscription(): ?array {
         $sub['_grace_days_left'] = $diff->invert ? 0 : $diff->days + 1;
     }
 
-    // Total available seats
-    $sub['_total_seats'] = ($sub['user_seats'] ?? 1) + ($sub['extra_seats'] ?? 0);
+    // Total available seats, the trial's staff seat included (billing_seats)
+    require_once __DIR__ . '/billing.php';
+    $sub['_total_seats'] = billing_seats($sub);
 
     $_subscription_cache = $sub;
     return $sub;

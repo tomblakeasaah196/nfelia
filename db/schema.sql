@@ -106,7 +106,7 @@ CREATE TABLE `businesses` (
   `logo_path` varchar(500) DEFAULT NULL,
   `hero_image_path` varchar(500) DEFAULT NULL,
   `primary_color` varchar(7) NOT NULL DEFAULT '#1A1A2E',
-  `secondary_color` varchar(7) NOT NULL DEFAULT '#C27A62',
+  `secondary_color` varchar(7) NOT NULL DEFAULT '#B69F5E',
   `font_pairing` enum('corporate_serif','modern_sans','bold_display','classic_tech','elegant_serif') NOT NULL DEFAULT 'modern_sans',
   `address` text DEFAULT NULL,
   `phone` varchar(20) DEFAULT NULL,

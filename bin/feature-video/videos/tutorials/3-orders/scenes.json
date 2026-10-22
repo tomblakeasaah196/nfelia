@@ -1,0 +1,938 @@
+{
+ "title": "Orders, payments, delivery",
+ "login": {
+  "email": "adanna@adannaluxehair.com",
+  "password": "TestPass1"
+ },
+ "voice": {
+  "engine": "yarngpt",
+  "name": "chinenye",
+  "tempo": 0.82,
+  "pause": 0.6,
+  "say_as": {
+   "Nfelia": "En-feh-lee-ya"
+  }
+ },
+ "speed_limit": 1.8,
+ "breath": 0.8,
+ "scenes": [
+  {
+   "card": {
+    "kicker": "Nfelia tutorials · 3 of 5",
+    "title": "Orders, payments and delivery",
+    "sub": "Take an order, confirm the payment, and deliver it."
+   },
+   "min": 4,
+   "say": "Welcome back. In this video, a customer orders from our shop. We confirm her payment, send her receipt, and deliver the hair.",
+   "steps": []
+  },
+  {
+   "as": "customer",
+   "open": "shop:adannaluxehair/p/{body}-body-wave-bundles-18",
+   "chapter": "An order from your shop",
+   "steps": [
+    [
+     "wait",
+     1600
+    ],
+    [
+     "scroll",
+     "button:has-text('Add to bag')",
+     420
+    ],
+    [
+     "wait",
+     500
+    ],
+    [
+     "tap",
+     "button:has-text('Add to bag')"
+    ],
+    [
+     "wait",
+     1200
+    ]
+   ],
+   "caption": "A customer finds your shop",
+   "sub": "From your link on WhatsApp.",
+   "say": "Chiamaka saw our shop link on WhatsApp. She likes the body wave bundles, so she taps Add to bag."
+  },
+  {
+   "as": "customer",
+   "chapter": "An order from your shop",
+   "steps": [
+    [
+     "tap",
+     "button:has-text('View bag')"
+    ],
+    [
+     "wait",
+     900
+    ],
+    [
+     "tap",
+     "button:has-text('Check out')"
+    ],
+    [
+     "wait",
+     1000
+    ]
+   ],
+   "caption": "Check out",
+   "say": "She opens her bag, and taps Check out."
+  },
+  {
+   "as": "customer",
+   "chapter": "An order from your shop",
+   "steps": [
+    [
+     "tap",
+     "input[name=customer_name]"
+    ],
+    [
+     "type",
+     "input[name=customer_name]",
+     "Chiamaka Nwosu",
+     70
+    ],
+    [
+     "wait",
+     200
+    ],
+    [
+     "tap",
+     "input[name=customer_phone]"
+    ],
+    [
+     "type",
+     "input[name=customer_phone]",
+     "0806 123 4501",
+     80
+    ],
+    [
+     "wait",
+     500
+    ],
+    [
+     "tap",
+     "button:has-text('Continue') >> nth=0"
+    ],
+    [
+     "wait",
+     900
+    ]
+   ],
+   "caption": "Name and phone",
+   "sub": "No account, no password.",
+   "say": "She types her name and her phone number. She needs no account, and no password."
+  },
+  {
+   "as": "customer",
+   "chapter": "An order from your shop",
+   "steps": [
+    [
+     "tap",
+     "label:has-text('Deliver it to me'):visible"
+    ],
+    [
+     "wait",
+     500
+    ],
+    [
+     "tap",
+     "textarea[name=delivery_address]"
+    ],
+    [
+     "type",
+     "textarea[name=delivery_address]",
+     "15 Isaac John Street, Ikeja GRA, Lagos",
+     50
+    ],
+    [
+     "wait",
+     500
+    ],
+    [
+     "tap",
+     "button:has-text('Continue') >> nth=-1"
+    ],
+    [
+     "wait",
+     1000
+    ]
+   ],
+   "caption": "Delivered to her door",
+   "say": "She wants it delivered, so she adds her address."
+  },
+  {
+   "as": "customer",
+   "chapter": "An order from your shop",
+   "steps": [
+    [
+     "spot",
+     "label:has-text('Moniepoint'):visible",
+     6
+    ],
+    [
+     "wait",
+     2200
+    ],
+    [
+     "unspot"
+    ]
+   ],
+   "caption": "She pays by transfer",
+   "sub": "To the account you added.",
+   "say": "Nfelia shows her your bank account, so she pays by transfer from her bank app."
+  },
+  {
+   "as": "customer",
+   "chapter": "An order from your shop",
+   "steps": [
+    [
+     "scroll",
+     "input[name=payment_proof]",
+     420
+    ],
+    [
+     "upload",
+     "input[name=payment_proof]",
+     "../assets/transfer-proof.png"
+    ],
+    [
+     "wait",
+     1200
+    ],
+    [
+     "tap",
+     "button:has-text('Place my order')"
+    ],
+    [
+     "wait",
+     2600
+    ]
+   ],
+   "caption": "Her proof of payment",
+   "sub": "A screenshot of her transfer.",
+   "say": "She adds a screenshot of her transfer, and taps Place my order. She gets an order number, and a link to follow her order."
+  },
+  {
+   "open": "/dashboard",
+   "chapter": "Confirm the payment",
+   "steps": [
+    [
+     "wait",
+     900
+    ],
+    [
+     "scroll",
+     "#nf-attn-h",
+     200
+    ],
+    [
+     "spot",
+     "section[aria-labelledby=nf-attn-h]",
+     4
+    ],
+    [
+     "wait",
+     2200
+    ],
+    [
+     "unspot"
+    ]
+   ],
+   "caption": "A new order is waiting",
+   "say": "On your phone, Nfelia tells you at once. Home shows one shop order waiting for you."
+  },
+  {
+   "chapter": "Confirm the payment",
+   "steps": [
+    [
+     "tap",
+     ".nf-tab:has-text('Orders')",
+     {
+      "nav": true
+     }
+    ],
+    [
+     "wait",
+     700
+    ],
+    [
+     "spot",
+     "a:has-text('To confirm')",
+     4
+    ],
+    [
+     "wait",
+     1200
+    ],
+    [
+     "unspot"
+    ],
+    [
+     "tap",
+     "a:has-text('Chiamaka Nwosu') >> nth=0",
+     {
+      "nav": true
+     }
+    ],
+    [
+     "wait",
+     1200
+    ]
+   ],
+   "caption": "Orders, To confirm",
+   "say": "Open Orders. New orders from your shop wait under To confirm."
+  },
+  {
+   "chapter": "Confirm the payment",
+   "steps": [
+    [
+     "tap",
+     "main button:has-text('Confirm order')"
+    ],
+    [
+     "wait",
+     1200
+    ],
+    [
+     "spot",
+     "dialog[open] img",
+     4
+    ],
+    [
+     "wait",
+     2000
+    ],
+    [
+     "unspot"
+    ],
+    [
+     "spot",
+     "dialog[open] label:has(input[name=payment_received])",
+     6
+    ],
+    [
+     "wait",
+     1600
+    ],
+    [
+     "unspot"
+    ]
+   ],
+   "caption": "Check her screenshot",
+   "sub": "Then check your bank app.",
+   "say": "Check her screenshot against your bank app. When the money is really in your account, leave this switched on."
+  },
+  {
+   "chapter": "Confirm the payment",
+   "steps": [
+    [
+     "tap",
+     "dialog[open] label:has-text('Tomorrow')"
+    ],
+    [
+     "wait",
+     600
+    ],
+    [
+     "tap",
+     "dialog[open] button:has-text('Confirm order')",
+     {
+      "nav": true
+     }
+    ],
+    [
+     "wait",
+     1600
+    ]
+   ],
+   "caption": "Confirm order",
+   "sub": "The invoice and receipt are made for you.",
+   "say": "Choose when she will get it, then tap Confirm order. Nfelia makes the invoice and the receipt for you."
+  },
+  {
+   "chapter": "Confirm the payment",
+   "steps": [
+    [
+     "tap",
+     "main button:has-text('WhatsApp')"
+    ],
+    [
+     "wait",
+     1000
+    ],
+    [
+     "spot",
+     "dialog[open] a:has-text('Send the receipt')",
+     4
+    ],
+    [
+     "wait",
+     2200
+    ],
+    [
+     "unspot"
+    ],
+    [
+     "press",
+     "Escape"
+    ],
+    [
+     "wait",
+     400
+    ]
+   ],
+   "caption": "Send her receipt",
+   "sub": "The message is written for you.",
+   "say": "Tap WhatsApp to send her the receipt. The message is already written, with the link to her receipt."
+  },
+  {
+   "chapter": "Deliver it",
+   "steps": [
+    [
+     "keep",
+     "chiamaka",
+     "url"
+    ],
+    [
+     "tap",
+     "main button:has-text('Send it out')",
+     {
+      "nav": true
+     }
+    ],
+    [
+     "wait",
+     1200
+    ],
+    [
+     "scroll",
+     "summary:has-text('Delivery')",
+     360
+    ],
+    [
+     "tap",
+     "summary:has-text('Delivery')"
+    ],
+    [
+     "wait",
+     700
+    ],
+    [
+     "spot",
+     "a[href*='/deliveries/view/']:visible",
+     4
+    ],
+    [
+     "wait",
+     1200
+    ],
+    [
+     "unspot"
+    ],
+    [
+     "tap",
+     "a[href*='/deliveries/view/']:visible",
+     {
+      "nav": true
+     }
+    ],
+    [
+     "wait",
+     1400
+    ]
+   ],
+   "caption": "Send it out",
+   "sub": "The delivery note is ready.",
+   "say": "When the rider leaves with the hair, tap Send it out. The delivery note is ready for you."
+  },
+  {
+   "chapter": "Deliver it",
+   "steps": [
+    [
+     "keep",
+     "signoff",
+     "#signoff-url",
+     "value"
+    ],
+    [
+     "scroll",
+     "#signoff-url",
+     360
+    ],
+    [
+     "wait",
+     500
+    ],
+    [
+     "spot",
+     "a:has-text('WhatsApp'):near(#signoff-url)",
+     6
+    ],
+    [
+     "wait",
+     2400
+    ],
+    [
+     "unspot"
+    ]
+   ],
+   "caption": "The sign-off link",
+   "sub": "She confirms with one tap.",
+   "say": "Send the sign-off link to Chiamaka on WhatsApp. When the hair arrives, she confirms it with one tap."
+  },
+  {
+   "as": "customer",
+   "open": "{signoff}",
+   "chapter": "Deliver it",
+   "steps": [
+    [
+     "wait",
+     1400
+    ],
+    [
+     "scroll",
+     "input[x-model=signoffName]",
+     420
+    ],
+    [
+     "tap",
+     "input[x-model=signoffName]"
+    ],
+    [
+     "type",
+     "input[x-model=signoffName]",
+     "Chiamaka Nwosu",
+     70
+    ],
+    [
+     "wait",
+     400
+    ],
+    [
+     "tap",
+     "button:has-text('Confirm received')"
+    ],
+    [
+     "wait",
+     2600
+    ]
+   ],
+   "caption": "She confirms it arrived",
+   "say": "Chiamaka opens the link on her phone, types her name, and taps Confirm received."
+  },
+  {
+   "open": "{chiamaka}",
+   "chapter": "Deliver it",
+   "steps": [
+    [
+     "wait",
+     1600
+    ]
+   ],
+   "caption": "Delivered and paid",
+   "say": "Her order is now delivered, and paid. Done."
+  },
+  {
+   "open": "/orders/create",
+   "chapter": "A sale in your shop",
+   "steps": [
+    [
+     "wait",
+     900
+    ],
+    [
+     "tap",
+     "button:has-text('Add an item')"
+    ],
+    [
+     "wait",
+     900
+    ],
+    [
+     "tap",
+     "#nf-pick button:has-text('Lace Glue')"
+    ],
+    [
+     "wait",
+     900
+    ],
+    [
+     "tap",
+     "#nf-pick button:has-text('Add ·')"
+    ],
+    [
+     "wait",
+     900
+    ]
+   ],
+   "caption": "A walk-in sale",
+   "sub": "The + button, then New order.",
+   "say": "Now a sale in the shop. A customer buys a glue and edge control set. Tap plus, then New order, and add the item."
+  },
+  {
+   "chapter": "A sale in your shop",
+   "steps": [
+    [
+     "scroll",
+     "button:has-text('No name, paying now')",
+     300
+    ],
+    [
+     "tap",
+     "button:has-text('No name, paying now')"
+    ],
+    [
+     "wait",
+     700
+    ],
+    [
+     "spot",
+     "label:has-text('In the shop'):visible",
+     4
+    ],
+    [
+     "wait",
+     900
+    ],
+    [
+     "unspot"
+    ],
+    [
+     "tap",
+     "label:has-text('Paid now'):visible"
+    ],
+    [
+     "tap",
+     "label:has-text('Cash'):visible"
+    ],
+    [
+     "wait",
+     700
+    ],
+    [
+     "tap",
+     "button[x-text=\"buttonWords()\"]",
+     {
+      "nav": true
+     }
+    ],
+    [
+     "wait",
+     1600
+    ]
+   ],
+   "caption": "Paid now, in cash",
+   "say": "She pays now, in cash, so you need no name. Tap No name, paying now, then tap the green button to save. Her receipt is ready, if she wants one."
+  },
+  {
+   "open": "/orders/create",
+   "chapter": "An order on WhatsApp",
+   "steps": [
+    [
+     "wait",
+     900
+    ],
+    [
+     "tap",
+     "button.nf-link:has-text('New customer')"
+    ],
+    [
+     "wait",
+     700
+    ],
+    [
+     "tap",
+     "input[name=customer_name]"
+    ],
+    [
+     "type",
+     "input[name=customer_name]",
+     "Funke Adeyemi",
+     70
+    ],
+    [
+     "tap",
+     "input[name=customer_phone]"
+    ],
+    [
+     "type",
+     "input[name=customer_phone]",
+     "0806 123 4502",
+     80
+    ],
+    [
+     "wait",
+     700
+    ]
+   ],
+   "caption": "An order on WhatsApp",
+   "sub": "Funke, a new customer.",
+   "say": "Funke orders a bob wig on WhatsApp. She is a new customer, so we add her name and phone number.",
+   "before": [
+    [
+     "eval",
+     "localStorage.clear(); sessionStorage.clear()"
+    ],
+    [
+     "goto",
+     "/orders/create"
+    ]
+   ]
+  },
+  {
+   "chapter": "An order on WhatsApp",
+   "steps": [
+    [
+     "tap",
+     "button:has-text('Add an item')"
+    ],
+    [
+     "wait",
+     800
+    ],
+    [
+     "tap",
+     "#nf-pick button:has-text('Bob Wig')"
+    ],
+    [
+     "wait",
+     800
+    ],
+    [
+     "tap",
+     "#nf-pick button:has-text('Add ·')"
+    ],
+    [
+     "wait",
+     700
+    ],
+    [
+     "tap",
+     "label:has-text('Online or call'):visible"
+    ],
+    [
+     "wait",
+     800
+    ]
+   ],
+   "caption": "Online or call",
+   "say": "Add the bob wig. She is not in the shop, so choose Online or call."
+  },
+  {
+   "chapter": "An order on WhatsApp",
+   "steps": [
+    [
+     "scroll",
+     "label:has-text('Part now'):visible",
+     300
+    ],
+    [
+     "tap",
+     "label:has-text('Part now'):visible"
+    ],
+    [
+     "wait",
+     500
+    ],
+    [
+     "tap",
+     "input[name=paid_now]"
+    ],
+    [
+     "type",
+     "input[name=paid_now]",
+     "50000",
+     110
+    ],
+    [
+     "tap",
+     "label:has-text('Transfer'):visible"
+    ],
+    [
+     "wait",
+     400
+    ],
+    [
+     "scroll",
+     "label:has-text('In a week'):visible",
+     380
+    ],
+    [
+     "tap",
+     "label:has-text('In a week'):visible"
+    ],
+    [
+     "wait",
+     900
+    ]
+   ],
+   "caption": "Part payment",
+   "sub": "And when she pays the rest.",
+   "say": "She pays fifty thousand naira now, by transfer, and the rest next week. Choose Part now, type what she paid, and when she will pay the rest."
+  },
+  {
+   "chapter": "An order on WhatsApp",
+   "steps": [
+    [
+     "tap",
+     "button[x-text=\"buttonWords()\"]",
+     {
+      "nav": true
+     }
+    ],
+    [
+     "wait",
+     1600
+    ]
+   ],
+   "caption": "Saved, with her balance",
+   "say": "Tap Save order. Nfelia remembers her balance of forty-five thousand naira."
+  },
+  {
+   "open": "/debts",
+   "chapter": "An order on WhatsApp",
+   "steps": [
+    [
+     "wait",
+     1400
+    ],
+    [
+     "spot",
+     "a:has-text('Funke')",
+     4
+    ],
+    [
+     "wait",
+     2200
+    ],
+    [
+     "unspot"
+    ]
+   ],
+   "caption": "Debts",
+   "sub": "Who owes you, and by when.",
+   "say": "Her balance is under Debts, with the day she promised to pay. Nfelia reminds you, and you can remind her on WhatsApp."
+  },
+  {
+   "open": "/orders",
+   "chapter": "An order on WhatsApp",
+   "steps": [
+    [
+     "wait",
+     800
+    ],
+    [
+     "tap",
+     "a:has-text('Funke Adeyemi') >> nth=0",
+     {
+      "nav": true
+     }
+    ],
+    [
+     "wait",
+     1000
+    ],
+    [
+     "tap",
+     "main button:has-text('Record payment')"
+    ],
+    [
+     "wait",
+     900
+    ],
+    [
+     "tap",
+     "dialog[open] button:has-text('All of it')"
+    ],
+    [
+     "wait",
+     600
+    ],
+    [
+     "tap",
+     "dialog[open] button:has-text('Save payment')",
+     {
+      "nav": true
+     }
+    ],
+    [
+     "wait",
+     1600
+    ]
+   ],
+   "caption": "She pays the rest",
+   "sub": "Record payment.",
+   "say": "When she pays the rest, open her order, and tap Record payment. Her receipt updates by itself."
+  },
+  {
+   "open": "/orders/create",
+   "chapter": "A sale you forgot",
+   "steps": [
+    [
+     "wait",
+     900
+    ],
+    [
+     "tap",
+     "button.nf-link:has-text('Change') >> nth=0"
+    ],
+    [
+     "wait",
+     500
+    ],
+    [
+     "fill",
+     "#nf-sale-day",
+     "{yesterday}"
+    ],
+    [
+     "change",
+     "#nf-sale-day"
+    ],
+    [
+     "wait",
+     900
+    ],
+    [
+     "spot",
+     ".nf-dated",
+     4
+    ],
+    [
+     "wait",
+     2200
+    ],
+    [
+     "unspot"
+    ]
+   ],
+   "caption": "Forgot to record a sale?",
+   "sub": "Change the date.",
+   "say": "Did you forget to record a sale yesterday? On a new order, tap Change next to the date, and choose the real day.",
+   "before": [
+    [
+     "eval",
+     "localStorage.clear(); sessionStorage.clear()"
+    ],
+    [
+     "goto",
+     "/orders/create"
+    ]
+   ]
+  },
+  {
+   "card": {
+    "kicker": "Next: video 4 of 5",
+    "title": "Quotes, deposits and customers' money",
+    "sub": "Quote a bridal party, take a deposit, and keep money for a client."
+   },
+   "min": 4,
+   "say": "That is orders, payments and delivery. In the next video, we send a quote for a bridal party, and take a deposit. See you there.",
+   "steps": []
+  }
+ ]
+}

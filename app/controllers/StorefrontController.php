@@ -533,14 +533,8 @@ class StorefrontController extends PublicController
             $number = generate_doc_number($this->db, (int)$bid, 'BKG');
             $token  = shop_order_token();
 
-            $stmt = $this->db->prepare("SELECT id FROM customers WHERE business_id = ? AND phone = ? AND deleted_at IS NULL LIMIT 1");
-            $stmt->execute([$bid, $phone]);
-            $customer_id = (int)$stmt->fetchColumn();
-            if (!$customer_id) {
-                $this->db->prepare("INSERT INTO customers (business_id, full_name, phone, email, notes) VALUES (?, ?, ?, ?, ?)")
-                         ->execute([$bid, $name, $phone, $email ?: null, 'Auto-created from a booking']);
-                $customer_id = (int)$this->db->lastInsertId();
-            }
+            // The customer by the phone's last 10 digits, however it was typed, as shop orders do
+            $customer_id = order_match_customer($this->db, (int)$bid, $name, $phone, $email);
 
             $this->db->prepare("
                 INSERT INTO bookings (business_id, product_id, product_name, booking_number, public_token, kind, starts_at, ends_at, units,

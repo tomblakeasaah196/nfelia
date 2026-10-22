@@ -11,7 +11,8 @@
 ['primary' => $primary, 'secondary' => $secondary, 'text' => $text, 'on' => $on] = brand_doc_colours($business);   // the brand colours, else Nfelia's (app/helpers/brand.php)
 $doc_fonts = brand_doc_fonts($business);   // the brand fonts (app/helpers/brand.php)
 $logo_url  = !empty($business['logo_path']) ? APP_URL . '/' . $business['logo_path'] : null;
-$already_signed = ($delivery['status'] === 'signed_off' && $delivery['signoff_name']);
+// Received: signed for here, or marked received by the business (no name then)
+$already_signed = $delivery['status'] === 'signed_off';
 // A signed delivery note is received by signing it; any other with one tap
 $sign_to_receive = !empty($delivery['sign_on']);
 $was_signed      = !empty($delivery['signoff_signature_path']);
@@ -21,8 +22,8 @@ $was_signed      = !empty($delivery['signoff_signature_path']);
 <head>
     <meta charset="UTF-8">
     <?= errors_script_tag() ?>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Confirm Receipt — <?= e($delivery['doc_number']) ?></title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Confirm receipt — <?= e($delivery['doc_number']) ?></title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="<?= e($doc_fonts['url']) ?>" rel="stylesheet">
     <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/public.css?v=<?= @filemtime(BASE_PATH . '/assets/css/public.css') ?>">
@@ -49,7 +50,7 @@ $was_signed      = !empty($delivery['signoff_signature_path']);
                 <img src="<?= e($logo_url) ?>" alt="Logo" class="h-12 w-12 object-contain rounded-xl mx-auto mb-2 shadow-sm">
             <?php endif; ?>
             <h1 class="text-lg font-extrabold brand-primary"><?= e($business['name']) ?></h1>
-            <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Delivery Confirmation</p>
+            <p class="text-xs text-gray-500 font-semibold mt-1">Delivery confirmation</p>
         </div>
 
         <?php if ($already_signed): ?>
@@ -57,28 +58,31 @@ $was_signed      = !empty($delivery['signoff_signature_path']);
         <div class="bg-white rounded-2xl shadow-lg overflow-hidden">
             <div class="bg-green-500 text-white px-6 py-5 text-center">
                 <svg class="w-10 h-10 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                <h2 class="text-xl font-extrabold">Receipt Confirmed</h2>
-                <p class="text-xs opacity-80 mt-1"><?= $was_signed ? 'This delivery was signed for.' : 'This delivery was confirmed received.' ?></p>
+                <h2 class="text-xl font-extrabold">Receipt confirmed</h2>
+                <p class="text-xs opacity-80 mt-1"><?= $was_signed ? 'This delivery was signed for.' : ($delivery['signoff_name'] ? 'This delivery was confirmed received.' : e($business['name']) . ' marked this delivery received.') ?></p>
             </div>
             <div class="p-6 space-y-4">
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <div class="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Delivery</div>
+                        <div class="text-xs font-semibold text-gray-500">Delivery</div>
                         <div class="text-sm font-bold text-gray-800"><?= e($delivery['doc_number']) ?></div>
                     </div>
+                    <?php if ($delivery['signoff_name']): ?>
                     <div>
-                        <div class="text-[9px] font-bold text-gray-400 uppercase tracking-widest"><?= $was_signed ? 'Signed By' : 'Received By' ?></div>
+                        <div class="text-xs font-semibold text-gray-500"><?= $was_signed ? 'Signed by' : 'Received by' ?></div>
                         <div class="text-sm font-bold text-gray-800"><?= e($delivery['signoff_name']) ?></div>
                     </div>
+                    <?php endif; ?>
+                    <?php $received_at = $delivery['signoff_timestamp'] ?: $delivery['actual_delivery']; ?>
                     <div class="col-span-2">
-                        <div class="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Date & Time</div>
-                        <div class="text-sm text-gray-800"><?= $delivery['signoff_timestamp'] ? fmt_date($delivery['signoff_timestamp'], 'd M Y \a\t H:i') : '—' ?></div>
+                        <div class="text-xs font-semibold text-gray-500">Date and time</div>
+                        <div class="text-sm text-gray-800"><?= $received_at ? fmt_date($received_at, 'd M Y \a\t H:i') : '—' ?></div>
                     </div>
                 </div>
 
                 <?php if ($delivery['signoff_signature_path']): ?>
                 <div>
-                    <div class="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-2">Signature</div>
+                    <div class="text-xs font-semibold text-gray-500 mb-2">Signature</div>
                     <div class="bg-gray-50 rounded-xl border border-gray-200 p-4 text-center">
                         <img src="<?= APP_URL . '/sign/' . e($delivery['signoff_token']) . '?signature=1' ?>" alt="Signature" class="max-h-24 mx-auto">
                     </div>
@@ -87,7 +91,7 @@ $was_signed      = !empty($delivery['signoff_signature_path']);
 
                 <!-- Items summary -->
                 <div>
-                    <div class="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-2">Items Received</div>
+                    <div class="text-xs font-semibold text-gray-500 mb-2">Items received</div>
                     <div class="bg-gray-50 rounded-xl p-3 space-y-1.5">
                         <?php foreach ($items as $item): ?>
                         <div class="flex justify-between text-xs">
@@ -108,12 +112,12 @@ $was_signed      = !empty($delivery['signoff_signature_path']);
             <div class="bg-brand-primary text-on-brand px-6 py-4">
                 <div class="flex items-center justify-between">
                     <div>
-                        <div class="text-[10px] font-bold uppercase tracking-widest opacity-60">Delivery Note</div>
+                        <div class="text-xs font-semibold opacity-60">Delivery note</div>
                         <div class="text-lg font-extrabold"><?= e($delivery['doc_number']) ?></div>
                         <?php if (!empty($order_number)): ?><div class="text-xs font-semibold opacity-80">Order: <?= e($order_number) ?></div><?php endif; ?>
                     </div>
                     <div class="text-right">
-                        <div class="text-[10px] font-bold uppercase tracking-widest opacity-60">To</div>
+                        <div class="text-xs font-semibold opacity-60">To</div>
                         <div class="text-sm font-bold"><?= e($delivery['recipient_name']) ?></div>
                     </div>
                 </div>
@@ -121,14 +125,14 @@ $was_signed      = !empty($delivery['signoff_signature_path']);
 
             <!-- Items List -->
             <div class="px-6 py-4 border-b border-gray-100">
-                <div class="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-3">Items to Receive (<?= count($items) ?>)</div>
+                <div class="text-xs font-semibold text-gray-500 mb-3">Items to receive (<?= count($items) ?>)</div>
                 <div class="space-y-2">
                     <?php foreach ($items as $item): ?>
                     <div class="flex items-center justify-between py-1.5">
                         <div class="flex-1 min-w-0">
                             <div class="text-xs font-semibold text-gray-800 truncate"><?= e($item['product_name'] ?: $item['description']) ?></div>
                             <?php if ($item['notes']): ?>
-                                <div class="text-[10px] text-gray-400 truncate"><?= e($item['notes']) ?></div>
+                                <div class="text-xs text-gray-400 truncate"><?= e($item['notes']) ?></div>
                             <?php endif; ?>
                         </div>
                         <div class="text-xs font-bold text-gray-600 ml-3 shrink-0">
@@ -142,7 +146,7 @@ $was_signed      = !empty($delivery['signoff_signature_path']);
 
             <?php if ($delivery['special_instructions']): ?>
             <div class="px-6 py-3 bg-amber-50 border-b border-amber-100">
-                <div class="text-[9px] font-bold text-amber-600 uppercase tracking-widest mb-1">Special Instructions</div>
+                <div class="text-xs font-semibold text-amber-600 mb-1">Special instructions</div>
                 <div class="text-xs text-amber-800 leading-relaxed"><?= nl2br(e($delivery['special_instructions'])) ?></div>
             </div>
             <?php endif; ?>
@@ -151,13 +155,13 @@ $was_signed      = !empty($delivery['signoff_signature_path']);
             <div class="px-6 py-5" x-data="signoffApp()">
 
                 <div class="text-center mb-4">
-                    <h2 class="text-sm font-extrabold text-gray-800">Confirm Receipt</h2>
-                    <p class="text-[10px] text-gray-400 mt-1"><?= $sign_to_receive ? 'Please type your name and sign below to confirm you received these items.' : 'Please type your name to confirm you received these items.' ?></p>
+                    <h2 class="text-sm font-extrabold text-gray-800">Confirm receipt</h2>
+                    <p class="text-xs text-gray-400 mt-1"><?= $sign_to_receive ? 'Please type your name and sign below to confirm you received these items.' : 'Please type your name to confirm you received these items.' ?></p>
                 </div>
 
                 <!-- Name Input -->
                 <div class="mb-4">
-                    <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Your Full Name *</label>
+                    <label class="block text-sm font-semibold text-gray-500 mb-1">Your full name *</label>
                     <input type="text" x-model="signoffName" required placeholder="Type your full name"
                            class="w-full px-4 py-3 text-sm font-medium bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-blue-400 text-gray-800 placeholder-gray-300">
                 </div>
@@ -166,8 +170,8 @@ $was_signed      = !empty($delivery['signoff_signature_path']);
                 <!-- Signature Pad -->
                 <div class="mb-4">
                     <div class="flex items-center justify-between mb-1">
-                        <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Your Signature *</label>
-                        <button type="button" @click="clearSignature()" class="text-[10px] font-bold text-red-400 uppercase tracking-widest hover:text-red-600">Clear</button>
+                        <label class="text-sm font-semibold text-gray-500">Your signature *</label>
+                        <button type="button" @click="clearSignature()" class="text-sm font-semibold text-red-400 hover:text-red-600">Clear</button>
                     </div>
                     <div class="bg-gray-50 border-2 border-dashed border-gray-200 rounded-xl overflow-hidden relative" :class="hasSigned ? 'border-green-300 bg-green-50/30' : ''">
                         <canvas id="signature-pad" width="400" height="180"
@@ -193,8 +197,8 @@ $was_signed      = !empty($delivery['signoff_signature_path']);
                 <!-- Success -->
                 <div x-show="success" x-cloak class="bg-green-50 border border-green-200 rounded-xl px-4 py-5 mb-4 text-center">
                     <svg class="w-10 h-10 text-green-500 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                    <p class="text-sm font-bold text-green-700">Receipt Confirmed!</p>
-                    <p class="text-[10px] text-green-500 mt-1">Thank you. The sender has been notified.</p>
+                    <p class="text-sm font-bold text-green-700">Receipt confirmed!</p>
+                    <p class="text-xs text-green-500 mt-1">Thank you. The sender has been notified.</p>
                     <a x-show="reviewUrl" x-cloak :href="reviewUrl"
                        class="mt-4 inline-flex items-center justify-center w-full py-3 rounded-xl text-sm font-bold text-on-brand bg-brand-primary hover:opacity-90">
                         Rate your order
@@ -204,7 +208,7 @@ $was_signed      = !empty($delivery['signoff_signature_path']);
                 <!-- Submit Button -->
                 <button type="button" @click="submitSignoff()" x-show="!success"
                         :disabled="submitting"
-                        class="w-full py-4 rounded-xl text-sm font-extrabold uppercase tracking-widest text-on-brand shadow-lg transition-all disabled:opacity-50"
+                        class="w-full py-4 rounded-xl text-sm font-extrabold text-on-brand shadow-lg transition-all disabled:opacity-50"
                         :class="submitting ? 'bg-gray-400' : 'bg-brand-primary hover:opacity-90 active:scale-[0.98]'">
                     <span x-show="!submitting"><?= $sign_to_receive ? 'Sign and confirm' : 'Confirm received' ?></span>
                     <span x-show="submitting" x-cloak class="flex items-center justify-center gap-2">
@@ -218,7 +222,7 @@ $was_signed      = !empty($delivery['signoff_signature_path']);
 
         <!-- Footer -->
         <div class="text-center mt-6">
-            <p class="text-[10px] text-gray-400">Powered by <strong>Nfelia</strong></p>
+            <p class="text-xs text-gray-400">Powered by <strong>Nfelia</strong></p>
         </div>
     </div>
 

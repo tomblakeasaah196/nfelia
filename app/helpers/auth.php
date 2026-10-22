@@ -179,6 +179,18 @@ function logout_user(): void {
 }
 
 function csrf_verify(): void {
+    // A form bigger than post_max_size arrives empty, token and all: the
+    // file was too big, the session is fine. Say so, and go back to the page.
+    $post_max = ini_bytes('post_max_size');
+    if (empty($_POST) && $post_max > 0 && (int)($_SERVER['CONTENT_LENGTH'] ?? 0) > $post_max) {
+        $mb      = upload_limit_mb();
+        $message = 'Nothing was saved: that file is too big' . ($mb ? ' (the most is ' . $mb . ' MB)' : '') . '. Pick a smaller one and try again.';
+        if (is_ajax() || str_contains((string)($_SERVER['HTTP_ACCEPT'] ?? ''), 'application/json')) {
+            json_response(['error' => $message], 413);
+        }
+        flash('error', $message);
+        redirect(back_path());
+    }
     if (
         empty($_POST['csrf_token']) ||
         !hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf_token'])

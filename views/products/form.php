@@ -1,13 +1,22 @@
 <?php
 /**
- * Nfelia — Product Create / Edit Form
- * Renders inside views/layouts/app.php
+ * Add or edit an item in the catalogue. One column, phone first, in the
+ * app's own sections, fields and buttons (as New order): photos first, as
+ * they matter most on the shop; what it is; its price; its stock (or "this
+ * is a service"); options such as length or colour; bookings, only for a
+ * business that sells services or when it is one; the item code. The button
+ * stays in reach at the bottom. Pictures go up with a progress bar (the
+ * script at the end). Renders inside views/layouts/app.php.
  *
  * Available from controller:
- *   $user, $business, $product (array or empty), $editing (bool), $categories_list
+ *   $user, $business, $product (array or empty), $editing (bool), $categories_list,
+ *   $product_images, $variant_groups
  */
 $currency  = $business['currency_symbol'] ?? '₦';
 $biz_cat   = $business['category'] ?? 'other';
+// Bookings are for services: shown when the business sells them, when this
+// item is one, or when it is booked already (its fields are always sent)
+$sells_services = in_array($business['business_type'] ?? 'product', ['service', 'mixed'], true);
 
 // Pre-populate from $product (works for both old POST data and DB row)
 $p_name        = e($product['name'] ?? '');
@@ -25,6 +34,7 @@ $p_image       = $product['image_path'] ?? '';
 // Suggested categories based on business type
 $cat_suggestions = match($biz_cat) {
     'fashion'          => ['Fabrics', 'Ready-to-Wear', 'Accessories', 'Footwear', 'Bags', 'Jewelry', 'Materials', 'Alterations'],
+    'beauty'           => ['Wigs', 'Bundles', 'Closures', 'Frontals', 'Edge Control'],
     'food_beverage'    => ['Ingredients', 'Beverages', 'Snacks', 'Prepared Meals', 'Frozen', 'Bakery', 'Dairy', 'Condiments'],
     'tech_repair'      => ['Phones', 'Laptops', 'Accessories', 'Spare Parts', 'Screens', 'Batteries', 'Cables', 'Repair Service'],
     'distribution'     => ['Fast-Moving', 'Slow-Moving', 'Perishable', 'Non-Perishable', 'Bulk', 'Imported', 'Local'],
@@ -37,9 +47,11 @@ $cat_suggestions = match($biz_cat) {
 $all_cats = array_unique(array_merge($cat_suggestions, $categories_list ?? []));
 sort($all_cats);
 
-// Unit options
+// Unit options. The key is what is saved (products.unit) and what
+// stock_count() says: "1 bundle", "8 bundles".
 $units = [
     'pcs'     => 'Pieces (pcs)',
+    'bundle'  => 'Bundles',
     'kg'      => 'Kilograms (kg)',
     'g'       => 'Grams (g)',
     'litres'  => 'Litres (L)',
@@ -63,360 +75,292 @@ $units = [
     'sqm'     => 'Sq. Metres',
     'sqft'    => 'Sq. Feet',
 ];
-?>
+// A unit from elsewhere (a CSV import) stays chosen, rather than turning into pieces on save
+if ($p_unit !== '' && !isset($units[$p_unit])) {
+    $units = [$p_unit => ucfirst($p_unit)] + $units;
+}
 
-<!-- Page Header -->
-<div class="flex items-center gap-3 mb-8">
-    <a href="<?= APP_URL ?>/products" class="text-brand-plum/40 hover:text-brand-plum transition-colors">
-        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
-    </a>
-    <h1 class="font-heading font-extrabold text-2xl text-brand-plum tracking-tight"><?= $editing ? 'Edit item' : 'Add New Item' ?></h1>
-</div>
+$p_mode     = in_array($product['booking_mode'] ?? 'none', BOOKING_MODES, true) ? ($product['booking_mode'] ?? 'none') : 'none';
+$p_minutes  = (int)($product['booking_minutes'] ?? 60) ?: 60;
+$p_capacity = max(1, (int)($product['booking_capacity'] ?? 1));
+$p_dep_type = in_array($product['deposit_type'] ?? 'none', ['none', 'percent', 'fixed'], true) ? ($product['deposit_type'] ?? 'none') : 'none';
+$p_dep_val  = $product['deposit_value'] ?? '';
+
+$name_hint = $biz_cat === 'beauty' ? 'e.g. Body wave bundle, 18 inches' : 'e.g. Ankara fabric, phone repair, jollof rice';
+// Empty stays empty (not 0), so "leave it empty" reads true
+$js_price  = fn($v) => ($v === '' || $v === null) ? "''" : (string)(float)$v;
+?>
+<div class="nf-page nf-oform nf-iform">
+<h1 class="sr-only"><?= $editing ? 'Edit ' . $p_name : 'Add an item' ?></h1>
 
 <form method="POST" enctype="multipart/form-data" id="catalogue-form" data-no-spin
       action="<?= APP_URL ?>/products/<?= $editing ? 'edit/' . (int)$product['id'] : 'create' ?>"
       x-data="{
           isService: <?= $p_service ? 'true' : 'false' ?>,
+          sellsServices: <?= $sells_services ? 'true' : 'false' ?>,
           autoSku: <?= ($editing && $p_sku !== '') ? 'false' : 'true' ?>,
-          sellPrice: <?= (float)($p_sell ?: 0) ?>,
-          costPrice: <?= (float)($p_cost ?: 0) ?>,
+          sellPrice: <?= $js_price($p_sell) ?>,
+          costPrice: <?= $js_price($p_cost) ?>,
+          get hasMargin() { return this.sellPrice > 0 && this.costPrice > 0; },
           get margin() {
-              if (this.sellPrice <= 0) return 0;
+              if (!this.hasMargin) return 0;
               return Math.round((this.sellPrice - this.costPrice) / this.sellPrice * 100);
           }
       }">
     <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
 
-    <div class="grid lg:grid-cols-3 gap-6">
-
-        <!-- ===== LEFT COLUMN (2/3) ===== -->
-        <div class="lg:col-span-2 space-y-6">
-
-            <!-- Basic Information -->
-            <div class="bg-brand-white border border-brand-sand rounded-xl p-6 shadow-sm">
-                <h2 class="font-heading font-bold text-xs text-brand-plum uppercase tracking-widest mb-5">Basic Information</h2>
-
-                <!-- Name -->
-                <div class="mb-5">
-                    <label class="block text-[10px] font-bold text-brand-plum/70 uppercase tracking-widest mb-2">Product / Service Name <span class="text-red-500">*</span></label>
-                    <input type="text" name="name" value="<?= $p_name ?>" required placeholder="e.g. Ankara Fabric, Phone Repair, Jollof Rice"
-                           class="w-full px-4 py-3 text-sm font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/25">
-                </div>
-
-                <!-- SKU Row -->
-                <div class="mb-5">
-                    <div class="flex items-center justify-between mb-2">
-                        <label class="text-[10px] font-bold text-brand-plum/70 uppercase tracking-widest">SKU</label>
-                        <label class="flex items-center gap-2 cursor-pointer" x-show="!<?= $editing ? 'false' : 'true' ?> || true">
-                            <input type="checkbox" name="auto_sku" value="1" x-model="autoSku" class="w-3.5 h-3.5 rounded border-brand-sand text-accent-text focus:ring-accent-text">
-                            <span class="text-[9px] font-semibold text-brand-plum/50 uppercase tracking-wider">Auto-generate</span>
-                        </label>
-                    </div>
-                    <input type="text" name="sku" value="<?= $p_sku ?>" placeholder="Auto-generated if left blank"
-                           :disabled="autoSku" :class="autoSku ? 'bg-brand-sand/50 cursor-not-allowed' : 'bg-brand-cream'"
-                           class="w-full px-4 py-3 text-sm font-medium font-mono border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/25">
-                    <p class="text-[9px] text-brand-plum/30 mt-1" x-show="autoSku">Format: first 3 letters + ID number (e.g. ANK-0012)</p>
-                </div>
-
-                <!-- Category -->
-                <div class="mb-5">
-                    <label class="block text-[10px] font-bold text-brand-plum/70 uppercase tracking-widest mb-2">Category</label>
-                    <input type="text" name="category" value="<?= e($p_category) ?>" list="category-list"
-                           placeholder="Type or select a category"
-                           class="w-full px-4 py-3 text-sm font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/25">
-                    <datalist id="category-list">
-                        <?php foreach ($all_cats as $cat): ?>
-                            <option value="<?= e($cat) ?>">
-                        <?php endforeach; ?>
-                    </datalist>
-                </div>
-
-                <!-- Description -->
-                <div>
-                    <label class="block text-[10px] font-bold text-brand-plum/70 uppercase tracking-widest mb-2">Description <span class="text-brand-plum/30 font-normal">(optional)</span></label>
-                    <textarea name="description" rows="3" placeholder="Brief description for invoices and quotations..."
-                              class="w-full px-4 py-3 text-sm font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/25 resize-none"><?= e($p_description) ?></textarea>
-                </div>
-            </div>
-
-            <!-- Pricing -->
-            <div class="bg-brand-white border border-brand-sand rounded-xl p-6 shadow-sm">
-                <h2 class="font-heading font-bold text-xs text-brand-plum uppercase tracking-widest mb-5">Pricing</h2>
-
-                <div class="grid sm:grid-cols-3 gap-4">
-                    <div>
-                        <label class="block text-[10px] font-bold text-brand-plum/70 uppercase tracking-widest mb-2">Selling Price (<?= e($currency) ?>) <span class="text-red-500">*</span></label>
-                        <input type="number" name="sell_price" step="0.01" min="0" x-model.number="sellPrice"
-                               value="<?= e($p_sell) ?>" placeholder="0.00"
-                               class="w-full px-4 py-3 text-sm font-medium font-mono bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
-                    </div>
-                    <div>
-                        <label class="block text-[10px] font-bold text-brand-plum/70 uppercase tracking-widest mb-2">Cost Price (<?= e($currency) ?>)</label>
-                        <input type="number" name="cost_price" step="0.01" min="0" x-model.number="costPrice"
-                               value="<?= e($p_cost) ?>" placeholder="0.00"
-                               class="w-full px-4 py-3 text-sm font-medium font-mono bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
-                    </div>
-                    <div>
-                        <label class="block text-[10px] font-bold text-brand-plum/70 uppercase tracking-widest mb-2">Margin</label>
-                        <div class="w-full px-4 py-3 bg-brand-sand/30 border border-brand-sand rounded-lg">
-                            <span class="data-text text-sm font-bold"
-                                  :class="margin > 30 ? 'text-green-600' : (margin > 0 ? 'text-amber-600' : 'text-red-600')"
-                                  x-text="margin + '%'">0%</span>
-                        </div>
-                        <p class="text-[8px] text-brand-plum/25 mt-1">Profit as % of sell price</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Stock & Unit (hidden for services) -->
-            <div class="bg-brand-white border border-brand-sand rounded-xl p-6 shadow-sm" x-show="!isService" x-transition>
-                <h2 class="font-heading font-bold text-xs text-brand-plum uppercase tracking-widest mb-5">Stock & Units</h2>
-
-                <div class="grid sm:grid-cols-3 gap-4">
-                    <?php if (!$editing): ?>
-                    <div>
-                        <label class="block text-[10px] font-bold text-brand-plum/70 uppercase tracking-widest mb-2">Opening Stock</label>
-                        <input type="number" name="stock_qty" step="0.01" min="0" value="<?= e($p_stock) ?>" placeholder="0"
-                               class="w-full px-4 py-3 text-sm font-medium font-mono bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
-                        <p class="text-[9px] text-brand-plum/30 mt-1">Logged as initial stock-in</p>
-                    </div>
-                    <?php endif; ?>
-                    <div>
-                        <label class="block text-[10px] font-bold text-brand-plum/70 uppercase tracking-widest mb-2">Low Stock Alert At</label>
-                        <input type="number" name="low_stock_threshold" step="0.01" min="0" value="<?= e($p_threshold) ?>" placeholder="5"
-                               class="w-full px-4 py-3 text-sm font-medium font-mono bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
-                    </div>
-                    <div>
-                        <label class="block text-[10px] font-bold text-brand-plum/70 uppercase tracking-widest mb-2">Unit of Measure</label>
-                        <select name="unit" class="w-full px-4 py-3 text-sm font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
-                            <?php foreach ($units as $val => $label): ?>
-                                <option value="<?= $val ?>" <?= $p_unit === $val ? 'selected' : '' ?>><?= $label ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- ===== RIGHT COLUMN (1/3) ===== -->
-        <div class="space-y-6">
-
-            <!-- Service Toggle -->
-            <div class="bg-brand-white border border-brand-sand rounded-xl p-6 shadow-sm">
-                <h2 class="font-heading font-bold text-xs text-brand-plum uppercase tracking-widest mb-4">Item Type</h2>
-                <label class="flex items-center gap-3 cursor-pointer p-3 rounded-lg border transition-all"
-                       :class="isService ? 'border-blue-400 bg-blue-50' : 'border-brand-sand bg-brand-cream/50'">
-                    <input type="checkbox" name="is_service" value="1" x-model="isService"
-                           class="w-4 h-4 rounded border-brand-sand text-blue-500 focus:ring-blue-500">
-                    <div>
-                        <div class="text-xs font-bold text-brand-plum">This is a service</div>
-                        <div class="text-[10px] text-brand-plum/50 mt-0.5">Stock tracking will be bypassed</div>
-                    </div>
-                </label>
-                <div x-show="isService" x-transition class="mt-3 p-3 bg-blue-50/50 rounded-lg border border-blue-200/50">
-                    <p class="text-[10px] text-blue-700 font-medium leading-relaxed">Services don't carry inventory. They appear on invoices and quotations but stock quantities won't be tracked or deducted.</p>
-                </div>
-            </div>
-
-            <!-- Bookings: people pick a time on the shop and pay a deposit -->
-            <?php
-            $p_mode     = in_array($product['booking_mode'] ?? 'none', BOOKING_MODES, true) ? ($product['booking_mode'] ?? 'none') : 'none';
-            $p_minutes  = (int)($product['booking_minutes'] ?? 60) ?: 60;
-            $p_capacity = max(1, (int)($product['booking_capacity'] ?? 1));
-            $p_dep_type = in_array($product['deposit_type'] ?? 'none', ['none', 'percent', 'fixed'], true) ? ($product['deposit_type'] ?? 'none') : 'none';
-            $p_dep_val  = $product['deposit_value'] ?? '';
-            ?>
-            <div class="bg-brand-white border border-brand-sand rounded-xl p-6 shadow-sm" x-data="{ mode: '<?= e($p_mode) ?>', deposit: '<?= e($p_dep_type) ?>' }">
-                <h2 class="font-heading font-bold text-sm text-brand-plum mb-1">Bookings</h2>
-                <p class="text-xs text-brand-plum/60 mb-4">Let people pick a free time on your shop and pay a deposit to hold it.</p>
-                <label class="block text-xs font-semibold text-brand-plum mb-1" for="booking_mode">People book this</label>
-                <select id="booking_mode" name="booking_mode" x-model="mode" class="w-full h-11 px-3 rounded-lg border border-brand-sand bg-white text-sm">
-                    <option value="none" <?= $p_mode === 'none' ? 'selected' : '' ?>>No, people buy it</option>
-                    <option value="slot" <?= $p_mode === 'slot' ? 'selected' : '' ?>>A time slot, like an appointment</option>
-                    <option value="nights" <?= $p_mode === 'nights' ? 'selected' : '' ?>>By the night, like a room or apartment</option>
-                    <option value="day" <?= $p_mode === 'day' ? 'selected' : '' ?>>A whole day, like an event</option>
-                </select>
-                <div x-show="mode !== 'none'" x-cloak class="space-y-4 mt-4">
-                    <label class="block" x-show="mode === 'slot'">
-                        <span class="block text-xs font-semibold text-brand-plum mb-1">How long it takes</span>
-                        <select name="booking_minutes" class="w-full h-11 px-3 rounded-lg border border-brand-sand bg-white text-sm">
-                            <?php foreach ([15, 30, 45, 60, 90, 120, 150, 180, 240, 300, 360, 480] as $mins): ?>
-                            <option value="<?= $mins ?>" <?= $p_minutes === $mins ? 'selected' : '' ?>><?= e(booking_duration_text($mins)) ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </label>
-                    <label class="block" x-show="mode === 'day'">
-                        <span class="block text-xs font-semibold text-brand-plum mb-1">Bookings you can take a day</span>
-                        <input type="number" name="booking_capacity" min="1" max="20" value="<?= $p_capacity ?>" class="w-full h-11 px-3 rounded-lg border border-brand-sand text-sm">
-                    </label>
-                    <p class="text-xs text-brand-plum/60" x-show="mode === 'nights'">The price is per night. Check-in and check-out times are in Booking hours.</p>
-                    <div>
-                        <span class="block text-xs font-semibold text-brand-plum mb-1">Deposit to book</span>
-                        <div class="flex gap-2">
-                            <select name="deposit_type" x-model="deposit" class="h-11 px-3 rounded-lg border border-brand-sand bg-white text-sm" aria-label="Kind of deposit">
-                                <option value="none" <?= $p_dep_type === 'none' ? 'selected' : '' ?>>No deposit</option>
-                                <option value="percent" <?= $p_dep_type === 'percent' ? 'selected' : '' ?>>A share (%)</option>
-                                <option value="fixed" <?= $p_dep_type === 'fixed' ? 'selected' : '' ?>>An amount (<?= e($currency) ?>)</option>
-                            </select>
-                            <input type="number" name="deposit_value" min="0" step="0.01" value="<?= e((string)$p_dep_val) ?>" x-show="deposit !== 'none'"
-                                   class="flex-1 min-w-0 h-11 px-3 rounded-lg border border-brand-sand text-sm" aria-label="Deposit">
-                        </div>
-                        <p class="text-xs text-brand-plum/50 mt-1">Paid by transfer to your bank account. You confirm each booking once you see it.</p>
-                    </div>
-                    <a href="<?= APP_URL ?>/bookings/settings" class="inline-block text-xs font-semibold underline text-brand-plum/70">Set your booking hours</a>
-                </div>
-            </div>
-
-            <!-- Multi-Image Upload -->
-            <div class="bg-brand-white border border-brand-sand rounded-xl p-6 shadow-sm"
-                 x-data="{
-                    previews: [],
-                    addPreviews(files) {
-                        for (let f of files) {
-                            const reader = new FileReader();
-                            reader.onload = e => this.previews.push(e.target.result);
-                            reader.readAsDataURL(f);
-                        }
-                    },
-                    async deleteImage(imgId, el) {
-                        if (!confirm('Delete this image?')) return;
-                        const fd = new FormData();
-                        fd.append('csrf_token', Nfelia.csrf);
-                        const resp = await fetch(Nfelia.url + '/products/delete-image/' + imgId, { method: 'POST', body: fd });
-                        if (resp.ok) el.closest('[data-img]').remove();
-                    },
-                    async setCover(imgId) {
-                        const fd = new FormData();
-                        fd.append('csrf_token', Nfelia.csrf);
-                        await fetch(Nfelia.url + '/products/set-cover/' + imgId, { method: 'POST', body: fd });
-                        location.reload();
+    <!-- Photos first: they sell it on the shop -->
+    <section class="nf-sec" aria-labelledby="nf-if-photos-h"
+             x-data="{
+                previews: [],
+                addPreviews(files) {
+                    // A new pick replaces the last one, as the file box does
+                    this.previews = [];
+                    for (let f of files) {
+                        const reader = new FileReader();
+                        reader.onload = e => this.previews.push(e.target.result);
+                        reader.readAsDataURL(f);
                     }
-                 }">
-                <h2 class="font-heading font-bold text-xs text-brand-plum uppercase tracking-widest mb-4">Product Images</h2>
+                },
+                async deleteImage(imgId, el) {
+                    if (!confirm('Delete this photo?')) return;
+                    const fd = new FormData();
+                    fd.append('csrf_token', Nfelia.csrf);
+                    const resp = await fetch(Nfelia.url + '/products/delete-image/' + imgId, { method: 'POST', body: fd });
+                    if (resp.ok) el.closest('[data-img]').remove();
+                },
+                async setCover(imgId) {
+                    const fd = new FormData();
+                    fd.append('csrf_token', Nfelia.csrf);
+                    await fetch(Nfelia.url + '/products/set-cover/' + imgId, { method: 'POST', body: fd });
+                    location.reload();
+                }
+             }">
+        <h2 id="nf-if-photos-h">Photos</h2>
 
-                <!-- Existing images (edit mode) -->
-                <?php if (!empty($product_images)): ?>
-                <div class="grid grid-cols-3 gap-2 mb-4">
-                    <?php foreach ($product_images as $img): ?>
-                    <div data-img class="relative group rounded-lg overflow-hidden border border-brand-sand bg-brand-cream aspect-square">
-                        <img src="<?= APP_URL ?>/<?= e($img['image_path']) ?>" class="w-full h-full object-cover">
-                        <?php if ($img['is_cover']): ?>
-                            <span class="absolute top-1 left-1 text-[7px] font-bold uppercase tracking-wider bg-brand-primary text-white px-1.5 py-0.5 rounded">Cover</span>
-                        <?php endif; ?>
-                        <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                            <?php if (!$img['is_cover']): ?>
-                            <button type="button" @click="setCover(<?= (int)$img['id'] ?>)" class="text-white text-[8px] font-bold uppercase bg-white/20 px-2 py-1 rounded hover:bg-white/40">Cover</button>
-                            <?php endif; ?>
-                            <button type="button" @click="deleteImage(<?= (int)$img['id'] ?>, $el)" class="text-white text-[8px] font-bold uppercase bg-red-500/60 px-2 py-1 rounded hover:bg-red-500">Delete</button>
-                        </div>
-                    </div>
-                    <?php endforeach; ?>
-                </div>
+        <?php if (!empty($product_images)): ?>
+        <div class="nf-if-photos">
+            <?php foreach ($product_images as $img): ?>
+            <div data-img class="nf-if-photo group">
+                <img src="<?= APP_URL ?>/<?= e($img['image_path']) ?>" alt="" loading="lazy" decoding="async">
+                <?php if ($img['is_cover']): ?>
+                    <span class="nf-if-badge">Cover</span>
                 <?php endif; ?>
+                <?php /* Always showing on touch screens, which have no hover; on hover only where there is a mouse */ ?>
+                <div class="nf-if-photo-do [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 focus-within:opacity-100">
+                    <?php if (!$img['is_cover']): ?>
+                    <button type="button" @click="setCover(<?= (int)$img['id'] ?>)" aria-label="Make this the cover photo">Cover</button>
+                    <?php endif; ?>
+                    <button type="button" class="is-danger" @click="deleteImage(<?= (int)$img['id'] ?>, $el)" aria-label="Delete this photo">Delete</button>
+                </div>
+            </div>
+            <?php endforeach; ?>
+        </div>
+        <?php endif; ?>
 
-                <!-- New upload previews -->
-                <template x-if="previews.length > 0">
-                    <div class="grid grid-cols-3 gap-2 mb-4">
-                        <template x-for="(src, i) in previews" :key="i">
-                            <div class="rounded-lg overflow-hidden border border-accent bg-brand-cream aspect-square relative">
-                                <img :src="src" class="w-full h-full object-cover">
-                                <span class="absolute top-1 left-1 text-[7px] font-bold uppercase tracking-wider bg-green-500 text-white px-1.5 py-0.5 rounded">New</span>
-                            </div>
-                        </template>
-                    </div>
-                </template>
+        <div class="nf-if-photos" x-show="previews.length > 0" x-cloak>
+            <template x-for="(src, i) in previews" :key="i">
+                <div class="nf-if-photo"><img :src="src" alt=""><span class="nf-if-badge is-new">New</span></div>
+            </template>
+        </div>
 
-                <label class="block w-full text-center cursor-pointer border-2 border-dashed border-brand-sand hover:border-accent rounded-lg py-4 transition-all">
-                    <input type="file" name="images[]" accept="image/jpeg,image/png,image/webp" multiple class="hidden"
-                           @change="addPreviews($event.target.files)">
-                    <svg class="w-5 h-5 text-brand-plum/30 mx-auto mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
-                    <span class="text-[10px] font-bold text-brand-plum/40 uppercase tracking-widest">Upload Images</span>
-                    <span class="block text-[8px] text-brand-plum/20 mt-0.5">JPG, PNG or WebP · Max 2 MB each · Multiple allowed</span>
+        <label class="nf-file nf-if-add">
+            <?= nav_icon('image') ?>
+            <span>
+                <b x-text="previews.length ? 'Pick other photos' : 'Add photos'">Add photos</b>
+                <small>JPG, PNG or WebP, up to 20 MB each. <?= empty($product_images) ? 'The first one is the cover on your shop.' : 'New ones go after these.' ?></small>
+            </span>
+            <input type="file" name="images[]" accept="image/jpeg,image/png,image/webp" multiple
+                   @change="addPreviews($event.target.files)">
+        </label>
+    </section>
+
+    <!-- What it is -->
+    <section class="nf-sec" aria-labelledby="nf-if-about-h">
+        <h2 id="nf-if-about-h">About it</h2>
+        <label>Name
+            <input type="text" name="name" value="<?= $p_name ?>" required placeholder="<?= e($name_hint) ?>" autocomplete="off">
+        </label>
+        <label>Category <small>Optional. Groups it on your shop.</small>
+            <input type="text" name="category" value="<?= e($p_category) ?>" list="category-list" placeholder="Type or pick one" autocomplete="off">
+            <datalist id="category-list">
+                <?php foreach ($all_cats as $cat): ?>
+                    <option value="<?= e($cat) ?>">
+                <?php endforeach; ?>
+            </datalist>
+        </label>
+        <label>Description <small>Optional. For your shop, invoices and quotes.</small>
+            <textarea name="description" rows="3"><?= e($p_description) ?></textarea>
+        </label>
+    </section>
+
+    <!-- Price -->
+    <section class="nf-sec" aria-labelledby="nf-if-price-h">
+        <h2 id="nf-if-price-h">Price</h2>
+        <div class="nf-two">
+            <label>Selling price
+                <span class="nf-amount"><span><?= e($currency) ?></span><input type="number" name="sell_price" step="0.01" min="0" inputmode="decimal" x-model.number="sellPrice"
+                       value="<?= e($p_sell) ?>" placeholder="0"></span>
+            </label>
+            <label>Cost price
+                <span class="nf-amount"><span><?= e($currency) ?></span><input type="number" name="cost_price" step="0.01" min="0" inputmode="decimal" x-model.number="costPrice"
+                       value="<?= e($p_cost) ?>" placeholder="0"></span>
+            </label>
+        </div>
+        <?php /* No price is allowed: the shop then shows "Ask for the price" (sf_price_html) */ ?>
+        <p class="nf-help">Leave the selling price empty to show “Ask for the price” on your shop. The cost is only for you.</p>
+        <?php /* Neutral until both prices are in; red only when it sells below its cost */ ?>
+        <p class="nf-if-margin">Margin
+            <b :class="hasMargin && margin < 0 ? 'is-owed' : ''" x-text="hasMargin ? margin + '%' : '—'">—</b>
+            <small x-text="!hasMargin ? 'Shows once both prices are in' : (margin < 0 ? 'It sells for less than it costs you' : 'Your profit as a share of the price')">Shows once both prices are in</small>
+        </p>
+    </section>
+
+    <!-- Stock, or a service -->
+    <section class="nf-sec" aria-labelledby="nf-if-stock-h">
+        <h2 id="nf-if-stock-h">Stock</h2>
+        <label class="nf-switch"><input type="checkbox" role="switch" name="is_service" value="1" x-model="isService">
+            <span><b>This is a service</b><small>Like a styling or a repair: there is no stock to count.</small></span></label>
+        <div class="nf-if-stock" x-show="!isService" x-transition>
+            <?php if (!$editing): ?>
+            <label>How many you have now <small>Saved as your opening stock</small>
+                <input type="number" name="stock_qty" step="0.01" min="0" inputmode="decimal" value="<?= e($p_stock) ?>" placeholder="0">
+            </label>
+            <?php endif; ?>
+            <div class="nf-two">
+                <label>Counted in
+                    <select name="unit">
+                        <?php foreach ($units as $val => $label): ?>
+                            <option value="<?= e($val) ?>" <?= $p_unit === $val ? 'selected' : '' ?>><?= e($label) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </label>
+                <label>Remind me at
+                    <input type="number" name="low_stock_threshold" step="0.01" min="0" inputmode="decimal" value="<?= e($p_threshold) ?>" placeholder="5">
                 </label>
             </div>
+            <p class="nf-help">Nfelia reminds you to restock when it gets down to this many.<?= $editing ? ' To change how many you have, use Add stock on the item’s page.' : '' ?></p>
+        </div>
+    </section>
 
-            <!-- Variant Options -->
-            <div class="bg-brand-white border border-brand-sand rounded-xl p-6 shadow-sm"
-                 x-data="{
-                    groups: <?= e(json_encode(array_map(function($g) {
-                        $priced = (bool)array_filter($g['options'] ?? [], fn($o) => (float)($o['price_delta'] ?? 0) != 0.0);
-                        return [
-                            'name'    => $g['name'],
-                            'priced'  => $priced,
-                            'options' => array_map(function($o) {
-                                $d = (float)($o['price_delta'] ?? 0);
-                                return ['label' => $o['label'], 'price' => $d != 0.0 ? rtrim(rtrim(number_format($d, 2, '.', ''), '0'), '.') : ''];
-                            }, $g['options'] ?? []),
-                        ];
-                    }, $variant_groups ?? []), JSON_HEX_APOS | JSON_HEX_QUOT)) ?>,
-                    addGroup() { this.groups.push({ name: '', priced: false, options: [{ label: '', price: '' }] }); },
-                    removeGroup(i) { this.groups.splice(i, 1); },
-                    addOption(g) { g.options.push({ label: '', price: '' }); },
-                    removeOption(g, j) { g.options.splice(j, 1); if (!g.options.length) g.options.push({ label: '', price: '' }); }
-                 }">
-                <div class="flex items-center justify-between mb-4">
-                    <h2 class="font-heading font-bold text-xs text-brand-plum uppercase tracking-widest">Variants</h2>
-                    <button type="button" @click="addGroup()" class="text-[9px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg border border-brand-sand hover:border-accent text-brand-plum/60 hover:text-brand-plum transition-all">+ Add Option Group</button>
+    <!-- Options: lengths, colours, sizes -->
+    <section class="nf-sec" aria-labelledby="nf-if-opts-h"
+             x-data="{
+                groups: <?= e(json_encode(array_map(function($g) {
+                    $priced = (bool)array_filter($g['options'] ?? [], fn($o) => (float)($o['price_delta'] ?? 0) != 0.0);
+                    return [
+                        'name'    => $g['name'],
+                        'priced'  => $priced,
+                        'options' => array_map(function($o) {
+                            $d = (float)($o['price_delta'] ?? 0);
+                            return ['label' => $o['label'], 'price' => $d != 0.0 ? rtrim(rtrim(number_format($d, 2, '.', ''), '0'), '.') : ''];
+                        }, $g['options'] ?? []),
+                    ];
+                }, $variant_groups ?? []), JSON_HEX_APOS | JSON_HEX_QUOT)) ?>,
+                addGroup() { this.groups.push({ name: '', priced: false, options: [{ label: '', price: '' }] }); },
+                removeGroup(i) { this.groups.splice(i, 1); },
+                addOption(g) { g.options.push({ label: '', price: '' }); },
+                removeOption(g, j) { g.options.splice(j, 1); if (!g.options.length) g.options.push({ label: '', price: '' }); }
+             }">
+        <h2 id="nf-if-opts-h">Options</h2>
+        <p class="nf-help" x-show="groups.length === 0">No options. Add them if this comes in different lengths, colours or sizes.</p>
+        <template x-for="(group, gi) in groups" :key="gi">
+            <div class="nf-if-group">
+                <div class="nf-if-group-h">
+                    <label>Name
+                        <input type="text" :name="'variant_group_name[' + gi + ']'" x-model="group.name" placeholder="e.g. Length or Colour" autocomplete="off">
+                    </label>
+                    <button type="button" class="nf-icon-btn" @click="removeGroup(gi)" aria-label="Remove these options"><?= nav_icon('trash') ?></button>
                 </div>
-                <p class="text-[9px] text-brand-plum/40 mb-4" x-show="groups.length === 0">No variants defined. Add option groups like Color, Size, etc.</p>
-                <template x-for="(group, gi) in groups" :key="gi">
-                    <div class="mb-3 p-3 bg-brand-cream rounded-lg border border-brand-sand">
-                        <div class="flex items-center gap-2 mb-3">
-                            <input type="text" :name="'variant_group_name[' + gi + ']'" x-model="group.name" placeholder="e.g. Color, Size"
-                                   class="flex-1 px-3 py-2 text-xs font-bold bg-white border border-brand-sand rounded focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/25">
-                            <button type="button" @click="removeGroup(gi)" class="text-red-400 hover:text-red-600 transition-colors p-1" aria-label="Remove this group">
-                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                            </button>
-                        </div>
 
-                        <label class="flex items-center gap-2 mb-3 cursor-pointer">
-                            <input type="checkbox" x-model="group.priced" class="w-3.5 h-3.5 rounded border-brand-sand text-accent-text focus:ring-accent-text">
-                            <span class="text-[10px] font-semibold text-brand-plum/60 uppercase tracking-wider">This changes the price</span>
-                        </label>
-
-                        <template x-for="(opt, oi) in group.options" :key="oi">
-                            <div class="flex items-center gap-2 mb-2">
-                                <input type="text" :name="'variant_opt_label[' + gi + '][]'" x-model="opt.label" placeholder="Option, e.g. Navy Blue"
-                                       class="flex-1 min-w-0 px-3 py-2 text-xs bg-white border border-brand-sand rounded focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/25">
-                                <span class="flex items-center gap-1 shrink-0" x-show="group.priced" x-cloak>
-                                    <span class="text-[11px] font-bold text-brand-plum/40" title="Added to or taken off the base price">±<?= e($currency) ?></span>
-                                    <input type="text" inputmode="decimal" :name="'variant_opt_price[' + gi + '][]'" x-model="opt.price" placeholder="0" :disabled="!group.priced"
-                                           class="w-20 px-2 py-2 text-xs font-mono bg-white border border-brand-sand rounded focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/25">
-                                </span>
-                                <button type="button" @click="removeOption(group, oi)" class="text-brand-plum/30 hover:text-red-500 transition-colors p-1 shrink-0" aria-label="Remove this option">
-                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
-                                </button>
-                            </div>
-                        </template>
-                        <button type="button" @click="addOption(group)" class="mt-1 text-[9px] font-bold uppercase tracking-wider text-brand-plum/50 hover:text-accent-text transition-colors">+ Add option</button>
-                        <p class="text-[9px] text-brand-plum/35 mt-2" x-show="group.priced" x-cloak>Use a minus for cheaper options, e.g. −2000. Leave blank for no change.</p>
+                <p class="nf-q">Choices</p>
+                <template x-for="(opt, oi) in group.options" :key="oi">
+                    <div class="nf-if-opt">
+                        <input type="text" :name="'variant_opt_label[' + gi + '][]'" x-model="opt.label" placeholder="e.g. 16 inches" aria-label="Choice" autocomplete="off">
+                        <span class="nf-amount" x-show="group.priced" x-cloak title="Added to or taken off the price">
+                            <span>±<?= e($currency) ?></span>
+                            <input type="text" inputmode="decimal" :name="'variant_opt_price[' + gi + '][]'" x-model="opt.price" placeholder="0" :disabled="!group.priced" aria-label="Price change">
+                        </span>
+                        <button type="button" class="nf-icon-btn" @click="removeOption(group, oi)" aria-label="Remove this choice"><?= nav_icon('close') ?></button>
                     </div>
                 </template>
-            </div>
+                <button type="button" class="nf-link" @click="addOption(group)">Add another choice</button>
 
-            <!-- Action Buttons -->
-            <div class="space-y-3">
-                <button type="submit" class="w-full btn-primary text-white py-3.5 rounded-xl text-[11px] font-bold uppercase tracking-widest shadow-sm hover:shadow-md transition-all">
-                    <?= $editing ? 'Save Changes' : 'Add to Catalogue' ?>
-                </button>
-                <a href="<?= APP_URL ?>/products<?= $editing ? '/view/' . (int)$product['id'] : '' ?>"
-                   class="block w-full text-center bg-brand-cream border border-brand-sand text-brand-plum py-3.5 rounded-xl text-[11px] font-bold uppercase tracking-widest hover:border-accent transition-all">
-                    Cancel
-                </a>
-                <?php if ($editing): ?>
-                    <?php /* A form can't sit inside the edit form (D8): this button
-                             sends the edit form's token to the duplicate address */ ?>
-                    <div class="pt-2">
-                        <button type="submit" formaction="<?= APP_URL ?>/products/duplicate/<?= (int)$product['id'] ?>" formnovalidate
-                                class="w-full text-center text-[10px] font-bold text-brand-plum/40 uppercase tracking-widest hover:text-accent-text transition-colors py-2">
-                            Duplicate This Product
-                        </button>
-                    </div>
-                <?php endif; ?>
+                <label class="nf-switch"><input type="checkbox" role="switch" x-model="group.priced">
+                    <span><b>This changes the price</b><small>Type how much each choice adds or takes off</small></span></label>
+                <p class="nf-help" x-show="group.priced" x-cloak>Use a minus for cheaper choices, like −2000. Leave it empty for no change.</p>
             </div>
+        </template>
+        <button type="button" class="nf-add" @click="addGroup()"><?= nav_icon('plus') ?><span x-text="groups.length ? 'Add another, like colour' : 'Add options, like length or colour'">Add options, like length or colour</span></button>
+    </section>
+
+    <!-- Bookings: people pick a time on the shop and pay a deposit -->
+    <section class="nf-sec" aria-labelledby="nf-if-book-h"
+             x-data="{ mode: '<?= e($p_mode) ?>', deposit: '<?= e($p_dep_type) ?>' }"
+             x-show="sellsServices || isService || mode !== 'none'"<?= ($sells_services || $p_service || $p_mode !== 'none') ? '' : ' x-cloak' ?>>
+        <h2 id="nf-if-book-h">Bookings</h2>
+        <p class="nf-help">Let people pick a free time on your shop and pay a deposit to hold it.</p>
+        <label>People book this
+            <select name="booking_mode" x-model="mode">
+                <option value="none" <?= $p_mode === 'none' ? 'selected' : '' ?>>No, people buy it</option>
+                <option value="slot" <?= $p_mode === 'slot' ? 'selected' : '' ?>>A time slot, like an appointment</option>
+                <option value="nights" <?= $p_mode === 'nights' ? 'selected' : '' ?>>By the night, like a room or apartment</option>
+                <option value="day" <?= $p_mode === 'day' ? 'selected' : '' ?>>A whole day, like an event</option>
+            </select>
+        </label>
+        <div x-show="mode !== 'none'" x-cloak class="nf-sub-q">
+            <label x-show="mode === 'slot'">How long it takes
+                <select name="booking_minutes">
+                    <?php foreach ([15, 30, 45, 60, 90, 120, 150, 180, 240, 300, 360, 480] as $mins): ?>
+                    <option value="<?= $mins ?>" <?= $p_minutes === $mins ? 'selected' : '' ?>><?= e(booking_duration_text($mins)) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </label>
+            <label x-show="mode === 'day'">Bookings you can take a day
+                <input type="number" name="booking_capacity" min="1" max="20" inputmode="numeric" value="<?= $p_capacity ?>">
+            </label>
+            <p class="nf-help" x-show="mode === 'nights'">The price is per night. Check-in and check-out times are in Booking hours.</p>
+            <div class="nf-if-deposit">
+                <label>Deposit to book
+                    <select name="deposit_type" x-model="deposit">
+                        <option value="none" <?= $p_dep_type === 'none' ? 'selected' : '' ?>>No deposit</option>
+                        <option value="percent" <?= $p_dep_type === 'percent' ? 'selected' : '' ?>>A share (%)</option>
+                        <option value="fixed" <?= $p_dep_type === 'fixed' ? 'selected' : '' ?>>An amount (<?= e($currency) ?>)</option>
+                    </select>
+                </label>
+                <label x-show="deposit !== 'none'">How much
+                    <input type="number" name="deposit_value" min="0" step="0.01" inputmode="decimal" value="<?= e((string)$p_dep_val) ?>">
+                </label>
+            </div>
+            <p class="nf-help">Paid by transfer to your bank account. You confirm each booking once you see it.</p>
+            <a href="<?= APP_URL ?>/bookings/settings" class="nf-link">Set your booking hours</a>
         </div>
+    </section>
+
+    <!-- The item code -->
+    <section class="nf-sec" aria-labelledby="nf-if-code-h">
+        <h2 id="nf-if-code-h">Item code</h2>
+        <label class="nf-switch"><input type="checkbox" role="switch" name="auto_sku" value="1" x-model="autoSku">
+            <span><b>Make the code for me</b><small>Like ANK-0012: the first 3 letters of the name and a number</small></span></label>
+        <label x-show="!autoSku" x-cloak>Your code <small>Also called SKU</small>
+            <input type="text" name="sku" value="<?= $p_sku ?>" :disabled="autoSku" placeholder="Made for you if left empty" autocomplete="off">
+        </label>
+    </section>
+
+    <!-- The one button, always in reach -->
+    <div class="nf-sticky nf-if-go">
+        <a class="nf-link" href="<?= APP_URL ?>/products<?= $editing ? '/view/' . (int)$product['id'] : '' ?>">Cancel</a>
+        <button type="submit" class="nf-btn nf-btn-primary"><?= $editing ? 'Save changes' : 'Add to catalogue' ?></button>
     </div>
+    <?php if ($editing): ?>
+        <?php /* A form can't sit inside the edit form (D8): this button
+                 sends the edit form's token to the duplicate address */ ?>
+        <section class="nf-sec is-quiet">
+            <button type="submit" formaction="<?= APP_URL ?>/products/duplicate/<?= (int)$product['id'] ?>" formnovalidate class="nf-link">Duplicate this item</button>
+        </section>
+    <?php endif; ?>
 </form>
+</div>
 
 <!-- Upload progress: fills 0 → 100% while the pictures go up, then the next page confirms with a toast. -->
 <div class="nf-upload" id="nf-upload" hidden role="status" aria-live="polite">

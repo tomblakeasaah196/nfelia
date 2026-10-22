@@ -47,7 +47,7 @@ cgi-bin/
 !db/schema.sql
 
 # Feature videos made by bin/feature-video/make.sh
-/bin/feature-video/videos/*/out/
+/bin/feature-video/videos/**/out/
 
 # IDE / OS junk
 .vscode/
@@ -61,3 +61,7 @@ desktop.ini
 # Ad-hoc scratch scripts — never commit
 _scratch/
 scratch_*.php
+
+# Claude Code worktrees for helper agents (local only)
+/.claude/worktrees/
+__pycache__/

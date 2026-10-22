@@ -143,6 +143,8 @@ a.nf-item:active { background: rgb(31 10 20 / .05); }
 .nf-card-h { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; margin: 0 0 4px; }
 .nf-card.is-flush > .nf-card-h { margin: 0; padding: 6px 8px 0 16px; }
 .nf-card-h h2 { margin: 0; font: 600 1.0625rem/1.3 var(--font-heading); }
+/* The same heading on a card laid out by hand (Settings); its spacing stays the card's */
+.nf-card-title { font: 600 1.0625rem/1.3 var(--font-heading); color: var(--ink); }
 .nf-card-h p { margin: 2px 0 0; font: 400 .875rem/1.4 var(--font-body); color: var(--ink-2); }
 .nf-card > p { margin: 0; font: 400 .9375rem/1.5 var(--font-body); color: var(--ink-2); }
 .nf-card .nf-items { border-radius: 0; box-shadow: none; background: none; }
@@ -228,6 +230,8 @@ a.nf-item:active { background: rgb(31 10 20 / .05); }
 .nf-form { display: grid; gap: 14px; padding: 4px 20px 0; }
 .nf-form label { display: grid; gap: 6px; font: 600 .875rem/1.3 var(--font-body); color: var(--ink); }
 .nf-form label small { font: 400 .8125rem/1.3 var(--font-body); color: var(--ink-3); }
+/* A field's name above its own input, outside .nf-form (Settings): the same words as .nf-form label */
+.nf-label { display: block; margin: 0 0 6px; font: 600 .875rem/1.3 var(--font-body); color: var(--ink); }
 .nf-form input, .nf-form select, .nf-form textarea { width: 100%; min-height: 48px; padding: 0 14px; border-radius: 12px; border: 0; background: var(--surface);
   box-shadow: inset 0 0 0 1px var(--line-2); font: 400 1rem/1.3 var(--font-body); color: var(--ink); }
 .nf-form textarea { min-height: 72px; padding: 12px 14px; resize: vertical; }
@@ -303,6 +307,14 @@ a.nf-item:active { background: rgb(31 10 20 / .05); }
 @media (min-width: 640px) {
   .nf-rb-hero { grid-template-columns: 104px minmax(0, 1fr); grid-template-areas: "cover title" "cover text"; gap: 6px 20px; align-items: start; }
   .nf-rb-cover { height: 136px; }
+}
+
+/* Expense form, a stock purchase line. On a phone twelve columns leave the
+   line total about 60px, too narrow for ₦125,000: quantity and unit cost
+   share the second row, and the total has the third, beside the bin. */
+@media (max-width: 639px) {
+  .nf-buy-line > .col-span-4 { grid-column: span 6 / span 6; }
+  .nf-buy-line > .col-span-3 { grid-column: span 11 / span 11; }
 }
 
 /* Profit and loss: the period menu opens under its button. On a phone the

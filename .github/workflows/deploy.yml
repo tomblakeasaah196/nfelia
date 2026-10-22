@@ -248,8 +248,8 @@ jobs:
           for i in $(seq 50); do curl -sf -o /dev/null http://localhost:8099/login && exit 0; sleep 0.2; done
           echo "::error::the app did not start"; cat "$RUNNER_TEMP/app.log"; exit 1
 
-      - name: Engine, every trigger over HTTP, the cron, the service worker, Nfelia Ops, the orders hub, the Records Book, signatures
-        run: bash tests/notifications/run.sh engine flows cron sw ops/foundation ops/monitor ops/clients ops/sales ops/uploads orders/core orders/late ops/records docs/sign auth/signin
+      - name: Engine, every trigger over HTTP, the cron, the service worker, Nfelia Ops, the orders hub, the Records Book, signatures, onboarding, money out
+        run: bash tests/notifications/run.sh engine flows cron sw ops/foundation ops/monitor ops/clients ops/sales ops/uploads orders/core orders/late ops/records docs/sign auth/signin auth/onboarding reports/money
 
       # What the app itself said (PHP errors above all), right in the job's
       # log: the artifact below has the whole file.

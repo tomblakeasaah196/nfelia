@@ -451,7 +451,8 @@ function records_ledger(array $book): array
  * out the way Nfelia's own screens do: money in is money_in() (invoice
  * payments and sales paid on the spot; money kept for a customer's next
  * order counts once, when it came in), sales invoiced leave out drafts and
- * cancelled invoices, spending is expenses not deleted, orders leave out
+ * cancelled invoices, spending is money_out() (what was paid, on the day it
+ * was paid: unpaid expenses are owed, not spent), orders leave out
  * those turned down or cancelled, and the hidden walk-in customer of quick
  * sales is no customer.
  */
@@ -467,7 +468,7 @@ function records_facts(PDO $db, int $biz, ?string $from, ?string $to): array
         'invoices'    => (int)$one("SELECT COUNT(*) FROM invoices WHERE business_id = ? AND status NOT IN ('draft', 'cancelled') AND issue_date BETWEEN ? AND ?", [$biz, $from_day, $to_day]),
         'invoiced'    => (float)$one("SELECT COALESCE(SUM(total), 0) FROM invoices WHERE business_id = ? AND status NOT IN ('draft', 'cancelled') AND issue_date BETWEEN ? AND ?", [$biz, $from_day, $to_day]),
         'received'    => money_in($db, $biz, $from_day, $to_day),
-        'spent'       => (float)$one("SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE business_id = ? AND deleted_at IS NULL AND expense_date BETWEEN ? AND ?", [$biz, $from_day, $to_day]),
+        'spent'       => money_out($db, $biz, $from_day, $to_day),
         'orders'      => (int)$one("SELECT COUNT(*) FROM orders WHERE business_id = ? AND status NOT IN ('rejected', 'cancelled') AND DATE(created_at) BETWEEN ? AND ?", [$biz, $from_day, $to_day]),
         'products'    => (int)$one("SELECT COUNT(*) FROM products WHERE business_id = ? AND deleted_at IS NULL", [$biz]),
         'owed_to_you' => (float)$one("SELECT COALESCE(SUM(outstanding_balance), 0) FROM customers WHERE business_id = ? AND deleted_at IS NULL AND outstanding_balance > 0", [$biz]),
@@ -478,8 +479,9 @@ function records_facts(PDO $db, int $biz, ?string $from, ?string $to): array
                        SELECT MIN(issue_date) AS d FROM invoices WHERE business_id = ? AND status NOT IN ('draft', 'cancelled') AND issue_date BETWEEN ? AND ?
                        UNION ALL SELECT MIN(payment_date) FROM payments WHERE business_id = ? AND method <> 'kept' AND payment_date BETWEEN ? AND ?
                        UNION ALL SELECT MIN(issue_date) FROM receipts WHERE business_id = ? AND invoice_id IS NULL AND issue_date BETWEEN ? AND ?
-                       UNION ALL SELECT MIN(expense_date) FROM expenses WHERE business_id = ? AND deleted_at IS NULL AND expense_date BETWEEN ? AND ?) f",
-                  [$biz, $from_day, $to_day, $biz, $from_day, $to_day, $biz, $from_day, $to_day, $biz, $from_day, $to_day]);
+                       UNION ALL SELECT MIN(expense_date) FROM expenses WHERE business_id = ? AND deleted_at IS NULL AND expense_date BETWEEN ? AND ?
+                       UNION ALL SELECT MIN(settlement_date) FROM debt_settlements WHERE business_id = ? AND settlement_date BETWEEN ? AND ?) f",
+                  [$biz, $from_day, $to_day, $biz, $from_day, $to_day, $biz, $from_day, $to_day, $biz, $from_day, $to_day, $biz, $from_day, $to_day]);
     $months = [];
     if ($first) {
         $start = max(substr((string)$first, 0, 7) . '-01', date('Y-m-01', strtotime(substr($to_day, 0, 7) . '-01 -23 months')));
@@ -494,8 +496,7 @@ function records_facts(PDO $db, int $biz, ?string $from, ?string $to): array
         foreach (money_in_by_month($db, $biz, ...$range) as $ym => $v) {
             if (isset($months[$ym])) $months[$ym]['received'] = (float)$v;
         }
-        foreach ($all("SELECT DATE_FORMAT(expense_date, '%Y-%m'), SUM(amount) FROM expenses WHERE business_id = ? AND deleted_at IS NULL
-                       AND expense_date BETWEEN ? AND ? GROUP BY 1", [$biz, ...$range]) as [$ym, $v]) {
+        foreach (money_out_by($db, $biz, $range[0], $range[1], '%Y-%m') as $ym => $v) {
             if (isset($months[$ym])) $months[$ym]['spent'] = (float)$v;
         }
     }

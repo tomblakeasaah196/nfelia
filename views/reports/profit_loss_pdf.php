@@ -1,8 +1,11 @@
 <?php
 /**
  * Nfelia — Profit & Loss PDF Template (dompdf)
- * Variables: $business, $month_label, $revenue, $expenses_total, $gross_profit,
- *            $expense_categories, $currency, $primary, $primary_text, $logo_src, $period_start, $period_end
+ * Variables: $business, $month_label, $revenue (money in), $money_out (money paid
+ *            out), $stock_out (the part spent on stock), $left (in less out),
+ *            $left_reads (up, stock or down: money_left_reads()), $expense_categories
+ *            (money out by category), $currency, $primary, $primary_text, $logo_src,
+ *            $period_start, $period_end. Cash in, cash out, as on the screen.
  */
 ?>
 <!DOCTYPE html>
@@ -25,6 +28,7 @@
         .kpi-value { font-size: 22px; font-weight: bold; }
         .kpi-green { color: #16a34a; }
         .kpi-red   { color: #dc2626; }
+        .kpi-amber { color: #b45309; }
         .kpi-blue  { color: <?= $primary_text ?>; }
         .section-label { font-size: 9px; font-weight: bold; text-transform: uppercase; color: #94a3b8; letter-spacing: 0.1em; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px; margin: 20px 0 12px; }
         .line-table { width: 100%; border-collapse: collapse; }
@@ -57,37 +61,37 @@
     <table class="kpi-table">
         <tr>
             <td>
-                <div class="kpi-label">Total Revenue</div>
+                <div class="kpi-label">Money in</div>
                 <div class="kpi-value kpi-green"><?= money($revenue, $currency) ?></div>
                 <div style="font-size:9px;color:#94a3b8;margin-top:4px;">Payments received</div>
             </td>
             <td>
-                <div class="kpi-label">Total Expenses</div>
-                <div class="kpi-value kpi-red"><?= money($expenses_total, $currency) ?></div>
-                <div style="font-size:9px;color:#94a3b8;margin-top:4px;">All recorded expenses</div>
+                <div class="kpi-label">Money out</div>
+                <div class="kpi-value kpi-red"><?= money($money_out, $currency) ?></div>
+                <div style="font-size:9px;color:#94a3b8;margin-top:4px;">Paid out<?= $stock_out > 0 ? ', ' . e(money($stock_out, $currency)) . ' of it on stock' : '' ?></div>
             </td>
-            <td style="background:<?= $gross_profit >= 0 ? '#f0fdf4' : '#fff1f2' ?>;">
-                <div class="kpi-label">Net <?= $gross_profit >= 0 ? 'Profit' : 'Loss' ?></div>
-                <div class="kpi-value <?= $gross_profit >= 0 ? 'kpi-green' : 'kpi-red' ?>">
-                    <?= money(abs($gross_profit), $currency) ?>
+            <td style="background:<?= ['up' => '#f0fdf4', 'stock' => '#fffbeb', 'down' => '#fff1f2'][$left_reads] ?>;">
+                <div class="kpi-label">Left after spending</div>
+                <div class="kpi-value <?= ['up' => 'kpi-green', 'stock' => 'kpi-amber', 'down' => 'kpi-red'][$left_reads] ?>">
+                    <?= $left < 0 ? '−' : '' ?><?= money(abs($left), $currency) ?>
                 </div>
-                <div style="font-size:9px;color:#94a3b8;margin-top:4px;">Revenue − Expenses</div>
+                <div style="font-size:9px;color:#94a3b8;margin-top:4px;"><?= $left_reads === 'stock' ? 'Money in − money out. Stock bought covers the gap' : 'Money in − money out' ?></div>
             </td>
         </tr>
     </table>
 
-    <!-- Revenue line -->
-    <div class="section-label">Revenue</div>
+    <!-- Money in -->
+    <div class="section-label">Money in</div>
     <table class="line-table">
-        <tr><td>Payments Received (<?= e($month_label) ?>)</td><td><?= money($revenue, $currency) ?></td></tr>
-        <tr class="total-row"><td>Total Revenue</td><td><?= money($revenue, $currency) ?></td></tr>
+        <tr><td>Payments received (<?= e($month_label) ?>)</td><td><?= money($revenue, $currency) ?></td></tr>
+        <tr class="total-row"><td>Money in</td><td><?= money($revenue, $currency) ?></td></tr>
     </table>
 
-    <!-- Expenses breakdown -->
-    <div class="section-label">Expenses by Category</div>
+    <!-- Money out by category: what was paid, when it was paid -->
+    <div class="section-label">Money out by category</div>
     <table class="line-table">
         <?php if (empty($expense_categories)): ?>
-        <tr><td colspan="2" style="color:#94a3b8;font-style:italic;">No expenses recorded this period.</td></tr>
+        <tr><td colspan="2" style="color:#94a3b8;font-style:italic;">Nothing was paid out this period.</td></tr>
         <?php else: ?>
             <?php foreach ($expense_categories as $cat): ?>
             <tr>
@@ -96,18 +100,22 @@
             </tr>
             <?php endforeach; ?>
         <?php endif; ?>
-        <tr class="total-row"><td>Total Expenses</td><td><?= money($expenses_total, $currency) ?></td></tr>
+        <tr class="total-row"><td>Money out</td><td><?= money($money_out, $currency) ?></td></tr>
     </table>
+    <p style="font-size:9px;color:#94a3b8;margin:6px 0 0;">Expenses not paid yet are not money out: they count on the day they are paid.</p>
 
     <!-- Net -->
     <div class="section-label">Summary</div>
     <table class="line-table">
-        <tr><td>Revenue</td><td><?= money($revenue, $currency) ?></td></tr>
-        <tr><td>Expenses</td><td style="color:#dc2626;">−<?= money($expenses_total, $currency) ?></td></tr>
+        <tr><td>Money in</td><td><?= money($revenue, $currency) ?></td></tr>
+        <tr><td>Money out</td><td style="color:#dc2626;">−<?= money($money_out, $currency) ?></td></tr>
+        <?php if ($stock_out > 0): ?>
+        <tr><td style="padding-left:14px;color:#64748b;">of which spent on stock</td><td style="color:#64748b;font-weight:normal;"><?= money($stock_out, $currency) ?></td></tr>
+        <?php endif; ?>
         <tr class="total-row">
-            <td>Net <?= $gross_profit >= 0 ? 'Profit' : 'Loss' ?></td>
-            <td style="color:<?= $gross_profit >= 0 ? '#16a34a' : '#dc2626' ?>;">
-                <?= money(abs($gross_profit), $currency) ?>
+            <td>Left after spending</td>
+            <td style="color:<?= ['up' => '#16a34a', 'stock' => '#b45309', 'down' => '#dc2626'][$left_reads] ?>;">
+                <?= $left < 0 ? '−' : '' ?><?= money(abs($left), $currency) ?>
             </td>
         </tr>
     </table>

@@ -1,0 +1,795 @@
+{
+ "title": "Quotes and customers' money",
+ "login": {
+  "email": "adanna@adannaluxehair.com",
+  "password": "TestPass1"
+ },
+ "voice": {
+  "engine": "yarngpt",
+  "name": "chinenye",
+  "tempo": 0.82,
+  "pause": 0.6,
+  "say_as": {
+   "Nfelia": "En-feh-lee-ya"
+  }
+ },
+ "speed_limit": 1.8,
+ "breath": 0.8,
+ "scenes": [
+  {
+   "card": {
+    "kicker": "Nfelia tutorials · 4 of 5",
+    "title": "Quotes, deposits and customers' money",
+    "sub": "Quote a bridal party, take a deposit, and keep money for a client."
+   },
+   "min": 4,
+   "say": "Welcome back. In this video, we send a quote for a bridal party, take a deposit, and keep money safe for our clients."
+  },
+  {
+   "open": "/dashboard",
+   "chapter": "A quote for a big job",
+   "steps": [
+    [
+     "wait",
+     600
+    ],
+    [
+     "tap",
+     ".nf-tab-create"
+    ],
+    [
+     "wait",
+     900
+    ],
+    [
+     "tap",
+     "#nf-create a:has-text('New quote')",
+     {
+      "nav": true
+     }
+    ],
+    [
+     "wait",
+     900
+    ]
+   ],
+   "caption": "New quote",
+   "sub": "The + button, then New quote.",
+   "say": "For a big job, send a quote first. Tap the plus button, then tap New quote."
+  },
+  {
+   "chapter": "A quote for a big job",
+   "steps": [
+    [
+     "tap",
+     "button:has-text('New client')"
+    ],
+    [
+     "wait",
+     500
+    ],
+    [
+     "tap",
+     "input[x-model='newClient.name']"
+    ],
+    [
+     "type",
+     "input[x-model='newClient.name']",
+     "Temitope Bakare",
+     70
+    ],
+    [
+     "tap",
+     "input[x-model='newClient.phone']"
+    ],
+    [
+     "type",
+     "input[x-model='newClient.phone']",
+     "0806 123 4504",
+     80
+    ],
+    [
+     "wait",
+     300
+    ],
+    [
+     "tap",
+     "button:has-text('Save client')"
+    ],
+    [
+     "wait",
+     1400
+    ]
+   ],
+   "caption": "A new client",
+   "sub": "Temitope, a bride.",
+   "say": "A bride called Temitope wants hair for her bridesmaids. She is new, so add her name and phone number."
+  },
+  {
+   "chapter": "A quote for a big job",
+   "steps": [
+    [
+     "tap",
+     "input[x-model='item.description'] >> nth=0"
+    ],
+    [
+     "type",
+     "input[x-model='item.description'] >> nth=0",
+     "bone",
+     140
+    ],
+    [
+     "wait",
+     900
+    ],
+    [
+     "tap",
+     "button:has-text('Bone Straight') >> nth=0"
+    ],
+    [
+     "wait",
+     500
+    ],
+    [
+     "tap",
+     "input[x-model\\.number='item.quantity'] >> nth=0"
+    ],
+    [
+     "fill",
+     "input[x-model\\.number='item.quantity'] >> nth=0",
+     ""
+    ],
+    [
+     "type",
+     "input[x-model\\.number='item.quantity'] >> nth=0",
+     "6",
+     150
+    ],
+    [
+     "tap",
+     "input[x-model\\.number='item.unit_price'] >> nth=0"
+    ],
+    [
+     "fill",
+     "input[x-model\\.number='item.unit_price'] >> nth=0",
+     ""
+    ],
+    [
+     "type",
+     "input[x-model\\.number='item.unit_price'] >> nth=0",
+     "115000",
+     110
+    ],
+    [
+     "wait",
+     800
+    ]
+   ],
+   "caption": "Six bundles, 18 inches",
+   "say": "Type a few letters, and pick the product. She wants six bundles of bone straight, eighteen inches long. Then type the price of one bundle."
+  },
+  {
+   "chapter": "A quote for a big job",
+   "steps": [
+    [
+     "tap",
+     "button:has-text('Add another item')"
+    ],
+    [
+     "wait",
+     500
+    ],
+    [
+     "tap",
+     "input[x-model='item.description'] >> nth=1"
+    ],
+    [
+     "type",
+     "input[x-model='item.description'] >> nth=1",
+     "frontal",
+     130
+    ],
+    [
+     "wait",
+     900
+    ],
+    [
+     "tap",
+     "button:has-text('HD Lace Frontal') >> nth=0"
+    ],
+    [
+     "wait",
+     500
+    ],
+    [
+     "tap",
+     "input[x-model\\.number='item.quantity'] >> nth=1"
+    ],
+    [
+     "fill",
+     "input[x-model\\.number='item.quantity'] >> nth=1",
+     ""
+    ],
+    [
+     "type",
+     "input[x-model\\.number='item.quantity'] >> nth=1",
+     "2",
+     150
+    ],
+    [
+     "wait",
+     700
+    ]
+   ],
+   "caption": "Two lace frontals",
+   "say": "Now add two lace frontals as another item."
+  },
+  {
+   "chapter": "A quote for a big job",
+   "steps": [
+    [
+     "tap",
+     "button:has-text('Add another item')"
+    ],
+    [
+     "wait",
+     500
+    ],
+    [
+     "tap",
+     "input[x-model='item.description'] >> nth=2"
+    ],
+    [
+     "type",
+     "input[x-model='item.description'] >> nth=2",
+     "Bridal installation and styling",
+     55
+    ],
+    [
+     "press",
+     "Escape"
+    ],
+    [
+     "tap",
+     "input[x-model\\.number='item.unit_price'] >> nth=2"
+    ],
+    [
+     "fill",
+     "input[x-model\\.number='item.unit_price'] >> nth=2",
+     ""
+    ],
+    [
+     "type",
+     "input[x-model\\.number='item.unit_price'] >> nth=2",
+     "80000",
+     110
+    ],
+    [
+     "wait",
+     800
+    ]
+   ],
+   "caption": "Work you do, too",
+   "say": "You can also type something that is not in your stock, like the bridal styling, with its price."
+  },
+  {
+   "chapter": "A quote for a big job",
+   "steps": [
+    [
+     "scroll",
+     "textarea[name=notes]",
+     300
+    ],
+    [
+     "tap",
+     "textarea[name=notes]"
+    ],
+    [
+     "type",
+     "textarea[name=notes]",
+     "Half now to book the date. The rest on the wedding day.",
+     45
+    ],
+    [
+     "scroll",
+     "input[name=discount_amount]",
+     360
+    ],
+    [
+     "tap",
+     "input[name=discount_amount]"
+    ],
+    [
+     "fill",
+     "input[name=discount_amount]",
+     ""
+    ],
+    [
+     "type",
+     "input[name=discount_amount]",
+     "40000",
+     110
+    ],
+    [
+     "wait",
+     900
+    ]
+   ],
+   "caption": "Terms and a discount",
+   "sub": "The price holds for two weeks.",
+   "say": "Add your terms, and a discount if you like. The quote is valid for two weeks, and you can change that date."
+  },
+  {
+   "chapter": "A quote for a big job",
+   "steps": [
+    [
+     "tap",
+     "button:has-text('Save as draft')",
+     {
+      "nav": true
+     }
+    ],
+    [
+     "wait",
+     1600
+    ]
+   ],
+   "caption": "Your quote is ready",
+   "say": "Tap Save. Your quote is ready, with its own number, your logo, and your bank details."
+  },
+  {
+   "chapter": "Send it on WhatsApp",
+   "steps": [
+    [
+     "keep",
+     "quote_link",
+     "a:has-text('Public view')"
+    ],
+    [
+     "keep",
+     "quote_page",
+     "url"
+    ],
+    [
+     "spot",
+     "a:has-text('WhatsApp'):visible",
+     6
+    ],
+    [
+     "wait",
+     1500
+    ],
+    [
+     "unspot"
+    ],
+    [
+     "tap",
+     "button:has-text('Copy link'):visible"
+    ],
+    [
+     "wait",
+     1400
+    ]
+   ],
+   "caption": "Send it on WhatsApp",
+   "sub": "The quote is marked sent.",
+   "say": "Send it to her on WhatsApp, or copy the link. Nfelia marks the quote as sent."
+  },
+  {
+   "as": "customer",
+   "open": "{quote_link}",
+   "chapter": "She accepts",
+   "steps": [
+    [
+     "wait",
+     1600
+    ],
+    [
+     "scrollBy",
+     320,
+     1200
+    ],
+    [
+     "wait",
+     900
+    ]
+   ],
+   "caption": "Temitope opens the quote",
+   "say": "Now the bride opens the quote on her phone. She sees every item, the discount, and the total."
+  },
+  {
+   "as": "customer",
+   "chapter": "She accepts",
+   "steps": [
+    [
+     "scroll",
+     "button:has-text('Accept quote')",
+     520
+    ],
+    [
+     "tap",
+     "button:has-text('Accept quote')"
+    ],
+    [
+     "wait",
+     900
+    ],
+    [
+     "tap",
+     "[data-accept-confirm]"
+    ],
+    [
+     "wait",
+     2600
+    ]
+   ],
+   "caption": "She accepts",
+   "sub": "With one tap.",
+   "say": "She taps Accept quote, and confirms. That is all she needs to do."
+  },
+  {
+   "open": "{quote_page}",
+   "chapter": "Take a deposit",
+   "steps": [
+    [
+     "wait",
+     1200
+    ],
+    [
+     "spot",
+     "a[href*='/orders/view/']:visible",
+     6
+    ],
+    [
+     "wait",
+     1800
+    ],
+    [
+     "unspot"
+    ],
+    [
+     "tap",
+     "a[href*='/orders/view/']:visible",
+     {
+      "nav": true
+     }
+    ],
+    [
+     "wait",
+     1400
+    ]
+   ],
+   "caption": "Accepted, now an order",
+   "say": "On your side, the quote is accepted, and it became an order by itself."
+  },
+  {
+   "chapter": "Take a deposit",
+   "steps": [
+    [
+     "tap",
+     "main button:has-text('Record payment')"
+    ],
+    [
+     "wait",
+     900
+    ],
+    [
+     "tap",
+     "dialog[open] button:has-text('Half')"
+    ],
+    [
+     "wait",
+     500
+    ],
+    [
+     "tap",
+     "dialog[open] label:has-text('Transfer'):visible"
+    ],
+    [
+     "wait",
+     400
+    ],
+    [
+     "tap",
+     "dialog[open] button:has-text('Save payment')",
+     {
+      "nav": true
+     }
+    ],
+    [
+     "wait",
+     1800
+    ]
+   ],
+   "caption": "The deposit",
+   "sub": "Half now, the rest later.",
+   "say": "She pays half as a deposit. Tap Record payment, and choose Half. Nfelia keeps the balance, and makes her receipt."
+  },
+  {
+   "open": "/customers",
+   "chapter": "Your clients",
+   "steps": [
+    [
+     "wait",
+     900
+    ],
+    [
+     "tap",
+     "a:has-text('Temitope Bakare') >> nth=0",
+     {
+      "nav": true
+     }
+    ],
+    [
+     "wait",
+     1400
+    ],
+    [
+     "scrollBy",
+     300,
+     1000
+    ],
+    [
+     "wait",
+     800
+    ]
+   ],
+   "caption": "Every client has a page",
+   "sub": "Orders, quotes, payments, debts.",
+   "say": "Every client has a page, with their orders, their quotes, what they paid, and what they still owe."
+  },
+  {
+   "open": "/customers/view/{zainab}",
+   "chapter": "Kept with you",
+   "steps": [
+    [
+     "wait",
+     900
+    ],
+    [
+     "tap",
+     "button:has-text('Kept with you'), a:has-text('Kept with you')"
+    ],
+    [
+     "wait",
+     800
+    ],
+    [
+     "tap",
+     "button[data-open=nf-kept-add]"
+    ],
+    [
+     "wait",
+     900
+    ]
+   ],
+   "caption": "Money paid before choosing",
+   "sub": "Kept with you, then Add money.",
+   "say": "Sometimes a client pays before she chooses what to buy. For example, Zainab sent us one hundred thousand naira. Open her page, then Kept with you, and tap Add money."
+  },
+  {
+   "chapter": "Kept with you",
+   "steps": [
+    [
+     "tap",
+     "#nf-kept-add input[name=amount]"
+    ],
+    [
+     "type",
+     "#nf-kept-add input[name=amount]",
+     "100000",
+     110
+    ],
+    [
+     "wait",
+     300
+    ],
+    [
+     "tap",
+     "#nf-kept-add label:has-text('Transfer'):visible"
+    ],
+    [
+     "wait",
+     400
+    ],
+    [
+     "tap",
+     "#nf-kept-add button:has-text('Keep it for')",
+     {
+      "nav": true
+     }
+    ],
+    [
+     "wait",
+     1800
+    ]
+   ],
+   "caption": "Kept for her",
+   "sub": "Counted as money in, today.",
+   "say": "Type how much she paid, and how. Nfelia keeps it for her, and counts it as money that came in today."
+  },
+  {
+   "chapter": "Kept with you",
+   "steps": [
+    [
+     "tap",
+     "a:has-text('New order'):visible",
+     {
+      "nav": true
+     }
+    ],
+    [
+     "wait",
+     900
+    ],
+    [
+     "tap",
+     "button:has-text('Add an item')"
+    ],
+    [
+     "wait",
+     800
+    ],
+    [
+     "tap",
+     "#nf-pick button:has-text('Pixie Curls')"
+    ],
+    [
+     "wait",
+     700
+    ],
+    [
+     "tap",
+     "#nf-pick button:has-text('Add ·')"
+    ],
+    [
+     "wait",
+     800
+    ],
+    [
+     "scroll",
+     "label.nf-switch.is-card",
+     420
+    ],
+    [
+     "spot",
+     "label.nf-switch.is-card",
+     4
+    ],
+    [
+     "wait",
+     1600
+    ],
+    [
+     "unspot"
+    ],
+    [
+     "tap",
+     "label.nf-switch.is-card"
+    ],
+    [
+     "wait",
+     600
+    ],
+    [
+     "tap",
+     "button[x-text=\"buttonWords()\"]",
+     {
+      "nav": true
+     }
+    ],
+    [
+     "wait",
+     1600
+    ]
+   ],
+   "caption": "Use it on her order",
+   "say": "When she chooses, make her order. Nfelia offers the money you kept for her. Switch it on, and save."
+  },
+  {
+   "open": "/orders/view/{paid}",
+   "chapter": "Cancel and keep",
+   "steps": [
+    [
+     "wait",
+     900
+    ],
+    [
+     "tap",
+     "main button:has-text('More')"
+    ],
+    [
+     "wait",
+     700
+    ],
+    [
+     "tap",
+     "dialog[open] button:has-text('Cancel order')"
+    ],
+    [
+     "wait",
+     900
+    ],
+    [
+     "spot",
+     "#nf-cancel button:has-text('Cancel and keep')",
+     6
+    ],
+    [
+     "wait",
+     1600
+    ],
+    [
+     "unspot"
+    ],
+    [
+     "tap",
+     "#nf-cancel button:has-text('Cancel and keep')",
+     {
+      "nav": true
+     }
+    ],
+    [
+     "wait",
+     1800
+    ]
+   ],
+   "caption": "A paid order is cancelled",
+   "sub": "Keep the money for her.",
+   "say": "Blessing paid, then changed her mind. Cancel her order, and keep her money with you, for her next order. Nothing is lost."
+  },
+  {
+   "open": "/orders/view/{oops}",
+   "chapter": "Delete a mistake",
+   "steps": [
+    [
+     "wait",
+     900
+    ],
+    [
+     "tap",
+     "main button:has-text('Delete order')"
+    ],
+    [
+     "wait",
+     900
+    ],
+    [
+     "spot",
+     "#nf-delete",
+     2
+    ],
+    [
+     "wait",
+     1400
+    ],
+    [
+     "unspot"
+    ],
+    [
+     "tap",
+     "#nf-delete button:has-text('Delete order')",
+     {
+      "nav": true
+     }
+    ],
+    [
+     "wait",
+     1600
+    ]
+   ],
+   "caption": "Typed in by mistake?",
+   "sub": "Cancel it, then delete it.",
+   "say": "And if you made an order by mistake, cancel it first, and then you can delete it for good."
+  },
+  {
+   "card": {
+    "kicker": "Next: video 5 of 5",
+    "title": "Your money, your team and your records",
+    "sub": "Expenses, debts, reports, your Records Book, and your staff."
+   },
+   "min": 4,
+   "say": "That is quotes and customers' money. In the last video, we look after our money, our team, and our records. See you there."
+  }
+ ]
+}

@@ -467,4 +467,24 @@ foreach ([
 eq(shop_visibility(['status' => 'cancelled', 'current_period_end' => date('Y-m-d', strtotime('+3 days'))]), 'live', 'a cancelled shop stays open while paid for');
 eq(shop_visibility(['status' => 'cancelled', 'current_period_end' => '2020-01-01']), 'closed', 'and closes after');
 
+section('How many people a business may have (billing_seats): a free trial includes one staff member');
+foreach ([
+    ['on the trial, a one-seat plan: the owner and one staff member', ['status' => 'trial', 'trial_ends_at' => '2026-10-20', 'user_seats' => 1, 'extra_seats' => 0], '2026-10-20', 2],
+    ['the trial over and nothing paid: the plan\'s one seat', ['status' => 'trial', 'trial_ends_at' => '2026-10-19', 'user_seats' => 1, 'extra_seats' => 0], '2026-10-20', 1],
+    ['a paid month for the owner alone', ['status' => 'active', 'current_period_end' => '2026-10-30', 'user_seats' => 1, 'extra_seats' => 0], '2026-10-20', 1],
+    ['a paid month with two staff seats', ['status' => 'active', 'current_period_end' => '2026-10-30', 'user_seats' => 1, 'extra_seats' => 2], '2026-10-20', 3],
+    ['a trial that already has more seats keeps them', ['status' => 'trial', 'trial_ends_at' => '2026-10-20', 'user_seats' => 1, 'extra_seats' => 3], '2026-10-20', 4],
+    ['no subscription row: the owner', null, '2026-10-20', 1],
+] as [$name, $sub, $day, $want]) {
+    eq(billing_seats($sub, $day), $want, $name);
+}
+
+section('A form too big for the server is sent back to its page (back_path)');
+$_SERVER['HTTP_REFERER'] = APP_URL . '/settings?tab=business';
+eq(back_path(), 'settings?tab=business', 'from a page of the app, back to it');
+$_SERVER['HTTP_REFERER'] = 'https://evil.test/settings';
+eq(back_path(), 'dashboard', 'from anywhere else, Home');
+unset($_SERVER['HTTP_REFERER']);
+eq(back_path('settings'), 'settings', 'with no page given, where the caller says');
+
 done();

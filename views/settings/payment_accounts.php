@@ -18,10 +18,13 @@ $stmt_pay = $pay_db->prepare("
 $stmt_pay->execute([(int)$business['id']]);
 $pay_accounts = $stmt_pay->fetchAll();
 
-// A new account starts as the kind the business's country mostly pays with
-$stmt_pay = $pay_db->prepare("SELECT c.payment_method FROM countries c JOIN businesses b ON b.country_id = c.id WHERE b.id = ?");
+// A new account starts as the kind the business's country mostly pays with,
+// and the examples are that country's
+$stmt_pay = $pay_db->prepare("SELECT c.payment_method, c.iso_code FROM countries c JOIN businesses b ON b.country_id = c.id WHERE b.id = ?");
 $stmt_pay->execute([(int)$business['id']]);
-$pay_new_kind = $stmt_pay->fetchColumn() === 'mobile_money' ? 'mobile_money' : 'bank';
+$pay_country  = $stmt_pay->fetch() ?: [];
+$pay_new_kind = ($pay_country['payment_method'] ?? '') === 'mobile_money' ? 'mobile_money' : 'bank';
+$pay_example  = SettingsController::pay_examples((string)($pay_country['iso_code'] ?? ''));
 
 // What was typed when it couldn't be saved, and why: its sheet opens again
 $pay_draft = $_SESSION['pay_draft'] ?? null;
@@ -31,7 +34,7 @@ $pay_kinds   = ['bank' => ['Bank account', 'card'], 'mobile_money' => ['Mobile M
 $pay_main_id = $pay_accounts && (int)$pay_accounts[0]['is_default'] ? (int)$pay_accounts[0]['id'] : 0;
 
 /** The add or change sheet for one account ($a is null for a new one). */
-$pay_sheet = function (?array $a) use ($pay_kinds, $pay_new_kind, $pay_draft, $pay_accounts, $pay_main_id): void {
+$pay_sheet = function (?array $a) use ($pay_kinds, $pay_new_kind, $pay_example, $pay_draft, $pay_accounts, $pay_main_id): void {
     $key   = $a ? (int)$a['id'] : 'new';
     $draft = $pay_draft && (string)$pay_draft['for'] === (string)$key ? $pay_draft : null;
     $v     = $draft ?? $a ?? ['kind' => $pay_new_kind, 'bank_name' => '', 'account_number' => '', 'account_name' => '', 'is_default' => false];
@@ -57,7 +60,7 @@ $pay_sheet = function (?array $a) use ($pay_kinds, $pay_new_kind, $pay_draft, $p
             </fieldset>
             <label><span x-text="kind === 'mobile_money' ? 'Which Mobile Money' : 'Bank'"><?= $v['kind'] === 'mobile_money' ? 'Which Mobile Money' : 'Bank' ?></span>
                 <input type="text" name="bank_name" value="<?= e($v['bank_name']) ?>" required maxlength="100" autocomplete="off"
-                       :placeholder="kind === 'mobile_money' ? 'e.g. MTN MoMo or Orange Money' : 'e.g. Ecobank'"></label>
+                       :placeholder="kind === 'mobile_money' ? <?= e(json_encode('e.g. ' . $pay_example['momo'])) ?> : <?= e(json_encode('e.g. ' . $pay_example['bank'])) ?>"></label>
             <label><span x-text="kind === 'mobile_money' ? 'Mobile Money number' : 'Account number'"><?= $v['kind'] === 'mobile_money' ? 'Mobile Money number' : 'Account number' ?></span>
                 <input type="text" name="account_number" value="<?= e($v['account_number']) ?>" required maxlength="40" autocomplete="off" spellcheck="false"
                        :inputmode="kind === 'mobile_money' ? 'tel' : 'text'"></label>

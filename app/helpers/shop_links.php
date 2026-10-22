@@ -102,6 +102,7 @@ const STOREFRONT_LOOKS = [
 // The look a new shop starts in, from the category chosen at sign-up.
 const STOREFRONT_LOOK_BY_CATEGORY = [
     'fashion'          => 'atelier',
+    'beauty'           => 'glow',
     'food_beverage'    => 'buka',
     'tech_repair'      => 'volt',
     'wholesale_retail' => 'market',

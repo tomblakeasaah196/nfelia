@@ -94,13 +94,16 @@ class PublicController
             json_response(["success" => true]);
         }
         /* The client can answer a quote only while it is open: not once it is
-           accepted, declined, expired or turned into an invoice. */
+           accepted, declined, expired or turned into an invoice. Its page
+           (views/quotations/public.php) offers the same states. */
         $open = ["draft", "sent", "in_negotiation", "pending_signature"];
         if (!in_array($quotation["status"], $open, true)) {
             json_response(
                 [
                     "success" => false,
-                    "error" => "This quotation has already been answered. Ask the business if anything needs to change.",
+                    "error" => $quotation["status"] === "expired"
+                        ? "This quote has expired. Please ask the business for a fresh quote."
+                        : "This quote has already been answered. Ask the business if anything needs to change.",
                 ],
                 409,
             );
@@ -145,14 +148,18 @@ class PublicController
                 );
                 $stmtState->execute([$quotation["id"]]);
                 if ($stmtState->rowCount() === 0 && $quotation["status"] !== "in_negotiation") {
-                    throw new Exception("This quotation has already been answered.");
+                    throw new Exception("This quote has already been answered.");
                 }
                 $tell = ["quote.comment", ["comment" => $message], ["dedupe" => "comment-" . $comment_id]];
             } elseif ($action === "sign" || $action === "accept") {
                 /* A quote set to be signed is accepted by signing it: the
                    drawing is kept with the hash of what was signed
                    (app/helpers/signing.php). Any other quote is accepted
-                   with one tap (Tom: signatures only when wanted). */
+                   with one tap (Tom: signatures only when wanted). Not past
+                   its "Valid until" day: the price no longer stands. */
+                if (!empty($quotation["expiry_date"]) && $quotation["expiry_date"] < planner_today()) {
+                    throw new Exception("This quote was valid until " . fmt_date($quotation["expiry_date"], "j M Y") . ". Please ask the business for a fresh quote.");
+                }
                 $name = mb_substr(trim($_POST["name"] ?? ""), 0, 150);
                 $drawing = null;
                 if ($action === "sign") {
@@ -176,7 +183,7 @@ class PublicController
                     $quotation["id"],
                 ]);
                 if ($stmtUpd->rowCount() === 0) {
-                    throw new Exception("This quotation has already been answered.");
+                    throw new Exception("This quote has already been answered.");
                 }
                 if ($drawing) {
                     doc_customer_sign($db, "quote", (int) $quotation["id"], $name, $drawing, $client_ip);
@@ -203,7 +210,7 @@ class PublicController
                 );
                 $stmtState->execute([$quotation["id"]]);
                 if ($stmtState->rowCount() === 0) {
-                    throw new Exception("This quotation has already been answered.");
+                    throw new Exception("This quote has already been answered.");
                 }
                 $stmtLog = $db->prepare(
                     " INSERT INTO quotation_activities (business_id, quotation_id, actor_type, action, message, old_status, new_status, meta_data) VALUES (?, ?, 'client', 'declined', ?, ?, 'declined', JSON_OBJECT('ip', ?)) ",
@@ -800,25 +807,10 @@ class PublicController
             $message,
         ]);
         $request_id = (int) $this->db->lastInsertId();
-        /* Also create/update customer record so business owner sees them in CRM */
-        $stmtExist = $this->db->prepare(
-            " SELECT id FROM customers WHERE business_id = ? AND phone = ? AND deleted_at IS NULL LIMIT 1 ",
-        );
-        $stmtExist->execute([$business_id, $phone]);
-        $existing = $stmtExist->fetch();
-        if (!$existing) {
-            $this->db
-                ->prepare(
-                    " INSERT INTO customers (business_id, full_name, phone, email, notes) VALUES (?, ?, ?, ?, ?) ",
-                )
-                ->execute([
-                    $business_id,
-                    $name,
-                    $phone,
-                    $email ?: null,
-                    "Auto-created from landing page quote request",
-                ]);
-        }
+        /* The customer with this phone, else a new one, so the owner sees
+           them in Clients: matched as shop orders are, by the phone's last
+           ten digits, so "0803 111 0000" and "+234 803 111 0000" are one */
+        order_match_customer($this->db, $business_id, $name, $phone, $email);
         // A sale waiting to happen: the team hears straight away, by phone
         // and email (quotations/requests/{id} shows it).
         notify("quote_request.new", $business_id, [
@@ -865,6 +857,10 @@ class PublicController
         if (!in_array($fulfillment, ["delivery", "pickup"])) {
             $fulfillment = "pickup";
         }
+        /* The bag asks for it too, but a browser check alone can be skipped */
+        if ($fulfillment === "delivery" && $delivery_address === "") {
+            json_response(["error" => "Type the address we should deliver to."], 422);
+        }
         if (
             !in_array($payment_method, [
                 "bank_transfer",
@@ -898,17 +894,21 @@ class PublicController
         } /* The real name and price of every product, from this shop only:
              what its page sells (S10). Bookable services are booked, not
              bought, and a shop that lists only some products sells only
-             those. */
+             those. One the shop shows as sold out is no longer available
+             either (shop_sold_out). */
         $product_ids = array_values(array_unique(array_column($lines, "product_id")));
         $placeholders = implode(",", array_fill(0, count($product_ids), "?"));
         $stmtProducts = $this->db->prepare(
-            "SELECT id, name, sell_price FROM products WHERE business_id = ? AND deleted_at IS NULL AND is_active = 1 AND booking_mode = 'none' AND id IN ({$placeholders})",
+            "SELECT id, name, sell_price, is_service, stock_qty, booking_mode FROM products WHERE business_id = ? AND deleted_at IS NULL AND is_active = 1 AND booking_mode = 'none' AND id IN ({$placeholders})",
         );
         $stmtProducts->execute(array_merge([$business_id], $product_ids));
         $only = sf_section(storefront_settings($business, "published"), "catalogue")["only"] ?? [];
         $catalogue = [];
         foreach ($stmtProducts->fetchAll() as $product) {
             if ($only && !in_array((int) $product["id"], $only, true)) {
+                continue;
+            }
+            if (shop_sold_out($business, $product)) {
                 continue;
             }
             $catalogue[(int) $product["id"]] = $product;
@@ -992,12 +992,15 @@ class PublicController
                 ],
                 429,
             );
-        } /* Handle payment proof upload */
+        } /* Handle payment proof upload. One that can't be saved (too big,
+             not a picture) doesn't stop the order: the answer says so, and
+             the bag tells the shopper to send it another way */
         $proof_path = null;
-        if (
+        $proof_sent =
             $payment_method !== "none" &&
-            !empty($_FILES["payment_proof"]["tmp_name"])
-        ) {
+            is_int($_FILES["payment_proof"]["error"] ?? null) &&
+            $_FILES["payment_proof"]["error"] !== UPLOAD_ERR_NO_FILE;
+        if ($proof_sent && is_string($_FILES["payment_proof"]["tmp_name"] ?? null)) {
             /* Private: only the shop sees it (OrderController::proof) */
             $filename = bin2hex(random_bytes(16)) . ".jpg";
             $dest =
@@ -1012,6 +1015,7 @@ class PublicController
                     $filename;
             }
         }
+        $proof_failed = $proof_sent && $proof_path === null;
         $this->db->beginTransaction();
         $committed = false;
         try {
@@ -1062,29 +1066,15 @@ class PublicController
                     $oi["item_note"],
                     $oi["line_total"],
                 ]);
-            } /* Match or create customer */
-            $stmtExist = $this->db->prepare(
-                "SELECT id FROM customers WHERE business_id = ? AND phone = ? AND deleted_at IS NULL LIMIT 1",
+            } /* Match or create customer: by the phone's last 10 digits, so
+                 "0803 456 7812" and "+2348034567812" are one person */
+            $customer_id = order_match_customer(
+                $this->db,
+                $business_id,
+                $customer_name,
+                $customer_phone,
+                $customer_email,
             );
-            $stmtExist->execute([$business_id, $customer_phone]);
-            $existing_cust = $stmtExist->fetch();
-            $customer_id = null;
-            if ($existing_cust) {
-                $customer_id = (int) $existing_cust["id"];
-            } else {
-                $this->db
-                    ->prepare(
-                        "INSERT INTO customers (business_id, full_name, phone, email, notes) VALUES (?, ?, ?, ?, ?)",
-                    )
-                    ->execute([
-                        $business_id,
-                        $customer_name,
-                        $customer_phone,
-                        $customer_email ?: null,
-                        "Auto-created from storefront order",
-                    ]);
-                $customer_id = (int) $this->db->lastInsertId();
-            }
             $this->db
                 ->prepare("UPDATE orders SET customer_id = ? WHERE id = ?")
                 ->execute([
@@ -1145,6 +1135,7 @@ class PublicController
                 "order_url" => $order_url,
                 "total" => $subtotal,
                 "channel" => $channel,
+                "proof_failed" => $proof_failed,
             ]);
         } catch (\Throwable $e) {
             if ($this->db->inTransaction()) {
@@ -1158,7 +1149,7 @@ class PublicController
             if ($committed) {
                 // The order is placed; only something after it went wrong.
                 // Saying it failed would make the shopper order twice.
-                json_response(["success" => true, "order_number" => $order_number, "order_url" => null, "total" => $subtotal, "channel" => $channel]);
+                json_response(["success" => true, "order_number" => $order_number, "order_url" => null, "total" => $subtotal, "channel" => $channel, "proof_failed" => $proof_failed]);
             }
             if ($this->db->inTransaction()) {
                 $this->db->rollBack();

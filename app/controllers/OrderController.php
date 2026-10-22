@@ -267,9 +267,16 @@ class OrderController
             $this->back($order, "error", "Pick the day they get it.");
         }
         $pay_by = trim((string) ($_POST["pay_by"] ?? ""));
+        // A transfer that came without a screenshot is recorded as an
+        // ordinary payment by that transfer, so its receipt claims no proof
+        $has_proof = !empty($order["payment_proof_path"]);
+        $no_proof_paid = !$has_proof && !empty($_POST["payment_received"])
+            && in_array($order["payment_method"], ["bank_transfer", "mobile_money"], true);
         try {
             order_confirm($this->db, $this->biz_id, (int) $order["id"], $this->user_id(), [
-                "payment_received" => !empty($order["payment_proof_path"]) && !empty($_POST["payment_received"]),
+                "payment_received" => $has_proof && !empty($_POST["payment_received"]),
+                "paid_now" => $no_proof_paid ? (float) $order["total"] : 0,
+                "method" => $no_proof_paid ? $order["payment_method"] : null,
                 "deliver_mode" => $when !== "" ? "date" : null,
                 "deliver_by" => $when !== "" ? $when : null,
                 "deliver_show" => 1,

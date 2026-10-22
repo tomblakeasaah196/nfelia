@@ -51,7 +51,14 @@ class ShopSetupController {
 
         $title     = $first_setup ? 'Set up your shop' : 'Your shop\'s look';
         $view_file = BASE_PATH . '/views/shop_setup/index.php';
+        // The passkey and home-screen offers after sign-in or onboarding
+        // (views/layouts/app.php) wait for the next page, not cover this one
+        $offer_later = !empty($_SESSION['just_signed_in']);
+        unset($_SESSION['just_signed_in']);
         require_once BASE_PATH . '/views/layouts/app.php';
+        if ($offer_later) {
+            $_SESSION['just_signed_in'] = true;
+        }
     }
 
     /* ──────────────────────────────────────────

@@ -36,11 +36,15 @@ class DashboardController {
         $stmt = $this->db->prepare("SELECT * FROM v_dashboard_summary WHERE business_id = ?");
         $stmt->execute([$this->biz_id]);
         $summary = $stmt->fetch() ?: ['total_outstanding' => 0, 'total_expenses_this_month' => 0];
-        // Money in this month: the same basis as the profit and loss (money_in)
+        // Money in and out this month: the same basis as the profit and loss
+        // (money_in, money_out: what was paid, when it was paid)
+        $month_end = date('Y-m-t', strtotime($month));
+        $out       = money_out_by($this->db, $this->biz_id, $month, $month_end, 'category');
         $money = [
-            'in'    => money_in($this->db, $this->biz_id, $month, date('Y-m-t', strtotime($month))),
+            'in'    => money_in($this->db, $this->biz_id, $month, $month_end),
             'owed'  => (float)($summary['total_outstanding'] ?? 0),
-            'spent' => (float)($summary['total_expenses_this_month'] ?? 0),
+            'spent' => money2(array_sum($out)),
+            'stock' => $out['stock_purchase'] ?? 0.0,
         ];
 
         // What needs someone: each count is the true count, each links to its list.
@@ -69,6 +73,18 @@ class DashboardController {
               AND i.order_id IS NULL AND NOT EXISTS (SELECT 1 FROM orders o WHERE o.invoice_id = i.id AND o.business_id = i.business_id)");
         $stmt_loose->execute([$this->biz_id]);
         $owed_url = (int)$stmt_loose->fetchColumn() > 0 ? 'invoices?status=unpaid' : 'orders?view=balance';
+
+        // The free trial's days left, for the owner, who pays: counted as
+        // Billing counts them (none on the last day), from billing_access()
+        $trial_days_left = null;
+        if (is_owner()) {
+            $stmt_sub = $this->db->prepare("SELECT * FROM subscriptions WHERE business_id = ?");
+            $stmt_sub->execute([$this->biz_id]);
+            $sub = $stmt_sub->fetch() ?: null;
+            if ($sub && $sub['status'] === 'trial' && !empty($sub['trial_ends_at']) && billing_access($sub) === 'trial') {
+                $trial_days_left = max(0, (int)round((strtotime(substr($sub['trial_ends_at'], 0, 10)) - strtotime(date('Y-m-d'))) / 86400));
+            }
+        }
 
         $hour = (int)$now->format('G');
         $greeting = $hour < 12 ? 'Good morning' : ($hour < 17 ? 'Good afternoon' : 'Good evening');

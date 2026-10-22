@@ -34,34 +34,18 @@ class ReportController {
         $period_end   = $period['end'];
         $month_label  = $period['label'];
 
-        // ── 1. REVENUE: money received this period: invoice payments and
-        // sales paid on the spot, the same basis as Home (money_in)
-        $revenue = money_in($this->db, $this->biz_id, $period_start, $period_end);
+        // ── 1. MONEY IN AND OUT: cash in, cash out (app/helpers/money.php),
+        // money received and money paid out this period, as Home and the
+        // Records Book count them; how much of it went on stock
+        [$revenue, $money_out, $stock_out, $expense_categories] = $this->money_between($period_start, $period_end);
+        $left       = $revenue - $money_out;
+        $left_reads = money_left_reads($revenue, $money_out, $stock_out);
 
-        // ── 2. EXPENSES: All expenses this period
-        $expenses_total = $this->expenses_between($period_start, $period_end);
+        // ── 2. THE PERIOD BEFORE, to compare with
+        [$prev_revenue, $prev_out] = $this->money_between($period['prev_start'], $period['prev_end']);
+        $prev_left = $prev_revenue - $prev_out;
 
-        // ── 3. GROSS PROFIT
-        $gross_profit = $revenue - $expenses_total;
-
-        // ── 3b. THE PERIOD BEFORE, to compare with
-        $prev_revenue  = money_in($this->db, $this->biz_id, $period['prev_start'], $period['prev_end']);
-        $prev_expenses = $this->expenses_between($period['prev_start'], $period['prev_end']);
-        $prev_profit   = $prev_revenue - $prev_expenses;
-
-        // ── 4. EXPENSE BREAKDOWN by category
-        $stmtCat = $this->db->prepare("
-            SELECT category, COALESCE(SUM(amount), 0) AS total
-            FROM expenses
-            WHERE business_id = ? AND deleted_at IS NULL
-              AND expense_date BETWEEN ? AND ?
-            GROUP BY category
-            ORDER BY total DESC
-        ");
-        $stmtCat->execute([$this->biz_id, $period_start, $period_end]);
-        $expense_categories = $stmtCat->fetchAll();
-
-        // ── 5. PENDING REVENUE: unpaid/partial invoices (all time, current outstanding)
+        // ── 3. PENDING REVENUE: unpaid/partial invoices (all time, current outstanding)
         $stmtPending = $this->db->prepare("
     SELECT COALESCE(SUM(balance_due), 0) AS total,
            COUNT(*) AS count
@@ -75,7 +59,7 @@ class ReportController {
         $pending_revenue = (float)$pending['total'];
         $pending_count   = (int)$pending['count'];
 
-        // ── 6. OUTSTANDING DEBTS (receivable vs payable)
+        // ── 4. OUTSTANDING DEBTS owed to you
         $stmtDebts = $this->db->prepare("
             SELECT type, COALESCE(SUM(balance), 0) AS total, COUNT(*) AS count,
                    COALESCE(SUM(CASE WHEN invoice_id IS NULL THEN balance ELSE 0 END), 0) AS not_invoiced
@@ -86,16 +70,26 @@ class ReportController {
         $stmtDebts->execute([$this->biz_id]);
         $debt_rows = $stmtDebts->fetchAll();
         $debts_receivable = 0; $debts_receivable_count = 0;
-        $debts_payable    = 0; $debts_payable_count    = 0;
         // What could still come in: unpaid invoices, plus debts that didn't
         // come from an invoice (overdue invoices are already in the first)
         $collectable_extra = 0;
         foreach ($debt_rows as $dr) {
             if ($dr['type'] === 'receivable') { $debts_receivable = (float)$dr['total']; $debts_receivable_count = (int)$dr['count']; $collectable_extra = (float)$dr['not_invoiced']; }
-            if ($dr['type'] === 'payable')    { $debts_payable    = (float)$dr['total']; $debts_payable_count    = (int)$dr['count']; }
         }
 
-        // ── 7. TREND across the period: by day for a month or less, else by month
+        // ── 5. WHAT YOU OWE: what is unpaid on expenses (with a supplier or
+        // not) and debts you typed in yourself. Not money out until it is paid.
+        $stmtOwe = $this->db->prepare("
+            SELECT (SELECT COALESCE(SUM(balance_due), 0) FROM expenses WHERE business_id = ? AND deleted_at IS NULL AND balance_due > 0),
+                   (SELECT COUNT(*) FROM expenses WHERE business_id = ? AND deleted_at IS NULL AND balance_due > 0),
+                   (SELECT COALESCE(SUM(balance), 0) FROM debts WHERE business_id = ? AND type = 'payable' AND source <> 'expense' AND status IN ('active','settling')),
+                   (SELECT COUNT(*) FROM debts WHERE business_id = ? AND type = 'payable' AND source <> 'expense' AND status IN ('active','settling'))
+        ");
+        $stmtOwe->execute([$this->biz_id, $this->biz_id, $this->biz_id, $this->biz_id]);
+        [$owe_unpaid, $owe_unpaid_count, $owe_debts, $owe_debts_count] = array_map('floatval', $stmtOwe->fetch(PDO::FETCH_NUM));
+        $owe_total = $owe_unpaid + $owe_debts;
+
+        // ── 6. TREND across the period: by day for a month or less, else by month
         if ($period['by'] === 'day') {
             $trend_rev_map = money_in_by_day($this->db, $this->biz_id, $period_start, $period_end);
             $bucket_sql    = '%Y-%m-%d';
@@ -103,14 +97,7 @@ class ReportController {
             $trend_rev_map = money_in_by_month($this->db, $this->biz_id, $period_start, $period_end);
             $bucket_sql    = '%Y-%m';
         }
-        $stmtTrendExp = $this->db->prepare("
-            SELECT DATE_FORMAT(expense_date, '{$bucket_sql}') AS ym, COALESCE(SUM(amount), 0) AS total
-            FROM expenses WHERE business_id = ? AND deleted_at IS NULL AND expense_date BETWEEN ? AND ?
-            GROUP BY ym
-        ");
-        $stmtTrendExp->execute([$this->biz_id, $period_start, $period_end]);
-        $trend_exp_map = [];
-        foreach ($stmtTrendExp->fetchAll() as $r) { $trend_exp_map[$r['ym']] = (float)$r['total']; }
+        $trend_exp_map = money_out_by($this->db, $this->biz_id, $period_start, $period_end, $bucket_sql);
 
         $trend = [];
         foreach (report_period_buckets($period) as $key => $label) {
@@ -119,11 +106,13 @@ class ReportController {
             $trend[] = ['label' => $label, 'revenue' => $rev, 'expenses' => $exp, 'profit' => $rev - $exp];
         }
 
-        // ── 8. INVOICES ISSUED this period (for context)
+        // ── 7. INVOICES ISSUED this period (for context): drafts and cancelled
+        // ones were never issued, as in the Records Book (app/helpers/records.php)
         $stmtInv = $this->db->prepare("
             SELECT COUNT(*) AS count, COALESCE(SUM(total), 0) AS total
             FROM invoices
             WHERE business_id = ?
+              AND status NOT IN ('draft', 'cancelled')
               AND issue_date BETWEEN ? AND ?
         ");
         $stmtInv->execute([$this->biz_id, $period_start, $period_end]);
@@ -156,17 +145,10 @@ class ReportController {
         $period_end   = $period['end'];
         $month_label  = $period['label'];
 
-        // Revenue (the same basis as the screen and Home)
-        $revenue = money_in($this->db, $this->biz_id, $period_start, $period_end);
-
-        // Expenses
-        $expenses_total = $this->expenses_between($period_start, $period_end);
-        $gross_profit = $revenue - $expenses_total;
-
-        // Expense breakdown
-        $stmt = $this->db->prepare("SELECT category, COALESCE(SUM(amount),0) AS total FROM expenses WHERE business_id=? AND deleted_at IS NULL AND expense_date BETWEEN ? AND ? GROUP BY category ORDER BY total DESC");
-        $stmt->execute([$this->biz_id, $period_start, $period_end]);
-        $expense_categories = $stmt->fetchAll();
+        // Money in and out (the same basis as the screen and Home)
+        [$revenue, $money_out, $stock_out, $expense_categories] = $this->money_between($period_start, $period_end);
+        $left       = $revenue - $money_out;
+        $left_reads = money_left_reads($revenue, $money_out, $stock_out);
 
         // Logo
         $logo_src = '';
@@ -187,15 +169,17 @@ class ReportController {
         pdf_send(pdf_file($html), 'PL_Report_' . $period['filename'] . '.pdf');
     }
 
-    /** Expenses recorded from $from to $to inclusive (Y-m-d). */
-    private function expenses_between(string $from, string $to): float {
-        $stmt = $this->db->prepare("
-            SELECT COALESCE(SUM(amount), 0)
-            FROM expenses
-            WHERE business_id = ? AND deleted_at IS NULL
-              AND expense_date BETWEEN ? AND ?
-        ");
-        $stmt->execute([$this->biz_id, $from, $to]);
-        return (float)$stmt->fetchColumn();
+    /**
+     * From $from to $to inclusive (Y-m-d): money in, money out, the part of
+     * it spent on stock, and money out by category [['category', 'total']].
+     */
+    private function money_between(string $from, string $to): array {
+        $by_category = money_out_by($this->db, $this->biz_id, $from, $to, 'category');
+        return [
+            money_in($this->db, $this->biz_id, $from, $to),
+            money2(array_sum($by_category)),
+            $by_category['stock_purchase'] ?? 0.0,
+            array_map(fn($c, $total) => ['category' => (string)$c, 'total' => $total], array_keys($by_category), $by_category),
+        ];
     }
 }

@@ -108,10 +108,10 @@
     var cart = [];
     function loadCart() {
         try { cart = JSON.parse(localStorage.getItem(CART_KEY)) || []; } catch (e) { cart = []; }
-        // Keep lines for products still on sale, at today's name and price
+        // Keep lines for products still on sale and not sold out, at today's name and price
         cart = cart.filter(function (line) {
             var item = line && S.items[String(line.id)];
-            if (!item) { return false; }
+            if (!item || item.sold) { return false; }
             line.name = item.name;
             line.price = linePrice(item, line.variant);
             line.qty = Math.max(1, Math.min(999, parseInt(line.qty, 10) || 1));
@@ -139,6 +139,7 @@
     function addLine(id, qty, variant, note) {
         var item = S.items[String(id)];
         if (!item) { return; }
+        if (item.sold) { toast(item.name + ' is sold out.'); return; }
         putLine(item, qty, variant, note);
         saveCart();
         toast(addedText());
@@ -148,7 +149,7 @@
         var added = 0;
         lines.forEach(function (l) {
             var item = S.items[String(l.id)];
-            if (!item) { return; }
+            if (!item || item.sold) { return; }
             putLine(item, Math.max(1, Math.min(999, parseInt(l.qty, 10) || 1)), l.variant || '', l.note || '');
             added++;
         });
@@ -345,19 +346,23 @@
         });
         $('[data-p-note]', sheet).value = '';
         $('[data-p-qty]', sheet).textContent = '1';
-        // Booked, not bought: a link to its booking page instead of the bag
+        // Booked, not bought: a link to its booking page instead of the bag.
+        // Sold out: nothing to add, and the line under the price says so.
         var book = item.book;
-        $('[data-p-note]', sheet).closest('.sf-field').hidden = !!book;
-        $('.sf-product__buy', sheet).hidden = !!book;
-        variants.hidden = !!book;
+        var sold = !book && !!item.sold;
+        $('[data-p-note]', sheet).closest('.sf-field').hidden = !!book || sold;
+        $('.sf-product__buy', sheet).hidden = !!book || sold;
+        variants.hidden = !!book || sold;
         var bookLink = $('[data-p-book]', sheet);
         var bookText = $('[data-p-book-text]', sheet);
         bookLink.hidden = !book;
-        bookText.hidden = !book;
+        bookText.hidden = !book && !sold;
         if (book) {
             bookLink.href = LIVE ? book.url : '#item-' + item.id;
             bookLink.lastElementChild.textContent = book.label;
             bookText.textContent = book.text;
+        } else if (sold) {
+            bookText.textContent = 'Sold out for now.' + (S.wa ? ' Ask ' + S.name + ' on WhatsApp when it will be back.' : '');
         }
         updateSheetWa();
         updateSheetPrice();
@@ -408,6 +413,28 @@
             });
         });
     }
+
+    /* ── Proof of payment: the picture picked, its name and "Change" ── */
+    // The bag's and a booking's picker (sf_proof_field). Emptying the file box
+    // after an order sends a change too, which brings the empty box back.
+    document.addEventListener('change', function (e) {
+        var input = e.target;
+        var box = input && input.type === 'file' && input.closest && input.closest('[data-proof]');
+        if (!box) { return; }
+        var file = input.files && input.files[0];
+        var thumb = $('[data-proof-thumb]', box);
+        if (box.proofUrl) { URL.revokeObjectURL(box.proofUrl); box.proofUrl = null; }
+        $('[data-proof-empty]', box).hidden = !!file;
+        $('[data-proof-picked]', box).hidden = !file;
+        if (file) {
+            box.proofUrl = URL.createObjectURL(file);
+            thumb.src = box.proofUrl;
+            $('[data-proof-name]', box).textContent = file.name;
+        } else {
+            thumb.removeAttribute('src');
+            $('[data-proof-name]', box).textContent = '';
+        }
+    });
 
     /* ── Bag and checkout ────────────────────────── */
 
@@ -508,11 +535,12 @@
             return { product_id: l.id, quantity: l.qty, variant_selection: l.variant, item_note: l.note };
         })));
         var bank = $('input[name="bank_id"]:checked', bag);
+        var withProof = false;
         if (channel === 'cart_pop') {
             fd.append('payment_method', bank ? (bank.getAttribute('data-method') || 'bank_transfer') : 'none');
             if (bank) { fd.append('bank_id', bank.value); }
             var proof = $('input[name="payment_proof"]', bag);
-            if (proof && proof.files && proof.files[0]) { fd.append('payment_proof', proof.files[0]); }
+            if (proof && proof.files && proof.files[0]) { fd.append('payment_proof', proof.files[0]); withProof = true; }
         }
         var buttons = $$('[data-place], [data-place-wa]', bag);
         buttons.forEach(function (b) { b.disabled = true; });
@@ -563,9 +591,15 @@
                     $('[data-done-text]', bag).textContent = 'Send it to ' + S.name + ' on WhatsApp so they can confirm it with you.';
                 } else {
                     wa.hidden = true;
-                    $('[data-done-text]', bag).textContent = bank
+                    // Only a screenshot that arrived says the transfer is made;
+                    // one the shop couldn't read is said plainly, not dropped
+                    $('[data-done-text]', bag).textContent = !bank
+                        ? S.name + ' will contact you on the number you gave.'
+                        : json.proof_failed
+                        ? 'Your payment screenshot didn\'t come through. ' + (S.wa ? 'Send it to ' + S.name + ' on WhatsApp' : 'Keep it to show ' + S.name) + ', and they will contact you on the number you gave.'
+                        : withProof
                         ? S.name + ' will check your transfer and contact you on the number you gave.'
-                        : S.name + ' will contact you on the number you gave.';
+                        : 'If you haven\'t paid yet, pay into the account you picked. ' + S.name + ' will check for your transfer and contact you on the number you gave.';
                 }
                 showStep('done');
             })

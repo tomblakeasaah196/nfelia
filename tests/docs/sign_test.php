@@ -247,7 +247,7 @@ section('A quote that isn\'t signed: the customer accepts with a tap');
 $ptok = (string)q("SELECT token FROM quotations WHERE id = ?", [$q_plain]);
 exec_sql("UPDATE quotations SET status = 'sent' WHERE id = ?", [$q_plain]);
 $cust->get('doc/' . $ptok);
-ok(str_contains($cust->body, 'Accept quote') && !str_contains($cust->body, 'Sign & Accept') && !str_contains($cust->body, 'id="sig-canvas"'),
+ok(str_contains($cust->body, 'Accept quote') && !str_contains($cust->body, 'Sign & accept') && !str_contains($cust->body, 'id="sig-canvas"'),
    'its page has an "Accept quote" button and nothing to draw');
 clean_slate();
 $cust->post('doc/' . $ptok, ['action' => 'accept']);
@@ -262,7 +262,7 @@ section('A signed quote: the customer signs to accept it');
 $stok = (string)q("SELECT token FROM quotations WHERE id = ?", [$q_signed]);
 exec_sql("UPDATE quotations SET status = 'sent' WHERE id = ?", [$q_signed]);
 $cust->get('doc/' . $stok);
-ok(str_contains($cust->body, 'Sign & Accept') && str_contains($cust->body, 'id="sig-canvas"'), 'its page asks for a signature');
+ok(str_contains($cust->body, 'Sign & accept') && str_contains($cust->body, 'id="sig-canvas"'), 'its page asks for a signature');
 $cust->post('doc/' . $stok, ['action' => 'accept']);
 ok($cust->status === 400 && q("SELECT status FROM quotations WHERE id = ?", [$q_signed]) === 'sent', 'a tap isn\'t enough');
 $cust->post('doc/' . $stok, ['action' => 'sign', 'name' => 'Ngozi Eze', 'signature' => 'data:image/png;base64,bm90IGEgcGljdHVyZQ==']);

@@ -6,6 +6,9 @@
  */
 class QuotationController {
 
+    /** The states a quote can still be edited in (its page shows Edit for these) */
+    public const EDITABLE = ['draft', 'sent', 'in_negotiation', 'pending_signature'];
+
     private $db;
     private $biz_id;
 
@@ -95,7 +98,7 @@ class QuotationController {
         $stmtS->execute([$this->biz_id]);
         $summary = $stmtS->fetch();
 
-        $title     = "Quotations";
+        $title     = "Quotes";
         // Quote requests from the shop still waiting on an answer.
         $stmt = $this->db->prepare("SELECT COUNT(*) FROM quote_requests WHERE business_id = ? AND status IN ('new','reviewed')");
         $stmt->execute([$this->biz_id]);
@@ -132,7 +135,7 @@ class QuotationController {
         $banks     = $this->get_bank_accounts();
         $quotation['bank_account_id'] = $banks[0]['id'] ?? null;   // the main account first
 
-        $title     = "New Quotation";
+        $title     = "New quote";
         $view_file = BASE_PATH . '/views/quotations/form.php';
         require_once BASE_PATH . '/views/layouts/app.php';
     }
@@ -155,10 +158,19 @@ class QuotationController {
             if ($request['status'] === 'new') {
                 $this->db->prepare("UPDATE quote_requests SET status = 'reviewed' WHERE id = ? AND status = 'new'")->execute([(int)$id]);
             }
-            // The customer the request made or matched, for a quote ready addressed to them.
-            $stmt = $this->db->prepare("SELECT id FROM customers WHERE business_id = ? AND phone = ? AND deleted_at IS NULL LIMIT 1");
-            $stmt->execute([$this->biz_id, $request['phone']]);
-            $customer_id = (int)$stmt->fetchColumn() ?: null;
+            // The customer the request made or matched, for a quote ready addressed to them:
+            // found by the phone's last ten digits, as order_match_customer() matched them
+            $digits = (string)preg_replace('/\D/', '', (string)$request['phone']);
+            if (strlen($digits) >= 7) {
+                $stmt = $this->db->prepare("
+                    SELECT id FROM customers
+                    WHERE business_id = ? AND deleted_at IS NULL AND is_walk_in = 0
+                      AND RIGHT(REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', ''), 10) = ?
+                    ORDER BY id LIMIT 1
+                ");
+                $stmt->execute([$this->biz_id, substr($digits, -10)]);
+                $customer_id = (int)$stmt->fetchColumn() ?: null;
+            }
         }
 
         $show = ($_GET['show'] ?? '') === 'done' ? 'done' : 'open';
@@ -194,9 +206,10 @@ class QuotationController {
         $quotation = $this->find_quotation($id);
         if (!$quotation) { not_found(); return; }
 
-        // Only draft, sent, or in_negotiation can be edited
-        if (!in_array($quotation['status'], ['draft', 'sent', 'in_negotiation'])) {
-            flash('error', 'This quotation is locked and can no longer be edited.');
+        // Only a quote still open can be edited: a draft, sent, being talked
+        // over, or waiting to sign (to give it a new valid-until date, say)
+        if (!in_array($quotation['status'], self::EDITABLE, true)) {
+            flash('error', 'This quote is locked and can no longer be edited.');
             redirect('quotations/view/' . $id);
             return;
         }
@@ -320,7 +333,7 @@ class QuotationController {
 
         $quotation = $this->find_quotation($id);
         if (!$quotation || $quotation['status'] !== 'draft') {
-            flash('error', 'Only draft quotations can be sent.');
+            flash('error', 'Only a draft quote can be sent.');
             redirect('quotations');
             return;
         }
@@ -330,6 +343,42 @@ class QuotationController {
 
         flash('success', $quotation['doc_number'] . ' marked as sent.');
         redirect('quotations/view/' . $id);
+    }
+
+    /* ──────────────────────────────────────────
+     *  SHARED — POST from the quote page's WhatsApp, Copy Link and Share
+     *  PDF: a draft whose link went out is Sent, so the list counts it as
+     *  waiting. Only ever draft → sent: any other quote stays as it is.
+     * ────────────────────────────────────────── */
+    public function mark_shared($id = null) {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { redirect('quotations'); return; }
+        csrf_verify();
+
+        $quotation = $this->find_quotation($id);
+        if (!$quotation) { json_response(['success' => false], 404); }
+
+        $this->db->beginTransaction();
+        try {
+            $moved = $this->db->prepare("UPDATE quotations SET status = 'sent' WHERE id = ? AND business_id = ? AND status = 'draft'");
+            $moved->execute([(int)$id, $this->biz_id]);
+            if ($moved->rowCount() === 1) {
+                // In its history; read already, so the customer's Discussion shows no new badge
+                $this->db->prepare("
+                    INSERT INTO quotation_activities
+                    (business_id, quotation_id, actor_type, user_id, action, old_status, new_status, message, is_client_read)
+                    VALUES (?, ?, 'business', ?, 'status_changed', 'draft', 'sent', 'Sent to the customer.', 1)
+                ")->execute([$this->biz_id, (int)$id, auth_user()['id']]);
+            }
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+            errors_report_throwable($e);
+            json_response(['success' => false], 500);
+        }
+
+        $stmt = $this->db->prepare("SELECT status FROM quotations WHERE id = ? AND business_id = ?");
+        $stmt->execute([(int)$id, $this->biz_id]);
+        json_response(['success' => true, 'status' => $stmt->fetchColumn()]);
     }
 
     /* ──────────────────────────────────────────
@@ -353,7 +402,10 @@ public function update_status($id = null) {
     ];
 
     if (!isset($allowed[$quotation['status']]) || !in_array($new_status, $allowed[$quotation['status']])) {
-        flash('error', 'Invalid status transition from ' . strtoupper($quotation['status']) . ' to ' . strtoupper($new_status));
+        // In the words the quotes list uses (screen_quote_tag())
+        [$from] = screen_quote_tag($quotation['status']);
+        [$to]   = screen_quote_tag($new_status);
+        flash('error', $to !== '' ? "A quote that is “{$from}” can't be changed to “{$to}”." : "That change isn't possible for this quote.");
         redirect('quotations/view/' . $id);
         return;
     }
@@ -485,6 +537,7 @@ public function update_status($id = null) {
                 'sell_price' => (float)$p['sell_price'],
                 'stock_qty'  => (float)$p['stock_qty'],
                 'unit'       => $p['unit'],
+                'stock_text' => stock_count((float)$p['stock_qty'], $p['unit']),   // "12 bundles"
                 'is_service' => (int)$p['is_service'],
             ];
         }
@@ -561,7 +614,7 @@ public function update_status($id = null) {
             $items     = posted_lines($_POST);
             $customers = $this->get_customers();
             $banks     = $this->get_bank_accounts((int)($quotation['bank_account_id'] ?? 0));
-            $title     = $editing ? "Edit Quotation" : "New Quotation";
+            $title     = $editing ? "Edit quote" : "New quote";
             $view_file = BASE_PATH . '/views/quotations/form.php';
             require_once BASE_PATH . '/views/layouts/app.php';
             return;
@@ -630,11 +683,11 @@ public function update_status($id = null) {
 
                 // NEW: Log the revision if it was actively being negotiated
                 $old_status = $_POST['current_status'] ?? 'draft'; 
-                if (in_array($old_status, ['sent', 'in_negotiation'])) {
+                if (in_array($old_status, ['sent', 'in_negotiation', 'pending_signature'])) {
                     $this->db->prepare("
                         INSERT INTO quotation_activities 
                         (business_id, quotation_id, actor_type, user_id, action, message, old_status, new_status) 
-                        VALUES (?, ?, 'business', ?, 'quote_revised', 'Quotation pricing or terms were updated.', ?, ?)
+                        VALUES (?, ?, 'business', ?, 'quote_revised', 'Prices or terms on this quote were updated.', ?, ?)
                     ")->execute([
                         $this->biz_id, $id, auth_user()['id'], 
                         $old_status, $old_status
@@ -682,12 +735,14 @@ public function update_status($id = null) {
             }
 
             $this->db->commit();
-            flash('success', 'Quotation saved.');
+            flash('success', 'Quote saved.');
             redirect('quotations/view/' . $id);
 
         } catch (\Throwable $e) {
             $this->db->rollBack();
-            flash('error', 'Save failed: ' . $e->getMessage());
+            // The detail goes to the error log (Ops → Errors), not to the screen
+            errors_report_throwable($e);
+            flash('error', 'That quote didn\'t save. Please try again.');
             redirect('quotations');
         }
     }
