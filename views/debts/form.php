@@ -29,12 +29,12 @@ $currency = $business['currency_symbol'] ?? '₦';
         <div>
             <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-2">Debt Type <span class="text-red-500">*</span></label>
             <div class="flex gap-2">
-                <button type="button" @click="debtType = 'receivable'"
+                <button type="button" @click="setType('receivable')"
                         :class="debtType === 'receivable' ? 'btn-primary text-white shadow-sm' : 'bg-brand-cream text-brand-plum/60 border border-brand-sand hover:border-accent'"
                         class="flex-1 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all text-center">
                     Owed to me
                 </button>
-                <button type="button" @click="debtType = 'payable'"
+                <button type="button" @click="setType('payable')"
                         :class="debtType === 'payable' ? 'btn-primary text-white shadow-sm' : 'bg-brand-cream text-brand-plum/60 border border-brand-sand hover:border-accent'"
                         class="flex-1 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all text-center">
                     I owe
@@ -47,7 +47,7 @@ $currency = $business['currency_symbol'] ?? '₦';
         <div x-show="debtType === 'receivable'">
             <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1">Customer <span class="text-red-500">*</span></label>
             <div class="relative">
-                <input type="hidden" name="customer_id" :value="partyId">
+                <input type="hidden" name="customer_id" :value="partyId" :disabled="debtType !== 'receivable'">
                 <input type="text" x-model="partySearch" @input.debounce.300ms="searchParty()"
                        @focus="showPartyDrop = partyResults.length > 0"
                        class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum"
@@ -75,7 +75,7 @@ $currency = $business['currency_symbol'] ?? '₦';
         <div x-show="debtType === 'payable'">
             <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1">Supplier <span class="text-red-500">*</span></label>
             <div class="relative">
-                <input type="hidden" name="supplier_id" :value="partyId">
+                <input type="hidden" name="supplier_id" :value="partyId" :disabled="debtType !== 'payable'">
                 <input type="text" x-model="partySearch" @input.debounce.300ms="searchParty()"
                        @focus="showPartyDrop = partyResults.length > 0"
                        class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum"
@@ -143,6 +143,15 @@ function debtForm() {
         partyResults: [],
         showPartyDrop: false,
 
+        // A customer picked under "Owed to me" is not a supplier under "I owe"
+        setType(type) {
+            if (type !== this.debtType) {
+                this.clearParty();
+                this.partyResults = [];
+                this.showPartyDrop = false;
+            }
+            this.debtType = type;
+        },
         async searchParty() {
             if (this.partySearch.length < 2) { this.partyResults = []; return; }
             const endpoint = this.debtType === 'receivable' ? 'search_customers' : 'search_suppliers';

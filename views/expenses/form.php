@@ -157,7 +157,7 @@ $currency = $business['currency_symbol'] ?? '₦';
         </div>
 
         <template x-for="(item, idx) in items" :key="idx">
-            <div class="grid grid-cols-12 gap-2 items-end bg-brand-cream/30 rounded-lg p-3">
+            <div class="nf-buy-line grid grid-cols-12 gap-2 items-end bg-brand-cream/30 rounded-lg p-3">
                 <input type="hidden" :name="'item_product_id[' + idx + ']'" :value="item.product_id || ''">
 
                 <!-- Product search / description -->

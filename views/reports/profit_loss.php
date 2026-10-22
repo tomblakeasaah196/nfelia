@@ -156,8 +156,10 @@ $cat_labels = [
             <?= $profit_positive ? '' : '-' ?><?= $currency ?><?= number_format(abs($gross_profit), 0) ?>
         </div>
         <p class="text-[10px] <?= $profit_positive ? 'text-green-600' : 'text-red-600' ?> mt-1 font-medium">
-            <?php if ($revenue > 0): ?>
-                <?= abs($margin_pct) ?>% margin &middot; For every <?= $currency ?>100 earned, you <?= $profit_positive ? 'kept' : 'lost' ?> <?= $currency ?><?= abs($margin_pct) ?>
+            <?php if ($revenue > 0 && $profit_positive): ?>
+                <?= $margin_pct ?>% margin &middot; For every <?= $currency ?>100 earned, you kept <?= $currency ?><?= $margin_pct ?>
+            <?php elseif ($revenue > 0): ?>
+                For every <?= $currency ?>100 that came in, <?= $currency ?><?= round($expenses_total / $revenue * 100) ?> went out
             <?php else: ?>
                 No revenue recorded in this period
             <?php endif; ?>

@@ -12,6 +12,8 @@ $month = records_money((float)$month_price, $offer['symbol']);
 $when  = fn(?string $d, bool $time = false) => $d ? date($time ? 'j M Y, g:ia' : 'j M Y', strtotime($d)) : '';
 $counts = fn(array $b) => array_sum(json_decode((string)$b['counts'], true) ?: []);
 $waiting = array_filter($books, fn($b) => in_array($b['status'], ['queued', 'building'], true));
+// The page looks again while a book or a plain copy is being made
+$making = $waiting || array_filter(array_slice($plain, 0, 3), fn($b) => in_array($b['status'], ['queued', 'building'], true));
 $groups = [];
 foreach ($sheets as $key => $s) {
     if (!isset($s['line_of'])) $groups[$s['group']][$key] = $s;
@@ -180,9 +182,9 @@ $status_tag = function (array $b): string {
 <?php endif; ?>
 </div>
 
-<?php if ($waiting): ?>
+<?php if ($making): ?>
 <script>
-// While a book is being made, look every few seconds and show it when it is ready.
+// While a book or a plain copy is being made, look every few seconds and show it when it is ready.
 (function () {
     var ids = Array.prototype.map.call(document.querySelectorAll('[data-building]'), function (el) { return el.getAttribute('data-building'); });
     var tries = 0;

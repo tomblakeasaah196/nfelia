@@ -267,6 +267,9 @@ class DebtController {
         if ($amount <= 0) {
             $fail('Amount must be greater than zero.');
         }
+        if (!planner_valid_date($date)) {
+            $fail('Pick the day it was paid.');
+        }
 
         $this->db->beginTransaction();
         try {
@@ -467,6 +470,7 @@ class DebtController {
         if (!in_array($type, ['receivable', 'payable'])) $errors[] = 'Invalid debt type.';
         if ($description === '') $errors[] = 'Description is required.';
         if ($total_amount <= 0) $errors[] = 'Amount must be greater than zero.';
+        if ($due_date !== null && !planner_valid_date($due_date)) $errors[] = 'Pick the day it is due, or leave it empty.';
         if ($type === 'receivable' && !owned_by_business($this->db, 'customers', $customer_id, $this->biz_id)) {
             $errors[] = 'Please select a customer.';
         }

@@ -279,8 +279,8 @@ class SupplierController {
         $notes         = trim($_POST['notes'] ?? '');
 
         $errors = [];
+        // A name is enough, as on the expense form; a phone, when given, is checked below
         if ($full_name === '') $errors[] = 'Supplier name is required.';
-        if ($phone === '' && $email === '') $errors[] = 'Please provide at least a phone number or email.';
         if ($p = phone_problem($phone, 50) ?? phone_problem($whatsapp, 50)) $errors[] = $p;   // D4
 
         // Duplicate check (same phone within this business)

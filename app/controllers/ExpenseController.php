@@ -323,6 +323,15 @@ class ExpenseController {
         if ($name === '') { json_response(['error' => 'Name required'], 422); return; }
         if ($p = phone_problem($phone, 50)) { json_response(['error' => $p], 422); return; }   // D4
 
+        // As on the Suppliers page: a name is enough, and a phone belongs to one supplier
+        if ($phone !== '') {
+            $stmt = $this->db->prepare("SELECT full_name FROM suppliers WHERE business_id = ? AND phone = ? AND deleted_at IS NULL LIMIT 1");
+            $stmt->execute([$this->biz_id, $phone]);
+            if (($same = $stmt->fetchColumn()) !== false) {
+                json_response(['error' => $same . ' already has this number. Search for them above.'], 422); return;
+            }
+        }
+
         $this->db->prepare("INSERT INTO suppliers (business_id, full_name, phone, is_active) VALUES (?, ?, ?, 1)")
                   ->execute([$this->biz_id, $name, $phone ?: null]);
 
@@ -373,7 +382,7 @@ class ExpenseController {
         // Validate
         $errors = [];
         if ($description === '') $errors[] = 'Description is required.';
-        if ($expense_date === '') $errors[] = 'Expense date is required.';
+        if (!planner_valid_date($expense_date)) $errors[] = 'Pick the date of the expense.';
         if ($supplier_id && !owned_by_business($this->db, 'suppliers', $supplier_id, $this->biz_id)) {
             $errors[] = 'Please pick one of your suppliers.';
             $supplier_id = null;
@@ -406,8 +415,19 @@ class ExpenseController {
         } elseif ($payment_status === 'unpaid') {
             $amount_paid = 0;
         }
-        // 'partial' uses the provided amount_paid
+        // 'partial' uses the provided amount_paid: some of it, not none or all
+        if ($payment_status === 'partial' && $amount > 0) {
+            if ($amount_paid <= 0) {
+                $errors[] = 'Put in how much you have paid so far, or choose Unpaid.';
+            } elseif ($amount_paid >= $amount) {
+                $errors[] = 'That is the whole amount, so choose Paid in Full.';
+            }
+        }
         $balance_due = max(0, $amount - $amount_paid);
+
+        // An unpaid one has no way it was paid; any other is one the form offers
+        if ($payment_status === 'unpaid') $payment_method = '';
+        if ($payment_method !== '' && !array_key_exists($payment_method, self::PAYMENT_METHODS)) $errors[] = 'Choose how you paid from the list.';
 
         if (!array_key_exists($category, self::CATEGORIES)) $errors[] = 'Invalid category.';
         if (!in_array($payment_status, ['paid', 'partial', 'unpaid'])) $errors[] = 'Invalid payment status.';
@@ -546,7 +566,9 @@ class ExpenseController {
             if ($this->db->inTransaction()) {
                 $this->db->rollBack();
             }
-            flash('error', 'Failed to save expense: ' . $ex->getMessage());
+            // The detail goes to Ops → Errors; the owner gets words they can act on
+            errors_report_throwable($ex);
+            flash('error', 'We couldn\'t save that expense, and nothing was changed. Please try again.');
             redirect('expenses');
             return;
         }
