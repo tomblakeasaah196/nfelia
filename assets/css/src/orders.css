@@ -172,10 +172,12 @@ a.nf-doc-row:hover { background: rgb(31 10 20 / .05); }
 .nf-sheet .nf-form { padding-bottom: 4px; }
 .nf-form.is-inner { padding: 0; }
 .nf-sheet-go { width: 100%; margin-top: 4px; }
+.nf-sheet .nf-actions { display: grid; padding: 8px 20px 0; }
 .nf-two-btn { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .nf-two-btn .nf-btn { width: 100%; }
 .nf-btn-danger { background: #B42318; color: #FFFFFF; }
 .nf-btn-danger:hover { background: #912018; }
+.nf-btn-ghost.is-danger { color: var(--owed); }
 .nf-proof { display: block; border-radius: 16px; overflow: hidden; max-height: 280px; box-shadow: inset 0 0 0 1px var(--line); background: rgb(31 10 20 / .04); }
 .nf-proof img { display: block; width: 100%; max-height: 280px; object-fit: contain; }
 .nf-form input[role="switch"], .nf-oform input[role="switch"] { width: 48px; min-width: 48px; height: 28px; min-height: 0; padding: 0; box-shadow: none; flex: none; }
@@ -253,6 +255,16 @@ a.nf-doc-row:hover { background: rgb(31 10 20 / .05); }
 .nf-oform label.nf-switch { display: flex; }
 .nf-oform .nf-switch { min-height: 52px; }
 .nf-findc-do { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+/* The day of the sale: one quiet line; an earlier day stands out, so it is never set by mistake */
+.nf-dated { display: grid; gap: 4px; padding: 0 14px; }
+.nf-dated-row { display: flex; align-items: center; flex-wrap: wrap; gap: 0 10px; min-height: 44px; }
+.nf-oform label.nf-dated-l { display: inline-flex; align-items: center; gap: 6px; font: 600 .875rem/1.3 var(--font-body); color: var(--ink-2); }
+.nf-dated-l svg { width: 18px; height: 18px; }
+.nf-dated-row b { font: 600 .9375rem/1.3 var(--font-body); }
+.nf-dated-row .nf-link { font-size: .875rem; }
+.nf-oform .nf-dated input[type="date"] { flex: 1; width: auto; min-width: 0; max-width: 220px; }
+.nf-dated.is-past { padding: 6px 14px 12px; border-radius: 18px; background: var(--warn-soft); }
+.nf-dated.is-past .nf-dated-row b { color: var(--warn); }
 .nf-sec .nf-field { margin: 0; }
 .nf-sec .nf-field legend { margin-bottom: 8px; font-size: .875rem; color: var(--ink-2); }
 .nf-sub-q { display: grid; gap: 10px; }

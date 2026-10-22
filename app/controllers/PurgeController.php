@@ -713,6 +713,18 @@ class PurgeController
                 )
                 ->execute([$target_id]);
         } elseif ($module === "receipts") {
+            // Money paid in advance goes with its receipt, unless an order already used it
+            $stmtK = $this->db->prepare("SELECT id, customer_id, amount FROM kept_money WHERE receipt_id = ? AND business_id = ?");
+            $stmtK->execute([$target_id, $this->biz_id]);
+            if ($kept = $stmtK->fetch()) {
+                if (kept_balance($this->db, $this->biz_id, (int) $kept["customer_id"]) < (float) $kept["amount"] - 0.004) {
+                    return [
+                        "identifier" => $impact["identifier"],
+                        "skipped" => "money paid in advance on it was used on an order; purge that order first",
+                    ];
+                }
+                $this->db->prepare("DELETE FROM kept_money WHERE id = ?")->execute([(int) $kept["id"]]);
+            }
             // A direct sale puts its stock back; a receipt for a payment
             // leaves the payment, which is still money received
             if (empty($row["invoice_id"])) {

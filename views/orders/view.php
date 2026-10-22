@@ -9,7 +9,8 @@
  *   $user, $business, $order, $lines, $invoice, $delivery, $stage, $steps, $pay,
  *   $next, $payments, $refunds, $refund_open, $customer, $kept_here, $kept_total,
  *   $debt, $tasks, $events, $quote, $track_url, $customer_url, $review, $messages, $is_boss,
- *   $email_bounced (when the last email to the customer bounced, app/helpers/bounces.php)
+ *   $email_bounced (when the last email to the customer bounced, app/helpers/bounces.php),
+ *   $delete_check (a closed order, for the owner: order_delete_check(), else null)
  */
 $currency    = $business['currency_symbol'] ?? '₦';
 $today       = planner_today();
@@ -74,7 +75,7 @@ if ($email_bounced && $wa_phone !== '') {
 $event_icons = ['created' => 'plus', 'confirmed' => 'check', 'payment' => 'money', 'receipt' => 'receipt', 'ready' => 'delivery', 'done' => 'check',
                 'whatsapp' => 'whatsapp', 'refund' => 'refund', 'refund_asked' => 'refund', 'refund_details' => 'refund', 'kept' => 'money',
                 'kept_used' => 'money', 'unkept' => 'money', 'lines' => 'edit', 'edited' => 'edit', 'cancelled' => 'cancel', 'turned_down' => 'cancel',
-                'when' => 'clock', 'pay_by' => 'clock', 'email' => 'send', 'preparing' => 'clock'];
+                'when' => 'clock', 'pay_by' => 'clock', 'dated' => 'clock', 'email' => 'send', 'preparing' => 'clock'];
 ?>
 <div class="nf-order">
 <div class="nf-cols is-doc">
@@ -118,6 +119,11 @@ $event_icons = ['created' => 'plus', 'confirmed' => 'check', 'payment' => 'money
         </ol>
     <?php elseif ($closed): ?>
         <p class="nf-order-closed"><?= $stage['key'] === 'cancelled' ? 'Cancelled' : 'Turned down' ?><?= !empty($order['cancel_reason']) ? ': ' . e($order['cancel_reason']) : '.' ?></p>
+        <?php if ($delete_check && $delete_check['problem'] === null): ?>
+            <div class="nf-hero-do">
+                <button type="button" class="nf-btn nf-btn-ghost is-danger" data-open="nf-delete"><?= nav_icon('trash') ?>Delete order</button>
+            </div>
+        <?php endif; ?>
     <?php endif; ?>
 
     <?php if ($next):
@@ -177,7 +183,7 @@ $event_icons = ['created' => 'plus', 'confirmed' => 'check', 'payment' => 'money
     <!-- Money this customer has with the shop -->
     <section class="nf-card nf-callout is-kept" aria-labelledby="nf-kept-h">
         <h2 id="nf-kept-h"><?= e(ucfirst($first)) ?> has <?= planner_money($kept_total, $currency) ?> kept with you</h2>
-        <p>From an earlier order. Use it to pay <?= $kept_total >= $balance ? 'this balance' : 'part of this balance' ?>.</p>
+        <p>Paid in advance or kept from an earlier order. Use it to pay <?= $kept_total >= $balance ? 'this balance' : 'part of this balance' ?>.</p>
         <form method="POST" action="<?= APP_URL ?>/orders/use_kept/<?= $oid ?>"><?= $csrf ?>
             <button class="nf-btn nf-btn-primary"><?= nav_icon('money') ?>Use <?= planner_money(min($kept_total, $balance), $currency) ?></button>
         </form>
@@ -638,6 +644,9 @@ $event_icons = ['created' => 'plus', 'confirmed' => 'check', 'payment' => 'money
         <?php if ($customer_url): ?>
             <button type="button" class="nf-row" data-copy="<?= e($customer_url) ?>"><span class="nf-tile-ic"><?= nav_icon('link') ?></span>Copy <?= e($first) ?>'s page</button>
         <?php endif; ?>
+        <?php if ($is_boss): ?>
+            <button type="button" class="nf-row" data-close data-open="nf-dates"><span class="nf-tile-ic"><?= nav_icon('clock') ?></span>Change dates</button>
+        <?php endif; ?>
         <?php if ($stage['key'] === 'done' && $is_boss && empty($review['rating'])): // not once the customer has reviewed it ?>
             <form method="POST" action="<?= APP_URL ?>/orders/stage/<?= $oid ?>"><?= $csrf ?><input type="hidden" name="to" value="undo_done">
                 <button class="nf-row"><span class="nf-tile-ic"><?= nav_icon('refund') ?></span>Mark not <?= $is_delivery ? 'delivered' : 'collected' ?></button></form>
@@ -647,16 +656,78 @@ $event_icons = ['created' => 'plus', 'confirmed' => 'check', 'payment' => 'money
         <?php elseif ($is_boss && in_array($stage['key'], ['confirmed', 'ready'], true)): ?>
             <button type="button" class="nf-row is-danger" data-open="nf-cancel"><span class="nf-tile-ic"><?= nav_icon('cancel') ?></span>Cancel order</button>
         <?php endif; ?>
+        <?php if ($delete_check): ?>
+            <button type="button" class="nf-row is-danger" data-close data-open="nf-delete"><span class="nf-tile-ic"><?= nav_icon('trash') ?></span>Delete order</button>
+        <?php endif; ?>
     </div>
 </dialog>
+
+<?php if ($delete_check): ?>
+<dialog class="nf-sheet" id="nf-delete" aria-labelledby="nf-delete-h">
+    <div class="nf-grab"></div>
+    <div class="nf-sheet-h"><h2 id="nf-delete-h">Delete order <?= e($num) ?>?</h2><button type="button" class="nf-icon-btn" data-close aria-label="Close"><?= nav_icon('close') ?></button></div>
+    <?php if ($delete_check['problem'] !== null): ?>
+        <p class="nf-sheet-note"><?= e($delete_check['problem']) ?></p>
+    <?php else:
+        $with  = array_values(array_diff($delete_check['documents'], [$num]));
+        $stays = array_values(array_diff($delete_check['documents'], $delete_check['freed'])); ?>
+        <form method="POST" action="<?= APP_URL ?>/orders/delete/<?= $oid ?>" class="nf-form"><?= $csrf ?>
+            <p class="nf-help">It goes for good<?= $with ? ', with ' . e(implode(', ', $with)) : '' ?>. It leaves your lists, Home and reports, and can't be brought back.</p>
+            <?php if ($delete_check['freed']): ?>
+                <p class="nf-help">Your next papers take <?= implode(', ', array_map(fn($n) => '<b class="whitespace-nowrap">' . e($n) . '</b>', $delete_check['freed'])) ?> again.</p>
+            <?php endif; ?>
+            <?php if ($stays): ?>
+                <p class="nf-help">Newer papers came after <?= e(implode(', ', $stays)) ?>, so <?= count($stays) === 1 ? 'that number stays' : 'those numbers stay' ?> unused.</p>
+            <?php endif; ?>
+            <div class="nf-two-btn">
+                <button type="button" class="nf-btn nf-btn-ghost" data-close>Keep it</button>
+                <button class="nf-btn nf-btn-danger">Delete order</button>
+            </div>
+        </form>
+    <?php endif; ?>
+</dialog>
+<?php endif; ?>
+
+<?php if ($is_boss):
+    // The day it happened, and the day each amount came in: a sale typed in late goes back to its own day
+    $order_day = substr((string)$order['created_at'], 0, 10);
+    $paid_in   = array_values(array_filter($payments, fn($p) => (float)$p['amount'] > 0)); ?>
+<dialog class="nf-sheet" id="nf-dates" aria-labelledby="nf-dates-h">
+    <div class="nf-grab"></div>
+    <div class="nf-sheet-h"><h2 id="nf-dates-h">Change dates</h2><button type="button" class="nf-icon-btn" data-close aria-label="Close"><?= nav_icon('close') ?></button></div>
+    <form method="POST" action="<?= APP_URL ?>/orders/dates/<?= $oid ?>" class="nf-form" x-data="{ day: '<?= e($order_day) ?>' }"><?= $csrf ?>
+        <label>Order date <small><?= $invoice ? 'Invoice ' . e($invoice['doc_number']) . ' takes this date too.' : 'The day the order was made.' ?></small>
+            <input type="date" name="date" x-model="day" max="<?= e($today) ?>" required></label>
+        <?php foreach ($paid_in as $p):
+            $p_day = (string)$p['payment_date'];
+            $p_words = planner_money((float)$p['amount'], $currency) . ' · ' . ($p['method'] === 'kept' ? 'Kept money' : ($method_words[$p['method']] ?? ucfirst($p['method'])))
+                     . (!empty($p['receipt_number']) ? ' · ' . $p['receipt_number'] : ''); ?>
+            <!-- Paid the same day as the order: it moves with the order's date until changed on its own -->
+            <label x-data="{ paidOn: '<?= e($p_day) ?>', own: <?= $p_day === $order_day ? 'false' : 'true' ?> }" x-effect="if (!own) paidOn = day">Paid on <small><?= e($p_words) ?></small>
+                <input type="date" name="paid_on[<?= (int)$p['id'] ?>]" x-model="paidOn" @input="own = true" max="<?= e($today) ?>" required></label>
+        <?php endforeach; ?>
+        <p class="nf-help">Reports count each amount on the day it was paid. The Log keeps the old dates.</p>
+        <button class="nf-btn nf-btn-primary nf-sheet-go"><?= nav_icon('check') ?>Save dates</button>
+    </form>
+</dialog>
+<?php endif; ?>
 
 <?php if ($is_boss && in_array($stage['key'], ['confirmed', 'ready'], true)): ?>
 <dialog class="nf-sheet" id="nf-cancel" aria-labelledby="nf-cancel-h">
     <div class="nf-grab"></div>
     <div class="nf-sheet-h"><h2 id="nf-cancel-h">Cancel order <?= e($num) ?>?</h2><button type="button" class="nf-icon-btn" data-close aria-label="Close"><?= nav_icon('close') ?></button></div>
-    <?php if ($paid > 0): ?>
+    <?php if ($paid > 0 && ($walk_in || $refund_open)): ?>
         <p class="nf-sheet-note"><?= planner_money($paid, $currency) ?> was paid on this order. Give it back first, then cancel.</p>
         <div class="nf-actions"><button type="button" class="nf-btn nf-btn-primary" data-close data-open="nf-refund"><?= nav_icon('refund') ?>Give money back</button></div>
+    <?php elseif ($paid > 0): ?>
+        <!-- Paid: keep the money for the customer's next order, or give it back -->
+        <form method="POST" action="<?= APP_URL ?>/orders/cancel/<?= $oid ?>" class="nf-form"><?= $csrf ?>
+            <input type="hidden" name="keep" value="1">
+            <p class="nf-help"><?= planner_money($paid, $currency) ?> was paid on this order. Keep it for <?= e($first) ?>: it shows on their page under Kept with you, and their next order offers it. Its stock goes back on the shelf.<?= $order['customer_email'] ? ' ' . e(ucfirst($first)) . ' gets an email.' : '' ?></p>
+            <label>Why <small>Optional</small><input type="text" name="reason" maxlength="300"></label>
+            <button class="nf-btn nf-btn-danger nf-sheet-go">Cancel and keep <?= planner_money($paid, $currency) ?></button>
+        </form>
+        <div class="nf-actions"><button type="button" class="nf-btn nf-btn-ghost" data-close data-open="nf-refund"><?= nav_icon('refund') ?>Give it back instead</button></div>
     <?php else: ?>
         <form method="POST" action="<?= APP_URL ?>/orders/cancel/<?= $oid ?>" class="nf-form"><?= $csrf ?>
             <p class="nf-help">Its stock goes back on the shelf, its invoice <?= $invoice ? e($invoice['doc_number']) . ' ' : '' ?>is cancelled and the balance leaves Debts.<?= $order['customer_email'] ? ' ' . e(ucfirst($first)) . ' gets an email.' : '' ?></p>

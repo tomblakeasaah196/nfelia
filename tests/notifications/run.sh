@@ -10,6 +10,7 @@
 #   bash tests/notifications/run.sh ui           the browser checks (needs Playwright)
 #   bash tests/notifications/run.sh ops/foundation   Nfelia Ops (tests/ops/), one suite per file
 #   bash tests/notifications/run.sh orders/core      the orders hub (tests/orders/), one suite per file
+#   bash tests/notifications/run.sh orders/late      sales typed in late, kept money, deleting a cancelled order
 #   bash tests/notifications/run.sh docs/sign        signatures and verify codes on documents (tests/docs/)
 #
 # Phones and inboxes are stood in for by push_sink.php and smtp_sink.py,

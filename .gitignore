@@ -46,6 +46,9 @@ cgi-bin/
 !db/migrations/*.sql
 !db/schema.sql
 
+# Feature videos made by bin/feature-video/make.sh
+/bin/feature-video/videos/*/out/
+
 # IDE / OS junk
 .vscode/
 .idea/

@@ -5,7 +5,8 @@
  *
  * Available from controller:
  *   $user, $business, $customer, $quotations, $invoices,
- *   $payments, $receipts, $debts, $stats, $wa_number
+ *   $payments, $receipts, $debts, $stats, $wa_number,
+ *   $orders, $kept (kept with you, for their next order), $kept_lines (kept_lines())
  */
 $currency = $business['currency_symbol'] ?? '₦';
 $wa_link  = $wa_number ? "https://wa.me/{$wa_number}" : '';
@@ -177,18 +178,24 @@ $quo_status_badge = function($s) {
     </div>
 </div>
 
-<?php if ($kept > 0): ?>
-    <p class="nf-kept-note" style="margin-bottom:16px"><span><b><?= planner_money($kept, $currency) ?></b> kept with you from an earlier order. It is offered on <?= e(planner_first_name($customer['full_name'])) ?>'s next order.</span></p>
+<?php $first_name = planner_first_name($customer['full_name']) ?: 'them';
+      $open_tab = ($_GET['tab'] ?? '') === 'kept' ? 'kept' : ($orders ? 'orders' : 'invoices');
+      if ($kept > 0): ?>
+    <p class="nf-kept-note" style="margin-bottom:16px"><span><b><?= planner_money($kept, $currency) ?></b> kept with you. It is offered on <?= e($first_name) ?>'s next order.</span></p>
 <?php endif; ?>
 
 <!-- Tabbed History Sections -->
-<div x-data="{ tab: '<?= $orders ? 'orders' : 'invoices' ?>' }">
+<div x-data="{ tab: '<?= $open_tab ?>' }">
 
     <!-- Tab buttons -->
     <div class="flex items-center gap-1 mb-4 overflow-x-auto">
         <button @click="tab = 'orders'" :class="tab === 'orders' ? 'btn-primary text-white' : 'bg-brand-white text-brand-plum/60 border border-brand-sand hover:border-accent'"
                 class="px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all whitespace-nowrap">
             Orders (<?= count($orders) ?>)
+        </button>
+        <button @click="tab = 'kept'" :class="tab === 'kept' ? 'btn-primary text-white' : 'bg-brand-white text-brand-plum/60 border border-brand-sand hover:border-accent'"
+                class="px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all whitespace-nowrap">
+            Kept with you<?= $kept > 0 ? ' (' . planner_money($kept, $currency) . ')' : '' ?>
         </button>
         <button @click="tab = 'invoices'" :class="tab === 'invoices' ? 'btn-primary text-white' : 'bg-brand-white text-brand-plum/60 border border-brand-sand hover:border-accent'"
                 class="px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all whitespace-nowrap">
@@ -227,6 +234,41 @@ $quo_status_badge = function($s) {
                 <p>Every sale with <?= e(planner_first_name($customer['full_name'])) ?> shows here.</p>
                 <a class="nf-btn nf-btn-primary" href="<?= APP_URL ?>/orders/create?customer=<?= (int)$customer['id'] ?>"><?= nav_icon('plus') ?>New order</a>
             </div>
+        <?php endif; ?>
+    </div>
+
+    <!-- KEPT WITH YOU TAB: money paid in advance or kept from an order, waiting for their next order -->
+    <div x-show="tab === 'kept'" x-cloak class="mb-8">
+        <section class="nf-card nf-callout is-kept" aria-labelledby="nf-kept-tab-h">
+            <h2 id="nf-kept-tab-h"><?= $kept > 0 ? planner_money($kept, $currency) . ' kept with you' : 'Nothing kept with you yet' ?></h2>
+            <p>When <?= e($first_name) ?> pays before choosing what to buy, add it here. A receipt is made, and their next order offers it to use, all or part.</p>
+            <div class="nf-callout-do">
+                <button type="button" class="nf-btn nf-btn-primary" data-open="nf-kept-add"><?= nav_icon('plus') ?>Add money</button>
+            </div>
+        </section>
+        <?php if ($kept_lines): ?>
+            <section class="nf-card" aria-label="Kept money, line by line">
+                <ul class="nf-pays">
+                    <?php foreach ($kept_lines as $k): $amt = (float)$k['amount']; ?>
+                        <li>
+                            <span class="nf-pay-main">
+                                <b class="<?= $amt > 0 ? 'is-in' : '' ?>"><?= $amt < 0 ? '−' : '+' ?><?= planner_money(abs($amt), $currency) ?></b>
+                                <small><?= e(screen_date($k['day'])) ?> · <?= e(match (true) {   // the order or receipt number is the link beside it
+                                    !empty($k['receipt_id']) => 'Paid in advance',
+                                    $amt > 0 => str_starts_with((string)$k['note'], 'Kept from cancelled') ? 'Kept when the order was cancelled' : 'Paid over on an order',
+                                    str_starts_with((string)$k['note'], KEPT_USED_NOTE) => 'Used on an order',
+                                    default => 'Given back',
+                                }) ?></small>
+                            </span>
+                            <?php if (!empty($k['receipt_number'])): ?>
+                                <a class="nf-link" href="<?= APP_URL ?>/receipts/view/<?= (int)$k['receipt_id'] ?>" data-prefetch><?= e($k['receipt_number']) ?></a>
+                            <?php elseif (!empty($k['order_number'])): ?>
+                                <a class="nf-link" href="<?= APP_URL ?>/orders/view/<?= (int)$k['order_id'] ?>" data-prefetch><?= e($k['order_number']) ?></a>
+                            <?php endif; ?>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+            </section>
         <?php endif; ?>
     </div>
 
@@ -348,8 +390,8 @@ $quo_status_badge = function($s) {
                             <td class="px-5 py-3 data-text text-xs font-bold text-green-600 text-right"><?= money((float)$r['amount'], $currency) ?></td>
                             <td class="px-5 py-3"><span class="data-text text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-gray-100 text-gray-600"><?= ucfirst(str_replace('_', ' ', $r['method'])) ?></span></td>
                             <td class="px-5 py-3 text-center">
-                                <span class="data-text text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded <?= $r['invoice_id'] ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700' ?>">
-                                    <?= $r['invoice_id'] ? 'Invoice' : 'Direct Sale' ?>
+                                <span class="data-text text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded <?= $r['invoice_id'] ? 'bg-blue-100 text-blue-700' : ($r['is_advance'] ? 'bg-green-100 text-green-700' : 'bg-purple-100 text-purple-700') ?>">
+                                    <?= $r['invoice_id'] ? 'Invoice' : ($r['is_advance'] ? 'Paid in advance' : 'Direct Sale') ?>
                                 </span>
                             </td>
                         </tr>
@@ -424,3 +466,21 @@ $quo_status_badge = function($s) {
         <button class="text-[10px] font-bold text-red-400 uppercase tracking-widest hover:text-red-600 transition-colors">Remove Customer</button>
     </form>
 </div>
+<!-- Add money: paid in advance, kept for their next order -->
+<dialog class="nf-sheet" id="nf-kept-add" aria-labelledby="nf-kept-add-h">
+    <div class="nf-grab"></div>
+    <div class="nf-sheet-h"><h2 id="nf-kept-add-h">Add money for <?= e($first_name) ?></h2><button type="button" class="nf-icon-btn" data-close aria-label="Close"><?= nav_icon('close') ?></button></div>
+    <form method="POST" action="<?= APP_URL ?>/customers/add_money/<?= (int)$customer['id'] ?>" class="nf-form" data-once>
+        <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>"><?= form_once() ?>
+        <label>How much
+            <span class="nf-amount"><span><?= e($currency) ?></span><input type="text" name="amount" inputmode="decimal" required autocomplete="off"></span></label>
+        <?php $pm_id = 'kept'; require BASE_PATH . '/views/orders/_methods.php'; ?>
+        <label>Came in on <small>Reports count it on this day</small>
+            <input type="date" name="date" value="<?= e(planner_today()) ?>" max="<?= e(planner_today()) ?>" required></label>
+        <details class="nf-more-field"><summary>Add a reference</summary>
+            <label>Reference <small>The transfer or POS reference. It goes on the receipt.</small><input type="text" name="reference" maxlength="100" autocomplete="off"></label>
+        </details>
+        <button class="nf-btn nf-btn-primary nf-sheet-go"><?= nav_icon('check') ?>Keep it for <?= e($first_name) ?></button>
+        <p class="nf-help">A receipt is made for <?= e($first_name) ?> straight away. Their next order offers this money.</p>
+    </form>
+</dialog>

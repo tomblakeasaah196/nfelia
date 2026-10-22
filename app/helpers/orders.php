@@ -252,13 +252,19 @@ function fmt_qty(float $q): string {
  *   $in: channel manual|quick|quote; customer_id?; customer_name; customer_phone?;
  *        customer_email?; items [[product_id?, name, quantity, unit_price, note?]];
  *        discount; fulfillment now|pickup|delivery; deliver_by?; delivery_address?;
- *        paid_now; method; reference?; pay_by?; quotation_id?; note?; use_kept
+ *        paid_now; method; reference?; pay_by?; quotation_id?; note?; use_kept;
+ *        date? (Y-m-d, up to today: a sale typed in after the day it happened.
+ *        The order, its invoice, what was paid now and its receipt are all
+ *        dated that day, so reports count it then; the customer is told
+ *        nothing, as it is old news to them)
  */
 function order_create(PDO $db, int $biz, array $in, int $user_id): array {
     $channel     = in_array($in['channel'] ?? '', ['manual', 'quick', 'quote'], true) ? $in['channel'] : 'manual';
     $fulfillment = in_array($in['fulfillment'] ?? '', ['now', 'pickup', 'delivery'], true) ? $in['fulfillment'] : 'now';
     $method      = in_array($in['method'] ?? '', ['cash', 'bank_transfer', 'mobile_money', 'pos', 'other'], true) ? $in['method'] : 'cash';
-    $deliver_by  = $fulfillment === 'now' ? planner_today() : trim((string)($in['deliver_by'] ?? ''));
+    $day         = order__day($in['date'] ?? null, 'Pick the day of the sale.');
+    $dated       = $day !== planner_today();
+    $deliver_by  = $fulfillment === 'now' ? $day : trim((string)($in['deliver_by'] ?? ''));
     if ($deliver_by !== '' && !planner_valid_date($deliver_by)) {
         throw new DomainException('Pick the day they get it.');
     }
@@ -275,7 +281,7 @@ function order_create(PDO $db, int $biz, array $in, int $user_id): array {
         throw new DomainException('Check the email address: it doesn\'t look right.');
     }
 
-    return order__tx($db, function () use ($db, $biz, $in, $user_id, $channel, $fulfillment, $method, $deliver_by, $pay_by, $phone, $email) {
+    return order__tx($db, function () use ($db, $biz, $in, $user_id, $channel, $fulfillment, $method, $day, $dated, $deliver_by, $pay_by, $phone, $email) {
         $business = order__business($db, $biz);
         $symbol   = (string)($business['currency_symbol'] ?? '₦');
         $lines    = order__clean_items($db, $biz, (array)($in['items'] ?? []));
@@ -331,19 +337,21 @@ function order_create(PDO $db, int $biz, array $in, int $user_id): array {
             $address = trim((string)($customer['address'] ?? ''));
         }
 
+        // A sale from an earlier day keeps the time it was typed in, on its own day
+        $stamp = $dated ? $day . ' ' . planner_now()->format('H:i:s') : null;
         $order_number = generate_doc_number($db, $biz, 'ORD');
         $db->prepare("
             INSERT INTO orders (business_id, customer_id, quotation_id, order_number, public_token, channel, fulfillment_type,
                 customer_name, customer_phone, customer_email, delivery_address, notes, payment_method, currency_code,
-                subtotal, discount_amount, total, status, reviewed_by, reviewed_at, created_by)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'none', ?, ?, ?, ?, 'approved', ?, NOW(), ?)
+                subtotal, discount_amount, total, status, reviewed_by, reviewed_at, created_by, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'none', ?, ?, ?, ?, 'approved', ?, NOW(), ?, COALESCE(?, CURRENT_TIMESTAMP))
         ")->execute([
             $biz, (int)$customer['id'], $quotation_id ?: null, $order_number, shop_order_token(), $channel,
             $fulfillment === 'delivery' ? 'delivery' : 'pickup',
             mb_substr($name, 0, 100), $phone !== '' ? mb_substr($phone, 0, 30) : null, $email !== '' ? mb_substr($email, 0, 100) : null,
             $fulfillment === 'delivery' && $address !== '' ? $address : null,
             trim((string)($in['note'] ?? '')) ?: null, business_currency_code($business),
-            $subtotal, $discount, $total, $user_id, $user_id,
+            $subtotal, $discount, $total, $user_id, $user_id, $stamp,
         ]);
         $order_id = (int)$db->lastInsertId();
         order__write_lines($db, $order_id, $lines);
@@ -351,7 +359,7 @@ function order_create(PDO $db, int $biz, array $in, int $user_id): array {
             'quick' => 'Quick sale.',
             'quote' => $quote_number ? 'Order made from quote ' . $quote_number . '.' : 'Order made from a quote.',
             default => 'Order typed in.',
-        }, $user_id, ['total' => $total]);
+        } . ($dated ? ' Dated ' . order__day_words($day) . '.' : ''), $user_id, ['total' => $total] + ($dated ? ['date' => $day] : []));
 
         order_confirm($db, $biz, $order_id, $user_id, [
             'payment_received' => false,
@@ -361,13 +369,18 @@ function order_create(PDO $db, int $biz, array $in, int $user_id): array {
             'deliver_mode' => $fulfillment === 'now' ? 'immediate' : ($deliver_by !== '' ? 'date' : null),
             'deliver_by'   => $deliver_by !== '' ? $deliver_by : null,
             'deliver_show' => !empty($in['deliver_show']),
+            'delivered_at' => $fulfillment === 'now' ? $stamp : null,
             'pay_by'       => $pay_by !== '' ? $pay_by : null,
             'use_kept'     => !empty($in['use_kept']) && !$walk_in,
+            'date'         => $day,
             // Collected on the spot: the customer hears "thank you", not "confirmed" too
-            'tell'         => $fulfillment !== 'now',
+            'tell'         => $fulfillment !== 'now' && !$dated,
         ]);
         if ($fulfillment === 'now') {
-            order_set_stage($db, $biz, $order_id, 'done', $user_id);
+            order_set_stage($db, $biz, $order_id, 'done', $user_id, !$dated);
+            if ($dated) {
+                $db->prepare("UPDATE orders SET done_at = ? WHERE id = ? AND business_id = ?")->execute([$stamp, $order_id, $biz]);
+            }
         }
         return order_find($db, $biz, $order_id);
     });
@@ -441,6 +454,7 @@ function order_from_quote(PDO $db, int $biz, int $quotation_id, int $user_id): a
  *   $opt: payment_received (shop orders: default true when the shopper sent
  *         proof), paid_now, method, reference, deliver_mode immediate|date|null,
  *         deliver_by, deliver_show, delivered_at, pay_by, use_kept,
+ *         date (the invoice's day and the day paid; default today),
  *         tell (default true: the shopper hears "confirmed")
  * Returns ['invoice_id' => int, 'receipt_id' => ?int, 'delivery_id' => ?int].
  */
@@ -483,7 +497,8 @@ function order_confirm(PDO $db, int $biz, int $order_id, int $user_id, array $op
                 throw new DomainException('Pick the delivery date.');
             }
         }
-        $pay_by = planner_today();
+        $day    = order__day($opt['date'] ?? null, 'Pick the day of the sale.');
+        $pay_by = $day;
         if ($left > 0) {
             $pay_by = planner_valid_date($opt['pay_by'] ?? null) ? $opt['pay_by'] : order__default_pay_by($deliver_by);
         }
@@ -498,7 +513,7 @@ function order_confirm(PDO $db, int $biz, int $order_id, int $user_id, array $op
             VALUES (?, ?, ?, ?, ?, ?, ?, 'sent', ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, 0, ?, NULL, ?)
         ")->execute([
             $biz, $customer_id, $order['quotation_id'] ?: null, $order_id, order__bank_account($db, $biz, $order), $user_id, $invoice_number,
-            planner_today(), $pay_by, $deliver_mode, $deliver_by, !empty($opt['deliver_show']) ? 1 : 0, $opt['delivered_at'] ?? null,
+            $day, $pay_by, $deliver_mode, $deliver_by, !empty($opt['deliver_show']) ? 1 : 0, $opt['delivered_at'] ?? null,
             money2((float)$order['subtotal']), money2((float)$order['discount_amount']), $total, $total, generate_token(),
         ]);
         $invoice_id = (int)$db->lastInsertId();
@@ -520,13 +535,13 @@ function order_confirm(PDO $db, int $biz, int $order_id, int $user_id, array $op
         // money that cover everything never leave a debt behind.
         $receipt_id = null;
         if ($paid_now > 0) {
-            $paid = order__payment($db, $biz, $order, $paid_now, planner_today(), $method,
+            $paid = order__payment($db, $biz, $order, $paid_now, $day, $method,
                                    $received ? null : (trim((string)($opt['reference'] ?? '')) ?: null),
                                    $received ? 'Shop order ' . $order['order_number'] . ', proof sent with the order.' : null,
                                    $user_id, $symbol, !$received, false);
             $receipt_id = $paid['receipt_id'];
         }
-        if ($use_kept && order__apply_kept($db, $biz, $order, $user_id, $symbol, false) > 0 && !$receipt_id) {
+        if ($use_kept && order__apply_kept($db, $biz, $order, $user_id, $symbol, false, $day) > 0 && !$receipt_id) {
             $stmt = $db->prepare("SELECT receipt_id FROM orders WHERE id = ?");
             $stmt->execute([$order_id]);
             $receipt_id = (int)$stmt->fetchColumn() ?: null;
@@ -701,6 +716,86 @@ function order_set_when(PDO $db, int $biz, int $order_id, string $date, int $use
     });
 }
 
+/**
+ * The day it really happened, for an order typed in late or on the wrong
+ * day (owners and admins): the order and its invoice move to $date, and
+ * each payment in $paid_on (payment id => day) to its own day, with its
+ * receipt, so reports count the money then. A day after today is refused.
+ * What happened on the old day moves with it: the pay-by day of an invoice
+ * paid on the day, a sale's "taken now", the day it was collected. Each
+ * change goes on the Log. Returns how many things moved (0: nothing to do).
+ */
+function order_set_dates(PDO $db, int $biz, int $order_id, string $date, array $paid_on, int $user_id): int {
+    if (trim($date) === '') {
+        throw new DomainException('Pick the day of the order.');
+    }
+    $date = order__day($date, 'Pick the day of the order.');
+    $days = [];
+    foreach ($paid_on as $payment_id => $day) {
+        if (trim((string)$day) !== '') {   // left empty: that payment keeps its day
+            $days[(int)$payment_id] = order__day((string)$day, 'Pick the day it was paid.');
+        }
+    }
+    return order__tx($db, function () use ($db, $biz, $order_id, $date, $days, $user_id) {
+        $order   = order__lock($db, $biz, $order_id);
+        $symbol  = (string)(order__business($db, $biz)['currency_symbol'] ?? '₦');
+        $invoice = order_invoice($db, $biz, $order);
+        $moved   = 0;
+
+        $old = substr((string)$order['created_at'], 0, 10);
+        if ($date !== $old) {
+            $db->prepare("
+                UPDATE orders SET created_at = CONCAT(?, ' ', TIME(created_at)),
+                       done_at = IF(DATE(done_at) = ?, CONCAT(?, ' ', TIME(done_at)), done_at)
+                WHERE id = ? AND business_id = ?
+            ")->execute([$date, $old, $date, $order_id, $biz]);
+            $also = '';
+            if ($invoice) {
+                $was = (string)$invoice['issue_date'];
+                $db->prepare("
+                    UPDATE invoices SET issue_date = ?,
+                           due_date = IF(due_date = ?, ?, due_date),
+                           deliver_by = IF(deliver_mode = 'immediate' AND deliver_by = ?, ?, deliver_by),
+                           delivered_at = IF(DATE(delivered_at) = ?, CONCAT(?, ' ', TIME(delivered_at)), delivered_at)
+                    WHERE id = ? AND business_id = ?
+                ")->execute([$date, $was, $date, $was, $date, $was, $date, (int)$invoice['id'], $biz]);
+                doc_changed($db, 'invoice', (int)$invoice['id'], $user_id);
+                order__sync_debt($db, $biz, $order, null);   // a pay-by day that moved with it
+                $also = ' Invoice ' . $invoice['doc_number'] . ' too.';
+            }
+            order_log($db, $biz, $order_id, 'dated', 'Dated ' . order__day_words($date) . ' (was ' . order__day_words($old) . ').' . $also, $user_id,
+                      ['from' => $old, 'to' => $date]);
+            $moved++;
+        }
+
+        if ($invoice && $days) {
+            $stmt = $db->prepare("
+                SELECT p.id, p.amount, p.payment_date, r.id AS receipt_id, r.doc_number AS receipt_number
+                FROM payments p LEFT JOIN receipts r ON r.payment_id = p.id AND r.business_id = p.business_id
+                WHERE p.invoice_id = ? AND p.business_id = ? AND p.amount > 0
+            ");
+            $stmt->execute([(int)$invoice['id'], $biz]);
+            foreach ($stmt->fetchAll() as $p) {
+                $day = $days[(int)$p['id']] ?? null;
+                if ($day === null || $day === (string)$p['payment_date']) {
+                    continue;
+                }
+                $db->prepare("UPDATE payments SET payment_date = ? WHERE id = ? AND business_id = ?")->execute([$day, (int)$p['id'], $biz]);
+                if (!empty($p['receipt_id'])) {
+                    $db->prepare("UPDATE receipts SET issue_date = ? WHERE id = ? AND business_id = ?")->execute([$day, (int)$p['receipt_id'], $biz]);
+                    doc_changed($db, 'receipt', (int)$p['receipt_id'], $user_id);
+                }
+                order_log($db, $biz, $order_id, 'dated', planner_money((float)$p['amount'], $symbol) . ' paid'
+                          . (!empty($p['receipt_number']) ? ' (receipt ' . $p['receipt_number'] . ')' : '') . ' dated ' . order__day_words($day)
+                          . ' (was ' . order__day_words((string)$p['payment_date']) . ').', $user_id,
+                          ['payment_id' => (int)$p['id'], 'from' => $p['payment_date'], 'to' => $day]);
+                $moved++;
+            }
+        }
+        return $moved;
+    });
+}
+
 /* ══════════════════════════════════════════════════════════════
  *  WHERE AN ORDER STANDS (for the screens)
  * ══════════════════════════════════════════════════════════════ */
@@ -801,14 +896,15 @@ function order_next_action(array $order, ?array $invoice, ?array $delivery): ?ar
  *              already signed for), the invoice's delivery promise is kept,
  *              and the shopper is thanked and asked for a review
  *   undo_done  back to Confirmed, when it was marked done by mistake
- * The same move twice does nothing the second time.
+ * The same move twice does nothing the second time. With $tell false the
+ * shopper isn't emailed (a sale typed in days after it happened).
  */
-function order_set_stage(PDO $db, int $biz, int $order_id, string $to, int $user_id): void {
+function order_set_stage(PDO $db, int $biz, int $order_id, string $to, int $user_id, bool $tell = true): void {
     if (!in_array($to, ['ready', 'done', 'undo_done'], true)) {
         throw new InvalidArgumentException("Unknown order stage {$to}");
     }
-    order__tx($db, function () use ($db, $biz, $order_id, $to, $user_id) {
-        order__move($db, $biz, order__lock($db, $biz, $order_id), $to, $user_id, false);
+    order__tx($db, function () use ($db, $biz, $order_id, $to, $user_id, $tell) {
+        order__move($db, $biz, order__lock($db, $biz, $order_id), $to, $user_id, false, $tell);
     });
 }
 
@@ -886,13 +982,15 @@ function order_turn_down(PDO $db, int $biz, int $order_id, int $user_id, string 
 
 /**
  * Cancel an order. With money paid on it, it refuses (give it back first,
- * then cancel); otherwise its invoice is cancelled (stock back, debt written
- * off, delivery closed, its delivery step off Tasks), the shopper is told.
+ * then cancel), unless $keep: then what was paid is kept for the customer's
+ * next order (Kept with you, on their page) and the order is cancelled.
+ * Its invoice is cancelled (stock back, debt written off, delivery closed,
+ * its delivery step off Tasks), the shopper is told.
  * Returns '' when cancelled, else what stopped it.
  */
-function order_cancel(PDO $db, int $biz, int $order_id, int $user_id, string $reason = ''): string {
+function order_cancel(PDO $db, int $biz, int $order_id, int $user_id, string $reason = '', bool $keep = false): string {
     $reason = mb_substr(trim($reason), 0, 300);
-    return order__tx($db, function () use ($db, $biz, $order_id, $user_id, $reason) {
+    return order__tx($db, function () use ($db, $biz, $order_id, $user_id, $reason, $keep) {
         $order = order__lock($db, $biz, $order_id);
         if ($order['status'] === 'cancelled') {
             return 'This order is already cancelled.';
@@ -904,8 +1002,15 @@ function order_cancel(PDO $db, int $biz, int $order_id, int $user_id, string $re
         $invoice = order_invoice($db, $biz, $order);
         if ($invoice && $invoice['status'] !== 'cancelled') {
             $paid = money2((float)$invoice['amount_paid']);
-            if ($paid > 0) {
+            if ($paid > 0 && !$keep) {
                 return planner_money($paid, $symbol) . ' was paid on this order. Give it back first, then cancel.';
+            }
+            if ($paid > 0) {
+                $problem = order__keep_paid($db, $biz, $order, $invoice, $paid, $user_id, $symbol);
+                if ($problem !== '') {
+                    return $problem;
+                }
+                $kept = $paid;
             }
             $problem = invoice_cancel($db, $biz, (int)$invoice['id'], $symbol);
             if ($problem !== '') {
@@ -915,9 +1020,185 @@ function order_cancel(PDO $db, int $biz, int $order_id, int $user_id, string $re
         $db->prepare("UPDATE orders SET status = 'cancelled', cancel_reason = ? WHERE id = ? AND business_id = ?")
            ->execute([$reason ?: null, $order_id, $biz]);
         order_log($db, $biz, $order_id, 'cancelled', 'Cancelled.' . ($reason !== '' ? ' Reason: ' . $reason : ''), $user_id);
-        order__after(fn() => shop_order_tell($db, $order_id, 'cancelled', $reason));
+        // The shopper hears that their money waits for them, in the shop's words with the reason
+        $message = trim($reason . (isset($kept) ? "\n" . 'The ' . planner_money($kept, $symbol) . ' you paid is kept for your next order.' : ''));
+        order__after(fn() => shop_order_tell($db, $order_id, 'cancelled', $message));
         return '';
     });
+}
+
+/**
+ * Cancelling and keeping what was paid: it moves off the invoice (a 'kept'
+ * payment of minus all of it, so nothing is paid there any more) and is
+ * kept for the customer, as money paid over is. Not for a walk-in (nobody
+ * to keep it for), nor while a refund is waiting. Returns what stopped it,
+ * or '' once kept. The caller holds the order row.
+ */
+function order__keep_paid(PDO $db, int $biz, array $order, array $invoice, float $paid, int $user_id, string $symbol): string {
+    $customer_id = (int)$invoice['customer_id'];
+    $customer = order__customer($db, $biz, $customer_id, true);
+    if (!$customer || (int)$customer['is_walk_in'] === 1) {
+        return 'Money can only be kept for a customer with a name. Give it back instead.';
+    }
+    if (refund_open($db, $biz, (int)$order['id'])) {
+        return 'A refund is waiting on this order. Call it off first, then cancel and keep the money.';
+    }
+    $db->prepare("SELECT id FROM customers WHERE id = ? AND business_id = ? FOR UPDATE")->execute([$customer_id, $biz]);
+    $payment_id = order__kept_payment($db, $biz, (int)$invoice['id'], -$paid, 'Kept when the order was cancelled', $user_id);
+    $db->prepare("INSERT INTO kept_money (business_id, customer_id, order_id, payment_id, amount, note, user_id) VALUES (?, ?, ?, ?, ?, ?, ?)")
+       ->execute([$biz, $customer_id, (int)$order['id'], $payment_id, $paid, 'Kept from cancelled order ' . $order['order_number'], $user_id]);
+    order_log($db, $biz, (int)$order['id'], 'kept', planner_money($paid, $symbol) . ' paid on it is kept for '
+              . (planner_first_name($customer['full_name']) ?: 'them') . '\'s next order.', $user_id, ['amount' => $paid, 'payment_id' => $payment_id]);
+    return '';
+}
+
+/* ══════════════════════════════════════════════════════════════
+ *  DELETING A CLOSED ORDER
+ * ══════════════════════════════════════════════════════════════ */
+
+/**
+ * Whether a closed order can be deleted, and what goes with it:
+ * ['problem' => why not, or null; 'documents' => every number it holds;
+ *  'freed' => the numbers the next papers will take again].
+ * Only a cancelled or turned-down order goes. Money that came in on it and
+ * stayed with the business (kept for the customer, or never given back)
+ * keeps it: the order is the record of that money.
+ */
+function order_delete_check(PDO $db, int $biz, array $order): array {
+    $docs = order__docs($db, $biz, $order);
+    $problem = null;
+    if (!in_array($order['status'], ['cancelled', 'rejected'], true)) {
+        $problem = 'Only a cancelled or turned-down order can be deleted. Cancel it first.';
+    } else {
+        $stmt = $db->prepare("SELECT COUNT(*) FROM kept_money WHERE business_id = ? AND order_id = ?");
+        $stmt->execute([$biz, (int)$order['id']]);
+        $kept = (int)$stmt->fetchColumn() > 0;
+        $in = implode(',', array_fill(0, count($docs['invoice_ids']), '?'));
+        $stmt = $db->prepare("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE business_id = ? AND method <> 'kept' AND invoice_id IN ({$in})");
+        $stmt->execute([$biz, ...$docs['invoice_ids']]);
+        $stayed = money2((float)$stmt->fetchColumn());
+        $first = planner_first_name((string)$order['customer_name']) ?: 'the customer';
+        if ($kept) {
+            $problem = 'Money from this order is kept for ' . $first . ', so the order stays as the record of it.';
+        } elseif (abs($stayed) >= 0.01) {
+            $symbol = (string)(order__business($db, $biz)['currency_symbol'] ?? '₦');
+            $problem = planner_money(abs($stayed), $symbol) . ' paid on this order was not given back, so the order stays as the record of it.';
+        }
+    }
+    return ['problem' => $problem, 'documents' => $docs['numbers'], 'freed' => doc_numbers_free($db, $biz, $docs['numbers'], false)];
+}
+
+/**
+ * The owner deletes a cancelled or turned-down order for good (see
+ * order_delete_check()): its lines, Log, invoice, payments and refunds
+ * given back, receipts, refund slips, delivery note, debt and review.
+ * Its tasks stay, without the link. Each of its numbers that is still the
+ * newest of its kind is freed for the next paper. The purge ledger keeps
+ * what was deleted, by whom. Returns ['freed' => numbers].
+ */
+function order_delete(PDO $db, int $biz, int $order_id, int $user_id): array {
+    $files = [];
+    $out = order__tx($db, function () use ($db, $biz, $order_id, $user_id, &$files) {
+        $order = order__lock($db, $biz, $order_id);
+        $check = order_delete_check($db, $biz, $order);
+        if ($check['problem'] !== null) {
+            throw new DomainException($check['problem']);
+        }
+        $docs = order__docs($db, $biz, $order);
+        $inv = $docs['invoice_ids'];
+        $in  = implode(',', array_fill(0, count($inv), '?'));
+        $run = fn(string $sql, array $params) => $db->prepare($sql)->execute($params);
+
+        foreach ($inv as $invoice_id) {
+            if ($invoice_id) {
+                stock_settle($db, $biz, 'invoice', $invoice_id, [], 'order ' . $order['order_number'] . ' deleted');
+            }
+        }
+        foreach ($docs['receipt_ids'] as $receipt_id) {
+            foreach (['orders', 'bookings', 'deeds'] as $table) {
+                $run("UPDATE {$table} SET receipt_id = NULL WHERE receipt_id = ? AND business_id = ?", [$receipt_id, $biz]);
+            }
+            $run("DELETE FROM receipt_items WHERE receipt_id = ?", [$receipt_id]);
+            $run("DELETE FROM receipts WHERE id = ? AND business_id = ?", [$receipt_id, $biz]);
+        }
+        foreach ($docs['delivery_ids'] as $delivery_id) {
+            $run("DELETE FROM delivery_items WHERE delivery_id = ?", [$delivery_id]);
+            $run("DELETE FROM deliveries WHERE id = ? AND business_id = ?", [$delivery_id, $biz]);
+        }
+        $run("DELETE s FROM debt_settlements s JOIN debts d ON d.id = s.debt_id WHERE d.business_id = ? AND (d.order_id = ? OR d.invoice_id IN ({$in}))",
+             [$biz, $order_id, ...$inv]);
+        $run("DELETE FROM debts WHERE business_id = ? AND (order_id = ? OR invoice_id IN ({$in}))", [$biz, $order_id, ...$inv]);
+        $run("DELETE FROM payments WHERE business_id = ? AND invoice_id IN ({$in})", [$biz, ...$inv]);
+        $run("DELETE FROM invoice_items WHERE invoice_id IN ({$in})", $inv);
+        $run("UPDATE deeds SET invoice_id = NULL WHERE business_id = ? AND invoice_id IN ({$in})", [$biz, ...$inv]);
+        $run("UPDATE tasks SET invoice_id = NULL, step_key = NULL WHERE business_id = ? AND invoice_id IN ({$in})", [$biz, ...$inv]);
+        $run("UPDATE tasks SET order_id = NULL WHERE business_id = ? AND order_id = ?", [$biz, $order_id]);
+        $run("DELETE FROM invoices WHERE business_id = ? AND id IN ({$in})", [$biz, ...$inv]);
+        foreach (['refunds', 'order_events'] as $table) {
+            $run("DELETE FROM {$table} WHERE business_id = ? AND order_id = ?", [$biz, $order_id]);
+        }
+        $run("DELETE FROM reviews WHERE order_id = ?", [$order_id]);
+        $run("DELETE FROM order_items WHERE order_id = ?", [$order_id]);
+        $run("DELETE FROM orders WHERE id = ? AND business_id = ?", [$order_id, $biz]);
+
+        // Their signatures and verify codes go with them, then the files once it is saved
+        $files = array_merge($docs['files'], !empty($order['payment_proof_path']) ? [(string)$order['payment_proof_path']] : [],
+                             doc_forget_missing($db, $biz));
+        customer_refresh_totals($db, $biz, !empty($order['customer_id']) ? (int)$order['customer_id'] : null);
+        $freed = doc_numbers_free($db, $biz, $docs['numbers']);
+
+        // The purge ledger: who deleted what, never deleted itself
+        $who = $db->prepare("SELECT full_name FROM users WHERE id = ?");
+        $who->execute([$user_id]);
+        $db->prepare("
+            INSERT INTO purge_audit_logs (business_id, user_id, admin_name, admin_ip, target_module, purge_mode, deleted_summary, record_count, snapshot_json, purged_at)
+            VALUES (?, ?, ?, ?, 'orders', 'Order delete', ?, ?, ?, NOW())
+        ")->execute([
+            $biz, $user_id, mb_substr((string)($who->fetchColumn() ?: ''), 0, 100), mb_substr(client_ip() ?: 'Unknown', 0, 45),
+            mb_substr('Deleted ' . implode(', ', $docs['numbers']), 0, 255), count($docs['numbers']),
+            json_encode(['order' => $order, 'freed' => $freed], JSON_UNESCAPED_UNICODE),
+        ]);
+        return ['freed' => $freed];
+    });
+    foreach (array_unique(array_filter($files)) as $rel) {
+        $path = BASE_PATH . '/' . ltrim((string)$rel, '/');
+        if (is_file($path)) {
+            @unlink($path);
+        }
+    }
+    return $out;
+}
+
+/**
+ * Everything an order holds, for deleting it: invoice_ids (at least [0], so
+ * an IN () always reads), receipt_ids, delivery_ids, numbers (the order's
+ * and each paper's), files (refund proofs, sign-off signatures).
+ */
+function order__docs(PDO $db, int $biz, array $order): array {
+    $order_id = (int)$order['id'];
+    $all = function (string $sql, array $params) use ($db): array {
+        $stmt = $db->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll();
+    };
+    $invoices = $all("SELECT id, doc_number FROM invoices WHERE business_id = ? AND (order_id = ? OR id = ?)",
+                     [$biz, $order_id, (int)($order['invoice_id'] ?? 0)]);
+    $inv = array_map('intval', array_column($invoices, 'id')) ?: [0];
+    $in  = implode(',', array_fill(0, count($inv), '?'));
+    $receipts   = $all("SELECT id, doc_number FROM receipts WHERE business_id = ? AND (order_id = ? OR invoice_id IN ({$in}))", [$biz, $order_id, ...$inv]);
+    $deliveries = $all("SELECT id, doc_number, signoff_signature_path FROM deliveries WHERE business_id = ? AND (order_id = ? OR invoice_id IN ({$in}))",
+                       [$biz, $order_id, ...$inv]);
+    $refunds    = $all("SELECT doc_number, proof_path FROM refunds WHERE business_id = ? AND order_id = ?", [$biz, $order_id]);
+    $numbers = array_values(array_filter(array_merge([(string)$order['order_number']], array_column($invoices, 'doc_number'),
+                                                     array_column($receipts, 'doc_number'), array_column($deliveries, 'doc_number'),
+                                                     array_column($refunds, 'doc_number'))));
+    return [
+        'invoice_ids'  => $inv,
+        'receipt_ids'  => array_map('intval', array_column($receipts, 'id')),
+        'delivery_ids' => array_map('intval', array_column($deliveries, 'id')),
+        'numbers'      => $numbers,
+        'files'        => array_merge(array_column($refunds, 'proof_path'), array_column($deliveries, 'signoff_signature_path')),
+    ];
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -1072,6 +1353,69 @@ function kept_from_order(PDO $db, int $biz, int $customer_id, int $order_id): fl
 
 /** How a kept_money line that pays an order starts (see order__apply_kept()). */
 const KEPT_USED_NOTE = 'Used on order ';
+
+/** The kept_money line of money paid in advance (see kept_add()). */
+const KEPT_ADVANCE_NOTE = 'Paid in advance';
+
+/**
+ * "Add money": a client sends money before they know what they will buy.
+ * It comes in as a receipt with no invoice, dated the day it came in, so
+ * money in counts it then (once: using it on an order later is a 'kept'
+ * payment), and it is kept for their next order. Anyone who records
+ * payments may take it in. Returns ['id', 'doc_number', 'amount'] of the receipt.
+ */
+function kept_add(PDO $db, int $biz, int $customer_id, float $amount, string $date, string $method, ?string $reference, int $user_id): array {
+    $amount = money2($amount);
+    if ($amount <= 0) {
+        throw new DomainException('Type how much came in.');
+    }
+    $day = order__day($date, 'Pick the day the money came in.');
+    if (!in_array($method, ['cash', 'bank_transfer', 'mobile_money', 'pos', 'cheque', 'other'], true)) {
+        $method = 'cash';
+    }
+    $reference = mb_substr(trim((string)$reference), 0, 100);
+    return order__tx($db, function () use ($db, $biz, $customer_id, $amount, $day, $method, $reference, $user_id) {
+        $customer = order__customer($db, $biz, $customer_id);
+        if (!$customer || (int)$customer['is_walk_in'] === 1) {
+            throw new DomainException('That client isn\'t here any more.');
+        }
+        // One at a time per client, as kept money is used one at a time
+        $db->prepare("SELECT id FROM customers WHERE id = ? AND business_id = ? FOR UPDATE")->execute([$customer_id, $biz]);
+        $number = generate_doc_number($db, $biz, 'REC');
+        $db->prepare("
+            INSERT INTO receipts (business_id, invoice_id, payment_id, order_id, customer_id, user_id, doc_number, issue_date, amount, balance_remaining, method, note, token)
+            VALUES (?, NULL, NULL, NULL, ?, ?, ?, ?, ?, 0, ?, ?, ?)
+        ")->execute([$biz, $customer_id, $user_id, $number, $day, $amount, $method,
+                     'Paid in advance, kept for your next order.' . ($reference !== '' ? ' Reference ' . $reference . '.' : ''), generate_token()]);
+        $receipt_id = (int)$db->lastInsertId();
+        doc_made($db, 'receipt', $receipt_id, $user_id);
+        $db->prepare("INSERT INTO kept_money (business_id, customer_id, receipt_id, amount, note, user_id) VALUES (?, ?, ?, ?, ?, ?)")
+           ->execute([$biz, $customer_id, $receipt_id, $amount, KEPT_ADVANCE_NOTE, $user_id]);
+        customer_refresh_totals($db, $biz, $customer_id);
+        order__after(fn() => notify('payment.receipt', $biz, [
+            'receipt_id' => $receipt_id, 'receipt_number' => $number, 'amount' => $amount, 'payer' => trim((string)$customer['full_name']),
+        ], ['actor' => $user_id, 'dedupe' => (string)$receipt_id]));
+        return ['id' => $receipt_id, 'doc_number' => $number, 'amount' => $amount];
+    });
+}
+
+/**
+ * A client's kept money line by line, newest first, for their page: each
+ * kept_money row with its day (the day it came in, for money paid in
+ * advance), order_number and receipt_number where it came from or went.
+ */
+function kept_lines(PDO $db, int $biz, int $customer_id, int $limit = 50): array {
+    $stmt = $db->prepare("
+        SELECT k.id, k.amount, k.note, k.order_id, k.receipt_id, o.order_number, r.doc_number AS receipt_number,
+               COALESCE(r.issue_date, DATE(k.created_at)) AS day
+        FROM kept_money k
+        LEFT JOIN orders o ON o.id = k.order_id AND o.business_id = k.business_id
+        LEFT JOIN receipts r ON r.id = k.receipt_id AND r.business_id = k.business_id
+        WHERE k.business_id = ? AND k.customer_id = ?
+        ORDER BY day DESC, k.id DESC LIMIT " . max(1, $limit));
+    $stmt->execute([$biz, $customer_id]);
+    return $stmt->fetchAll();
+}
 
 /**
  * "Use it": money kept for this customer pays what it can of this order (a
@@ -1441,6 +1785,30 @@ function order__delivery(PDO $db, int $biz, array $order): ?array {
 }
 
 /**
+ * The day something happened, as typed: empty is today; a day after today,
+ * or one that isn't a day, is refused ($bad says so for the second).
+ */
+function order__day(?string $typed, string $bad): string {
+    $today = planner_today();
+    $day   = trim((string)$typed);
+    if ($day === '') {
+        return $today;
+    }
+    if (!planner_valid_date($day)) {
+        throw new DomainException($bad);
+    }
+    if ($day > $today) {
+        throw new DomainException('Pick today or a day before. ' . order__day_words($day) . ' hasn\'t come yet.');
+    }
+    return $day;
+}
+
+/** A day for the Log and messages: "12 Jun 2026". */
+function order__day_words(string $day): string {
+    return date('j M Y', strtotime($day));
+}
+
+/**
  * When a balance is due unless the owner says: the delivery or collection
  * day while it is still ahead, else a week from today (goods that left
  * today give the customer a week, not a balance due tonight).
@@ -1631,9 +1999,9 @@ function order__payment(PDO $db, int $biz, array $order, float $amount, string $
 /**
  * Kept money pays what it can of the order's balance: a 'kept' payment with
  * its receipt, and a minus line in kept_money. The order row is locked by
- * the caller. Returns the amount used.
+ * the caller. Paid on $date (default today). Returns the amount used.
  */
-function order__apply_kept(PDO $db, int $biz, array $order, int $user_id, string $symbol, bool $sync_debt): float {
+function order__apply_kept(PDO $db, int $biz, array $order, int $user_id, string $symbol, bool $sync_debt, ?string $date = null): float {
     $invoice = order_invoice($db, $biz, $order);
     if (!$invoice || !in_array($invoice['status'], ['sent', 'partially_paid', 'overdue'], true)) {
         return 0.0;
@@ -1645,7 +2013,7 @@ function order__apply_kept(PDO $db, int $biz, array $order, int $user_id, string
     if ($amount <= 0) {
         return 0.0;
     }
-    $paid = order__payment($db, $biz, $order, $amount, planner_today(), 'kept', null, 'Paid from money kept for them', $user_id, $symbol, false, $sync_debt);
+    $paid = order__payment($db, $biz, $order, $amount, $date ?? planner_today(), 'kept', null, 'Paid from money kept for them', $user_id, $symbol, false, $sync_debt);
     $db->prepare("INSERT INTO kept_money (business_id, customer_id, order_id, payment_id, amount, note, user_id) VALUES (?, ?, ?, ?, ?, ?, ?)")
        ->execute([$biz, $customer_id, (int)$order['id'], $paid['payment_id'], -$amount, KEPT_USED_NOTE . $order['order_number'], $user_id]);
     return $amount;
@@ -1679,8 +2047,9 @@ function order__kept_payment(PDO $db, int $biz, int $invoice_id, float $amount, 
 /**
  * The order moves (order_set_stage, a Tasks tick, its delivery note). With
  * $from_delivery the delivery note already moved, so it is left as it is.
+ * With $tell false the shopper isn't emailed.
  */
-function order__move(PDO $db, int $biz, array $order, string $to, ?int $user_id, bool $from_delivery): void {
+function order__move(PDO $db, int $biz, array $order, string $to, ?int $user_id, bool $from_delivery, bool $tell = true): void {
     $order_id    = (int)$order['id'];
     $status      = (string)$order['status'];
     $is_delivery = $order['fulfillment_type'] === 'delivery';
@@ -1707,7 +2076,9 @@ function order__move(PDO $db, int $biz, array $order, string $to, ?int $user_id,
                ->execute([(int)$delivery['id'], $biz]);
         }
         order_log($db, $biz, $order_id, 'ready', $is_delivery ? 'Sent out: on its way.' : 'Ready for pickup.', $user_id);
-        order__after(fn() => shop_order_tell($db, $order_id, $is_delivery ? 'on_the_way' : 'ready'));
+        if ($tell) {
+            order__after(fn() => shop_order_tell($db, $order_id, $is_delivery ? 'on_the_way' : 'ready'));
+        }
         return;
     }
 
@@ -1733,7 +2104,9 @@ function order__move(PDO $db, int $biz, array $order, string $to, ?int $user_id,
             review_invite($db, $order_id);
         }
         order_log($db, $biz, $order_id, 'done', $is_delivery ? 'Delivered.' : 'Collected.', $user_id);
-        order__after(fn() => shop_order_tell($db, $order_id, 'delivered'));
+        if ($tell) {
+            order__after(fn() => shop_order_tell($db, $order_id, 'delivered'));
+        }
         return;
     }
 

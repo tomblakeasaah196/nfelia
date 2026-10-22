@@ -144,6 +144,9 @@ class OrderController
 
         $messages = $this->messages($order, $business, $invoice, $payments, $stage, $pay, $track_url, $customer_url, $customer);
         $is_boss = is_boss();
+        // A closed order the owner may delete, and the numbers that come free with it
+        $delete_check = is_owner() && in_array($order["status"], ["cancelled", "rejected"], true)
+            ? order_delete_check($this->db, $this->biz_id, $order) : null;
 
         // The mail server said the customer's email doesn't exist (app/helpers/bounces.php)
         require_once BASE_PATH . "/app/helpers/bounces.php";
@@ -216,12 +219,14 @@ class OrderController
         $invoice = order_invoice($this->db, $this->biz_id, $order);
         $paid = $invoice ? (float) $invoice["amount_paid"] : 0.0;
         $balance = $invoice ? (float) $invoice["balance_due"] : 0.0;
+        $dated = substr((string) $order["created_at"], 0, 10) !== planner_today()
+            ? " Dated " . order__day_words(substr((string) $order["created_at"], 0, 10)) . "." : "";
         flash("success", match (true) {
             $mode === "quick" => "Sold. " . planner_money($paid, $symbol) . " paid, receipt made.",
             $balance > 0 && $paid > 0 => "Order {$order["order_number"]} saved. The balance of " . planner_money($balance, $symbol) . " is in Debts.",
             $balance > 0 => "Order {$order["order_number"]} saved. " . planner_money($balance, $symbol) . " to pay later is in Debts.",
             default => "Order {$order["order_number"]} saved and paid. Receipt made.",
-        });
+        } . $dated);
         redirect("orders/view/{$order["id"]}");
     }
 
@@ -339,6 +344,21 @@ class OrderController
         $this->back($order, "success", $done["new_balance"] > 0
             ? "Payment saved, receipt made. Balance " . planner_money($done["new_balance"], $this->symbol()) . "."
             : "Paid in full. Receipt made.", "money");
+    }
+
+    /** POST orders/dates/{id}: the day it really happened, and the day each payment came in (owners and admins). */
+    public function dates($id = null)
+    {
+        $this->post_only("orders/view/" . (int) $id);
+        require_boss("change an order's dates");
+        $order = $this->order_or_back($id);
+        $paid_on = array_filter((array) ($_POST["paid_on"] ?? []), "is_string");
+        try {
+            $moved = order_set_dates($this->db, $this->biz_id, (int) $order["id"], (string) ($_POST["date"] ?? ""), $paid_on, $this->user_id());
+        } catch (DomainException $e) {
+            $this->back($order, "error", $e->getMessage());
+        }
+        $this->back($order, $moved ? "success" : "info", $moved ? "Dates saved. Your reports count it on those days." : "Those were already its dates.");
     }
 
     /** POST orders/pay_by/{id}: when the balance is due. */
@@ -466,11 +486,33 @@ class OrderController
         $this->post_only("orders/view/" . (int) $id);
         require_boss("cancel an order");
         $order = $this->order_or_back($id);
-        $problem = order_cancel($this->db, $this->biz_id, (int) $order["id"], $this->user_id(), mb_substr(trim((string) ($_POST["reason"] ?? "")), 0, 300));
+        $invoice = order_invoice($this->db, $this->biz_id, $order);
+        $paid = $invoice && $invoice["status"] !== "cancelled" ? (float) $invoice["amount_paid"] : 0.0;
+        $keep = ($_POST["keep"] ?? "") === "1";
+        $problem = order_cancel($this->db, $this->biz_id, (int) $order["id"], $this->user_id(), mb_substr(trim((string) ($_POST["reason"] ?? "")), 0, 300), $keep);
         if ($problem !== "") {
             $this->back($order, "error", $problem);
         }
-        $this->back($order, "success", "Order cancelled. Its stock is back on the shelf.");
+        $this->back($order, "success", "Order cancelled. Its stock is back on the shelf."
+            . ($keep && $paid > 0 ? " " . planner_money($paid, $this->symbol()) . " is kept for " . (planner_first_name($order["customer_name"]) ?: "them") . "'s next order." : ""));
+    }
+
+    /** POST orders/delete/{id}: a cancelled or turned-down order goes for good (the owner only). */
+    public function delete($id = null)
+    {
+        $this->post_only("orders/view/" . (int) $id);
+        $order = $this->order_or_back($id);
+        if (!is_owner()) {
+            $this->back($order, "error", "Only the owner can delete an order.");
+        }
+        try {
+            $done = order_delete($this->db, $this->biz_id, (int) $order["id"], $this->user_id());
+        } catch (DomainException $e) {
+            $this->back($order, "error", $e->getMessage());
+        }
+        flash("success", "Order " . $order["order_number"] . " deleted."
+            . ($done["freed"] ? " Your next papers take " . implode(", ", $done["freed"]) . " again." : ""));
+        redirect("orders");
     }
 
     /** POST orders/turn_down/{id}: a new shop order that can't be taken. */
@@ -818,6 +860,7 @@ class OrderController
             "note" => (string) ($p["note"] ?? ""),
             "use_kept" => (bool) $use_kept,
             "deliver_show" => 1,
+            "date" => (string) ($p["sale_date"] ?? ""),
         ];
     }
 

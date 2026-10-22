@@ -95,6 +95,46 @@ function generate_doc_number(PDO $db, int $business_id, string $doc_type): strin
 }
 
 /**
+ * Numbers given back after their papers were deleted for good: each one
+ * that is still the newest of its kind is freed, so the next paper takes it
+ * again (ADA-REC-004 deleted while receipts are at 4: the next receipt is
+ * ADA-REC-004). An older number stays a gap, so no two papers ever share a
+ * number, and so does one made with an earlier prefix. With $write false
+ * nothing changes: it says what would be freed. Returns the numbers freed.
+ */
+function doc_numbers_free(PDO $db, int $business_id, array $numbers, bool $write = true): array {
+    $stmt = $db->prepare("SELECT doc_prefix FROM businesses WHERE id = ?");
+    $stmt->execute([$business_id]);
+    $prefix = strtoupper((string)($stmt->fetchColumn() ?: 'NFE'));
+    $format = fn(string $type, int $n) => $prefix . '-' . $type . '-' . str_pad((string)$n, 3, '0', STR_PAD_LEFT);
+    $gone = [];
+    foreach ($numbers as $number) {
+        if (preg_match('/^' . preg_quote($prefix, '/') . '-(QUO|INV|REC|DEL|DEA|EXP|ORD|BKG|RFD)-(\d+)$/', (string)$number, $m)
+            && $format($m[1], (int)$m[2]) === $number) {
+            $gone[$m[1]][(int)$m[2]] = true;
+        }
+    }
+    $freed = [];
+    foreach ($gone as $type => $seqs) {
+        $stmt = $db->prepare("SELECT last_number FROM document_counters WHERE business_id = ? AND doc_type = ?" . ($write ? " FOR UPDATE" : ""));
+        $stmt->execute([$business_id, $type]);
+        $last = $stmt->fetchColumn();
+        if ($last === false) {
+            continue;
+        }
+        $n = (int)$last;
+        while ($n > 0 && isset($seqs[$n])) {
+            $freed[] = $format($type, $n);
+            $n--;
+        }
+        if ($write && $n < (int)$last) {
+            $db->prepare("UPDATE document_counters SET last_number = ? WHERE business_id = ? AND doc_type = ?")->execute([$n, $business_id, $type]);
+        }
+    }
+    return $freed;
+}
+
+/**
  * Generate a cryptographically secure URL token (64 chars)
  */
 function generate_token(): string {
