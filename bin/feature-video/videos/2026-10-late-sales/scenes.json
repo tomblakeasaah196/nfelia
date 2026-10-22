@@ -1,0 +1,65 @@
+{
+  "title": "New in Nfelia",
+  "voice": "af_heart",
+  "speed": 1.15,
+  "login": { "email": "ada@adashair.test", "password": "TestPass1" },
+  "scenes": [
+    {
+      "caption": "Back-date a sale",
+      "sub": "New order › Date › Change",
+      "say": "Typed a sale in late? Tap Change, and pick the day it happened.",
+      "open": "/orders/create",
+      "steps": [
+        ["wait", 350], ["tap", ".nf-dated .nf-link"], ["wait", 250],
+        ["fill", "#nf-sale-day", "2026-06-12"], ["change", "#nf-sale-day"], ["wait", 250],
+        ["spot", ".nf-dated", 4], ["wait", 1700]
+      ]
+    },
+    {
+      "caption": "Fix dates later",
+      "sub": "Order › More › Change dates",
+      "say": "Wrong date? Go to More, then Change dates.",
+      "open": "/orders/view/{two}",
+      "steps": [
+        ["wait", 250], ["tap", "button[data-open=\"nf-more\"]"], ["wait", 420],
+        ["tap", "#nf-more button[data-open=\"nf-dates\"]"], ["wait", 450],
+        ["fill", "#nf-dates input[name=\"date\"]", "2026-06-12"], ["wait", 200],
+        ["spot", "#nf-dates form", 2], ["wait", 1500]
+      ]
+    },
+    {
+      "caption": "Delete a cancelled order",
+      "sub": "Its number is used again",
+      "say": "Delete a cancelled order, and its number comes back.",
+      "open": "/orders/view/{cancelled}",
+      "steps": [
+        ["wait", 300], ["tap", ".nf-hero-do button[data-open=\"nf-delete\"]"], ["wait", 500],
+        ["spot", "#nf-delete form p:nth-of-type(2)", 6], ["wait", 1700]
+      ]
+    },
+    {
+      "caption": "Money paid in advance",
+      "sub": "Client › Kept with you › Add money",
+      "say": "Client paid before choosing? Add money, under Kept with you.",
+      "open": "/customers/view/{client}",
+      "before": [["scroll", "button:has-text(\"Kept with you\")", 330]],
+      "steps": [
+        ["wait", 250], ["tap", "button:has-text(\"Kept with you\")"], ["wait", 450],
+        ["tap", "button[data-open=\"nf-kept-add\"]"], ["wait", 450],
+        ["type", "#nf-kept-add input[name=\"amount\"]", "50,000", 70], ["wait", 150],
+        ["spot", "#nf-kept-add .nf-sheet-go", 4], ["wait", 1300]
+      ]
+    },
+    {
+      "caption": "Cancel, keep the money",
+      "sub": "Kept for their next order",
+      "say": "Cancelling a paid order? Keep the money for their next one.",
+      "open": "/orders/view/{paid}",
+      "steps": [
+        ["wait", 250], ["tap", "button[data-open=\"nf-more\"]"], ["wait", 420],
+        ["tap", "#nf-more button[data-open=\"nf-cancel\"]"], ["wait", 500],
+        ["spot", "#nf-cancel form .nf-btn-danger", 4], ["wait", 1700]
+      ]
+    }
+  ]
+}
