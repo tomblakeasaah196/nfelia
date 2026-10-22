@@ -7,8 +7,7 @@
  *   $receipt, $business, $customer, $items, $invoice
  */
 $currency  = $business['currency_symbol'] ?? '₦';
-$primary   = $business['primary_color'] ?? '#8B004A';
-$secondary = $business['secondary_color'] ?? '#B69F5E';
+['primary' => $primary, 'secondary' => $secondary] = brand_doc_colours($business);   // the brand colours, else Nfelia's (app/helpers/brand.php)
 $doc_fonts    = brand_doc_fonts($business);   // the brand fonts (app/helpers/brand.php)
 
 $is_standalone = !$receipt['invoice_id'];

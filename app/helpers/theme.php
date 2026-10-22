@@ -19,7 +19,7 @@ const THEME_CREAM        = '#F7F3EA';
 // default. Nobody chose it, so they get Nfelia's own colour in the app.
 const THEME_UNSET_COLOUR = '#1a1a2e';
 
-/** @return array{accent:string, accent_rgb:string, on_accent:string, accent_text:string, accent_soft:string, glow:string, glow_2:string, secondary_rgb:string} */
+/** @return array{accent:string, accent_rgb:string, on_accent:string, accent_text:string, accent_text_rgb:string, accent_soft:string, glow:string, glow_2:string, secondary_rgb:string} */
 function theme_tokens(?string $primary, ?string $secondary): array
 {
     $primary = theme_valid_hex($primary);
@@ -39,16 +39,18 @@ function theme_tokens(?string $primary, ?string $secondary): array
         $tl -= 0.02;
         $text = theme_oklch_to_rgb($tl, $c, $h);
     }
+    $text = theme_rgb_to_hex($text);
 
     return [
-        'accent'        => theme_rgb_to_hex($rgb),
-        'accent_rgb'    => implode(' ', $rgb),
-        'on_accent'     => theme_contrast($rgb, $white) >= theme_contrast($rgb, $ink) ? '#FFFFFF' : THEME_INK,
-        'accent_text'   => theme_rgb_to_hex($text),
-        'accent_soft'   => theme_rgb_to_hex(theme_oklch_to_rgb(0.955, min(0.04, $c * 0.35), $h)),
-        'glow'          => theme_rgb_to_hex(theme_oklch_to_rgb(0.958, min(0.045, $c * 0.4), $h)),
-        'glow_2'        => theme_rgb_to_hex(theme_oklch_to_rgb(0.975, min(0.03, $c * 0.25), $h + 0.35)),
-        'secondary_rgb' => implode(' ', theme_hex_to_rgb($secondary)),
+        'accent'          => theme_rgb_to_hex($rgb),
+        'accent_rgb'      => implode(' ', $rgb),
+        'on_accent'       => theme_contrast($rgb, $white) >= theme_contrast($rgb, $ink) ? '#FFFFFF' : THEME_INK,
+        'accent_text'     => $text,
+        'accent_text_rgb' => implode(' ', theme_hex_to_rgb($text)),
+        'accent_soft'     => theme_rgb_to_hex(theme_oklch_to_rgb(0.955, min(0.04, $c * 0.35), $h)),
+        'glow'            => theme_rgb_to_hex(theme_oklch_to_rgb(0.958, min(0.045, $c * 0.4), $h)),
+        'glow_2'          => theme_rgb_to_hex(theme_oklch_to_rgb(0.975, min(0.03, $c * 0.25), $h + 0.35)),
+        'secondary_rgb'   => implode(' ', theme_hex_to_rgb($secondary)),
     ];
 }
 
@@ -110,17 +112,91 @@ function theme_rgb_to_oklch(array $rgb): array
 /** @return float[] sRGB 0..255, clamped to the gamut */
 function theme_oklch_to_rgb(float $L, float $C, float $h): array
 {
+    return array_map(fn($v) => max(0.0, min(255.0, theme_gamma(max(0.0, min(1.0, $v))))), theme_oklch_to_linear($L, $C, $h));
+}
+
+/** @return float[] linear sRGB, each 0..1 when the colour is one a screen can show */
+function theme_oklch_to_linear(float $L, float $C, float $h): array
+{
     $A = $C * cos($h);
     $B = $C * sin($h);
     $l = ($L + 0.3963377774 * $A + 0.2158037573 * $B) ** 3;
     $m = ($L - 0.1055613458 * $A - 0.0638541728 * $B) ** 3;
     $s = ($L - 0.0894841775 * $A - 1.2914855480 * $B) ** 3;
-    $rgb = [
+    return [
         4.0767416621 * $l - 3.3077115913 * $m + 0.2309699292 * $s,
         -1.2684380046 * $l + 2.6097574011 * $m - 0.3413193965 * $s,
         -0.0041960863 * $l - 0.7034186147 * $m + 1.7076147010 * $s,
     ];
-    return array_map(fn($v) => max(0.0, min(255.0, theme_gamma(max(0.0, min(1.0, $v))))), $rgb);
+}
+
+/** Can a screen show this colour as it is, without clamping it? */
+function theme_oklch_fits(float $L, float $C, float $h): bool
+{
+    $rgb = theme_oklch_to_linear($L, $C, $h);
+    return min($rgb) >= -0.0001 && max($rgb) <= 1.0001;
+}
+
+/** How far apart two sRGB colours look: the distance between them in OKLab. */
+function theme_distance(array $a, array $b): float
+{
+    [$la, $ca, $ha] = theme_rgb_to_oklch($a);
+    [$lb, $cb, $hb] = theme_rgb_to_oklch($b);
+    return sqrt(($la - $lb) ** 2 + ($ca * cos($ha) - $cb * cos($hb)) ** 2 + ($ca * sin($ha) - $cb * sin($hb)) ** 2);
+}
+
+/**
+ * A colour for one kind of thing among others told apart by colour, such as
+ * the calendar's dots: $hex itself when it stands far enough from every one
+ * of $others, else the nearest colour that does. First a deeper shade of the
+ * same hue; when no shade will do, the hue turns a few degrees at a time,
+ * either way, until one does. A shade keeps as much of the colour's strength
+ * as a screen can show at its lightness. Far enough is $gap in OKLab, about
+ * what the calendar's own colours keep between them. Every colour tried reads
+ * on white (4.5:1), so it also serves for a label.
+ */
+function theme_distinct(string $hex, array $others, float $gap = 0.12): string
+{
+    $white  = [255, 255, 255];
+    $others = array_map('theme_hex_to_rgb', $others);
+    [$l0, $c0, $h0] = theme_rgb_to_oklch(theme_hex_to_rgb($hex));
+    for ($turn = 0; $turn <= 180; $turn += 3) {
+        foreach (array_unique([$turn, -$turn]) as $t) {
+            $h = $h0 + deg2rad($t);
+            for ($l = $l0; $l >= $l0 - 0.2; $l -= 0.01) {
+                $c = $c0;
+                while ($c > 0 && !theme_oklch_fits($l, $c, $h)) {
+                    $c -= 0.005;
+                }
+                $rgb = theme_hex_to_rgb(theme_rgb_to_hex(theme_oklch_to_rgb($l, max(0.0, $c), $h)));
+                if (theme_contrast($rgb, $white) < 4.5) {
+                    continue;
+                }
+                foreach ($others as $other) {
+                    if (theme_distance($rgb, $other) < $gap) {
+                        continue 2;
+                    }
+                }
+                return theme_rgb_to_hex($rgb);
+            }
+        }
+    }
+    return $hex;
+}
+
+/**
+ * One of Nfelia's own wine-tinted greys (a line, a background) moved into the
+ * business's colour: the same lightness, turned from wine's hue to the
+ * business's, and as much of a tint as wine gives it, less when the business's
+ * colour is greyer than wine. Wine gets its own greys back; a grey brand gets
+ * plain greys.
+ */
+function theme_retint(string $grey, string $toward): string
+{
+    [$l, $c, $h]          = theme_rgb_to_oklch(theme_hex_to_rgb($grey));
+    [, $wine_c, $wine_h]  = theme_rgb_to_oklch(theme_hex_to_rgb(THEME_NFELIA));
+    [, $to_c, $to_h]      = theme_rgb_to_oklch(theme_hex_to_rgb($toward));
+    return theme_rgb_to_hex(theme_oklch_to_rgb($l, $c * min(1.0, $to_c / $wine_c), $h - $wine_h + $to_h));
 }
 
 /**

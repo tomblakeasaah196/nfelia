@@ -6,7 +6,7 @@
   --in: #00764A; --in-soft: #E5F4EC;
   --owed: #B42318; --owed-soft: #FEECEA;
   --warn: #8A4B00; --warn-soft: #FFF2D6;
-  --stitch: rgb(182 159 94 / .75);
+  --stitch: rgb(var(--accent-rgb) / .45);
 }
 
 /* A list page keeps to a width the eye can follow from name to amount. */
@@ -42,7 +42,8 @@
 .nf-figs .is-owed { color: var(--owed); }
 
 /* The thread: what is paid is sewn in (solid), what is still owed is
-   stitched in gold. The brand's thread, put to work on money. */
+   stitched in a lighter shade. The brand's thread, put to work on money,
+   in the business's own colour. */
 .nf-thread { position: relative; height: 8px; margin: 14px 0 8px; border-radius: 4px;
   background: repeating-linear-gradient(90deg, var(--stitch) 0 7px, transparent 7px 12px); }
 .nf-thread > i { position: absolute; inset: 0 auto 0 0; width: var(--done, 0%); min-width: 8px; border-radius: 4px; background: var(--accent); }
@@ -271,7 +272,7 @@ a.nf-item:active { background: rgb(31 10 20 / .05); }
 .nf-rb-cover b { font: 700 .75rem/1.15 var(--font-heading); color: var(--accent-text); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
 .nf-rb-cover small { font: 600 .625rem/1.2 var(--font-body); color: var(--ink-2); }
 .nf-rb-cover i { position: absolute; left: 10px; right: 10px; top: 14px; height: 2px; border-radius: 1px;
-  background: repeating-linear-gradient(90deg, var(--stitch) 0 4px, transparent 4px 8px), var(--accent); background-size: auto, 100% 2px; }
+  background: repeating-linear-gradient(90deg, var(--accent-soft) 0 4px, transparent 4px 8px), var(--accent); background-size: auto, 100% 2px; }
 .nf-rb-mark { position: absolute; right: 8px; top: 24px; width: 16px; height: 16px; border-radius: 3px;
   background: repeating-conic-gradient(var(--ink) 0 25%, transparent 0 50%) 0 0 / 6px 6px; opacity: .55; }
 .nf-rb-copy h2 { margin: 2px 0 6px; font: 600 1.1875rem/1.3 var(--font-heading); }

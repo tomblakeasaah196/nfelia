@@ -126,7 +126,7 @@ $flash = get_flash();
     <style>
         :root {
             --accent: <?= $theme['accent'] ?>; --accent-rgb: <?= $theme['accent_rgb'] ?>; --on-accent: <?= $theme['on_accent'] ?>;
-            --accent-text: <?= $theme['accent_text'] ?>; --accent-soft: <?= $theme['accent_soft'] ?>;
+            --accent-text: <?= $theme['accent_text'] ?>; --accent-text-rgb: <?= $theme['accent_text_rgb'] ?>; --accent-soft: <?= $theme['accent_soft'] ?>;
             --glow: <?= $theme['glow'] ?>; --glow-2: <?= $theme['glow_2'] ?>; --brand-secondary-rgb: <?= $theme['secondary_rgb'] ?>;
         }
     </style>

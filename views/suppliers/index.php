@@ -52,16 +52,16 @@ $currency = $business['currency_symbol'] ?? '₦';
         <div class="relative flex-1 min-w-[180px]">
             <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-plum/30" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
             <input type="text" name="q" value="<?= e($search) ?>" placeholder="Search by name, phone, email..."
-                   class="w-full pl-10 pr-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/30">
+                   class="w-full pl-10 pr-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/30">
         </div>
-        <select name="filter" class="text-xs font-semibold text-brand-plum bg-brand-cream border border-brand-sand rounded-lg px-3 py-2.5 focus:outline-none focus:border-brand-gold uppercase tracking-wider">
+        <select name="filter" class="text-xs font-semibold text-brand-plum bg-brand-cream border border-brand-sand rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent-text uppercase tracking-wider">
             <option value="">Active</option>
             <option value="all" <?= $filter === 'all' ? 'selected' : '' ?>>All</option>
             <option value="owing" <?= $filter === 'owing' ? 'selected' : '' ?>>You Owe</option>
             <option value="clear" <?= $filter === 'clear' ? 'selected' : '' ?>>Clear Balance</option>
             <option value="inactive" <?= $filter === 'inactive' ? 'selected' : '' ?>>Inactive</option>
         </select>
-        <select name="sort" class="text-xs font-semibold text-brand-plum bg-brand-cream border border-brand-sand rounded-lg px-3 py-2.5 focus:outline-none focus:border-brand-gold uppercase tracking-wider">
+        <select name="sort" class="text-xs font-semibold text-brand-plum bg-brand-cream border border-brand-sand rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent-text uppercase tracking-wider">
             <option value="name" <?= $sort === 'name' ? 'selected' : '' ?>>Name A-Z</option>
             <option value="newest" <?= $sort === 'newest' ? 'selected' : '' ?>>Newest</option>
             <option value="oldest" <?= $sort === 'oldest' ? 'selected' : '' ?>>Oldest</option>
@@ -71,7 +71,7 @@ $currency = $business['currency_symbol'] ?? '₦';
         </select>
         <button type="submit" class="btn-primary text-white px-4 py-2.5 rounded-lg text-[10px] font-bold uppercase tracking-widest">Filter</button>
         <?php if ($search || $filter || $sort !== 'name'): ?>
-            <a href="<?= APP_URL ?>/suppliers" class="text-[10px] font-bold text-brand-plum/40 uppercase tracking-widest hover:text-brand-burgundy">Clear</a>
+            <a href="<?= APP_URL ?>/suppliers" class="text-[10px] font-bold text-brand-plum/40 uppercase tracking-widest hover:text-accent-text">Clear</a>
         <?php endif; ?>
     </div>
 </form>
@@ -99,7 +99,7 @@ $currency = $business['currency_symbol'] ?? '₦';
                     ?>
                         <tr class="hover:bg-brand-cream/30 transition-colors <?= $has_unpaid ? 'bg-red-50/30' : '' ?>">
                             <td class="px-5 py-4">
-                                <a href="<?= APP_URL ?>/suppliers/view/<?= $s['id'] ?>" class="text-xs font-bold text-brand-plum hover:text-brand-burgundy"><?= e($s['full_name']) ?></a>
+                                <a href="<?= APP_URL ?>/suppliers/view/<?= $s['id'] ?>" class="text-xs font-bold text-brand-plum hover:text-accent-text"><?= e($s['full_name']) ?></a>
                                 <?php if ($s['business_name']): ?>
                                     <div class="text-[10px] text-brand-plum/50"><?= e($s['business_name']) ?></div>
                                 <?php endif; ?>
@@ -127,7 +127,7 @@ $currency = $business['currency_symbol'] ?? '₦';
                                 <?php endif; ?>
                             </td>
                             <td class="px-5 py-4 text-right">
-                                <a href="<?= APP_URL ?>/suppliers/view/<?= $s['id'] ?>" class="text-[10px] font-bold text-brand-gold uppercase tracking-widest hover:text-brand-burgundy">Profile</a>
+                                <a href="<?= APP_URL ?>/suppliers/view/<?= $s['id'] ?>" class="text-[10px] font-bold text-accent-text uppercase tracking-widest hover:text-accent-text">Profile</a>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -141,13 +141,13 @@ $currency = $business['currency_symbol'] ?? '₦';
         <nav class="flex items-center justify-center gap-2 mb-8">
             <?php $qp = $_GET; unset($qp['page']); $base = APP_URL . '/suppliers?' . http_build_query($qp); ?>
             <?php if ($page > 1): ?>
-                <a href="<?= $base ?>&page=<?= $page - 1 ?>" class="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-brand-plum/60 bg-brand-white border border-brand-sand rounded-lg hover:border-brand-gold">Prev</a>
+                <a href="<?= $base ?>&page=<?= $page - 1 ?>" class="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-brand-plum/60 bg-brand-white border border-brand-sand rounded-lg hover:border-accent">Prev</a>
             <?php endif; ?>
             <?php for ($i = max(1, $page - 2); $i <= min($total_pages, $page + 2); $i++): ?>
-                <a href="<?= $base ?>&page=<?= $i ?>" class="w-9 h-9 flex items-center justify-center text-[10px] font-bold rounded-lg <?= $i === $page ? 'btn-primary text-white' : 'text-brand-plum/60 bg-brand-white border border-brand-sand hover:border-brand-gold' ?>"><?= $i ?></a>
+                <a href="<?= $base ?>&page=<?= $i ?>" class="w-9 h-9 flex items-center justify-center text-[10px] font-bold rounded-lg <?= $i === $page ? 'btn-primary text-white' : 'text-brand-plum/60 bg-brand-white border border-brand-sand hover:border-accent' ?>"><?= $i ?></a>
             <?php endfor; ?>
             <?php if ($page < $total_pages): ?>
-                <a href="<?= $base ?>&page=<?= $page + 1 ?>" class="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-brand-plum/60 bg-brand-white border border-brand-sand rounded-lg hover:border-brand-gold">Next</a>
+                <a href="<?= $base ?>&page=<?= $page + 1 ?>" class="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-brand-plum/60 bg-brand-white border border-brand-sand rounded-lg hover:border-accent">Next</a>
             <?php endif; ?>
         </nav>
     <?php endif; ?>
@@ -159,7 +159,7 @@ $currency = $business['currency_symbol'] ?? '₦';
         </div>
         <?php if ($search || $filter): ?>
             <h3 class="font-heading font-bold text-lg text-brand-plum mb-2">No suppliers match your filters</h3>
-            <a href="<?= APP_URL ?>/suppliers" class="text-[10px] font-bold text-brand-gold uppercase tracking-widest">Clear Filters</a>
+            <a href="<?= APP_URL ?>/suppliers" class="text-[10px] font-bold text-accent-text uppercase tracking-widest">Clear Filters</a>
         <?php else: ?>
             <h3 class="font-heading font-bold text-lg text-brand-plum mb-2">No suppliers yet</h3>
             <p class="text-xs text-brand-plum/50 font-medium mb-6">Add your suppliers to track purchases, expenses, and what you owe them.</p>

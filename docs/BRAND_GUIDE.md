@@ -14,24 +14,29 @@
 
 ## 2. Color Palette
 
-All colors defined as CSS variables in `views/layouts/app.php`. Reference them via class names — never hardcode hex in new components.
+Inside the app, in Shop Studio, on a shop's own pages and in the emails a business sends, colour is **the business's**, never Nfelia's. `app/helpers/theme.php` works it out from `businesses.primary_color` (Settings › Business › Branding) in four parts, set as CSS variables by `views/layouts/app.php` (and by Shop Studio, which stands outside the layout):
+
+| Tailwind colour | CSS variable | Usage |
+|---|---|---|
+| `accent` | `--accent` | Fills: main buttons, the selected tab, today on the calendar, progress |
+| `on-accent` | `--on-accent` | Text and icons on an `accent` fill (white or ink, whichever reads) |
+| `accent-text` | `--accent-text` | Text, links, icons, selected borders and rings on white (4.5:1) |
+| `accent-soft` | `--accent-soft` | The pale tint behind a selected chip |
+
+A filled button is `bg-accent text-on-accent`, never `text-white`: a light brand colour gets ink. A business that never chose a colour (its `primary_color` is still the column's default, `#1A1A2E`) gets Nfelia's wine through the same variables.
+
+Documents (the invoice, receipt, quotation, delivery and deed pages customers open, their PDFs, and the app's own view of them) take their two colours from `brand_doc_colours()` in `app/helpers/brand.php`: the brand colours, else Nfelia's wine and gold. No page reads `primary_color` itself.
+
+The neutrals are the same for everyone:
 
 | Token | Hex | Usage |
 |---|---|---|
-| `brand-burgundy` | `#8B004A` | Primary CTA buttons, active nav, error accents |
-| `brand-gold` | `#B69F5E` | Secondary accents, borders, hover states, pricing tags |
 | `brand-plum` | `#1B0A11` | Body text, headings, dark backgrounds |
 | `brand-sand` | `#E8E4DA` | Borders, dividers, subtle backgrounds |
 | `brand-cream` | `#F2EFE7` | Page background, card backgrounds |
 | `brand-white` | `#FFFFFF` | Card surfaces, input fields, modal backgrounds |
 
-**CSS Variable usage (in PHP views):**
-```css
-background-color: var(--brand-primary);   /* set per-business from DB */
-color: var(--brand-secondary);            /* set per-business from DB */
-```
-
-**Per-business branding:** Primary and secondary colors are stored per business in `businesses.primary_color` and `businesses.secondary_color`. The layout injects them as CSS variables. Default fallbacks: `#8B004A` / `#B69F5E`.
+**Nfelia's own colours**, wine `#8B004A` and gold `#B69F5E`, belong to Nfelia's own pages: signing in, onboarding, the website, Ops and Nfelia's own emails. `brand-burgundy` and `brand-gold` are left only in `tailwind.public.config.js`, for Nfelia's own pages built with it; the app's build has none, and `tests/theme/colours_test.php` fails if a fixed wine or gold comes back where the business's colour belongs, customer documents included.
 
 ---
 
@@ -59,12 +64,12 @@ color: var(--brand-secondary);            /* set per-business from DB */
 ### Buttons
 ```html
 <!-- Primary CTA -->
-<button class="btn-primary text-white px-6 py-3 text-xs font-bold uppercase tracking-widest rounded-xl">
+<button class="bg-accent text-on-accent px-6 py-3 text-xs font-bold uppercase tracking-widest rounded-xl">
     Action Label
 </button>
 
 <!-- Secondary / Ghost -->
-<button class="bg-brand-cream text-brand-plum border border-brand-sand px-6 py-3 text-xs font-bold uppercase tracking-widest rounded-xl hover:border-brand-gold">
+<button class="bg-brand-cream text-brand-plum border border-brand-sand px-6 py-3 text-xs font-bold uppercase tracking-widest rounded-xl hover:border-accent">
     Cancel
 </button>
 
@@ -86,7 +91,7 @@ color: var(--brand-secondary);            /* set per-business from DB */
 ```html
 <div>
     <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-2">Field Label</label>
-    <input type="text" class="w-full px-4 py-3 border border-brand-sand rounded-xl text-sm focus:border-brand-gold outline-none">
+    <input type="text" class="w-full px-4 py-3 border border-brand-sand rounded-xl text-sm focus:border-accent-text outline-none">
 </div>
 ```
 

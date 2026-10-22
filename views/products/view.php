@@ -25,13 +25,13 @@ $threshold = (float)$product['low_stock_threshold'];
         <?php endif; ?>
     </div>
     <div class="flex items-center gap-2">
-        <a href="<?= APP_URL ?>/products/edit/<?= $product['id'] ?>" class="flex items-center gap-2 bg-brand-white border border-brand-sand hover:border-brand-gold px-4 py-2.5 rounded-xl transition-all">
-            <svg class="w-4 h-4 text-brand-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+        <a href="<?= APP_URL ?>/products/edit/<?= $product['id'] ?>" class="flex items-center gap-2 bg-brand-white border border-brand-sand hover:border-accent px-4 py-2.5 rounded-xl transition-all">
+            <svg class="w-4 h-4 text-accent-text" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
             <span class="text-[10px] font-bold text-brand-plum uppercase tracking-widest">Edit</span>
         </a>
         <form method="POST" action="<?= APP_URL ?>/products/duplicate/<?= $product['id'] ?>" class="inline">
             <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
-            <button type="submit" class="flex items-center gap-2 bg-brand-white border border-brand-sand hover:border-brand-gold px-4 py-2.5 rounded-xl transition-all">
+            <button type="submit" class="flex items-center gap-2 bg-brand-white border border-brand-sand hover:border-accent px-4 py-2.5 rounded-xl transition-all">
                 <svg class="w-4 h-4 text-brand-plum/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
                 <span class="text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest">Clone</span>
             </button>
@@ -92,7 +92,7 @@ $threshold = (float)$product['low_stock_threshold'];
                 <?php if (!$is_svc): ?>
                 <div>
                     <div class="text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">Stock Value</div>
-                    <div class="data-text font-bold text-sm text-[#B69F5E]"><?= money($stock_value, $currency) ?></div>
+                    <div class="data-text font-bold text-sm text-accent-text"><?= money($stock_value, $currency) ?></div>
                 </div>
                 <?php else: ?>
                 <div>
@@ -124,7 +124,7 @@ $threshold = (float)$product['low_stock_threshold'];
      x-data="{ adjOpen: false, adjType: 'stock_in' }">
     <div class="flex items-center justify-between">
         <h2 class="font-heading font-bold text-xs text-brand-plum uppercase tracking-widest">Stock Adjustment</h2>
-        <button @click="adjOpen = !adjOpen" class="text-[10px] font-bold text-brand-gold uppercase tracking-widest hover:text-brand-burgundy transition-colors flex items-center gap-1">
+        <button @click="adjOpen = !adjOpen" class="text-[10px] font-bold text-accent-text uppercase tracking-widest hover:text-accent-text transition-colors flex items-center gap-1">
             <svg class="w-3.5 h-3.5" :class="adjOpen ? 'rotate-45' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
             <span x-text="adjOpen ? 'Close' : 'Adjust Stock'"></span>
         </button>
@@ -137,7 +137,7 @@ $threshold = (float)$product['low_stock_threshold'];
             <div>
                 <label class="block text-[10px] font-bold text-brand-plum/70 uppercase tracking-widest mb-2">Type</label>
                 <select name="adj_type" x-model="adjType"
-                        class="w-full px-3 py-2.5 text-xs font-semibold bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">
+                        class="w-full px-3 py-2.5 text-xs font-semibold bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
                     <option value="stock_in">Stock In (+)</option>
                     <option value="stock_out">Stock Out (−)</option>
                     <option value="adjustment">Set Exact Quantity</option>
@@ -146,17 +146,17 @@ $threshold = (float)$product['low_stock_threshold'];
             <div>
                 <label class="block text-[10px] font-bold text-brand-plum/70 uppercase tracking-widest mb-2" x-text="adjType === 'adjustment' ? 'New Quantity' : 'Quantity'">Quantity</label>
                 <input type="number" name="quantity" step="0.01" min="0" required placeholder="0"
-                       class="w-full px-3 py-2.5 text-xs font-mono font-bold bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">
+                       class="w-full px-3 py-2.5 text-xs font-mono font-bold bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
             </div>
             <div>
                 <label class="block text-[10px] font-bold text-brand-plum/70 uppercase tracking-widest mb-2">Unit Cost (<?= e($currency) ?>)</label>
                 <input type="number" name="unit_cost" step="0.01" min="0" value="<?= e($product['cost_price']) ?>" placeholder="0.00"
-                       class="w-full px-3 py-2.5 text-xs font-mono bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">
+                       class="w-full px-3 py-2.5 text-xs font-mono bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
             </div>
             <div>
                 <label class="block text-[10px] font-bold text-brand-plum/70 uppercase tracking-widest mb-2">Reason / Note</label>
                 <input type="text" name="note" placeholder="e.g. Restocked from supplier"
-                       class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/25">
+                       class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/25">
             </div>
         </div>
 

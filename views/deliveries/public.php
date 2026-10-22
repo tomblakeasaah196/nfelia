@@ -9,8 +9,7 @@
  *   $delivery, $business, $items, $customer, $statuses, $providers
  */
 $currency  = $business['currency_symbol'] ?? '₦';
-$primary   = $business['primary_color'] ?? '#1a1a2e';
-$secondary = $business['secondary_color'] ?? '#c5a55a';
+['primary' => $primary, 'secondary' => $secondary] = brand_doc_colours($business);   // the brand colours, else Nfelia's (app/helpers/brand.php)
 $doc_fonts = brand_doc_fonts($business);   // the brand fonts (app/helpers/brand.php)
 $logo_url  = !empty($business['logo_path']) ? APP_URL . '/' . $business['logo_path'] : null;
 

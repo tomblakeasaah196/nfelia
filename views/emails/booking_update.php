@@ -31,14 +31,14 @@ $text = match ($state) {
 </table>
 <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom:24px;">
     <tr>
-        <td style="background-color:<?= $h($biz_color ?? '#8B004A') ?>;">
+        <td style="background-color:<?= $h($biz_color) ?>;">
             <a href="<?= $h($booking_url) ?>"
-               style="display:inline-block;padding:14px 32px;font-size:11px;font-weight:700;color:#ffffff;text-decoration:none;letter-spacing:0.15em;text-transform:uppercase;">
+               style="display:inline-block;padding:14px 32px;font-size:11px;font-weight:700;color:<?= $h($biz_on) ?>;text-decoration:none;letter-spacing:0.15em;text-transform:uppercase;">
                 See your booking →
             </a>
         </td>
     </tr>
 </table>
 <p style="margin:0;font-size:11px;color:#9a8f8a;">
-    Link: <a href="<?= $h($booking_url) ?>" style="color:#B69F5E;word-break:break-all;"><?= $h($booking_url) ?></a>
+    Link: <a href="<?= $h($booking_url) ?>" style="color:<?= $h($biz_link) ?>;word-break:break-all;"><?= $h($booking_url) ?></a>
 </p>

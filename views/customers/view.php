@@ -57,8 +57,8 @@ $quo_status_badge = function($s) {
     </div>
 
     <div class="flex flex-wrap items-center gap-2">
-        <a href="<?= APP_URL ?>/customers/edit/<?= $customer['id'] ?>" class="flex items-center gap-1.5 bg-brand-white border border-brand-sand hover:border-brand-gold px-3 py-2 rounded-lg transition-all">
-            <svg class="w-3.5 h-3.5 text-brand-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+        <a href="<?= APP_URL ?>/customers/edit/<?= $customer['id'] ?>" class="flex items-center gap-1.5 bg-brand-white border border-brand-sand hover:border-accent px-3 py-2 rounded-lg transition-all">
+            <svg class="w-3.5 h-3.5 text-accent-text" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
             <span class="text-[10px] font-bold text-brand-plum uppercase tracking-widest">Edit</span>
         </a>
 
@@ -70,7 +70,7 @@ $quo_status_badge = function($s) {
         <?php endif; ?>
 
         <?php if ($customer['phone']): ?>
-        <a href="tel:<?= e($customer['phone']) ?>" class="flex items-center gap-1.5 bg-brand-cream border border-brand-sand hover:border-brand-gold px-3 py-2 rounded-lg transition-all">
+        <a href="tel:<?= e($customer['phone']) ?>" class="flex items-center gap-1.5 bg-brand-cream border border-brand-sand hover:border-accent px-3 py-2 rounded-lg transition-all">
             <svg class="w-3.5 h-3.5 text-brand-plum/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
             <span class="text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest">Call</span>
         </a>
@@ -81,11 +81,11 @@ $quo_status_badge = function($s) {
             <span class="text-[10px] font-bold uppercase tracking-widest">New Order</span>
         </a>
 
-        <a href="<?= APP_URL ?>/quotations/create?customer_id=<?= $customer['id'] ?>" class="flex items-center gap-1.5 bg-brand-white border border-brand-sand hover:border-brand-gold px-3 py-2 rounded-lg transition-all">
+        <a href="<?= APP_URL ?>/quotations/create?customer_id=<?= $customer['id'] ?>" class="flex items-center gap-1.5 bg-brand-white border border-brand-sand hover:border-accent px-3 py-2 rounded-lg transition-all">
             <span class="text-[10px] font-bold text-brand-plum uppercase tracking-widest">New Quotation</span>
         </a>
 
-        <a href="<?= APP_URL ?>/tasks?new=appointment&customer=<?= $customer['id'] ?>" class="flex items-center gap-1.5 bg-brand-white border border-brand-sand hover:border-brand-gold px-3 py-2 rounded-lg transition-all">
+        <a href="<?= APP_URL ?>/tasks?new=appointment&customer=<?= $customer['id'] ?>" class="flex items-center gap-1.5 bg-brand-white border border-brand-sand hover:border-accent px-3 py-2 rounded-lg transition-all">
             <span class="text-[10px] font-bold text-brand-plum uppercase tracking-widest">New Appointment</span>
         </a>
     </div>
@@ -124,7 +124,7 @@ $quo_status_badge = function($s) {
 <div class="bg-brand-white border border-brand-sand rounded-xl shadow-sm mb-6 overflow-hidden">
     <div class="flex items-center justify-between gap-3 px-5 pt-4 pb-2">
         <h2 class="font-heading font-bold text-base text-brand-plum">Coming up with <?= e(planner_first_name($customer['full_name'])) ?></h2>
-        <a href="<?= APP_URL ?>/tasks?new=task&customer=<?= $customer['id'] ?>" class="h-11 px-2 inline-flex items-center text-sm font-semibold text-brand-burgundy">Add a task</a>
+        <a href="<?= APP_URL ?>/tasks?new=task&customer=<?= $customer['id'] ?>" class="h-11 px-2 inline-flex items-center text-sm font-semibold text-accent-text">Add a task</a>
     </div>
     <ul class="divide-y divide-brand-sand">
         <?php foreach (array_slice($upcoming, 0, 6) as $it): ?>
@@ -143,7 +143,7 @@ $quo_status_badge = function($s) {
         <?php endforeach; ?>
     </ul>
     <?php if (count($upcoming) > 6): ?>
-        <a href="<?= APP_URL ?>/tasks?tab=calendar" class="block px-5 py-3 text-sm font-semibold text-brand-burgundy border-t border-brand-sand">See all <?= count($upcoming) ?> on the calendar</a>
+        <a href="<?= APP_URL ?>/tasks?tab=calendar" class="block px-5 py-3 text-sm font-semibold text-accent-text border-t border-brand-sand">See all <?= count($upcoming) ?> on the calendar</a>
     <?php endif; ?>
 </div>
 <?php endif; ?>
@@ -186,28 +186,28 @@ $quo_status_badge = function($s) {
 
     <!-- Tab buttons -->
     <div class="flex items-center gap-1 mb-4 overflow-x-auto">
-        <button @click="tab = 'orders'" :class="tab === 'orders' ? 'btn-primary text-white' : 'bg-brand-white text-brand-plum/60 border border-brand-sand hover:border-brand-gold'"
+        <button @click="tab = 'orders'" :class="tab === 'orders' ? 'btn-primary text-white' : 'bg-brand-white text-brand-plum/60 border border-brand-sand hover:border-accent'"
                 class="px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all whitespace-nowrap">
             Orders (<?= count($orders) ?>)
         </button>
-        <button @click="tab = 'invoices'" :class="tab === 'invoices' ? 'btn-primary text-white' : 'bg-brand-white text-brand-plum/60 border border-brand-sand hover:border-brand-gold'"
+        <button @click="tab = 'invoices'" :class="tab === 'invoices' ? 'btn-primary text-white' : 'bg-brand-white text-brand-plum/60 border border-brand-sand hover:border-accent'"
                 class="px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all whitespace-nowrap">
             Invoices (<?= count($invoices) ?>)
         </button>
-        <button @click="tab = 'quotations'" :class="tab === 'quotations' ? 'btn-primary text-white' : 'bg-brand-white text-brand-plum/60 border border-brand-sand hover:border-brand-gold'"
+        <button @click="tab = 'quotations'" :class="tab === 'quotations' ? 'btn-primary text-white' : 'bg-brand-white text-brand-plum/60 border border-brand-sand hover:border-accent'"
                 class="px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all whitespace-nowrap">
             Quotations (<?= count($quotations) ?>)
         </button>
-        <button @click="tab = 'payments'" :class="tab === 'payments' ? 'btn-primary text-white' : 'bg-brand-white text-brand-plum/60 border border-brand-sand hover:border-brand-gold'"
+        <button @click="tab = 'payments'" :class="tab === 'payments' ? 'btn-primary text-white' : 'bg-brand-white text-brand-plum/60 border border-brand-sand hover:border-accent'"
                 class="px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all whitespace-nowrap">
             Payments (<?= count($payments) ?>)
         </button>
-        <button @click="tab = 'receipts'" :class="tab === 'receipts' ? 'btn-primary text-white' : 'bg-brand-white text-brand-plum/60 border border-brand-sand hover:border-brand-gold'"
+        <button @click="tab = 'receipts'" :class="tab === 'receipts' ? 'btn-primary text-white' : 'bg-brand-white text-brand-plum/60 border border-brand-sand hover:border-accent'"
                 class="px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all whitespace-nowrap">
             Receipts (<?= count($receipts) ?>)
         </button>
         <?php if (!empty($debts)): ?>
-        <button @click="tab = 'debts'" :class="tab === 'debts' ? 'btn-primary text-white' : 'bg-brand-white text-brand-plum/60 border border-brand-sand hover:border-brand-gold'"
+        <button @click="tab = 'debts'" :class="tab === 'debts' ? 'btn-primary text-white' : 'bg-brand-white text-brand-plum/60 border border-brand-sand hover:border-accent'"
                 class="px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all whitespace-nowrap">
             Debts (<?= count($debts) ?>)
         </button>
@@ -248,7 +248,7 @@ $quo_status_badge = function($s) {
                 <tbody class="divide-y divide-brand-sand/50">
                     <?php foreach ($invoices as $inv): ?>
                         <tr class="hover:bg-brand-cream/30 <?= $inv['status'] === 'overdue' ? 'bg-red-50/30' : '' ?>">
-                            <td class="px-5 py-3"><a href="<?= APP_URL ?>/invoices/view/<?= $inv['id'] ?>" class="data-text text-xs font-bold text-brand-plum hover:text-brand-burgundy"><?= e($inv['doc_number']) ?></a></td>
+                            <td class="px-5 py-3"><a href="<?= APP_URL ?>/invoices/view/<?= $inv['id'] ?>" class="data-text text-xs font-bold text-brand-plum hover:text-accent-text"><?= e($inv['doc_number']) ?></a></td>
                             <td class="px-5 py-3 data-text text-[10px] text-brand-plum/60"><?= fmt_date($inv['issue_date'], 'd M Y') ?></td>
                             <td class="px-5 py-3 data-text text-[10px] <?= $inv['status'] === 'overdue' ? 'text-red-600 font-bold' : 'text-brand-plum/60' ?>"><?= $inv['due_date'] ? fmt_date($inv['due_date'], 'd M Y') : '—' ?></td>
                             <td class="px-5 py-3 data-text text-xs font-bold text-brand-plum text-right"><?= money((float)$inv['total'], $currency) ?></td>
@@ -280,7 +280,7 @@ $quo_status_badge = function($s) {
                 <tbody class="divide-y divide-brand-sand/50">
                     <?php foreach ($quotations as $q): ?>
                         <tr class="hover:bg-brand-cream/30">
-                            <td class="px-5 py-3"><a href="<?= APP_URL ?>/quotations/view/<?= $q['id'] ?>" class="data-text text-xs font-bold text-brand-plum hover:text-brand-burgundy"><?= e($q['doc_number']) ?></a></td>
+                            <td class="px-5 py-3"><a href="<?= APP_URL ?>/quotations/view/<?= $q['id'] ?>" class="data-text text-xs font-bold text-brand-plum hover:text-accent-text"><?= e($q['doc_number']) ?></a></td>
                             <td class="px-5 py-3 data-text text-[10px] text-brand-plum/60"><?= fmt_date($q['issue_date'], 'd M Y') ?></td>
                             <td class="px-5 py-3 data-text text-xs font-bold text-brand-plum text-right"><?= money((float)$q['total'], $currency) ?></td>
                             <td class="px-5 py-3 text-center"><span class="data-text text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded <?= $quo_status_badge($q['status']) ?>"><?= ucfirst(str_replace('_', ' ', $q['status'])) ?></span></td>
@@ -343,7 +343,7 @@ $quo_status_badge = function($s) {
                 <tbody class="divide-y divide-brand-sand/50">
                     <?php foreach ($receipts as $r): ?>
                         <tr class="hover:bg-brand-cream/30">
-                            <td class="px-5 py-3"><a href="<?= APP_URL ?>/receipts/view/<?= $r['id'] ?>" class="data-text text-xs font-bold text-brand-plum hover:text-brand-burgundy"><?= e($r['doc_number']) ?></a></td>
+                            <td class="px-5 py-3"><a href="<?= APP_URL ?>/receipts/view/<?= $r['id'] ?>" class="data-text text-xs font-bold text-brand-plum hover:text-accent-text"><?= e($r['doc_number']) ?></a></td>
                             <td class="px-5 py-3 data-text text-[10px] text-brand-plum/60"><?= fmt_date($r['issue_date'], 'd M Y') ?></td>
                             <td class="px-5 py-3 data-text text-xs font-bold text-green-600 text-right"><?= money((float)$r['amount'], $currency) ?></td>
                             <td class="px-5 py-3"><span class="data-text text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-gray-100 text-gray-600"><?= ucfirst(str_replace('_', ' ', $r['method'])) ?></span></td>

@@ -5,7 +5,8 @@
    views/layouts/app.php from app/helpers/theme.php:
      --accent        the business colour, for fills (buttons, the + tab)
      --on-accent     text on those fills (white or ink, whichever reads)
-     --accent-text   the business colour for text and icons on white (4.5:1)
+     --accent-text   the business colour for text and icons on white (4.5:1),
+                     and --accent-text-rgb, its channels for Tailwind's alpha
      --accent-soft   a pale tint for selected and icon backgrounds
      --glow, --glow-2  the faint wash behind the white background
    Type: Bricolage Grotesque for headings, Plus Jakarta Sans for text.
@@ -36,7 +37,7 @@
 }
 
 :root {
-  --accent: #8B004A; --accent-rgb: 139 0 74; --on-accent: #FFFFFF; --accent-text: #8B004A;
+  --accent: #8B004A; --accent-rgb: 139 0 74; --on-accent: #FFFFFF; --accent-text: #8B004A; --accent-text-rgb: 139 0 74;
   --accent-soft: #FFE6F0; --glow: #FFE5F1; --glow-2: #FFEFEF;
   --brand-primary: var(--accent); --brand-primary-rgb: var(--accent-rgb); --brand-secondary-rgb: 182 159 94;
   --font-heading: "Bricolage Grotesque", "Plus Jakarta Sans", system-ui, sans-serif;
@@ -79,6 +80,8 @@ h1, h2, h3, .font-heading { font-family: var(--font-heading); }
    style dresses (the older forms); page styles that set a box-shadow win. */
 input:focus, select:focus, textarea:focus { outline: none; }
 input[type="checkbox"]:focus-visible, input[type="radio"]:focus-visible, input[type="range"]:focus-visible, input[type="color"]:focus-visible, input[type="file"]:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
+/* Ticked boxes, chosen options and sliders in the business colour, the shade that reads on white. */
+:where(input[type="checkbox"], input[type="radio"], input[type="range"]) { accent-color: var(--accent-text); }
 :where(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="hidden"]), select, textarea):focus { box-shadow: var(--focus-ring); }
 /* Scrolling to a field (shell.js, or the browser on focus) keeps it clear of the app bar. */
 html { scroll-padding-top: calc(var(--bar-h) + var(--safe-t) + 16px); scroll-padding-bottom: 24px; }
@@ -520,7 +523,7 @@ button.is-spinning .nf-spin { color: currentColor; }
 }
 .nf-upload-bar {
   height: 100%; width: 0; border-radius: 999px;
-  background: linear-gradient(90deg, var(--brand-primary), #B69F5E);
+  background: linear-gradient(90deg, var(--accent), rgb(var(--accent-rgb) / .55));
   transition: width 200ms var(--ease-out);
 }
 .nf-upload-pct { margin-top: 10px; font: 700 .95rem/1 var(--font-body); font-variant-numeric: tabular-nums; }

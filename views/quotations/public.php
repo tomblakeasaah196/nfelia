@@ -4,7 +4,7 @@
  * Standalone Mobile-First View
  */
 $currency = $business['currency_symbol'] ?? '₦';
-$primary  = $business['primary_color'] ?? '#0F172A'; // Defaulting to dark navy
+$primary  = brand_doc_colours($business)['primary'];   // the brand colour, else Nfelia's (app/helpers/brand.php)
 $doc_fonts    = brand_doc_fonts($business);   // the brand fonts (app/helpers/brand.php)
 $font_mono    = 'Roboto Mono';
 

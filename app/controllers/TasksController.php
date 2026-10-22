@@ -78,6 +78,8 @@ class TasksController {
             'business'  => ['name' => $business['name']],
         ];
 
+        $appointment_colour = planner_appointment_colour($business);
+
         $title     = 'Tasks & Calendar';
         $view_file = BASE_PATH . '/views/tasks/index.php';
         require_once BASE_PATH . '/views/layouts/app.php';

@@ -41,7 +41,7 @@ $public_url  = APP_URL . '/delivery/' . $delivery['token'];
 <!-- Page Header -->
 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
     <div class="flex items-center gap-3">
-        <a href="<?= APP_URL ?>/deliveries" class="w-9 h-9 flex items-center justify-center rounded-lg bg-brand-cream border border-brand-sand hover:border-brand-gold transition-colors">
+        <a href="<?= APP_URL ?>/deliveries" class="w-9 h-9 flex items-center justify-center rounded-lg bg-brand-cream border border-brand-sand hover:border-accent transition-colors">
             <svg class="w-4 h-4 text-brand-plum/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
         </a>
         <div>
@@ -53,20 +53,20 @@ $public_url  = APP_URL . '/delivery/' . $delivery['token'];
             </div>
             <p class="text-xs text-brand-plum/50 font-medium mt-1">Created <?= fmt_date($delivery['created_at'], 'd M Y, H:i') ?></p>
             <?php if (!empty($order)): ?>
-                <a href="<?= APP_URL ?>/orders/view/<?= (int)$order['id'] ?>" class="inline-flex items-center min-h-[44px] text-sm font-semibold text-brand-burgundy">For order <?= e($order['order_number']) ?></a>
+                <a href="<?= APP_URL ?>/orders/view/<?= (int)$order['id'] ?>" class="inline-flex items-center min-h-[44px] text-sm font-semibold text-accent-text">For order <?= e($order['order_number']) ?></a>
             <?php endif; ?>
         </div>
     </div>
     <div class="flex items-center gap-2">
         <?php if (in_array($delivery['status'], ['pending_dispatch', 'dispatched'])): ?>
-            <a href="<?= APP_URL ?>/deliveries/edit/<?= $delivery['id'] ?>" class="flex items-center gap-2 text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest hover:text-brand-plum bg-brand-white border border-brand-sand px-4 py-2.5 rounded-xl hover:border-brand-gold transition-colors">
+            <a href="<?= APP_URL ?>/deliveries/edit/<?= $delivery['id'] ?>" class="flex items-center gap-2 text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest hover:text-brand-plum bg-brand-white border border-brand-sand px-4 py-2.5 rounded-xl hover:border-accent transition-colors">
                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                 Edit
             </a>
         <?php endif; ?>
         <?php $sign_row = false; $sign_back = 'deliveries/view/' . (int)$delivery['id'];
               require BASE_PATH . '/views/partials/doc_sign_control.php'; ?>
-        <a href="<?= $public_url ?>" target="_blank" class="flex items-center gap-2 text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest hover:text-brand-plum bg-brand-white border border-brand-sand px-4 py-2.5 rounded-xl hover:border-brand-gold transition-colors">
+        <a href="<?= $public_url ?>" target="_blank" class="flex items-center gap-2 text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest hover:text-brand-plum bg-brand-white border border-brand-sand px-4 py-2.5 rounded-xl hover:border-accent transition-colors">
             <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
             Preview
         </a>
@@ -79,7 +79,7 @@ $public_url  = APP_URL . '/delivery/' . $delivery['token'];
     <div class="flex items-center justify-between relative">
         <!-- Connecting line -->
         <div class="absolute top-5 left-0 right-0 h-0.5 bg-brand-sand"></div>
-        <div class="absolute top-5 left-0 h-0.5 bg-brand-gold transition-all" style="width: <?= $current_idx !== false ? ($current_idx / (count($timeline_steps) - 1) * 100) : 0 ?>%"></div>
+        <div class="absolute top-5 left-0 h-0.5 bg-accent transition-all" style="width: <?= $current_idx !== false ? ($current_idx / (count($timeline_steps) - 1) * 100) : 0 ?>%"></div>
 
         <?php foreach ($timeline_steps as $sKey => $sData): ?>
             <?php
@@ -89,11 +89,11 @@ $public_url  = APP_URL . '/delivery/' . $delivery['token'];
             ?>
             <div class="relative flex flex-col items-center z-10" style="flex: 1;">
                 <div class="w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all
-                    <?= $is_current ? 'bg-brand-gold border-brand-gold text-white scale-110 shadow-md' : ($is_done ? 'bg-brand-gold/20 border-brand-gold text-brand-gold' : 'bg-brand-cream border-brand-sand text-brand-plum/30') ?>">
+                    <?= $is_current ? 'bg-accent border-accent text-on-accent scale-110 shadow-md' : ($is_done ? 'bg-accent/20 border-accent text-accent-text' : 'bg-brand-cream border-brand-sand text-brand-plum/30') ?>">
                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><?= $sData['icon'] ?></svg>
                 </div>
                 <span class="text-[9px] font-bold uppercase tracking-wider mt-2 text-center
-                    <?= $is_current ? 'text-brand-gold' : ($is_done ? 'text-brand-plum/60' : 'text-brand-plum/30') ?>">
+                    <?= $is_current ? 'text-accent-text' : ($is_done ? 'text-brand-plum/60' : 'text-brand-plum/30') ?>">
                     <?= $sData['label'] ?>
                 </span>
             </div>
@@ -330,7 +330,7 @@ $public_url  = APP_URL . '/delivery/' . $delivery['token'];
                     <div class="data-text text-sm font-bold text-blue-500 group-hover:text-blue-700"><?= e($invoice['doc_number']) ?></div>
                     <div class="text-[10px] text-brand-plum/50"><?= $currency ?><?= number_format((float)$invoice['total'], 2) ?> &middot; <?= ucfirst($invoice['status']) ?></div>
                 </div>
-                <svg class="w-4 h-4 text-brand-plum/30 group-hover:text-brand-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+                <svg class="w-4 h-4 text-brand-plum/30 group-hover:text-accent-text" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
             </a>
         </div>
         <?php endif; ?>
@@ -346,7 +346,7 @@ $public_url  = APP_URL . '/delivery/' . $delivery['token'];
                 <input type="text" value="<?= e($signoff_url) ?>" readonly id="signoff-url"
                        class="flex-1 px-3 py-2 text-[10px] font-medium bg-brand-cream border border-brand-sand rounded-lg text-brand-plum truncate">
                 <button type="button" @click="navigator.clipboard.writeText('<?= e($signoff_url) ?>'); copied = true; setTimeout(() => copied = false, 2000)"
-                        class="px-3 py-2 text-[10px] font-bold uppercase tracking-widest bg-brand-cream border border-brand-sand rounded-lg hover:border-brand-gold transition-colors"
+                        class="px-3 py-2 text-[10px] font-bold uppercase tracking-widest bg-brand-cream border border-brand-sand rounded-lg hover:border-accent transition-colors"
                         :class="copied ? 'text-green-600' : 'text-brand-plum/60'">
                     <span x-show="!copied">Copy</span>
                     <span x-show="copied" x-cloak>Copied!</span>

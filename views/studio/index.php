@@ -41,6 +41,12 @@ $brand = [
     'fonts'   => $brand_pair ? array_intersect_key($brand_pair, array_flip(['name', 'head', 'body', 'head_stack', 'body_stack', 'weight', 'stretch', 'scale', 'url'])) : null,
     'colours' => $brand_colours ? ['light' => brand_colour_set($brand_colours, 'light'), 'dark' => brand_colour_set($brand_colours, 'dark')] + $brand_colours : null,
 ];
+// The Studio itself wears the business's colour, as the app does
+// (views/layouts/app.php): buttons and selections in the colour, and the
+// wine-tinted greys of studio.css turned to its hue.
+$chrome = theme_tokens($business['primary_color'] ?? null, $business['secondary_color'] ?? null);
+$greys  = ['--st-ground' => '#FBF8F9', '--st-stage' => '#F1E8EC', '--st-tint' => '#F8EEF3', '--st-line' => '#E9DCE2', '--st-line-soft' => '#F1E6EB',
+           '--st-handle' => '#DCCAD3', '--st-field' => '#A8909C', '--st-disabled' => '#B9A9B1', '--st-control' => '#8E7A85'];
 
 $currency = trim((string)($business['currency_symbol'] ?? '')) ?: '₦';
 $product_list = [];
@@ -125,6 +131,13 @@ $samples_url = 'https://fonts.googleapis.com/css2?family=' . implode('&family=',
     <link rel="stylesheet" href="<?= e($brand_pair['url']) ?>">
     <?php endif; ?>
     <link rel="stylesheet" href="<?= e($asset('assets/css/studio.css')) ?>">
+    <style>
+        :root {
+            --accent: <?= $chrome['accent'] ?>; --on-accent: <?= $chrome['on_accent'] ?>; --accent-text: <?= $chrome['accent_text'] ?>;
+            <?php foreach ($greys as $name => $grey): ?><?= $name ?>: <?= theme_retint($grey, $chrome['accent']) ?>; <?php endforeach; ?>
+
+        }
+    </style>
 </head>
 <body>
 <div class="st-app" data-studio>

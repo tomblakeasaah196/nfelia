@@ -914,8 +914,7 @@ class SettingsController {
         $business = $stmt->fetch();
 
         $name      = $business['name'] ?? 'BIZ';
-        $primary   = $business['primary_color'] ?? '#1a1a2e';
-        $secondary = $business['secondary_color'] ?? '#c5a55a';
+        ['primary' => $primary, 'secondary' => $secondary] = brand_doc_colours($business ?: []);   // the brand colours, else Nfelia's
 
         $words = preg_split('/\s+/', trim($name));
         $initials = '';

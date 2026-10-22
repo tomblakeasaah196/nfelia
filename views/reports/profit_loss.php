@@ -64,7 +64,7 @@ $cat_labels = [
         <div class="relative" x-data="{ open: false, range: <?= $period['key'] === 'custom' ? 'true' : 'false' ?>, fm: '<?= substr($period['from'], 5) ?>', fy: '<?= substr($period['from'], 0, 4) ?>', tm: '<?= substr($period['to'], 5) ?>', ty: '<?= substr($period['to'], 0, 4) ?>' }"
              @click.outside="open = false" @keydown.escape="open = false">
             <button type="button" @click="open = !open" :aria-expanded="open" aria-haspopup="true"
-                    class="flex items-center gap-2 text-xs font-semibold text-brand-plum bg-brand-cream border border-brand-sand rounded-lg px-3 py-2.5 hover:border-brand-gold focus:outline-none focus:border-brand-gold">
+                    class="flex items-center gap-2 text-xs font-semibold text-brand-plum bg-brand-cream border border-brand-sand rounded-lg px-3 py-2.5 hover:border-accent focus:outline-none focus:border-accent-text">
                 <svg class="w-3.5 h-3.5 text-brand-plum/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                 <span><?= e($period['button']) ?></span>
                 <svg class="w-3 h-3 text-brand-plum/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
@@ -90,12 +90,12 @@ $cat_labels = [
                         <fieldset class="flex items-center gap-2">
                             <legend class="sr-only"><?= $word ?></legend>
                             <span class="w-10 text-xs font-semibold text-brand-plum/60" aria-hidden="true"><?= $word ?></span>
-                            <select x-model="<?= $mv ?>" aria-label="<?= $word ?> month" class="flex-1 text-xs font-semibold text-brand-plum bg-brand-cream border border-brand-sand rounded-lg px-3 py-2.5 focus:outline-none focus:border-brand-gold">
+                            <select x-model="<?= $mv ?>" aria-label="<?= $word ?> month" class="flex-1 text-xs font-semibold text-brand-plum bg-brand-cream border border-brand-sand rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent-text">
                                 <?php foreach ($available_months as $m => $label): ?>
                                     <option value="<?= sprintf('%02d', $m) ?>"><?= $label ?></option>
                                 <?php endforeach; ?>
                             </select>
-                            <select x-model="<?= $yv ?>" aria-label="<?= $word ?> year" class="text-xs font-semibold text-brand-plum bg-brand-cream border border-brand-sand rounded-lg px-3 py-2.5 focus:outline-none focus:border-brand-gold">
+                            <select x-model="<?= $yv ?>" aria-label="<?= $word ?> year" class="text-xs font-semibold text-brand-plum bg-brand-cream border border-brand-sand rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent-text">
                                 <?php foreach ($available_years as $y): ?>
                                     <option value="<?= $y ?>"><?= $y ?></option>
                                 <?php endforeach; ?>
@@ -107,7 +107,7 @@ $cat_labels = [
             </div>
         </div>
         <!-- PDF Download -->
-        <button onclick="downloadReport()" class="flex items-center gap-2 bg-brand-white border border-brand-sand px-4 py-2.5 rounded-lg hover:border-brand-gold transition-colors">
+        <button onclick="downloadReport()" class="flex items-center gap-2 bg-brand-white border border-brand-sand px-4 py-2.5 rounded-lg hover:border-accent transition-colors">
             <svg class="w-3.5 h-3.5 text-brand-plum/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
             <span class="text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest">PDF</span>
         </button>

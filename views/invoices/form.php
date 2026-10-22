@@ -66,7 +66,7 @@ if (empty($items_json)) {
                             <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
                             Pick from Contacts
                         </button>
-                        <button type="button" @click="showNewClient = !showNewClient" class="text-[10px] font-bold text-brand-gold uppercase tracking-widest hover:text-brand-burgundy transition-colors">
+                        <button type="button" @click="showNewClient = !showNewClient" class="text-[10px] font-bold text-accent-text uppercase tracking-widest hover:text-accent-text transition-colors">
                             <span x-text="showNewClient ? 'Cancel' : '+ New Client'"></span>
                         </button>
                     </div>
@@ -74,7 +74,7 @@ if (empty($items_json)) {
 
                 <div x-show="!showNewClient">
                     <select name="customer_id" x-model="customerId" required
-                            class="w-full px-4 py-3 text-sm font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">
+                            class="w-full px-4 py-3 text-sm font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
                         <option value="">Select a client...</option>
                         <?php foreach ($customers as $c): ?>
                             <option value="<?= $c['id'] ?>" <?= (int)$q_customer === (int)$c['id'] ? 'selected' : '' ?>>
@@ -88,11 +88,11 @@ if (empty($items_json)) {
                     <input type="hidden" name="customer_id" :value="customerId" x-show="showNewClient">
                     <div class="grid sm:grid-cols-3 gap-3">
                         <input type="text" x-model="newClient.name" placeholder="Full Name *"
-                               class="px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/25">
+                               class="px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/25">
                         <input type="tel" maxlength="20" x-model="newClient.phone" placeholder="Phone"
-                               class="px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/25">
+                               class="px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/25">
                         <input type="email" x-model="newClient.email" placeholder="Email"
-                               class="px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/25">
+                               class="px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/25">
                     </div>
                     <button type="button" @click="saveNewClient()" class="btn-primary text-white px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest">
                         Save Client
@@ -105,7 +105,7 @@ if (empty($items_json)) {
             <div class="bg-brand-white border border-brand-sand rounded-xl shadow-sm overflow-hidden">
                 <div class="px-6 py-4 border-b border-brand-sand flex items-center justify-between">
                     <h2 class="font-heading font-bold text-xs text-brand-plum uppercase tracking-widest">Line Items</h2>
-                    <button type="button" @click="addItem()" class="text-[10px] font-bold text-brand-gold uppercase tracking-widest hover:text-brand-burgundy flex items-center gap-1">
+                    <button type="button" @click="addItem()" class="text-[10px] font-bold text-accent-text uppercase tracking-widest hover:text-accent-text flex items-center gap-1">
                         <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
                         Add Line
                     </button>
@@ -135,7 +135,7 @@ if (empty($items_json)) {
                                        @focus="searchProduct(idx, item.description)"
                                        @keydown.escape="item._results = []"
                                        placeholder="Type product name or description..."
-                                       class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/25">
+                                       class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/25">
 
                                 <div x-show="item._results && item._results.length > 0"
                                      @click.away="item._results = []"
@@ -157,19 +157,19 @@ if (empty($items_json)) {
                             <div class="col-span-2">
                                 <label class="sm:hidden text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1 block">Qty</label>
                                 <input type="number" x-model.number="item.quantity" step="0.01" min="0.01"
-                                       class="w-full px-3 py-2.5 text-xs font-mono font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum text-center">
+                                       class="w-full px-3 py-2.5 text-xs font-mono font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum text-center">
                             </div>
 
                             <div class="col-span-2">
                                 <label class="sm:hidden text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1 block">Price</label>
                                 <input type="number" x-model.number="item.unit_price" step="0.01" min="0"
-                                       class="w-full px-3 py-2.5 text-xs font-mono font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum text-center">
+                                       class="w-full px-3 py-2.5 text-xs font-mono font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum text-center">
                             </div>
 
                             <div class="col-span-1">
                                 <label class="sm:hidden text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1 block">Disc%</label>
                                 <input type="number" x-model.number="item.discount" step="0.1" min="0" max="100"
-                                       class="w-full px-2 py-2.5 text-xs font-mono font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum text-center">
+                                       class="w-full px-2 py-2.5 text-xs font-mono font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum text-center">
                             </div>
 
                             <div class="col-span-1 text-right">
@@ -188,7 +188,7 @@ if (empty($items_json)) {
                 </template>
 
                 <div class="px-6 py-3">
-                    <button type="button" @click="addItem()" class="w-full py-3 border-2 border-dashed border-brand-sand hover:border-brand-gold rounded-lg text-[10px] font-bold text-brand-plum/30 uppercase tracking-widest hover:text-brand-gold transition-all">
+                    <button type="button" @click="addItem()" class="w-full py-3 border-2 border-dashed border-brand-sand hover:border-accent rounded-lg text-[10px] font-bold text-brand-plum/30 uppercase tracking-widest hover:text-accent-text transition-all">
                         + Add Another Item
                     </button>
                 </div>
@@ -201,12 +201,12 @@ if (empty($items_json)) {
                     <div>
                         <label class="block text-[10px] font-bold text-brand-plum/70 uppercase tracking-widest mb-1.5">Payment Terms</label>
                         <input type="text" name="payment_terms" value="<?= e($q_terms) ?>" placeholder="e.g., Net 14, 50% upfront, etc."
-                               class="w-full px-4 py-3 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/25">
+                               class="w-full px-4 py-3 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/25">
                     </div>
                     <div>
                         <label class="block text-[10px] font-bold text-brand-plum/70 uppercase tracking-widest mb-1.5">Additional Notes</label>
                         <textarea name="notes" rows="3" placeholder="Special conditions, delivery notes..."
-                                  class="w-full px-4 py-3 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/25 resize-none"><?= e($q_notes) ?></textarea>
+                                  class="w-full px-4 py-3 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/25 resize-none"><?= e($q_notes) ?></textarea>
                     </div>
                 </div>
             </div>
@@ -222,12 +222,12 @@ if (empty($items_json)) {
                     <div>
                         <label class="block text-[10px] font-bold text-brand-plum/70 uppercase tracking-widest mb-1.5">Issue Date</label>
                         <input type="date" name="issue_date" value="<?= e($q_issue) ?>"
-                               class="w-full px-3 py-2.5 text-xs font-mono font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">
+                               class="w-full px-3 py-2.5 text-xs font-mono font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
                     </div>
                     <div>
                         <label class="block text-[10px] font-bold text-brand-plum/70 uppercase tracking-widest mb-1.5">Due Date</label>
                         <input type="date" name="due_date" value="<?= e($q_due) ?>"
-                               class="w-full px-3 py-2.5 text-xs font-mono font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">
+                               class="w-full px-3 py-2.5 text-xs font-mono font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
                     </div>
                 </div>
             </div>
@@ -251,7 +251,7 @@ if (empty($items_json)) {
             <?php if (!empty($banks)): ?>
             <div class="bg-brand-white border border-brand-sand rounded-xl p-6 shadow-sm">
                 <h2 class="font-heading font-bold text-xs text-brand-plum uppercase tracking-widest mb-4">Payment Account</h2>
-                <select name="bank_account_id" class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">
+                <select name="bank_account_id" class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
                     <option value="">None</option>
                     <?php foreach ($banks as $b): ?>
                         <option value="<?= $b['id'] ?>" <?= (int)$q_bank === (int)$b['id'] ? 'selected' : '' ?>>
@@ -275,14 +275,14 @@ if (empty($items_json)) {
                         <div class="flex items-center gap-2">
                             <span class="text-[9px] text-brand-plum/30"><?= e($currency) ?></span>
                             <input type="number" name="discount_amount" x-model.number="discountAmount" step="0.01" min="0"
-                                   class="w-24 px-2 py-1.5 text-xs font-mono font-medium bg-brand-cream border border-brand-sand rounded text-right focus:outline-none focus:border-brand-gold text-brand-plum">
+                                   class="w-24 px-2 py-1.5 text-xs font-mono font-medium bg-brand-cream border border-brand-sand rounded text-right focus:outline-none focus:border-accent-text text-brand-plum">
                         </div>
                     </div>
                     <div class="flex items-center justify-between gap-2">
                         <span class="text-[10px] font-bold text-brand-plum/50 uppercase tracking-widest">Tax</span>
                         <div class="flex items-center gap-2">
                             <input type="number" name="tax_rate" x-model.number="taxRate" step="0.01" min="0" max="100"
-                                   class="w-16 px-2 py-1.5 text-xs font-mono font-medium bg-brand-cream border border-brand-sand rounded text-right focus:outline-none focus:border-brand-gold text-brand-plum">
+                                   class="w-16 px-2 py-1.5 text-xs font-mono font-medium bg-brand-cream border border-brand-sand rounded text-right focus:outline-none focus:border-accent-text text-brand-plum">
                             <span class="text-[9px] text-brand-plum/30">%</span>
                             <span class="data-text text-xs text-brand-plum/50" x-text="formatMoney(taxAmount())"></span>
                         </div>
@@ -300,7 +300,7 @@ if (empty($items_json)) {
                     <?= $editing ? 'Update Invoice' : 'Save as Draft' ?>
                 </button>
                 <a href="<?= APP_URL ?>/invoices<?= $editing ? '/view/' . (int)$invoice['id'] : '' ?>"
-                   class="block w-full text-center bg-brand-cream border border-brand-sand text-brand-plum py-3.5 rounded-xl text-[11px] font-bold uppercase tracking-widest hover:border-brand-gold transition-all">Cancel</a>
+                   class="block w-full text-center bg-brand-cream border border-brand-sand text-brand-plum py-3.5 rounded-xl text-[11px] font-bold uppercase tracking-widest hover:border-accent transition-all">Cancel</a>
             </div>
         </div>
     </div>

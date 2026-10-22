@@ -8,6 +8,7 @@
  *   $sign (doc_sign_state(): its signatures and verify code)
  */
 $currency = $business['currency_symbol'] ?? '₦';
+$doc_colours = brand_doc_colours($business);   // the document in the brand colours, else Nfelia's (app/helpers/brand.php)
 $font_map = FONT_PAIRINGS[$business['font_pairing'] ?? 'modern_sans'] ?? FONT_PAIRINGS['modern_sans'];
 
 // Status config
@@ -55,8 +56,8 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
               require BASE_PATH . '/views/partials/doc_sign_control.php'; ?>
 
         <?php if (in_array($quotation['status'], ['draft', 'sent', 'in_negotiation'])): ?>
-            <a href="<?= APP_URL ?>/quotations/edit/<?= $quotation['id'] ?>" class="flex items-center gap-1.5 bg-brand-white border border-brand-sand hover:border-brand-gold px-3 py-2 rounded-lg transition-all">
-                <svg class="w-3.5 h-3.5 text-brand-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+            <a href="<?= APP_URL ?>/quotations/edit/<?= $quotation['id'] ?>" class="flex items-center gap-1.5 bg-brand-white border border-brand-sand hover:border-accent px-3 py-2 rounded-lg transition-all">
+                <svg class="w-3.5 h-3.5 text-accent-text" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                 <span class="text-[10px] font-bold text-brand-plum uppercase tracking-widest">Edit</span>
             </a>
         <?php endif; ?>
@@ -113,7 +114,7 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
 
     <!-- Copy Link -->
     <button onclick="navigator.clipboard.writeText('<?= e($public_url) ?>'); this.querySelector('span').textContent = 'Copied!'; setTimeout(() => this.querySelector('span').textContent = 'Copy Link', 2000);"
-            class="flex items-center gap-1.5 bg-brand-cream border border-brand-sand hover:border-brand-gold px-3 py-2 rounded-lg transition-all">
+            class="flex items-center gap-1.5 bg-brand-cream border border-brand-sand hover:border-accent px-3 py-2 rounded-lg transition-all">
         <svg class="w-3.5 h-3.5 text-brand-plum/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
         <span class="text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest">Copy Link</span>
     </button>
@@ -125,13 +126,13 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
     </a>
 
     <!-- Download PDF -->
-    <a href="<?= APP_URL ?>/doc/<?= e($quotation['token']) ?>?format=pdf" target="_blank" class="flex items-center gap-1.5 bg-brand-cream border border-brand-sand hover:border-brand-gold px-3 py-2 rounded-lg transition-all">
+    <a href="<?= APP_URL ?>/doc/<?= e($quotation['token']) ?>?format=pdf" target="_blank" class="flex items-center gap-1.5 bg-brand-cream border border-brand-sand hover:border-accent px-3 py-2 rounded-lg transition-all">
         <svg class="w-3.5 h-3.5 text-brand-plum/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
         <span class="text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest">Download PDF</span>
     </a>
 
     <!-- Open Public -->
-    <a href="<?= e($public_url) ?>" target="_blank" class="flex items-center gap-1.5 bg-brand-cream border border-brand-sand hover:border-brand-gold px-3 py-2 rounded-lg transition-all">
+    <a href="<?= e($public_url) ?>" target="_blank" class="flex items-center gap-1.5 bg-brand-cream border border-brand-sand hover:border-accent px-3 py-2 rounded-lg transition-all">
         <svg class="w-3.5 h-3.5 text-brand-plum/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
         <span class="text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest">Public View</span>
     </a>
@@ -150,7 +151,7 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
 <div id="quotation-document" class="bg-white border border-brand-sand rounded-xl shadow-sm overflow-hidden mb-8">
 
     <!-- Document Header (Branded) -->
-    <div class="p-8 sm:p-10" style="border-top: 4px solid <?= e($business['primary_color'] ?? '#8B004A') ?>;">
+    <div class="p-8 sm:p-10" style="border-top: 4px solid <?= e($doc_colours['primary']) ?>;">
 
         <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-6 mb-8">
             <!-- Business Info (Left) -->
@@ -160,7 +161,7 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
                         <img src="<?= APP_URL ?>/<?= e($business['logo_path']) ?>" alt="" class="h-12 w-12 object-contain rounded">
                     <?php endif; ?>
                     <div>
-                        <h2 class="font-heading font-extrabold text-lg" style="color: <?= e($business['primary_color'] ?? '#8B004A') ?>;"><?= e($business['name']) ?></h2>
+                        <h2 class="font-heading font-extrabold text-lg" style="color: <?= e($doc_colours['primary']) ?>;"><?= e($business['name']) ?></h2>
                         <?php if ($business['tagline']): ?>
                             <p class="text-[10px] text-gray-500"><?= e($business['tagline']) ?></p>
                         <?php endif; ?>
@@ -176,7 +177,7 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
 
             <!-- Doc Info (Right) -->
             <div class="text-right">
-                <h1 class="font-heading font-extrabold text-2xl uppercase tracking-wider" style="color: <?= e($business['primary_color'] ?? '#8B004A') ?>;">Quotation</h1>
+                <h1 class="font-heading font-extrabold text-2xl uppercase tracking-wider" style="color: <?= e($doc_colours['primary']) ?>;">Quotation</h1>
                 <div class="data-text text-sm font-bold text-gray-700 mt-1"><?= e($quotation['doc_number']) ?></div>
                 <div class="text-[10px] text-gray-500 mt-2 space-y-0.5">
                     <div>Issued: <?= fmt_date($quotation['issue_date'], 'd M Y') ?></div>
@@ -189,8 +190,8 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
 
         <!-- Client Block -->
         <?php if ($customer): ?>
-        <div class="mb-8 p-4 rounded-lg" style="background: <?= e($business['primary_color'] ?? '#8B004A') ?>0A;">
-            <div class="text-[9px] font-bold uppercase tracking-widest mb-1" style="color: <?= e($business['primary_color'] ?? '#8B004A') ?>;">Prepared For</div>
+        <div class="mb-8 p-4 rounded-lg" style="background: <?= e($doc_colours['primary']) ?>0A;">
+            <div class="text-[9px] font-bold uppercase tracking-widest mb-1" style="color: <?= e($doc_colours['primary']) ?>;">Prepared For</div>
             <div class="text-sm font-bold text-gray-800"><?= e($customer['full_name']) ?></div>
             <?php if ($customer['business_name']): ?><div class="text-[10px] text-gray-600"><?= e($customer['business_name']) ?></div><?php endif; ?>
             <?php if ($customer['phone']): ?><div class="text-[10px] text-gray-500"><?= e($customer['phone']) ?></div><?php endif; ?>
@@ -203,7 +204,7 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
         <div class="overflow-x-auto mb-6">
             <table class="w-full text-left">
                 <thead>
-                    <tr style="border-bottom: 2px solid <?= e($business['primary_color'] ?? '#8B004A') ?>;">
+                    <tr style="border-bottom: 2px solid <?= e($doc_colours['primary']) ?>;">
                         <th class="pb-2 text-[9px] font-bold uppercase tracking-widest text-gray-500">#</th>
                         <th class="pb-2 text-[9px] font-bold uppercase tracking-widest text-gray-500">Description</th>
                         <th class="pb-2 text-[9px] font-bold uppercase tracking-widest text-gray-500 text-center">Qty</th>
@@ -251,9 +252,9 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
                         <span class="data-text font-bold text-gray-700"><?= money((float)$quotation['tax_amount'], $currency) ?></span>
                     </div>
                 <?php endif; ?>
-                <div class="flex justify-between text-sm pt-2" style="border-top: 2px solid <?= e($business['primary_color'] ?? '#8B004A') ?>;">
-                    <span class="font-heading font-bold uppercase tracking-wider" style="color: <?= e($business['primary_color'] ?? '#8B004A') ?>;">Grand Total</span>
-                    <span class="font-heading font-extrabold text-lg" style="color: <?= e($business['primary_color'] ?? '#8B004A') ?>;"><?= money((float)$quotation['total'], $currency) ?></span>
+                <div class="flex justify-between text-sm pt-2" style="border-top: 2px solid <?= e($doc_colours['primary']) ?>;">
+                    <span class="font-heading font-bold uppercase tracking-wider" style="color: <?= e($doc_colours['primary']) ?>;">Grand Total</span>
+                    <span class="font-heading font-extrabold text-lg" style="color: <?= e($doc_colours['primary']) ?>;"><?= money((float)$quotation['total'], $currency) ?></span>
                 </div>
             </div>
         </div>
@@ -284,7 +285,7 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
         <!-- Footer -->
         <?php if ($business['tagline']): ?>
         <div class="mt-8 text-center">
-            <p class="text-[9px] uppercase tracking-[.3em] font-bold" style="color: <?= e($business['secondary_color'] ?? '#B69F5E') ?>;"><?= e($business['tagline']) ?></p>
+            <p class="text-[9px] uppercase tracking-[.3em] font-bold" style="color: <?= e($doc_colours['secondary']) ?>;"><?= e($business['tagline']) ?></p>
         </div>
         <?php endif; ?>
     </div>
@@ -329,7 +330,7 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
                 <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
                 <div class="flex gap-3">
                     <textarea name="message" rows="2" required placeholder="Reply to the client..." 
-                              class="flex-1 px-4 py-3 text-sm bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum resize-none"></textarea>
+                              class="flex-1 px-4 py-3 text-sm bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum resize-none"></textarea>
                     <button type="submit" class="btn-primary text-white px-6 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest self-end h-11">
                         Send
                     </button>
