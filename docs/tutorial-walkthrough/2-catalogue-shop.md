@@ -84,3 +84,55 @@ rebuilt.
   Shop Studio's "only show these" on the catalogue section.
 - **Quote requests:** handed to the quotes worker. They still match
   customers on the exact phone text; `order_match_customer()` is the fix.
+
+## Round 3: the item form
+
+Video 2 films Adanna adding her first product, then adding stock. Both
+screens now use the app's own sections, fields, tags and sheets (as New
+order and Catalogue), in sentence case, phone first. Every field name and
+value the form posts is unchanged.
+
+**Add / Edit item** (`views/products/form.php`; edit looks the same):
+
+- Photos come first, with one large "Add photos" button and the picked
+  photos shown as thumbnails. A new pick replaces the last one, as the
+  file box itself does. Upload and its progress bar work as before.
+- Then About it (name, category, description), Price, Stock, Options,
+  Bookings and Item code. "Add to catalogue" ("Save changes" when
+  editing) stays in reach at the bottom, with Cancel beside it.
+- Bookings shows only when the business sells services or both
+  (`business_type` service or mixed), when "This is a service" is on, or
+  when the item is booked already. Its fields are always sent, so a hidden
+  section never clears a booking.
+- Margin stays "—" until both prices are in, and is red only when the
+  price is below the cost.
+- Options: "Add options, like length or colour", and when there are none,
+  "No options. Add them if this comes in different lengths, colours or
+  sizes."
+- Units: "Bundles" (saved as `bundle`) is in the list, and also in the
+  hair and beauty units on Add many items. A unit that isn't in the list
+  (from a CSV import) now stays chosen. Before, saving silently changed it
+  to pieces.
+
+**An item's page** (`views/products/view.php`):
+
+- Photo, name, price ("₦95,000 per bundle"), and tags for hidden, stock,
+  category and item code. Then Edit, Hide, Clone and Remove as one row of
+  tiles, the stock with "Add stock" and "Take out", the price with its
+  margin, and the stock history as a list. The history's filters are All,
+  Added, Taken out, Sales, Returns and Corrections.
+- The stock sheet asks one thing at a time: Add stock, Take out or Set the
+  count; how many; the cost each (only when adding); a note. The button
+  says what it will do. It then reports, for example, "Added 10 bundles.
+  You have 20 bundles of Body Wave 18in now."
+
+**Units in the plural:** one helper, `stock_count()` with `unit_word()` in
+`app/helpers/stock.php`, gives "1 bundle", "8 bundles", "1 box",
+"3 pieces"; kg, g, ml, L and m stay as they are. It is used on the item
+page, the Catalogue list ("Only 3 bundles left"), the stock messages, the
+invoice form's item search and the shop's "per bundle". Restock reminders
+on Tasks show no unit, so they are unchanged.
+
+Styles are in `assets/css/src/orders.css` (`.nf-iform`, `.nf-if-*`,
+`.nf-pv-*`). Tested in `tests/orders/core_test.php`: the plurals, and
+Add stock from the item page.

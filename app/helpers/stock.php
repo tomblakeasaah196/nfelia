@@ -83,3 +83,44 @@ function stock_settle(PDO $db, int $biz_id, string $ref_type, int $ref_id, array
     }
     return $changed;
 }
+
+/**
+ * A unit as people say it for this many: unit_word('bundle', 8) is
+ * "bundles", unit_word('boxes', 1) is "box". Units are the keys the item
+ * form offers (views/products/form.php), with their usual spellings.
+ * Short ones stay as they are (kg, g, ml, L, m, ft), and a unit typed by
+ * hand that isn't known (a CSV import) is shown as it was typed.
+ */
+function unit_word(?string $unit, float $qty): string {
+    static $words = [
+        'piece' => ['pcs', 'pc', 'piece', 'pieces'], 'bundle' => ['bundle', 'bundles'], 'box' => ['boxes', 'box'],
+        'pack' => ['packs', 'pack'], 'pair' => ['pairs', 'pair'], 'carton' => ['cartons', 'carton'], 'bag' => ['bags', 'bag'],
+        'roll' => ['rolls', 'roll'], 'sheet' => ['sheets', 'sheet'], 'bottle' => ['bottles', 'bottle'], 'crate' => ['crates', 'crate'],
+        'set' => ['sets', 'set'], 'hour' => ['hours', 'hour', 'hr', 'hrs'], 'session' => ['sessions', 'session'],
+        'yard' => ['yards', 'yard', 'yd'], 'metre' => ['meters', 'metres', 'meter', 'metre'], 'litre' => ['litres', 'liters', 'litre', 'liter'],
+        'unit' => ['units', 'unit'], 'foot' => ['feet', 'foot'], 'inch' => ['inches', 'inch'],
+    ];
+    static $plural = ['box' => 'boxes', 'foot' => 'feet', 'inch' => 'inches'];
+    static $short  = ['sqm' => 'sq m', 'sqft' => 'sq ft'];
+    $unit = trim((string)$unit);
+    $key  = strtolower($unit);
+    if (isset($short[$key])) {
+        return $short[$key];
+    }
+    if ($key === 'dozen') {
+        return 'dozen';
+    }
+    foreach ($words as $one => $spellings) {
+        if (in_array($key, $spellings, true)) {
+            return abs($qty) == 1 ? $one : ($plural[$one] ?? $one . 's');
+        }
+    }
+    return $unit;
+}
+
+/** A stock count with its unit: "1 bundle", "8 bundles", "2.5 kg", "1,200 pieces". */
+function stock_count(float $qty, ?string $unit): string {
+    $number = rtrim(rtrim(number_format($qty, 2), '0'), '.');
+    $word   = unit_word($unit, $qty);
+    return $word === '' ? $number : $number . ' ' . $word;
+}

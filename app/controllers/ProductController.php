@@ -455,13 +455,13 @@ class ProductController {
         $note      = trim($_POST['note'] ?? '');
 
         if (!in_array($adj_type, ['stock_in', 'stock_out', 'adjustment'])) {
-            flash('error', 'Invalid adjustment type.');
+            flash('error', 'Choose Add stock, Take out or Set the count.');
             redirect('products/view/' . $id);
             return;
         }
         // A count can be set to 0; adding or taking off needs a real amount (S12)
         if ($quantity < 0 || ($quantity == 0 && $adj_type !== 'adjustment')) {
-            flash('error', $adj_type === 'adjustment' ? 'The count cannot be negative.' : 'Quantity must be greater than zero.');
+            flash('error', $adj_type === 'adjustment' ? 'The count cannot be below zero.' : 'Type how many, more than zero.');
             redirect('products/view/' . $id);
             return;
         }
@@ -475,7 +475,7 @@ class ProductController {
             $stock_before = (float)$stmt->fetchColumn();
 
             if ($adj_type === 'stock_out' && $quantity > $stock_before) {
-                throw new DomainException('Only ' . (float)$stock_before . ' ' . ($product['unit'] ?: 'units') . ' in stock. To correct the count, use "Set Exact Quantity" instead.');
+                throw new DomainException('Only ' . stock_count($stock_before, $product['unit'] ?: 'units') . ' in stock. To correct the count, use “Set the count” instead.');
             }
             $delta = match ($adj_type) {
                 'stock_in'  => $quantity,
@@ -492,14 +492,15 @@ class ProductController {
             return;
         }
 
+        $unit = $product['unit'] ?: 'units';
         if ($stock_after === null) {
-            flash('info', 'The count for ' . $product['name'] . ' is already ' . (float)$stock_before . '.');
+            flash('info', 'You already have ' . stock_count($stock_before, $unit) . ' of ' . $product['name'] . '.');
             redirect('products/view/' . $id);
             return;
         }
-        $moved     = abs($delta);
-        $direction = $adj_type === 'stock_in' ? 'added to' : ($adj_type === 'stock_out' ? 'removed from' : ($delta > 0 ? 'added to' : 'removed from'));
-        flash('success', "{$moved} units {$direction} " . $product['name'] . ". New stock: {$stock_after}");
+        // "Added 10 bundles. You have 18 bundles of Body Wave now."
+        $moved = stock_count(abs($delta), $unit);
+        flash('success', ($delta > 0 ? 'Added ' . $moved : 'Took out ' . $moved) . '. You have ' . stock_count($stock_after, $unit) . ' of ' . $product['name'] . ' now.');
         redirect('products/view/' . $id);
     }
 

@@ -457,3 +457,79 @@ button.nf-pay-row:focus-visible { outline: 2px solid var(--accent-text); outline
 .nf-sign-pad canvas { display: block; width: 100%; height: auto; aspect-ratio: 3 / 1; border-radius: 14px; background: #FFFFFF; box-shadow: inset 0 0 0 1.5px var(--line-2); touch-action: none; cursor: crosshair; }
 .nf-sign-do { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .nf-sign-do form { margin: 0; }
+
+/* ---------- Add / Edit item (views/products/form.php) ----------
+   The order form's sections and fields (.nf-oform), with what an item also
+   needs: number fields and lists, photos, options, and the button kept in
+   reach at the bottom. */
+.nf-iform input[type="number"], .nf-iform select {
+  width: 100%; min-width: 0; min-height: 48px; padding: 0 14px; border-radius: 12px; border: 0; background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line-2); font: 400 1rem/1.3 var(--font-body); color: var(--ink); }
+.nf-iform select { padding-right: 40px; cursor: pointer; -webkit-appearance: none; appearance: none;
+  background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235B4650' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center / 18px; }
+.nf-iform input[type="number"]:focus, .nf-iform select:focus { outline: none; box-shadow: var(--focus-ring); }
+.nf-iform input[type="number"] { -moz-appearance: textfield; }
+.nf-iform input[type="number"]::-webkit-inner-spin-button, .nf-iform input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.nf-iform .nf-amount input[type="number"], .nf-iform .nf-amount input[type="number"]:focus {
+  min-height: 46px; padding: 0 14px 0 0; border-radius: 0 12px 12px 0; background: none; box-shadow: none; font: 600 1.125rem/1.2 var(--font-body); font-variant-numeric: tabular-nums; }
+.nf-iform input:disabled { opacity: .55; }
+.nf-iform .nf-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.nf-iform .nf-two > label { min-width: 0; align-content: start; }
+.nf-if-stock, .nf-if-deposit { display: grid; gap: 10px; }
+/* Margin: a quiet line; red only when it sells below its cost */
+.nf-if-margin { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; font: 600 .875rem/1.3 var(--font-body); color: var(--ink-2); }
+.nf-if-margin b { font: 600 1rem/1.2 var(--font-body); color: var(--ink); font-variant-numeric: tabular-nums; }
+.nf-if-margin b.is-owed { color: var(--owed); }
+.nf-if-margin small { font: 400 .8125rem/1.3 var(--font-body); color: var(--ink-3); }
+/* Photos: squares, three across on a phone, then one big button to add more */
+.nf-if-photos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+@media (min-width: 640px) { .nf-if-photos { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.nf-if-photo { position: relative; aspect-ratio: 1 / 1; border-radius: 12px; overflow: hidden; background: var(--bg); box-shadow: inset 0 0 0 1px var(--line); }
+.nf-if-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.nf-if-badge { position: absolute; top: 6px; left: 6px; padding: 2px 8px; border-radius: 999px; background: var(--surface); color: var(--ink);
+  font: 600 .75rem/1.4 var(--font-body); box-shadow: 0 1px 2px rgb(31 10 20 / .18); }
+.nf-if-badge.is-new { background: var(--accent-soft); color: var(--accent-text); }
+.nf-if-photo-do { position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; padding: 6px;
+  background: rgb(31 10 20 / .55); transition: opacity .15s ease-out; }
+.nf-if-photo-do button { min-height: 36px; padding: 0 10px; border-radius: 999px; border: 0; background: rgb(255 255 255 / .94); color: var(--ink);
+  font: 600 .8125rem/1 var(--font-body); cursor: pointer; }
+.nf-if-photo-do button.is-danger { color: var(--owed); }
+.nf-if-add { min-height: 88px; }
+.nf-if-add > span b { font: 600 1rem/1.3 var(--font-body); color: var(--accent-text); }
+/* Options: each kind (Length) in its own box, its choices one line each */
+.nf-if-group { display: grid; gap: 10px; padding: 12px; border-radius: 14px; background: var(--bg); box-shadow: inset 0 0 0 1px var(--line); }
+.nf-if-group-h { display: flex; align-items: flex-end; gap: 4px; }
+.nf-if-group-h > label { flex: 1; min-width: 0; }
+.nf-if-opt { display: flex; align-items: center; gap: 6px; }
+.nf-if-opt > input { flex: 1; min-width: 0; }
+.nf-if-opt .nf-amount { flex: none; width: 120px; padding-left: 10px; }
+.nf-if-opt .nf-amount > span { font-size: .875rem; }
+.nf-if-group .nf-link { justify-self: start; }
+@media (prefers-reduced-motion: reduce) { .nf-if-photo-do { transition: none; } }
+/* The button at the bottom takes the room; Cancel sits beside it */
+.nf-sticky.nf-if-go { padding-left: 10px; }
+.nf-sticky.nf-if-go .nf-btn { flex: 1; min-width: 0; }
+
+/* ---------- An item's page (views/products/view.php) ---------- */
+.nf-pview { max-width: 720px; }
+.nf-pv-hero { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 12px 14px; align-items: start; }
+.nf-pv-hero > :not(.nf-pv-photo):not(.nf-pv-main) { grid-column: 1 / -1; }
+.nf-pv-hero > .nf-pv-main:first-child { grid-column: 1 / -1; }
+.nf-pv-photo { width: 88px; height: 88px; border-radius: 14px; object-fit: cover; background: var(--bg); box-shadow: inset 0 0 0 1px var(--line); }
+.nf-pv-main { display: grid; gap: 6px; min-width: 0; }
+.nf-pv-name { margin: 0; font: 600 1.375rem/1.2 var(--font-heading); letter-spacing: -.01em; overflow-wrap: anywhere; }
+.nf-pv-price { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; font: 600 1.125rem/1.2 var(--font-body); font-variant-numeric: tabular-nums; }
+.nf-pv-price small { font: 400 .875rem/1.3 var(--font-body); color: var(--ink-2); }
+.nf-pv-price.is-none { color: var(--ink-2); font-size: 1rem; }
+.nf-pv-tags { margin: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.nf-pv-desc { margin: 0; white-space: pre-line; font: 400 .9375rem/1.5 var(--font-body); color: var(--ink-2); }
+.nf-do .is-danger svg { color: var(--owed); }
+.nf-pv-stock-do { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
+.nf-pv-stock-do .nf-btn { width: 100%; padding: 0 12px; }
+.nf-pv-history .nf-chips { margin: 4px 0 8px; }
+.nf-pv-history .nf-tile-ic { width: 36px; height: 36px; border-radius: 11px; }
+.nf-pv-history .nf-tile-ic svg { width: 20px; height: 20px; }
+.nf-pv-history .nf-item-main small { white-space: normal; }
+.nf-pv-history .nf-item-end b.is-in { color: var(--in); }
+.nf-pv-totals { padding-top: 12px; border-top: 1px solid var(--line); font-size: .875rem; }
+.nf-pv-meta { margin: 4px 4px 16px; }

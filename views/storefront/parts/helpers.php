@@ -26,7 +26,8 @@ function sf_paragraphs(string $text, string $class = ''): string {
 }
 
 /**
- * " each", " per kg", or '' when the product has no unit.
+ * " each", " per kg", " per bundle" (one of them: unit_word()), or '' when
+ * the product has no unit.
  */
 function sf_unit_text(string $unit): string {
     $unit = trim($unit);
@@ -36,7 +37,7 @@ function sf_unit_text(string $unit): string {
     if (in_array(strtolower($unit), ['pc', 'pcs', 'piece', 'pieces', 'unit', 'units', 'each', 'item', 'items', 'ea'], true)) {
         return ' each';
     }
-    return ' per ' . $unit;
+    return ' per ' . unit_word($unit, 1);
 }
 
 /**
