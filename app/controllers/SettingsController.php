@@ -86,7 +86,7 @@ class SettingsController {
                 SELECT id, full_name, email, avatar_path, role, created_at, last_login_at
                 FROM users
                 WHERE business_id = ? AND is_active = 1
-                ORDER BY role DESC, full_name ASC
+                ORDER BY FIELD(role, 'owner', 'admin', 'staff'), full_name ASC
             ");
             $stmt->execute([$this->biz_id]);
             $staff = $stmt->fetchAll();
@@ -206,8 +206,26 @@ class SettingsController {
         return str_pad((string)((int)$stmt->fetchColumn() + 1), 3, '0', STR_PAD_LEFT);
     }
 
+    /** The biggest logo that can be sent, in MB: save_image() takes 20, or less when the server takes less. */
+    public static function logo_max_mb(): int {
+        $mb = 20;
+        foreach (['upload_max_filesize', 'post_max_size'] as $key) {
+            $ini   = trim((string)ini_get($key));
+            $bytes = (int)$ini * match (strtoupper(substr($ini, -1))) { 'G' => 1073741824, 'M' => 1048576, 'K' => 1024, default => 1 };
+            if ($bytes > 0) $mb = min($mb, intdiv($bytes, 1048576));
+        }
+        return max(1, $mb);
+    }
+
     public function update_business() {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') { redirect('settings'); return; }
+        // A logo over the server's limit empties the whole form, token and
+        // all: say so, rather than "Security session expired"
+        if (empty($_POST) && (int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
+            flash('error', 'Nothing was saved: that logo is over ' . self::logo_max_mb() . ' MB. Pick a smaller picture and save again.');
+            redirect('settings?tab=business');
+            return;
+        }
         csrf_verify();
 
         $user = auth_user();
@@ -220,10 +238,12 @@ class SettingsController {
         $name            = trim($_POST['business_name'] ?? '');
         $tagline         = trim($_POST['tagline'] ?? '');
         $phone           = trim($_POST['phone'] ?? '');
+        // The shop's WhatsApp buttons use it before the phone (shop_whatsapp_digits)
+        $whatsapp        = trim($_POST['whatsapp'] ?? '');
         $email           = trim($_POST['email'] ?? '');
         $address         = trim($_POST['address'] ?? '');
         $primary_color   = trim($_POST['primary_color'] ?? '#1a1a2e');
-        $secondary_color = trim($_POST['secondary_color'] ?? '#c5a55a');
+        $secondary_color = trim($_POST['secondary_color'] ?? '#B69F5E');   // as at sign-up
         $currency_symbol = trim($_POST['currency_symbol'] ?? '₦');
         // What the business sells, as at onboarding; it names the deed
         // (services: a certificate of completion). Left as it is when not sent.
@@ -240,29 +260,37 @@ class SettingsController {
             redirect('settings?tab=business');
             return;
         }
-        if ($p = phone_problem($phone)) {   // D4
+        if ($p = phone_problem($phone) ?? phone_problem($whatsapp)) {   // D4
             flash('error', $p);
             redirect('settings?tab=business');
             return;
         }
 
         if (!preg_match('/^#[0-9a-fA-F]{6}$/', $primary_color)) $primary_color = '#1a1a2e';
-        if (!preg_match('/^#[0-9a-fA-F]{6}$/', $secondary_color)) $secondary_color = '#c5a55a';
+        if (!preg_match('/^#[0-9a-fA-F]{6}$/', $secondary_color)) $secondary_color = '#B69F5E';
 
         // Validate currency against active countries
         $valid_currencies = $this->build_currency_options();
         if (!array_key_exists($currency_symbol, $valid_currencies)) $currency_symbol = '₦';
 
-        $logo_path = null;
-        if (isset($_FILES['logo']) && $_FILES['logo']['error'] === UPLOAD_ERR_OK) {
+        $logo_path  = null;
+        $logo_error = $_FILES['logo']['error'] ?? UPLOAD_ERR_NO_FILE;
+        if ($logo_error !== UPLOAD_ERR_OK && $logo_error !== UPLOAD_ERR_NO_FILE) {
+            flash('error', in_array($logo_error, [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true)
+                ? 'Nothing was saved: that logo is over ' . self::logo_max_mb() . ' MB. Pick a smaller picture and save again.'
+                : 'Nothing was saved: your logo didn\'t arrive. Pick it again and save.');
+            redirect('settings?tab=business');
+            return;
+        }
+        if ($logo_error === UPLOAD_ERR_OK) {
             $dir = BASE_PATH . '/uploads/logos/' . $this->biz_id;
             if (!is_dir($dir)) mkdir($dir, 0755, true);
-            
+
             $filename = 'logo_' . time() . '.png';
             if (save_image($_FILES['logo'], $dir . '/' . $filename, 1024)) {
                 $logo_path = 'uploads/logos/' . $this->biz_id . '/' . $filename;
             } else {
-                flash('error', 'Logo upload failed. Max 1MB.');
+                flash('error', 'Nothing was saved: we couldn\'t use that logo. Pick a JPG, PNG or WebP picture up to ' . self::logo_max_mb() . ' MB.');
                 redirect('settings?tab=business');
                 return;
             }
@@ -281,10 +309,10 @@ class SettingsController {
         }
 
         $sql = "UPDATE businesses SET
-                    name = ?, tagline = ?, phone = ?, email = ?,
+                    name = ?, tagline = ?, phone = ?, whatsapp = ?, email = ?,
                     address = ?, primary_color = ?, secondary_color = ?,
                     brand_font_head = ?, brand_font_body = ?, currency_symbol = ?";
-        $params = [$name, $tagline ?: null, $phone ?: null, $email ?: null,
+        $params = [$name, $tagline ?: null, $phone ?: null, $whatsapp ?: null, $email ?: null,
                    $address ?: null, $primary_color, $secondary_color,
                    $font_head, $font_body, $currency_symbol];
 
@@ -297,7 +325,8 @@ class SettingsController {
             'currency_symbol' => $currency_symbol,
             'tagline'         => $tagline, 
             'address'         => $address, 
-            'phone'           => $phone, 
+            'phone'           => $phone,
+            'whatsapp'        => $whatsapp,
             'email'           => $email
         ];
 
@@ -451,6 +480,27 @@ class SettingsController {
     }
 
     /**
+     * Examples for the account sheet and its messages, from the business's
+     * country (its ISO code, '' when not known): a Lagos shop is paid into
+     * Opay or GTBank, not Orange Money. No number example when not known.
+     * @return array{bank: string, momo: string, number: string}
+     */
+    public static function pay_examples(string $iso): array {
+        return match (strtoupper($iso)) {
+            'NG'    => ['bank' => 'GTBank', 'momo' => 'Opay, Moniepoint or PalmPay', 'number' => '0803 123 4567'],
+            'CM'    => ['bank' => 'Ecobank', 'momo' => 'MTN MoMo or Orange Money', 'number' => '670 32 59 25'],
+            default => ['bank' => 'Ecobank', 'momo' => 'MTN MoMo or Airtel Money', 'number' => ''],
+        };
+    }
+
+    /** The business's country as its ISO code ("NG"), or '' when not known. */
+    private function country_iso(): string {
+        $stmt = $this->db->prepare("SELECT c.iso_code FROM businesses b JOIN countries c ON c.id = b.country_id WHERE b.id = ?");
+        $stmt->execute([$this->biz_id]);
+        return strtoupper((string)$stmt->fetchColumn());
+    }
+
+    /**
      * The account as typed, tidied, and what stops it being saved (null when
      * nothing does).
      * @return array{0: array{kind: string, bank_name: string, account_number: string, account_name: string, is_default: bool}, 1: ?string}
@@ -464,16 +514,24 @@ class SettingsController {
             'account_name'   => $tidy('account_name'),
             'is_default'     => !empty($_POST['is_default']),
         ];
-        $momo   = $account['kind'] === 'mobile_money';
-        $digits = preg_replace('/[\s-]/', '', $account['account_number']);
+        $momo    = $account['kind'] === 'mobile_money';
+        $digits  = preg_replace('/[\s-]/', '', $account['account_number']);
+        $iso     = $this->country_iso();
+        $example = self::pay_examples($iso);
         $problem = match (true) {
-            $account['bank_name'] === ''           => $momo ? 'Say which Mobile Money it is, like MTN MoMo or Orange Money.' : 'Say which bank the account is with.',
+            $account['bank_name'] === ''           => $momo ? 'Say which Mobile Money it is, like ' . $example['momo'] . '.' : 'Say which bank the account is with.',
             mb_strlen($account['bank_name']) > 100 => 'Keep the name of the ' . ($momo ? 'network' : 'bank') . ' under 100 characters.',
             $account['account_number'] === ''      => $momo ? 'Type the Mobile Money number.' : 'Type the account number.',
             $momo && !preg_match('/^\+?\d{6,15}$/', $digits)
-                => 'Type the Mobile Money number with digits only, like 670 32 59 25.',
+                => 'Type the Mobile Money number with digits only' . ($example['number'] !== '' ? ', like ' . $example['number'] : '') . '.',
             !$momo && (strlen($account['account_number']) > 40 || !preg_match('/^[A-Za-z0-9 -]+$/', $account['account_number']))
                 => 'Type the account number with letters, digits and spaces only, up to 40.',
+            // Nigerian account numbers (NUBAN) are 10 digits; Opay and PalmPay
+            // use the phone number without its first 0
+            !$momo && $iso === 'NG' && !preg_match('/^\d{10}$/', $digits)
+                => strlen($digits) === 11 && $digits[0] === '0'
+                    ? 'That looks like a phone number. Nigerian account numbers have 10 digits: for Opay or PalmPay, leave off the first 0.'
+                    : 'Nigerian account numbers have 10 digits' . (ctype_digit($digits) ? ', and this one has ' . strlen($digits) : '') . '. Check it and type it again.',
             $account['account_name'] === ''        => 'Type the name on the account, so customers can see it is yours.',
             mb_strlen($account['account_name']) > 100 => 'Keep the name on the account under 100 characters.',
             default => null,
