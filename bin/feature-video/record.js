@@ -213,7 +213,7 @@ function decodeHeader(h) {
         await fx('press'); await wait(140);
         if (opts?.nav) {
           await Promise.all([page.waitForNavigation({ waitUntil: 'load' }), page.locator(sel).first().tap()]);
-          await wait(350);
+          await wait(350); await fx('unring');   // a sheet that only changed the address keeps the page
         } else {
           await page.locator(sel).first().tap();
           await wait(120); await fx('unring');

@@ -1,149 +1,917 @@
 {
-  "title": "Your products and your shop",
-  "login": {"email": "adanna@adannaluxehair.com", "password": "TestPass1"},
-  "voice": {"engine": "yarngpt", "name": "chinenye", "tempo": 0.9, "pause": 0.45},
-  "speed_limit": 1.8,
-  "scenes": [
-    {"card": {"kicker": "Nfelia tutorials · 2 of 5", "title": "Your products and your online shop", "sub": "Add your hair products, then open your shop to customers."},
-     "min": 4,
-     "say": "Welcome back. In this video, we will add our hair products, and open our online shop for customers."},
-
-    {"open": "/dashboard", "chapter": "Add a product",
-     "steps": [["wait", 600], ["tap", ".nf-tab-create"], ["wait", 900], ["tap", "#nf-create a:has-text('Add product')", {"nav": true}], ["wait", 900]],
-     "caption": "Add a product", "sub": "The + button, then Add product.",
-     "say": "To add a product, tap the green plus button, then tap Add product."},
-
-    {"chapter": "Add a product",
-     "steps": [["spot", "[data-photos], .pf-photos, label:has(input[name='images[]'])", 6], ["wait", 700], ["upload", "input[name='images[]']", "../assets/bone-straight-14.jpg"], ["wait", 1500], ["unspot"]],
-     "caption": "Start with a photo", "sub": "Good photos sell.",
-     "say": "Start with a clear photo. Tap Add photos, and pick a picture from your phone. Good photos sell."},
-
-    {"chapter": "Add a product",
-     "steps": [["tap", "input[name=name]"], ["type", "input[name=name]", "Bone Straight Bundles", 75], ["wait", 300],
-               ["tap", "input[name=category]"], ["type", "input[name=category]", "Bundles", 90], ["press", "Escape"], ["wait", 600]],
-     "caption": "Name and category", "sub": "So customers find it fast.",
-     "say": "Type the name of the product. Then give it a category, like Bundles, so customers can find it fast."},
-
-    {"chapter": "Add a product",
-     "steps": [["tap", "textarea[name=description]"], ["type", "textarea[name=description]", "100% human hair. Silky and bone straight from top to tip.", 45], ["wait", 600]],
-     "caption": "A short description",
-     "say": "Add a short description, in your own words. Your customers will read it in your shop."},
-
-    {"chapter": "Add a product",
-     "steps": [["scroll", "input[name=sell_price]", 260], ["tap", "input[name=sell_price]"], ["fill", "input[name=sell_price]", ""], ["type", "input[name=sell_price]", "85000", 120], ["wait", 300],
-               ["tap", "input[name=cost_price]"], ["fill", "input[name=cost_price]", ""], ["type", "input[name=cost_price]", "52000", 120], ["wait", 900]],
-     "caption": "Price and cost", "sub": "Only you see the cost.",
-     "say": "Now the price. We sell this bundle for eighty-five thousand naira. The cost price is what you paid for it, and only you can see it."},
-
-    {"chapter": "Add a product",
-     "steps": [["scroll", "input[name=stock_qty]", 260], ["tap", "input[name=stock_qty]"], ["type", "input[name=stock_qty]", "12", 150], ["wait", 300],
-               ["tap", "input[name=low_stock_threshold]"], ["fill", "input[name=low_stock_threshold]", ""], ["type", "input[name=low_stock_threshold]", "3", 150], ["wait", 300],
-               ["tap", "select[name=unit]"], ["select", "select[name=unit]", "bundle"], ["wait", 800]],
-     "caption": "Your stock", "sub": "And when to warn you.",
-     "say": "Type how many you have now, and when Nfelia should warn you. We have twelve bundles, and we want a warning when only three are left."},
-
-    {"chapter": "Add a product",
-     "steps": [["scroll", "button:has-text('Add options'), button:has-text('option group')", 300], ["wait", 400],
-               ["tap", "button:has-text('Add options'), button:has-text('option group')"], ["wait", 600],
-               ["tap", "input[name^='variant_group_name']"], ["type", "input[name^='variant_group_name']", "Length", 110], ["wait", 800]],
-     "caption": "Lengths as options",
-     "say": "This hair comes in different lengths. Tap Add options, and call them Length."},
-
-    {"chapter": "Add a product",
-     "steps": [["type", "input[name^='variant_opt_label'] >> nth=0", "12 inches", 60], ["type", "input[name^='variant_opt_price'] >> nth=0", "-10000", 80],
-               ["tap", "button:has-text('Add a choice'), button:has-text('Add option'):not(:has-text('options'))"], ["type", "input[name^='variant_opt_label'] >> nth=1", "14 inches", 60],
-               ["tap", "button:has-text('Add a choice'), button:has-text('Add option'):not(:has-text('options'))"], ["type", "input[name^='variant_opt_label'] >> nth=2", "16 inches", 60], ["type", "input[name^='variant_opt_price'] >> nth=2", "15000", 80],
-               ["tap", "button:has-text('Add a choice'), button:has-text('Add option'):not(:has-text('options'))"], ["type", "input[name^='variant_opt_label'] >> nth=3", "18 inches", 60], ["type", "input[name^='variant_opt_price'] >> nth=3", "30000", 80], ["wait", 800]],
-     "caption": "Each length, its own price", "sub": "Shorter costs less, longer costs more.",
-     "say": "Add each length, with how much more or less it costs. Twelve inches is ten thousand naira less, and eighteen inches is thirty thousand naira more."},
-
-    {"chapter": "Add a product",
-     "steps": [["tap", "button[type=submit]:has-text('Add to catalogue'), button[type=submit]:has-text('ADD TO CATALOGUE')", {"nav": true}], ["wait", 1500]],
-     "caption": "Saved", "sub": "It is in your shop already.",
-     "say": "Tap Add to catalogue. Your product is saved, and it is already in your online shop."},
-
-    {"chapter": "Your catalogue",
-     "before": [["run", "php more.php"]],
-     "steps": [["goto", "/products"], ["wait", 1200], ["spot", "main section:first-of-type, .nf-money, .nf-card >> nth=0", 4], ["wait", 1600], ["unspot"], ["scrollBy", 420, 1200], ["wait", 900]],
-     "caption": "Your catalogue", "sub": "Everything you sell, and its value.",
-     "say": "We added the rest of our hair the same way. Here is our catalogue, with the value of all the stock we hold."},
-
-    {"chapter": "Your catalogue",
-     "steps": [["tap", "a:has-text('Deep Wave')", {"nav": true}], ["wait", 900],
-               ["tap", "button:has-text('Adjust stock'), button:has-text('Add stock'), button:has-text('ADJUST STOCK')"], ["wait", 900]],
-     "caption": "New stock arrived",
-     "say": "When new stock arrives from your supplier, open the product, and tap Adjust stock."},
-
-    {"chapter": "Your catalogue",
-     "steps": [["wait", 2400]],
-     "caption": "Add the new bundles", "sub": "Nfelia keeps the count.",
-     "say": "Add the new bundles, and save. Nfelia updates your count, and keeps a history of every change."},
-
-    {"chapter": "Shop Studio",
-     "steps": [["tap", ".nf-tab:has-text('More')", {"nav": true}], ["wait", 700], ["tap", "a:has-text('Shop Studio'):visible", {"nav": true}], ["wait", 1800]],
-     "caption": "Shop Studio", "sub": "More, then Shop Studio.",
-     "say": "Now, let us make our shop beautiful. Open More, then Shop Studio."},
-
-    {"chapter": "Shop Studio",
-     "steps": [["spot", "#st-tab-look", 4], ["wait", 900], ["unspot"], ["tap", "#st-tab-colours"], ["wait", 1300], ["tap", "#st-tab-fonts"], ["wait", 1300], ["tap", "#st-tab-look"], ["wait", 800]],
-     "caption": "Look, colours, fonts", "sub": "You see each change before customers do.",
-     "say": "Here you change your shop's look, its colours and its fonts. You see every change above, before your customers do."},
-
-    {"chapter": "Shop Studio",
-     "steps": [["tap", "#st-tab-sections"], ["wait", 700], ["tap", "text=Top of your shop"], ["wait", 900],
-               ["tap", "textarea:visible >> nth=0"], ["type", "textarea:visible >> nth=0", "Bundles, wigs, closures and frontals. Same-day delivery in Lagos.", 45], ["wait", 900]],
-     "caption": "Top of your shop", "sub": "A line about what you sell.",
-     "say": "Under Sections, open Top of your shop. Add a line or two about what you sell."},
-
-    {"chapter": "Shop Studio",
-     "steps": [["scroll", "button:has-text('Upload a photo or video')", 520], ["wait", 300],
-               ["choose", "button:has-text('Upload a photo or video')", "../assets/banner.jpg"], ["wait", 3200]],
-     "caption": "Your banner photo",
-     "say": "Then add a big photo for the top of your shop. We use a photo of our shop shelf."},
-
-    {"chapter": "Shop Studio",
-     "steps": [["tap", "button[aria-label='Back to sections'], button:has-text('Back to sections')"], ["wait", 600], ["tap", "text=Delivery and payment"], ["wait", 900],
-               ["tap", "textarea:visible >> nth=0"], ["type", "textarea:visible >> nth=0", "Same-day delivery in Lagos. Two to three days anywhere in Nigeria.", 45], ["wait", 900]],
-     "caption": "Delivery and payment", "sub": "Tell customers how you deliver.",
-     "say": "Open Delivery and payment, and tell your customers how you deliver."},
-
-    {"chapter": "Shop Studio",
-     "steps": [["tap", "#st-tab-more"], ["wait", 800], ["scroll", "text=Sold out", 380], ["wait", 400], ["spot", ":is(section,div):has(> :text('Sold out')) >> nth=-1", 4], ["wait", 2200], ["unspot"]],
-     "caption": "Sold out, switched on", "sub": "Nobody orders what you don't have.",
-     "say": "Under More, Sold out is switched on. When a product runs out, your shop shows Sold out, so nobody orders what you do not have."},
-
-    {"chapter": "Shop Studio",
-     "steps": [["tap", "button:has-text('Publish')"], ["wait", 2000]],
-     "caption": "Publish", "sub": "Customers see it straight away.",
-     "say": "When you are happy, tap Publish. Your customers see the new shop straight away."},
-
-    {"chapter": "Share your shop",
-     "steps": [["scroll", "text=Your shop link", 300], ["wait", 400], ["spot", "button:has-text('Copy link')", 6], ["wait", 1200], ["unspot"], ["spot", "a:has-text('Share on WhatsApp'), button:has-text('Share on WhatsApp')", 6], ["wait", 1600], ["unspot"]],
-     "caption": "Share your shop link", "sub": "WhatsApp status, Instagram, everywhere.",
-     "say": "Copy your shop link, or share it straight to WhatsApp. Put it on your status, and on your Instagram page."},
-
-    {"as": "customer", "open": "shop:adannaluxehair/", "chapter": "What customers see",
-     "steps": [["wait", 2200], ["scrollBy", 520, 1600], ["wait", 1200]],
-     "caption": "Your customer's phone",
-     "say": "This is what your customers see on their phone. Your banner, your words, and your hair by category."},
-
-    {"as": "customer", "chapter": "What customers see",
-     "steps": [["scroll", "a:has-text('Bundles')", 300], ["tap", "a:has-text('Bundles')", {"nav": true}], ["wait", 1500], ["scrollBy", 300, 900], ["wait", 600]],
-     "caption": "Prices by category",
-     "say": "They tap a category, to see the prices."},
-
-    {"as": "customer", "chapter": "What customers see",
-     "steps": [["tap", "a:has-text('Bone Straight Bundles')", {"nav": true}], ["wait", 2000], ["scrollBy", 380, 1000], ["wait", 600]],
-     "caption": "The product page",
-     "say": "They open a product, to see the photo and the details."},
-
-    {"as": "customer", "chapter": "What customers see",
-     "steps": [["tap", "label:has-text('18 inches')"], ["wait", 1200], ["spot", "text=Your choice", 8], ["wait", 1600], ["unspot"]],
-     "caption": "Choose a length", "sub": "The price changes by itself.",
-     "say": "When they choose a length, the price changes by itself. Then they tap Add to bag."},
-
-    {"card": {"kicker": "Next: video 3 of 5", "title": "Orders, payments and delivery", "sub": "Take your first order, confirm the payment, and deliver."},
-     "min": 4,
-     "say": "That is your shop. In the next video, a customer places an order, and we confirm the payment and deliver it. See you there."}
-  ]
+ "title": "Your products and your shop",
+ "login": {
+  "email": "adanna@adannaluxehair.com",
+  "password": "TestPass1"
+ },
+ "voice": {
+  "engine": "yarngpt",
+  "name": "chinenye",
+  "tempo": 0.9,
+  "pause": 0.45
+ },
+ "speed_limit": 1.8,
+ "scenes": [
+  {
+   "card": {
+    "kicker": "Nfelia tutorials · 2 of 5",
+    "title": "Your products and your online shop",
+    "sub": "Add your hair products, then open your shop to customers."
+   },
+   "min": 4,
+   "say": "Welcome back. In this video, we will add our hair products, and open our online shop for customers."
+  },
+  {
+   "open": "/dashboard",
+   "chapter": "Add a product",
+   "steps": [
+    [
+     "wait",
+     600
+    ],
+    [
+     "tap",
+     ".nf-tab-create"
+    ],
+    [
+     "wait",
+     900
+    ],
+    [
+     "tap",
+     "#nf-create a:has-text('Add product')",
+     {
+      "nav": true
+     }
+    ],
+    [
+     "wait",
+     900
+    ]
+   ],
+   "caption": "Add a product",
+   "sub": "The + button, then Add product.",
+   "say": "To add a product, tap the green plus button, then tap Add product."
+  },
+  {
+   "chapter": "Add a product",
+   "steps": [
+    [
+     "spot",
+     "[data-photos], .pf-photos, label:has(input[name='images[]'])",
+     6
+    ],
+    [
+     "wait",
+     700
+    ],
+    [
+     "upload",
+     "input[name='images[]']",
+     "../assets/bone-straight-14.jpg"
+    ],
+    [
+     "wait",
+     1500
+    ],
+    [
+     "unspot"
+    ]
+   ],
+   "caption": "Start with a photo",
+   "sub": "Good photos sell.",
+   "say": "Start with a clear photo. Tap Add photos, and pick a picture from your phone. Good photos sell."
+  },
+  {
+   "chapter": "Add a product",
+   "steps": [
+    [
+     "tap",
+     "input[name=name]"
+    ],
+    [
+     "type",
+     "input[name=name]",
+     "Bone Straight Bundles",
+     75
+    ],
+    [
+     "wait",
+     300
+    ],
+    [
+     "tap",
+     "input[name=category]"
+    ],
+    [
+     "type",
+     "input[name=category]",
+     "Bundles",
+     90
+    ],
+    [
+     "press",
+     "Escape"
+    ],
+    [
+     "wait",
+     600
+    ]
+   ],
+   "caption": "Name and category",
+   "sub": "So customers find it fast.",
+   "say": "Type the name of the product. Then give it a category, like Bundles, so customers can find it fast."
+  },
+  {
+   "chapter": "Add a product",
+   "steps": [
+    [
+     "tap",
+     "textarea[name=description]"
+    ],
+    [
+     "type",
+     "textarea[name=description]",
+     "100% human hair. Silky and bone straight from top to tip.",
+     45
+    ],
+    [
+     "wait",
+     600
+    ]
+   ],
+   "caption": "A short description",
+   "say": "Add a short description, in your own words. Your customers will read it in your shop."
+  },
+  {
+   "chapter": "Add a product",
+   "steps": [
+    [
+     "scroll",
+     "input[name=sell_price]",
+     260
+    ],
+    [
+     "tap",
+     "input[name=sell_price]"
+    ],
+    [
+     "fill",
+     "input[name=sell_price]",
+     ""
+    ],
+    [
+     "type",
+     "input[name=sell_price]",
+     "85000",
+     120
+    ],
+    [
+     "wait",
+     300
+    ],
+    [
+     "tap",
+     "input[name=cost_price]"
+    ],
+    [
+     "fill",
+     "input[name=cost_price]",
+     ""
+    ],
+    [
+     "type",
+     "input[name=cost_price]",
+     "52000",
+     120
+    ],
+    [
+     "wait",
+     900
+    ]
+   ],
+   "caption": "Price and cost",
+   "sub": "Only you see the cost.",
+   "say": "Now the price. We sell this bundle for eighty-five thousand naira. The cost price is what you paid for it, and only you can see it."
+  },
+  {
+   "chapter": "Add a product",
+   "steps": [
+    [
+     "scroll",
+     "input[name=stock_qty]",
+     260
+    ],
+    [
+     "tap",
+     "input[name=stock_qty]"
+    ],
+    [
+     "type",
+     "input[name=stock_qty]",
+     "12",
+     150
+    ],
+    [
+     "wait",
+     300
+    ],
+    [
+     "tap",
+     "input[name=low_stock_threshold]"
+    ],
+    [
+     "fill",
+     "input[name=low_stock_threshold]",
+     ""
+    ],
+    [
+     "type",
+     "input[name=low_stock_threshold]",
+     "3",
+     150
+    ],
+    [
+     "wait",
+     300
+    ],
+    [
+     "tap",
+     "select[name=unit]"
+    ],
+    [
+     "select",
+     "select[name=unit]",
+     "bundle"
+    ],
+    [
+     "wait",
+     800
+    ]
+   ],
+   "caption": "Your stock",
+   "sub": "And when to warn you.",
+   "say": "Type how many you have now, and when Nfelia should warn you. We have twelve bundles, and we want a warning when only three are left."
+  },
+  {
+   "chapter": "Add a product",
+   "steps": [
+    [
+     "scroll",
+     "button:has-text('Add options')",
+     300
+    ],
+    [
+     "wait",
+     400
+    ],
+    [
+     "tap",
+     "button:has-text('Add options')"
+    ],
+    [
+     "wait",
+     600
+    ],
+    [
+     "tap",
+     "input[name^='variant_group_name']"
+    ],
+    [
+     "type",
+     "input[name^='variant_group_name']",
+     "Length",
+     110
+    ],
+    [
+     "wait",
+     800
+    ]
+   ],
+   "caption": "Lengths as options",
+   "say": "This hair comes in different lengths. Tap Add options, and call them Length."
+  },
+  {
+   "chapter": "Add a product",
+   "steps": [
+    [
+     "tap",
+     "label.nf-switch:has-text('This changes the price')"
+    ],
+    [
+     "wait",
+     500
+    ],
+    [
+     "tap",
+     "input[name^='variant_opt_label'] >> nth=0"
+    ],
+    [
+     "type",
+     "input[name^='variant_opt_label'] >> nth=0",
+     "12 inches",
+     60
+    ],
+    [
+     "tap",
+     "input[name^='variant_opt_price'] >> nth=0"
+    ],
+    [
+     "type",
+     "input[name^='variant_opt_price'] >> nth=0",
+     "-10000",
+     80
+    ],
+    [
+     "tap",
+     "button:has-text('Add another choice')"
+    ],
+    [
+     "type",
+     "input[name^='variant_opt_label'] >> nth=1",
+     "14 inches",
+     60
+    ],
+    [
+     "tap",
+     "button:has-text('Add another choice')"
+    ],
+    [
+     "type",
+     "input[name^='variant_opt_label'] >> nth=2",
+     "16 inches",
+     60
+    ],
+    [
+     "tap",
+     "input[name^='variant_opt_price'] >> nth=2"
+    ],
+    [
+     "type",
+     "input[name^='variant_opt_price'] >> nth=2",
+     "15000",
+     80
+    ],
+    [
+     "tap",
+     "button:has-text('Add another choice')"
+    ],
+    [
+     "type",
+     "input[name^='variant_opt_label'] >> nth=3",
+     "18 inches",
+     60
+    ],
+    [
+     "tap",
+     "input[name^='variant_opt_price'] >> nth=3"
+    ],
+    [
+     "type",
+     "input[name^='variant_opt_price'] >> nth=3",
+     "30000",
+     80
+    ],
+    [
+     "wait",
+     800
+    ]
+   ],
+   "caption": "Each length, its own price",
+   "sub": "Shorter costs less, longer costs more.",
+   "say": "Switch on This changes the price. Then add each length, with how much more or less it costs. Twelve inches is ten thousand naira less, and eighteen inches is thirty thousand naira more."
+  },
+  {
+   "chapter": "Add a product",
+   "steps": [
+    [
+     "tap",
+     "#catalogue-form button[type=submit]:not([formaction])",
+     {
+      "nav": true
+     }
+    ],
+    [
+     "wait",
+     1500
+    ]
+   ],
+   "caption": "Saved",
+   "sub": "It is in your shop already.",
+   "say": "Tap Add to catalogue. Your product is saved, and it is already in your online shop."
+  },
+  {
+   "chapter": "Your catalogue",
+   "before": [
+    [
+     "run",
+     "php more.php"
+    ]
+   ],
+   "steps": [
+    [
+     "goto",
+     "/products"
+    ],
+    [
+     "wait",
+     1200
+    ],
+    [
+     "spot",
+     "main section:first-of-type, .nf-money, .nf-card >> nth=0",
+     4
+    ],
+    [
+     "wait",
+     1600
+    ],
+    [
+     "unspot"
+    ],
+    [
+     "scrollBy",
+     420,
+     1200
+    ],
+    [
+     "wait",
+     900
+    ]
+   ],
+   "caption": "Your catalogue",
+   "sub": "Everything you sell, and its value.",
+   "say": "We added the rest of our hair the same way. Here is our catalogue, with the value of all the stock we hold."
+  },
+  {
+   "chapter": "Your catalogue",
+   "steps": [
+    [
+     "tap",
+     "a:has-text('Deep Wave')",
+     {
+      "nav": true
+     }
+    ],
+    [
+     "wait",
+     900
+    ],
+    [
+     "tap",
+     "[data-stock-add]"
+    ],
+    [
+     "wait",
+     900
+    ]
+   ],
+   "caption": "New stock arrived",
+   "say": "When new stock arrives from your supplier, open the product, and tap Add stock."
+  },
+  {
+   "chapter": "Your catalogue",
+   "steps": [
+    [
+     "tap",
+     "#nf-stock-qty"
+    ],
+    [
+     "type",
+     "#nf-stock-qty",
+     "10",
+     150
+    ],
+    [
+     "wait",
+     300
+    ],
+    [
+     "tap",
+     "#nf-stock-cost"
+    ],
+    [
+     "fill",
+     "#nf-stock-cost",
+     ""
+    ],
+    [
+     "type",
+     "#nf-stock-cost",
+     "92000",
+     110
+    ],
+    [
+     "wait",
+     300
+    ],
+    [
+     "tap",
+     "#nf-stock-note"
+    ],
+    [
+     "type",
+     "#nf-stock-note",
+     "From our supplier in Balogun",
+     50
+    ],
+    [
+     "wait",
+     500
+    ],
+    [
+     "tap",
+     "#nf-stock-save",
+     {
+      "nav": true
+     }
+    ],
+    [
+     "wait",
+     1800
+    ]
+   ],
+   "caption": "Add the new bundles",
+   "sub": "Nfelia keeps the count.",
+   "say": "Type how many arrived, and what each one cost you. Save, and Nfelia updates your count, and keeps a history of every change."
+  },
+  {
+   "chapter": "Shop Studio",
+   "steps": [
+    [
+     "tap",
+     ".nf-tab:has-text('More')",
+     {
+      "nav": true
+     }
+    ],
+    [
+     "wait",
+     700
+    ],
+    [
+     "tap",
+     "a:has-text('Shop Studio'):visible",
+     {
+      "nav": true
+     }
+    ],
+    [
+     "wait",
+     1800
+    ]
+   ],
+   "caption": "Shop Studio",
+   "sub": "More, then Shop Studio.",
+   "say": "Now, let us make our shop beautiful. Open More, then Shop Studio."
+  },
+  {
+   "chapter": "Shop Studio",
+   "steps": [
+    [
+     "spot",
+     "#st-tab-look",
+     4
+    ],
+    [
+     "wait",
+     900
+    ],
+    [
+     "unspot"
+    ],
+    [
+     "tap",
+     "#st-tab-colours"
+    ],
+    [
+     "wait",
+     1300
+    ],
+    [
+     "tap",
+     "#st-tab-fonts"
+    ],
+    [
+     "wait",
+     1300
+    ],
+    [
+     "tap",
+     "#st-tab-look"
+    ],
+    [
+     "wait",
+     800
+    ]
+   ],
+   "caption": "Look, colours, fonts",
+   "sub": "You see each change before customers do.",
+   "say": "Here you change your shop's look, its colours and its fonts. You see every change above, before your customers do."
+  },
+  {
+   "chapter": "Shop Studio",
+   "steps": [
+    [
+     "tap",
+     "#st-tab-sections"
+    ],
+    [
+     "wait",
+     700
+    ],
+    [
+     "tap",
+     "text=Top of your shop"
+    ],
+    [
+     "wait",
+     900
+    ],
+    [
+     "tap",
+     "textarea:visible >> nth=0"
+    ],
+    [
+     "type",
+     "textarea:visible >> nth=0",
+     "Bundles, wigs, closures and frontals. Same-day delivery in Lagos.",
+     45
+    ],
+    [
+     "wait",
+     900
+    ]
+   ],
+   "caption": "Top of your shop",
+   "sub": "A line about what you sell.",
+   "say": "Under Sections, open Top of your shop. Add a line or two about what you sell."
+  },
+  {
+   "chapter": "Shop Studio",
+   "steps": [
+    [
+     "scroll",
+     "button:has-text('Upload a photo or video')",
+     520
+    ],
+    [
+     "wait",
+     300
+    ],
+    [
+     "choose",
+     "button:has-text('Upload a photo or video')",
+     "../assets/banner.jpg"
+    ],
+    [
+     "wait",
+     3200
+    ]
+   ],
+   "caption": "Your banner photo",
+   "say": "Then add a big photo for the top of your shop. We use a photo of our shop shelf."
+  },
+  {
+   "chapter": "Shop Studio",
+   "steps": [
+    [
+     "tap",
+     "button[aria-label='Back to sections'], button:has-text('Back to sections')"
+    ],
+    [
+     "wait",
+     600
+    ],
+    [
+     "tap",
+     "text=Delivery and payment"
+    ],
+    [
+     "wait",
+     900
+    ],
+    [
+     "tap",
+     "textarea:visible >> nth=0"
+    ],
+    [
+     "type",
+     "textarea:visible >> nth=0",
+     "Same-day delivery in Lagos. Two to three days anywhere in Nigeria.",
+     45
+    ],
+    [
+     "wait",
+     900
+    ]
+   ],
+   "caption": "Delivery and payment",
+   "sub": "Tell customers how you deliver.",
+   "say": "Open Delivery and payment, and tell your customers how you deliver."
+  },
+  {
+   "chapter": "Shop Studio",
+   "steps": [
+    [
+     "tap",
+     "#st-tab-more"
+    ],
+    [
+     "wait",
+     800
+    ],
+    [
+     "scroll",
+     "text=Sold out",
+     380
+    ],
+    [
+     "wait",
+     400
+    ],
+    [
+     "spot",
+     ":is(section,div):has(> :text('Sold out')) >> nth=-1",
+     4
+    ],
+    [
+     "wait",
+     2200
+    ],
+    [
+     "unspot"
+    ]
+   ],
+   "caption": "Sold out, switched on",
+   "sub": "Nobody orders what you don't have.",
+   "say": "Under More, Sold out is switched on. When a product runs out, your shop shows Sold out, so nobody orders what you do not have."
+  },
+  {
+   "chapter": "Shop Studio",
+   "steps": [
+    [
+     "tap",
+     "button:has-text('Publish')"
+    ],
+    [
+     "wait",
+     2000
+    ]
+   ],
+   "caption": "Publish",
+   "sub": "Customers see it straight away.",
+   "say": "When you are happy, tap Publish. Your customers see the new shop straight away."
+  },
+  {
+   "chapter": "Share your shop",
+   "steps": [
+    [
+     "scroll",
+     "text=Your shop link",
+     300
+    ],
+    [
+     "wait",
+     400
+    ],
+    [
+     "spot",
+     "button:has-text('Copy link')",
+     6
+    ],
+    [
+     "wait",
+     1200
+    ],
+    [
+     "unspot"
+    ],
+    [
+     "spot",
+     "a:has-text('Share on WhatsApp'), button:has-text('Share on WhatsApp')",
+     6
+    ],
+    [
+     "wait",
+     1600
+    ],
+    [
+     "unspot"
+    ]
+   ],
+   "caption": "Share your shop link",
+   "sub": "WhatsApp status, Instagram, everywhere.",
+   "say": "Copy your shop link, or share it straight to WhatsApp. Put it on your status, and on your Instagram page."
+  },
+  {
+   "as": "customer",
+   "open": "shop:adannaluxehair/",
+   "chapter": "What customers see",
+   "steps": [
+    [
+     "wait",
+     2200
+    ],
+    [
+     "scrollBy",
+     520,
+     1600
+    ],
+    [
+     "wait",
+     1200
+    ]
+   ],
+   "caption": "Your customer's phone",
+   "say": "This is what your customers see on their phone. Your banner, your words, and your hair by category."
+  },
+  {
+   "as": "customer",
+   "chapter": "What customers see",
+   "steps": [
+    [
+     "scroll",
+     "a:has-text('Bundles')",
+     300
+    ],
+    [
+     "tap",
+     "a:has-text('Bundles')",
+     {
+      "nav": true
+     }
+    ],
+    [
+     "wait",
+     1500
+    ],
+    [
+     "scrollBy",
+     300,
+     900
+    ],
+    [
+     "wait",
+     600
+    ]
+   ],
+   "caption": "Prices by category",
+   "say": "They tap a category, to see the prices."
+  },
+  {
+   "as": "customer",
+   "chapter": "What customers see",
+   "steps": [
+    [
+     "tap",
+     "a:has-text('Bone Straight Bundles')"
+    ],
+    [
+     "wait",
+     2000
+    ]
+   ],
+   "caption": "The product page",
+   "say": "They open a product, to see the photo and the details."
+  },
+  {
+   "as": "customer",
+   "chapter": "What customers see",
+   "steps": [
+    [
+     "tap",
+     "label:has-text('18 inches')"
+    ],
+    [
+     "wait",
+     1000
+    ],
+    [
+     "spot",
+     "text=₦115,000 per bundle",
+     8
+    ],
+    [
+     "wait",
+     1800
+    ],
+    [
+     "unspot"
+    ]
+   ],
+   "caption": "Choose a length",
+   "sub": "The price changes by itself.",
+   "say": "When they choose a length, the price changes by itself. Then they tap Add to bag."
+  },
+  {
+   "card": {
+    "kicker": "Next: video 3 of 5",
+    "title": "Orders, payments and delivery",
+    "sub": "Take your first order, confirm the payment, and deliver."
+   },
+   "min": 4,
+   "say": "That is your shop. In the next video, a customer places an order, and we confirm the payment and deliver it. See you there."
+  }
+ ]
 }
