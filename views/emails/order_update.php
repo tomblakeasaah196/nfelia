@@ -28,7 +28,7 @@ $button = !empty($review_url) ? ['Rate your order', $review_url] : (!empty($orde
     Hello <?= $h($first_name) ?>. <?= $h($line) ?>
 </p>
 <?php if (!empty($message)): ?>
-<p style="margin:0 0 24px;padding:12px 16px;background-color:#F8EEF3;font-size:14px;line-height:1.5;color:#1F0A14;">
+<p style="margin:0 0 24px;padding:12px 16px;background-color:<?= $h($biz_soft) ?>;font-size:14px;line-height:1.5;color:#1F0A14;">
     <?= nl2br($h($message)) ?>
 </p>
 <?php endif; ?>

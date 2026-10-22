@@ -54,6 +54,9 @@ jobs:
       - name: The content policy covers what the views load (no database needed)
         run: php tests/ops/policy_test.php
 
+      - name: Every business sees its own colour, not Nfelia's (no database needed)
+        run: php tests/theme/colours_test.php
+
       - name: No server-specific collation may be pinned
         run: |
           set -euo pipefail

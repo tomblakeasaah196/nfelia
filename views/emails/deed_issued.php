@@ -2,7 +2,7 @@
 <h2 style="margin:0 0 8px;font-size:22px;color:#1B0A11;font-weight:700;letter-spacing:-0.02em;">
     Your Deed of Acquisition.
 </h2>
-<p style="margin:0 0 4px;font-size:11px;color:#B69F5E;letter-spacing:0.15em;text-transform:uppercase;font-weight:700;">
+<p style="margin:0 0 4px;font-size:11px;color:<?= htmlspecialchars($biz_link, ENT_QUOTES) ?>;letter-spacing:0.15em;text-transform:uppercase;font-weight:700;">
     <?= htmlspecialchars($doc_number ?? '', ENT_QUOTES) ?>
 </p>
 <div style="height:1px;background-color:#E8E4DA;margin:20px 0;"></div>
@@ -31,22 +31,22 @@
 </table>
 <?php endif; ?>
 
-<p style="margin:0 0 24px;color:#3a2f2b;font-style:italic;font-size:13px;border-left:3px solid #B69F5E;padding-left:16px;">
+<p style="margin:0 0 24px;color:#3a2f2b;font-style:italic;font-size:13px;border-left:3px solid <?= htmlspecialchars($biz_color, ENT_QUOTES) ?>;padding-left:16px;">
     Your deed is a permanent record of this acquisition. Keep this link for your records.
 </p>
 
 <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom:20px;">
     <tr>
-        <td style="background-color:<?= htmlspecialchars($biz_color ?? '#8B004A', ENT_QUOTES) ?>;">
+        <td style="background-color:<?= htmlspecialchars($biz_color, ENT_QUOTES) ?>;">
             <a href="<?= htmlspecialchars($deed_url ?? '#', ENT_QUOTES) ?>"
-               style="display:inline-block;padding:14px 32px;font-size:11px;font-weight:700;color:#ffffff;text-decoration:none;letter-spacing:0.15em;text-transform:uppercase;">
+               style="display:inline-block;padding:14px 32px;font-size:11px;font-weight:700;color:<?= htmlspecialchars($biz_on, ENT_QUOTES) ?>;text-decoration:none;letter-spacing:0.15em;text-transform:uppercase;">
                 View & Download Your Deed →
             </a>
         </td>
     </tr>
 </table>
 <p style="margin:0;font-size:11px;color:#9a8f8a;word-break:break-all;">
-    <a href="<?= htmlspecialchars($deed_url ?? '#', ENT_QUOTES) ?>" style="color:#B69F5E;">
+    <a href="<?= htmlspecialchars($deed_url ?? '#', ENT_QUOTES) ?>" style="color:<?= htmlspecialchars($biz_link, ENT_QUOTES) ?>;">
         <?= htmlspecialchars($deed_url ?? '', ENT_QUOTES) ?>
     </a>
 </p>

@@ -12,7 +12,7 @@ $on_brand = planner_text_on($biz_color);
 </p>
 
 <?php if ($item['notes'] !== ''): ?>
-<p style="margin:0 0 24px;padding:12px 16px;background-color:#F8EEF3;font-size:14px;line-height:1.5;color:#1F0A14;">
+<p style="margin:0 0 24px;padding:12px 16px;background-color:<?= $h($biz_soft) ?>;font-size:14px;line-height:1.5;color:#1F0A14;">
     <?= nl2br($h($item['notes'])) ?>
 </p>
 <?php endif; ?>

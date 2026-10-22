@@ -100,7 +100,7 @@ $units = [
                 <div class="mb-5">
                     <label class="block text-[10px] font-bold text-brand-plum/70 uppercase tracking-widest mb-2">Product / Service Name <span class="text-red-500">*</span></label>
                     <input type="text" name="name" value="<?= $p_name ?>" required placeholder="e.g. Ankara Fabric, Phone Repair, Jollof Rice"
-                           class="w-full px-4 py-3 text-sm font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/25">
+                           class="w-full px-4 py-3 text-sm font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/25">
                 </div>
 
                 <!-- SKU Row -->
@@ -108,13 +108,13 @@ $units = [
                     <div class="flex items-center justify-between mb-2">
                         <label class="text-[10px] font-bold text-brand-plum/70 uppercase tracking-widest">SKU</label>
                         <label class="flex items-center gap-2 cursor-pointer" x-show="!<?= $editing ? 'false' : 'true' ?> || true">
-                            <input type="checkbox" name="auto_sku" value="1" x-model="autoSku" class="w-3.5 h-3.5 rounded border-brand-sand text-brand-gold focus:ring-brand-gold">
+                            <input type="checkbox" name="auto_sku" value="1" x-model="autoSku" class="w-3.5 h-3.5 rounded border-brand-sand text-accent-text focus:ring-accent-text">
                             <span class="text-[9px] font-semibold text-brand-plum/50 uppercase tracking-wider">Auto-generate</span>
                         </label>
                     </div>
                     <input type="text" name="sku" value="<?= $p_sku ?>" placeholder="Auto-generated if left blank"
                            :disabled="autoSku" :class="autoSku ? 'bg-brand-sand/50 cursor-not-allowed' : 'bg-brand-cream'"
-                           class="w-full px-4 py-3 text-sm font-medium font-mono border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/25">
+                           class="w-full px-4 py-3 text-sm font-medium font-mono border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/25">
                     <p class="text-[9px] text-brand-plum/30 mt-1" x-show="autoSku">Format: first 3 letters + ID number (e.g. ANK-0012)</p>
                 </div>
 
@@ -123,7 +123,7 @@ $units = [
                     <label class="block text-[10px] font-bold text-brand-plum/70 uppercase tracking-widest mb-2">Category</label>
                     <input type="text" name="category" value="<?= e($p_category) ?>" list="category-list"
                            placeholder="Type or select a category"
-                           class="w-full px-4 py-3 text-sm font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/25">
+                           class="w-full px-4 py-3 text-sm font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/25">
                     <datalist id="category-list">
                         <?php foreach ($all_cats as $cat): ?>
                             <option value="<?= e($cat) ?>">
@@ -135,7 +135,7 @@ $units = [
                 <div>
                     <label class="block text-[10px] font-bold text-brand-plum/70 uppercase tracking-widest mb-2">Description <span class="text-brand-plum/30 font-normal">(optional)</span></label>
                     <textarea name="description" rows="3" placeholder="Brief description for invoices and quotations..."
-                              class="w-full px-4 py-3 text-sm font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/25 resize-none"><?= e($p_description) ?></textarea>
+                              class="w-full px-4 py-3 text-sm font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/25 resize-none"><?= e($p_description) ?></textarea>
                 </div>
             </div>
 
@@ -148,13 +148,13 @@ $units = [
                         <label class="block text-[10px] font-bold text-brand-plum/70 uppercase tracking-widest mb-2">Selling Price (<?= e($currency) ?>) <span class="text-red-500">*</span></label>
                         <input type="number" name="sell_price" step="0.01" min="0" x-model.number="sellPrice"
                                value="<?= e($p_sell) ?>" placeholder="0.00"
-                               class="w-full px-4 py-3 text-sm font-medium font-mono bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">
+                               class="w-full px-4 py-3 text-sm font-medium font-mono bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
                     </div>
                     <div>
                         <label class="block text-[10px] font-bold text-brand-plum/70 uppercase tracking-widest mb-2">Cost Price (<?= e($currency) ?>)</label>
                         <input type="number" name="cost_price" step="0.01" min="0" x-model.number="costPrice"
                                value="<?= e($p_cost) ?>" placeholder="0.00"
-                               class="w-full px-4 py-3 text-sm font-medium font-mono bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">
+                               class="w-full px-4 py-3 text-sm font-medium font-mono bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
                     </div>
                     <div>
                         <label class="block text-[10px] font-bold text-brand-plum/70 uppercase tracking-widest mb-2">Margin</label>
@@ -177,18 +177,18 @@ $units = [
                     <div>
                         <label class="block text-[10px] font-bold text-brand-plum/70 uppercase tracking-widest mb-2">Opening Stock</label>
                         <input type="number" name="stock_qty" step="0.01" min="0" value="<?= e($p_stock) ?>" placeholder="0"
-                               class="w-full px-4 py-3 text-sm font-medium font-mono bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">
+                               class="w-full px-4 py-3 text-sm font-medium font-mono bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
                         <p class="text-[9px] text-brand-plum/30 mt-1">Logged as initial stock-in</p>
                     </div>
                     <?php endif; ?>
                     <div>
                         <label class="block text-[10px] font-bold text-brand-plum/70 uppercase tracking-widest mb-2">Low Stock Alert At</label>
                         <input type="number" name="low_stock_threshold" step="0.01" min="0" value="<?= e($p_threshold) ?>" placeholder="5"
-                               class="w-full px-4 py-3 text-sm font-medium font-mono bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">
+                               class="w-full px-4 py-3 text-sm font-medium font-mono bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
                     </div>
                     <div>
                         <label class="block text-[10px] font-bold text-brand-plum/70 uppercase tracking-widest mb-2">Unit of Measure</label>
-                        <select name="unit" class="w-full px-4 py-3 text-sm font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">
+                        <select name="unit" class="w-full px-4 py-3 text-sm font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
                             <?php foreach ($units as $val => $label): ?>
                                 <option value="<?= $val ?>" <?= $p_unit === $val ? 'selected' : '' ?>><?= $label ?></option>
                             <?php endforeach; ?>
@@ -318,7 +318,7 @@ $units = [
                 <template x-if="previews.length > 0">
                     <div class="grid grid-cols-3 gap-2 mb-4">
                         <template x-for="(src, i) in previews" :key="i">
-                            <div class="rounded-lg overflow-hidden border border-brand-gold bg-brand-cream aspect-square relative">
+                            <div class="rounded-lg overflow-hidden border border-accent bg-brand-cream aspect-square relative">
                                 <img :src="src" class="w-full h-full object-cover">
                                 <span class="absolute top-1 left-1 text-[7px] font-bold uppercase tracking-wider bg-green-500 text-white px-1.5 py-0.5 rounded">New</span>
                             </div>
@@ -326,7 +326,7 @@ $units = [
                     </div>
                 </template>
 
-                <label class="block w-full text-center cursor-pointer border-2 border-dashed border-brand-sand hover:border-brand-gold rounded-lg py-4 transition-all">
+                <label class="block w-full text-center cursor-pointer border-2 border-dashed border-brand-sand hover:border-accent rounded-lg py-4 transition-all">
                     <input type="file" name="images[]" accept="image/jpeg,image/png,image/webp" multiple class="hidden"
                            @change="addPreviews($event.target.files)">
                     <svg class="w-5 h-5 text-brand-plum/30 mx-auto mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
@@ -356,39 +356,39 @@ $units = [
                  }">
                 <div class="flex items-center justify-between mb-4">
                     <h2 class="font-heading font-bold text-xs text-brand-plum uppercase tracking-widest">Variants</h2>
-                    <button type="button" @click="addGroup()" class="text-[9px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg border border-brand-sand hover:border-brand-gold text-brand-plum/60 hover:text-brand-plum transition-all">+ Add Option Group</button>
+                    <button type="button" @click="addGroup()" class="text-[9px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg border border-brand-sand hover:border-accent text-brand-plum/60 hover:text-brand-plum transition-all">+ Add Option Group</button>
                 </div>
                 <p class="text-[9px] text-brand-plum/40 mb-4" x-show="groups.length === 0">No variants defined. Add option groups like Color, Size, etc.</p>
                 <template x-for="(group, gi) in groups" :key="gi">
                     <div class="mb-3 p-3 bg-brand-cream rounded-lg border border-brand-sand">
                         <div class="flex items-center gap-2 mb-3">
                             <input type="text" :name="'variant_group_name[' + gi + ']'" x-model="group.name" placeholder="e.g. Color, Size"
-                                   class="flex-1 px-3 py-2 text-xs font-bold bg-white border border-brand-sand rounded focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/25">
+                                   class="flex-1 px-3 py-2 text-xs font-bold bg-white border border-brand-sand rounded focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/25">
                             <button type="button" @click="removeGroup(gi)" class="text-red-400 hover:text-red-600 transition-colors p-1" aria-label="Remove this group">
                                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                             </button>
                         </div>
 
                         <label class="flex items-center gap-2 mb-3 cursor-pointer">
-                            <input type="checkbox" x-model="group.priced" class="w-3.5 h-3.5 rounded border-brand-sand text-brand-gold focus:ring-brand-gold">
+                            <input type="checkbox" x-model="group.priced" class="w-3.5 h-3.5 rounded border-brand-sand text-accent-text focus:ring-accent-text">
                             <span class="text-[10px] font-semibold text-brand-plum/60 uppercase tracking-wider">This changes the price</span>
                         </label>
 
                         <template x-for="(opt, oi) in group.options" :key="oi">
                             <div class="flex items-center gap-2 mb-2">
                                 <input type="text" :name="'variant_opt_label[' + gi + '][]'" x-model="opt.label" placeholder="Option, e.g. Navy Blue"
-                                       class="flex-1 min-w-0 px-3 py-2 text-xs bg-white border border-brand-sand rounded focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/25">
+                                       class="flex-1 min-w-0 px-3 py-2 text-xs bg-white border border-brand-sand rounded focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/25">
                                 <span class="flex items-center gap-1 shrink-0" x-show="group.priced" x-cloak>
                                     <span class="text-[11px] font-bold text-brand-plum/40" title="Added to or taken off the base price">±<?= e($currency) ?></span>
                                     <input type="text" inputmode="decimal" :name="'variant_opt_price[' + gi + '][]'" x-model="opt.price" placeholder="0" :disabled="!group.priced"
-                                           class="w-20 px-2 py-2 text-xs font-mono bg-white border border-brand-sand rounded focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/25">
+                                           class="w-20 px-2 py-2 text-xs font-mono bg-white border border-brand-sand rounded focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/25">
                                 </span>
                                 <button type="button" @click="removeOption(group, oi)" class="text-brand-plum/30 hover:text-red-500 transition-colors p-1 shrink-0" aria-label="Remove this option">
                                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
                                 </button>
                             </div>
                         </template>
-                        <button type="button" @click="addOption(group)" class="mt-1 text-[9px] font-bold uppercase tracking-wider text-brand-plum/50 hover:text-brand-gold transition-colors">+ Add option</button>
+                        <button type="button" @click="addOption(group)" class="mt-1 text-[9px] font-bold uppercase tracking-wider text-brand-plum/50 hover:text-accent-text transition-colors">+ Add option</button>
                         <p class="text-[9px] text-brand-plum/35 mt-2" x-show="group.priced" x-cloak>Use a minus for cheaper options, e.g. −2000. Leave blank for no change.</p>
                     </div>
                 </template>
@@ -400,7 +400,7 @@ $units = [
                     <?= $editing ? 'Save Changes' : 'Add to Catalogue' ?>
                 </button>
                 <a href="<?= APP_URL ?>/products<?= $editing ? '/view/' . (int)$product['id'] : '' ?>"
-                   class="block w-full text-center bg-brand-cream border border-brand-sand text-brand-plum py-3.5 rounded-xl text-[11px] font-bold uppercase tracking-widest hover:border-brand-gold transition-all">
+                   class="block w-full text-center bg-brand-cream border border-brand-sand text-brand-plum py-3.5 rounded-xl text-[11px] font-bold uppercase tracking-widest hover:border-accent transition-all">
                     Cancel
                 </a>
                 <?php if ($editing): ?>
@@ -408,7 +408,7 @@ $units = [
                              sends the edit form's token to the duplicate address */ ?>
                     <div class="pt-2">
                         <button type="submit" formaction="<?= APP_URL ?>/products/duplicate/<?= (int)$product['id'] ?>" formnovalidate
-                                class="w-full text-center text-[10px] font-bold text-brand-plum/40 uppercase tracking-widest hover:text-brand-gold transition-colors py-2">
+                                class="w-full text-center text-[10px] font-bold text-brand-plum/40 uppercase tracking-widest hover:text-accent-text transition-colors py-2">
                             Duplicate This Product
                         </button>
                     </div>

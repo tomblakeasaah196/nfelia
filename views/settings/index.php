@@ -85,7 +85,7 @@ $current_staff_count = count($staff);
                     }, 600);
                 }
             }">
-                <label class="inline-flex items-center gap-2 px-4 py-2 bg-brand-cream border border-brand-sand rounded-lg cursor-pointer hover:border-brand-gold transition-colors">
+                <label class="inline-flex items-center gap-2 px-4 py-2 bg-brand-cream border border-brand-sand rounded-lg cursor-pointer hover:border-accent transition-colors">
                     
                     <!-- 1. Idle Icon -->
                     <svg x-show="uploadState === 'idle'" class="w-3.5 h-3.5 text-brand-plum/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
@@ -120,7 +120,7 @@ $current_staff_count = count($staff);
         <div class="mt-4 pt-4 border-t border-brand-sand/50">
             <p class="text-[10px] text-brand-plum/50 mb-2">No logo? We can generate one from your business initials:</p>
             <a href="javascript:void(0)" onclick="document.getElementById('auto-logo-form').submit()"
-               class="text-[10px] font-bold text-brand-gold uppercase tracking-widest hover:text-brand-burgundy">Generate Auto-Logo</a>
+               class="text-[10px] font-bold text-accent-text uppercase tracking-widest hover:text-accent-text">Generate Auto-Logo</a>
         </div>
         <?php endif; ?>
     </div>
@@ -132,32 +132,32 @@ $current_staff_count = count($staff);
             <div class="sm:col-span-2">
                 <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Business Name *</label>
                 <input type="text" name="business_name" value="<?= e($business['name'] ?? '') ?>" required
-                       class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">
+                       class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
             </div>
             <div class="sm:col-span-2">
                 <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Tagline</label>
                 <input type="text" name="tagline" value="<?= e($business['tagline'] ?? '') ?>"
-                       class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum"
+                       class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum"
                        placeholder="e.g. Quality Auto Parts at the Best Prices">
             </div>
             <div>
                 <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Phone</label>
                 <input type="tel" name="phone" maxlength="20" value="<?= e($business['phone'] ?? '') ?>"
-                       class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum"
+                       class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum"
                        placeholder="e.g. 08012345678">
             </div>
             <div>
                 <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Email</label>
                 <input type="email" name="email" value="<?= e($business['email'] ?? '') ?>"
-                       class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">
+                       class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
             </div>
             <div class="sm:col-span-2">
                 <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Address</label>
-                <textarea name="address" rows="2" class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum resize-none"><?= e($business['address'] ?? '') ?></textarea>
+                <textarea name="address" rows="2" class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum resize-none"><?= e($business['address'] ?? '') ?></textarea>
             </div>
             <div>
                 <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Currency</label>
-                <select name="currency_symbol" class="w-full px-3 py-2.5 text-xs font-semibold bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">
+                <select name="currency_symbol" class="w-full px-3 py-2.5 text-xs font-semibold bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
                     <?php foreach ($currency_options as $sym => $label): ?>
                         <option value="<?= e($sym) ?>" <?= ($business['currency_symbol'] ?? '₦') === $sym ? 'selected' : '' ?>><?= e($label) ?></option>
                     <?php endforeach; ?>
@@ -165,7 +165,7 @@ $current_staff_count = count($staff);
             </div>
             <div>
                 <label for="business_type" class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">What you sell</label>
-                <select name="business_type" id="business_type" aria-describedby="business_type_hint" class="w-full px-3 py-2.5 text-xs font-semibold bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">
+                <select name="business_type" id="business_type" aria-describedby="business_type_hint" class="w-full px-3 py-2.5 text-xs font-semibold bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
                     <?php foreach (['product' => 'Products', 'service' => 'Services', 'mixed' => 'Products and services'] as $val => $label): ?>
                         <option value="<?= $val ?>" <?= ($business['business_type'] ?? 'product') === $val ? 'selected' : '' ?>><?= $label ?></option>
                     <?php endforeach; ?>
@@ -377,7 +377,7 @@ foreach (['ORD' => 'Order', 'INV' => 'Invoice', 'REC' => 'Receipt', 'DEL' => 'De
 
             <!-- Avatar Upload with Cropper Modal & State Animations -->
             <div x-data="avatarCropper()">
-                <label class="inline-flex items-center gap-2 px-3 py-2 bg-brand-cream border border-brand-sand rounded-lg cursor-pointer hover:border-brand-gold transition-colors">
+                <label class="inline-flex items-center gap-2 px-3 py-2 bg-brand-cream border border-brand-sand rounded-lg cursor-pointer hover:border-accent transition-colors">
                     
                     <!-- 1. Idle Icon -->
                     <svg x-show="uploadState === 'idle'" class="w-3.5 h-3.5 text-brand-plum/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
@@ -481,12 +481,12 @@ foreach (['ORD' => 'Order', 'INV' => 'Invoice', 'REC' => 'Receipt', 'DEL' => 'De
                 <div>
                     <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Full Name *</label>
                     <input type="text" name="full_name" value="<?= e($user['full_name'] ?? '') ?>" required
-                           class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">
+                           class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
                 </div>
                 <div>
                     <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Email *</label>
                     <input type="email" name="email" value="<?= e($user['email'] ?? '') ?>" required
-                           class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">
+                           class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
                 </div>
             </div>
 
@@ -514,22 +514,22 @@ foreach (['ORD' => 'Order', 'INV' => 'Invoice', 'REC' => 'Receipt', 'DEL' => 'De
                 <div>
                     <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Current Password</label>
                     <input type="password" name="current_password" required
-                           class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">
+                           class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
                 </div>
                 <div>
                     <label for="new_password" class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">New Password</label>
                     <input id="new_password" type="password" name="new_password" required minlength="9" maxlength="200" autocomplete="new-password"
-                           class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">
+                           class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
                 </div>
                 <div>
                     <label for="confirm_password" class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Confirm Password</label>
                     <input id="confirm_password" type="password" name="confirm_password" required minlength="9" maxlength="200" autocomplete="new-password"
-                           class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">
+                           class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
                 </div>
             </div>
             <?php $pw_input = '#new_password'; $pw_confirm = '#confirm_password'; $pw_compact = true; require BASE_PATH . '/views/partials/password_rules.php'; ?>
             <div class="flex justify-end mt-4">
-                <button type="submit" class="bg-brand-white border border-brand-sand text-brand-plum px-6 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:border-brand-gold transition-colors">Update Password</button>
+                <button type="submit" class="bg-brand-white border border-brand-sand text-brand-plum px-6 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:border-accent transition-colors">Update Password</button>
             </div>
         </div>
     </form>
@@ -550,11 +550,11 @@ foreach (['ORD' => 'Order', 'INV' => 'Invoice', 'REC' => 'Receipt', 'DEL' => 'De
             </div>
             <div class="flex items-center gap-2">
                 <div class="w-24 h-2 bg-brand-cream rounded-full overflow-hidden">
-                    <div class="h-full rounded-full transition-all <?= $current_staff_count >= $max_seats ? 'bg-red-400' : 'bg-brand-gold' ?>"
+                    <div class="h-full rounded-full transition-all <?= $current_staff_count >= $max_seats ? 'bg-red-400' : 'bg-accent' ?>"
                          style="width: <?= min(100, ($current_staff_count / $max_seats) * 100) ?>%"></div>
                 </div>
                 <?php if ($current_staff_count >= $max_seats): ?>
-                    <a href="<?= APP_URL ?>/settings?tab=billing" class="text-[9px] font-bold text-brand-gold uppercase tracking-widest">Add Seats</a>
+                    <a href="<?= APP_URL ?>/settings?tab=billing" class="text-[9px] font-bold text-accent-text uppercase tracking-widest">Add Seats</a>
                 <?php endif; ?>
             </div>
         </div>
@@ -586,7 +586,7 @@ foreach (['ORD' => 'Order', 'INV' => 'Invoice', 'REC' => 'Receipt', 'DEL' => 'De
                         <span class="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-purple-100 text-purple-700">Owner</span>
                     <?php elseif ($is_owner): ?>
                         <select onchange="updateRole(<?= (int)$member['id'] ?>, this.value, this)"
-                                class="text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded border border-brand-sand bg-brand-cream text-brand-plum focus:outline-none focus:border-brand-gold cursor-pointer">
+                                class="text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded border border-brand-sand bg-brand-cream text-brand-plum focus:outline-none focus:border-accent-text cursor-pointer">
                             <option value="admin" <?= $member['role'] === 'admin' ? 'selected' : '' ?>>Admin</option>
                             <option value="staff" <?= $member['role'] === 'staff' ? 'selected' : '' ?>>Staff</option>
                         </select>
@@ -597,7 +597,7 @@ foreach (['ORD' => 'Order', 'INV' => 'Invoice', 'REC' => 'Receipt', 'DEL' => 'De
                         <form method="POST" action="<?= APP_URL ?>/settings/send-staff-reset/<?= (int)$member['id'] ?>" class="inline"
                               onsubmit="return confirm(<?= e(json_encode('Email ' . $member['full_name'] . ' a link to set a new password?', JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_TAG | JSON_HEX_AMP)) ?>)">
                             <?= csrf_field() ?>
-                            <button type="submit" class="text-[10px] font-bold text-brand-plum/50 uppercase tracking-widest hover:text-brand-burgundy">Send reset link</button>
+                            <button type="submit" class="text-[10px] font-bold text-brand-plum/50 uppercase tracking-widest hover:text-accent-text">Send reset link</button>
                         </form>
                     <?php endif; ?>
                     <?php if ((int)$member['id'] !== (int)$user['id'] && $member['role'] !== 'owner'): ?>
@@ -623,24 +623,24 @@ foreach (['ORD' => 'Order', 'INV' => 'Invoice', 'REC' => 'Receipt', 'DEL' => 'De
                 <div>
                     <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Full Name *</label>
                     <input type="text" name="staff_name" required
-                           class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">
+                           class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
                 </div>
                 <div>
                     <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Email *</label>
                     <input type="email" name="staff_email" required
-                           class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">
+                           class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
                 </div>
                 <div>
                     <div>
                     <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Role</label>
-                    <select name="staff_role" class="w-full px-3 py-2.5 text-xs font-semibold bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum uppercase tracking-wider">
+                    <select name="staff_role" class="w-full px-3 py-2.5 text-xs font-semibold bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum uppercase tracking-wider">
                         <option value="staff">Staff — Operational access only</option>
                         <option value="admin">Admin — Full access except billing</option>
                     </select>
                 </div>
                     <label for="staff_password" class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Password *</label>
                     <input id="staff_password" type="password" name="staff_password" required minlength="9" maxlength="200" autocomplete="new-password"
-                           class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum"
+                           class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum"
                            placeholder="9+ characters, a capital, a number, a symbol">
                     <?php $pw_input = '#staff_password'; $pw_confirm = ''; $pw_compact = true; require BASE_PATH . '/views/partials/password_rules.php'; ?>
                 </div>
@@ -773,8 +773,8 @@ async function updateRole(memberId, newRole, selectEl) {
             <?php endif; ?>
         </div>
         <div class="mt-4 flex gap-4">
-            <a href="mailto:support@nfelia.com" class="text-brand-burgundy font-bold hover:underline tracking-widest uppercase text-[10px]">Email support</a>
-            <a href="https://wa.me/2348169789106" target="_blank" rel="noopener" class="text-brand-burgundy font-bold hover:underline tracking-widest uppercase text-[10px]">WhatsApp us</a>
+            <a href="mailto:support@nfelia.com" class="text-accent-text font-bold hover:underline tracking-widest uppercase text-[10px]">Email support</a>
+            <a href="https://wa.me/2348169789106" target="_blank" rel="noopener" class="text-accent-text font-bold hover:underline tracking-widest uppercase text-[10px]">WhatsApp us</a>
         </div>
     </div>
     <?php else: ?>
@@ -789,7 +789,7 @@ async function updateRole(memberId, newRole, selectEl) {
         <fieldset class="mb-4">
             <div class="flex items-center justify-between mb-2">
                 <legend class="text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest">Who does this month cover?</legend>
-                <button type="button" @click="covered = <?= e(json_encode(array_map('intval', array_column($team, 'id')))) ?>" class="text-[10px] font-bold text-brand-burgundy uppercase tracking-widest hover:underline">All</button>
+                <button type="button" @click="covered = <?= e(json_encode(array_map('intval', array_column($team, 'id')))) ?>" class="text-[10px] font-bold text-accent-text uppercase tracking-widest hover:underline">All</button>
             </div>
             <p class="text-[10px] text-brand-plum/50 mb-2">You are always covered. Anyone you leave unticked is switched off when the payment goes through.</p>
             <div class="space-y-1.5">
@@ -807,9 +807,9 @@ async function updateRole(memberId, newRole, selectEl) {
         <div class="mb-4">
             <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-2">Staff seats (<?= e($sym) ?><?= number_format($seat_cost, 0) ?> each)</label>
             <div class="flex items-center gap-3">
-                <button type="button" @click="spare = Math.max(0, spare - 1)" aria-label="One seat fewer" class="w-8 h-8 rounded-lg bg-brand-cream border border-brand-sand flex items-center justify-center hover:border-brand-gold">−</button>
+                <button type="button" @click="spare = Math.max(0, spare - 1)" aria-label="One seat fewer" class="w-8 h-8 rounded-lg bg-brand-cream border border-brand-sand flex items-center justify-center hover:border-accent">−</button>
                 <span class="data-text text-lg font-extrabold text-brand-plum w-8 text-center" x-text="totalSeats()"></span>
-                <button type="button" @click="spare = Math.max(0, Math.min(<?= MAX_SEATS - 1 ?> - covered.length, spare + 1))" aria-label="One seat more" class="w-8 h-8 rounded-lg bg-brand-cream border border-brand-sand flex items-center justify-center hover:border-brand-gold">+</button>
+                <button type="button" @click="spare = Math.max(0, Math.min(<?= MAX_SEATS - 1 ?> - covered.length, spare + 1))" aria-label="One seat more" class="w-8 h-8 rounded-lg bg-brand-cream border border-brand-sand flex items-center justify-center hover:border-accent">+</button>
                 <span class="text-xs text-brand-plum/50" x-text="totalSeats() === 0 ? 'Just you' : (1 + totalSeats()) + ' people in all, with you'"></span>
             </div>
             <p class="text-[10px] text-brand-plum/40 mt-2">One for each person ticked; add spare seats for new staff. Up to <?= MAX_SEATS ?> people (you and <?= MAX_SEATS - 1 ?> staff). Need more? Email support@nfelia.com.</p>
@@ -834,13 +834,13 @@ async function updateRole(memberId, newRole, selectEl) {
         <h2 class="font-heading font-bold text-sm text-brand-plum mb-1 uppercase tracking-wider">Add seats now</h2>
         <p class="text-xs text-brand-plum/60 mb-4">For new staff this month<?= $period_end ? ', until ' . fmt_date($period_end, 'j M') : '' ?>. Next month you choose again.</p>
         <div class="flex items-center gap-3 mb-4">
-            <button type="button" @click="add = Math.max(1, add - 1)" aria-label="One seat fewer" class="w-8 h-8 rounded-lg bg-brand-cream border border-brand-sand flex items-center justify-center hover:border-brand-gold">−</button>
+            <button type="button" @click="add = Math.max(1, add - 1)" aria-label="One seat fewer" class="w-8 h-8 rounded-lg bg-brand-cream border border-brand-sand flex items-center justify-center hover:border-accent">−</button>
             <span class="data-text text-lg font-extrabold text-brand-plum w-8 text-center" x-text="add"></span>
-            <button type="button" @click="add = Math.min(<?= $room ?>, add + 1)" aria-label="One seat more" class="w-8 h-8 rounded-lg bg-brand-cream border border-brand-sand flex items-center justify-center hover:border-brand-gold">+</button>
+            <button type="button" @click="add = Math.min(<?= $room ?>, add + 1)" aria-label="One seat more" class="w-8 h-8 rounded-lg bg-brand-cream border border-brand-sand flex items-center justify-center hover:border-accent">+</button>
             <span class="text-xs text-brand-plum/50" x-text="money(add * <?= (float)($prices['seat_now'] ?? $seat_cost) ?>)"></span>
         </div>
         <button type="button" @click="pay({ kind: 'seats', add_seats: add })" :disabled="loading"
-                class="w-full bg-brand-cream border border-brand-sand text-brand-plum py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:border-brand-gold transition-all disabled:opacity-50">
+                class="w-full bg-brand-cream border border-brand-sand text-brand-plum py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:border-accent transition-all disabled:opacity-50">
             <span x-show="!loading">Pay for the seats</span>
             <span x-show="loading" x-cloak>Processing...</span>
         </button>
@@ -911,8 +911,8 @@ async function updateRole(memberId, newRole, selectEl) {
     </div>
 
     <!-- Your records: the Records Book, free in every month paid for -->
-    <a href="<?= APP_URL ?>/records" class="flex items-center gap-4 bg-brand-white border border-brand-sand rounded-xl p-5 shadow-sm hover:border-brand-gold transition-colors">
-        <span class="shrink-0 w-10 h-10 rounded-lg bg-brand-cream border border-brand-sand flex items-center justify-center text-brand-burgundy" aria-hidden="true"><?= nav_icon('book') ?></span>
+    <a href="<?= APP_URL ?>/records" class="flex items-center gap-4 bg-brand-white border border-brand-sand rounded-xl p-5 shadow-sm hover:border-accent transition-colors">
+        <span class="shrink-0 w-10 h-10 rounded-lg bg-brand-cream border border-brand-sand flex items-center justify-center text-accent-text" aria-hidden="true"><?= nav_icon('book') ?></span>
         <span class="grow">
             <span class="block font-heading font-bold text-sm text-brand-plum uppercase tracking-wider">Your records</span>
             <span class="block text-xs text-brand-plum/60 mt-1">Every month you pay for comes with a free Records Book: all your records in one Excel workbook, in your colours, with a code anyone can check. Your plain copy is free, always.</span>

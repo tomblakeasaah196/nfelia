@@ -27,7 +27,7 @@
         <p class="text-[10px] text-brand-plum/40 -mt-3">Phone or email is required</p>
         <?php if (!$editing): ?>
             <!-- Shown by assets/js/phone.js where the phone can share its contacts (Android Chrome). -->
-            <button type="button" data-pick-contact hidden class="w-full sm:w-auto inline-flex items-center justify-center gap-2 min-h-[44px] px-4 rounded-lg border border-brand-sand bg-brand-cream text-sm font-semibold text-brand-plum hover:border-brand-gold">
+            <button type="button" data-pick-contact hidden class="w-full sm:w-auto inline-flex items-center justify-center gap-2 min-h-[44px] px-4 rounded-lg border border-brand-sand bg-brand-cream text-sm font-semibold text-brand-plum hover:border-accent">
                 <?= nav_icon('clients') ?>Pick from phone contacts
             </button>
         <?php endif; ?>
@@ -36,7 +36,7 @@
         <div>
             <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1">Full Name <span class="text-red-500">*</span></label>
             <input type="text" name="full_name" value="<?= e($customer['full_name'] ?? '') ?>" required
-                   class="w-full px-3 py-2.5 text-sm font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum"
+                   class="w-full px-3 py-2.5 text-sm font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum"
                    placeholder="e.g. Emeka Obiora">
         </div>
 
@@ -44,7 +44,7 @@
         <div>
             <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1">Business Name</label>
             <input type="text" name="business_name" value="<?= e($customer['business_name'] ?? '') ?>"
-                   class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum"
+                   class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum"
                    placeholder="e.g. Emeka & Sons Enterprises">
         </div>
 
@@ -53,7 +53,7 @@
             <div>
                 <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1">Phone Number</label>
                 <input type="tel" name="phone" maxlength="20" value="<?= e($customer['phone'] ?? '') ?>"
-                       class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum"
+                       class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum"
                        placeholder="08012345678">
             </div>
 
@@ -61,7 +61,7 @@
             <div>
                 <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1">WhatsApp Number</label>
                 <input type="tel" name="whatsapp" maxlength="20" value="<?= e($customer['whatsapp'] ?? '') ?>"
-                       class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum"
+                       class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum"
                        placeholder="Same as phone if blank">
             </div>
         </div>
@@ -70,7 +70,7 @@
         <div>
             <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1">Email</label>
             <input type="email" name="email" value="<?= e($customer['email'] ?? '') ?>"
-                   class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum"
+                   class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum"
                    placeholder="customer@email.com">
         </div>
 
@@ -78,7 +78,7 @@
         <div>
             <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1">Address</label>
             <textarea name="address" rows="2"
-                      class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum resize-none"
+                      class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum resize-none"
                       placeholder="Street address, city, state..."><?= e($customer['address'] ?? '') ?></textarea>
         </div>
 
@@ -86,7 +86,7 @@
         <div>
             <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1">Notes</label>
             <textarea name="notes" rows="3"
-                      class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum resize-none"
+                      class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum resize-none"
                       placeholder="Internal notes about this customer..."><?= e($customer['notes'] ?? '') ?></textarea>
         </div>
     </div>
@@ -96,6 +96,6 @@
         <button type="submit" class="btn-primary text-white px-6 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-sm hover:shadow-md transition-all">
             <?= $editing ? 'Update Customer' : 'Add Customer' ?>
         </button>
-        <a href="<?= APP_URL ?>/customers" class="text-[10px] font-bold text-brand-plum/40 uppercase tracking-widest hover:text-brand-burgundy">Cancel</a>
+        <a href="<?= APP_URL ?>/customers" class="text-[10px] font-bold text-brand-plum/40 uppercase tracking-widest hover:text-accent-text">Cancel</a>
     </div>
 </form>

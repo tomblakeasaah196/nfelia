@@ -8,6 +8,7 @@
 require_once __DIR__ . '/../../lib/PHPMailer/src/Exception.php';
 require_once __DIR__ . '/../../lib/PHPMailer/src/PHPMailer.php';
 require_once __DIR__ . '/../../lib/PHPMailer/src/SMTP.php';
+require_once __DIR__ . '/theme.php';   // the business's colour in an email (render_email()); the cron doesn't load it
 
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
@@ -73,10 +74,20 @@ function mail_bounced(): ?string
 function render_email(string $template, array $vars = [], array $business = []): string {
     // Defaults from system config if no business context given
     $biz_name    = $business['name']          ?? APP_NAME;
-    $biz_color   = $business['primary_color'] ?? '#8B004A';
     $biz_logo    = '';
     $biz_tagline = $business['tagline']       ?? 'Track everything. Carry nothing.';
     $biz_email   = $business['email']         ?? MAIL_FROM_ADDRESS;
+
+    // The business's colour in the parts an email needs, worked out as the
+    // app does (app/helpers/theme.php), so a colour nobody chose is Nfelia's
+    // wine here too: $biz_color for the top bar and buttons, $biz_on for the
+    // words on a button, $biz_text for words on white, $biz_soft for the pale
+    // box behind a note.
+    $theme     = theme_tokens($business['primary_color'] ?? null, $business['secondary_color'] ?? null);
+    $biz_color = $theme['accent'];
+    $biz_on    = $theme['on_accent'];
+    $biz_text  = $theme['accent_text'];
+    $biz_soft  = $theme['accent_soft'];
 
     // Link the logo from the site rather than embedding it: Gmail and Outlook
     // strip base64 data: images, so an embedded logo never appeared.
@@ -87,6 +98,9 @@ function render_email(string $template, array $vars = [], array $business = []):
     // Nfelia's own emails (recovery, sign-in, billing) rather than a client
     // workspace's: they carry the Nfelia mark and credit JBS Praxis.
     $is_platform = $biz_logo === '' && in_array(strtolower($biz_name), ['nfelia', strtolower(APP_NAME)], true);
+    // Small links and labels: Nfelia's gold in Nfelia's own emails, the
+    // business's colour in a business's.
+    $biz_link = $is_platform ? '#B69F5E' : $biz_text;
 
     // Extract vars for use in template
     extract($vars);

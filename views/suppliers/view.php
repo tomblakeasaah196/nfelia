@@ -41,8 +41,8 @@ $pay_status_badge = function($s) {
     </div>
 
     <div class="flex flex-wrap items-center gap-2">
-        <a href="<?= APP_URL ?>/suppliers/edit/<?= $supplier['id'] ?>" class="flex items-center gap-1.5 bg-brand-white border border-brand-sand hover:border-brand-gold px-3 py-2 rounded-lg transition-all">
-            <svg class="w-3.5 h-3.5 text-brand-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+        <a href="<?= APP_URL ?>/suppliers/edit/<?= $supplier['id'] ?>" class="flex items-center gap-1.5 bg-brand-white border border-brand-sand hover:border-accent px-3 py-2 rounded-lg transition-all">
+            <svg class="w-3.5 h-3.5 text-accent-text" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
             <span class="text-[10px] font-bold text-brand-plum uppercase tracking-widest">Edit</span>
         </a>
 
@@ -54,7 +54,7 @@ $pay_status_badge = function($s) {
         <?php endif; ?>
 
         <?php if ($supplier['phone']): ?>
-        <a href="tel:<?= e($supplier['phone']) ?>" class="flex items-center gap-1.5 bg-brand-cream border border-brand-sand hover:border-brand-gold px-3 py-2 rounded-lg transition-all">
+        <a href="tel:<?= e($supplier['phone']) ?>" class="flex items-center gap-1.5 bg-brand-cream border border-brand-sand hover:border-accent px-3 py-2 rounded-lg transition-all">
             <svg class="w-3.5 h-3.5 text-brand-plum/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
             <span class="text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest">Call</span>
         </a>
@@ -130,16 +130,16 @@ $pay_status_badge = function($s) {
 <div x-data="{ tab: 'expenses' }">
 
     <div class="flex items-center gap-1 mb-4 overflow-x-auto">
-        <button @click="tab = 'expenses'" :class="tab === 'expenses' ? 'btn-primary text-white' : 'bg-brand-white text-brand-plum/60 border border-brand-sand hover:border-brand-gold'"
+        <button @click="tab = 'expenses'" :class="tab === 'expenses' ? 'btn-primary text-white' : 'bg-brand-white text-brand-plum/60 border border-brand-sand hover:border-accent'"
                 class="px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all whitespace-nowrap">
             All Expenses (<?= count($expenses) ?>)
         </button>
-        <button @click="tab = 'purchases'" :class="tab === 'purchases' ? 'btn-primary text-white' : 'bg-brand-white text-brand-plum/60 border border-brand-sand hover:border-brand-gold'"
+        <button @click="tab = 'purchases'" :class="tab === 'purchases' ? 'btn-primary text-white' : 'bg-brand-white text-brand-plum/60 border border-brand-sand hover:border-accent'"
                 class="px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all whitespace-nowrap">
             Stock Purchases (<?= count($purchases) ?>)
         </button>
         <?php if (!empty($debts)): ?>
-        <button @click="tab = 'debts'" :class="tab === 'debts' ? 'btn-primary text-white' : 'bg-brand-white text-brand-plum/60 border border-brand-sand hover:border-brand-gold'"
+        <button @click="tab = 'debts'" :class="tab === 'debts' ? 'btn-primary text-white' : 'bg-brand-white text-brand-plum/60 border border-brand-sand hover:border-accent'"
                 class="px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all whitespace-nowrap">
             Debts (<?= count($debts) ?>)
         </button>
@@ -164,7 +164,7 @@ $pay_status_badge = function($s) {
                 <tbody class="divide-y divide-brand-sand/50">
                     <?php foreach ($expenses as $exp): ?>
                         <tr class="hover:bg-brand-cream/30 <?= $exp['payment_status'] === 'unpaid' ? 'bg-red-50/30' : '' ?>">
-                            <td class="px-5 py-3"><a href="<?= APP_URL ?>/expenses/view/<?= $exp['id'] ?>" class="data-text text-xs font-bold text-brand-plum hover:text-brand-burgundy"><?= e($exp['doc_number']) ?></a></td>
+                            <td class="px-5 py-3"><a href="<?= APP_URL ?>/expenses/view/<?= $exp['id'] ?>" class="data-text text-xs font-bold text-brand-plum hover:text-accent-text"><?= e($exp['doc_number']) ?></a></td>
                             <td class="px-5 py-3"><span class="data-text text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-brand-cream text-brand-plum/60"><?= ucfirst(str_replace('_', ' ', $exp['category'])) ?></span></td>
                             <td class="px-5 py-3 text-xs text-brand-plum/70 max-w-[200px] truncate"><?= e($exp['description']) ?></td>
                             <td class="px-5 py-3 data-text text-[10px] text-brand-plum/60"><?= fmt_date($exp['expense_date'], 'd M Y') ?></td>
@@ -198,7 +198,7 @@ $pay_status_badge = function($s) {
                 <tbody class="divide-y divide-brand-sand/50">
                     <?php foreach ($purchases as $p): ?>
                         <tr class="hover:bg-brand-cream/30">
-                            <td class="px-5 py-3"><a href="<?= APP_URL ?>/expenses/view/<?= $p['id'] ?>" class="data-text text-xs font-bold text-brand-plum hover:text-brand-burgundy"><?= e($p['doc_number']) ?></a></td>
+                            <td class="px-5 py-3"><a href="<?= APP_URL ?>/expenses/view/<?= $p['id'] ?>" class="data-text text-xs font-bold text-brand-plum hover:text-accent-text"><?= e($p['doc_number']) ?></a></td>
                             <td class="px-5 py-3 text-xs text-brand-plum/70 max-w-[200px] truncate"><?= e($p['description']) ?></td>
                             <td class="px-5 py-3 data-text text-[10px] text-brand-plum/60"><?= fmt_date($p['expense_date'], 'd M Y') ?></td>
                             <td class="px-5 py-3 data-text text-xs font-bold text-brand-plum text-right"><?= money((float)$p['amount'], $currency) ?></td>

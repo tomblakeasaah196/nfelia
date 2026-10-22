@@ -59,12 +59,12 @@ $user = auth_user();
                 <div>
                     <label class="block text-xs font-medium text-gray-600 mb-1">Subject</label>
                     <input type="text" name="subject" required placeholder="What do you need help with?"
-                           class="w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-brand-gold/30 focus:border-brand-gold">
+                           class="w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-accent/30 focus:border-accent-text">
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-600 mb-1">Message</label>
                     <textarea name="message" rows="4" required placeholder="Describe your issue or question in detail..."
-                              class="w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-brand-gold/30 focus:border-brand-gold resize-none"></textarea>
+                              class="w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-accent/30 focus:border-accent-text resize-none"></textarea>
                 </div>
                 <button type="submit" class="px-6 py-2.5 bg-brand-plum text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-opacity">
                     Send Message

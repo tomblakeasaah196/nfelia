@@ -12,19 +12,19 @@ $d_val = 'padding:6px 0;font-size:14px;line-height:1.4;color:#1F0A14;font-weight
 <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:0 0 8px;border-collapse:collapse;">
     <?php foreach ($details['lines'] ?? [] as $dl): ?>
     <tr>
-        <td width="64" valign="top" style="padding:10px 12px 10px 0;border-bottom:1px solid #EFE6EA;">
+        <td width="64" valign="top" style="padding:10px 12px 10px 0;border-bottom:1px solid #E8E4DA;">
             <?php if (!empty($dl['photo'])): ?>
                 <img src="<?= $dh($dl['photo']) ?>" width="56" height="56" alt="" style="display:block;width:56px;height:56px;border-radius:8px;object-fit:cover;border:0;">
             <?php else: ?>
-                <div style="width:56px;height:56px;border-radius:8px;background-color:#F8EEF3;"></div>
+                <div style="width:56px;height:56px;border-radius:8px;background-color:<?= $dh($biz_soft) ?>;"></div>
             <?php endif; ?>
         </td>
-        <td valign="top" style="padding:10px 0;border-bottom:1px solid #EFE6EA;font-size:14px;line-height:1.4;color:#1F0A14;">
+        <td valign="top" style="padding:10px 0;border-bottom:1px solid #E8E4DA;font-size:14px;line-height:1.4;color:#1F0A14;">
             <strong><?= $dh($dl['name']) ?></strong>
             <?php if (!empty($dl['options'])): ?><br><span style="color:#5B4650;"><?= $dh($dl['options']) ?></span><?php endif; ?>
             <br><span style="color:#5B4650;"><?= $dh($dl['each']) ?></span>
         </td>
-        <td valign="top" align="right" style="padding:10px 0 10px 12px;border-bottom:1px solid #EFE6EA;font-size:14px;line-height:1.4;color:#1F0A14;font-weight:700;white-space:nowrap;">
+        <td valign="top" align="right" style="padding:10px 0 10px 12px;border-bottom:1px solid #E8E4DA;font-size:14px;line-height:1.4;color:#1F0A14;font-weight:700;white-space:nowrap;">
             <?= $dh($dl['total']) ?>
         </td>
     </tr>

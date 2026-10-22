@@ -10,7 +10,10 @@
  *   whatsapp      digits only; shows a "Chat on WhatsApp" button
  *   action_url    a link out, with action_label
  *   form_action   a button that posts there, with form_label (unsubscribing)
+ *   colour        on a shop's own address, the shop's colour (from
+ *                 StorefrontController::notice()); Nfelia's wine without it
  */
+$colour = theme_tokens($notice['colour'] ?? null, null);
 http_response_code((int)($notice['status'] ?? 404));
 header('X-Robots-Tag: noindex, nofollow');
 ?>
@@ -23,7 +26,8 @@ header('X-Robots-Tag: noindex, nofollow');
     <meta name="robots" content="noindex, nofollow">
     <title><?= e($notice['title']) ?><?= !empty($notice['shop_name']) ? ' — ' . e($notice['shop_name']) : ' — Nfelia' ?></title>
     <style>
-        :root { --ink: #1F0A14; --muted: #5B4650; --brand: #8B004A; --ground: #FBF8F9; --line: #E9DCE2; }
+        :root { --ink: #1F0A14; --muted: #5B4650; --brand: <?= $colour['accent'] ?>; --on-brand: <?= $colour['on_accent'] ?>; --brand-text: <?= $colour['accent_text'] ?>;
+                --ground: <?= theme_retint('#FBF8F9', $colour['accent']) ?>; --line: <?= theme_retint('#E9DCE2', $colour['accent']) ?>; }
         * { box-sizing: border-box; }
         body {
             margin: 0; min-height: 100vh; display: flex; flex-direction: column;
@@ -44,9 +48,9 @@ header('X-Robots-Tag: noindex, nofollow');
             display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px;
             padding: 0 20px; border-radius: 12px; font-size: 16px; font-weight: 700; text-decoration: none;
         }
-        .btn-primary { background: var(--brand); color: #FFFFFF; }
-        .btn-quiet { color: var(--brand); }
-        .btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
+        .btn-primary { background: var(--brand); color: var(--on-brand); }
+        .btn-quiet { color: var(--brand-text); }
+        .btn:focus-visible { outline: 2px solid var(--brand-text); outline-offset: 3px; }
         footer { font-size: 13px; color: var(--muted); }
         footer a { color: inherit; }
     </style>

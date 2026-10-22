@@ -42,7 +42,7 @@ if (empty($initial_items)) {
 
 <!-- Page Header -->
 <div class="flex items-center gap-3 mb-8">
-    <a href="<?= APP_URL ?>/deliveries" class="w-9 h-9 flex items-center justify-center rounded-lg bg-brand-cream border border-brand-sand hover:border-brand-gold transition-colors">
+    <a href="<?= APP_URL ?>/deliveries" class="w-9 h-9 flex items-center justify-center rounded-lg bg-brand-cream border border-brand-sand hover:border-accent transition-colors">
         <svg class="w-4 h-4 text-brand-plum/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
     </a>
     <div>
@@ -80,7 +80,7 @@ if (empty($initial_items)) {
                     <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-plum/30" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
                     <input type="text" x-model="invoiceSearch" @input.debounce.400ms="searchInvoices()"
                            placeholder="Search invoice number or customer name..."
-                           class="w-full pl-10 pr-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/30">
+                           class="w-full pl-10 pr-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/30">
 
                     <!-- Invoice Results -->
                     <div x-show="invoiceResults.length > 0" x-cloak
@@ -108,19 +108,19 @@ if (empty($initial_items)) {
             <div>
                 <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Recipient Name *</label>
                 <input type="text" name="recipient_name" x-model="recipientName" required
-                       class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/30"
+                       class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/30"
                        placeholder="Full name of person receiving">
             </div>
             <div>
                 <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Phone Number</label>
                 <input type="tel" maxlength="50" name="recipient_phone" x-model="recipientPhone"
-                       class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/30"
+                       class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/30"
                        placeholder="e.g. 08012345678">
             </div>
             <div class="sm:col-span-2">
                 <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Delivery Address *</label>
                 <textarea name="delivery_address" x-model="deliveryAddress" required rows="2"
-                          class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/30 resize-none"
+                          class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/30 resize-none"
                           placeholder="Full delivery address"></textarea>
             </div>
         </div>
@@ -131,7 +131,7 @@ if (empty($initial_items)) {
         <div class="flex items-center justify-between mb-4">
             <h2 class="font-heading font-bold text-sm text-brand-plum uppercase tracking-wider">Items Being Dispatched</h2>
             <button type="button" @click="addItem()"
-                    class="text-[10px] font-bold text-brand-gold uppercase tracking-widest hover:text-brand-burgundy flex items-center gap-1">
+                    class="text-[10px] font-bold text-accent-text uppercase tracking-widest hover:text-accent-text flex items-center gap-1">
                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
                 Add Item
             </button>
@@ -144,24 +144,24 @@ if (empty($initial_items)) {
                 <div class="flex-1 min-w-0">
                     <label class="block text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">Description *</label>
                     <input type="text" :name="'item_description[' + idx + ']'" x-model="item.description"
-                           class="w-full px-3 py-2 text-xs font-medium bg-brand-white border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum"
+                           class="w-full px-3 py-2 text-xs font-medium bg-brand-white border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum"
                            placeholder="Item description">
                 </div>
                 <div class="w-20">
                     <label class="block text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">Qty *</label>
                     <input type="number" :name="'item_quantity[' + idx + ']'" x-model="item.quantity" min="0.01" step="0.01"
-                           class="w-full px-3 py-2 text-xs font-medium bg-brand-white border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum text-center">
+                           class="w-full px-3 py-2 text-xs font-medium bg-brand-white border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum text-center">
                 </div>
                 <div class="w-24">
                     <label class="block text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">Unit</label>
                     <input type="text" :name="'item_unit[' + idx + ']'" x-model="item.unit"
-                           class="w-full px-3 py-2 text-xs font-medium bg-brand-white border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum"
+                           class="w-full px-3 py-2 text-xs font-medium bg-brand-white border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum"
                            placeholder="pcs, kg...">
                 </div>
                 <div class="flex-1 min-w-0 hidden sm:block">
                     <label class="block text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">Notes</label>
                     <input type="text" :name="'item_notes[' + idx + ']'" x-model="item.notes"
-                           class="w-full px-3 py-2 text-xs font-medium bg-brand-white border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum"
+                           class="w-full px-3 py-2 text-xs font-medium bg-brand-white border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum"
                            placeholder="Optional">
                 </div>
                 <div class="flex items-end">
@@ -181,12 +181,12 @@ if (empty($initial_items)) {
             <div class="sm:col-span-2">
                 <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Pickup Address</label>
                 <textarea name="pickup_address" rows="2"
-                          class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/30 resize-none"
+                          class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/30 resize-none"
                           placeholder="Defaults to your business address"><?= e($editing ? $delivery['pickup_address'] : ($delivery['pickup_address'] ?? ($business['address'] ?? ''))) ?></textarea>
             </div>
             <div>
                 <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Provider / Courier</label>
-                <select name="provider" class="w-full px-3 py-2.5 text-xs font-semibold bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">
+                <select name="provider" class="w-full px-3 py-2.5 text-xs font-semibold bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
                     <option value="">— Select Provider —</option>
                     <?php foreach ($providers as $k => $v): ?>
                         <option value="<?= $k ?>" <?= ($delivery['provider'] ?? '') === $k ? 'selected' : '' ?>><?= $v ?></option>
@@ -197,7 +197,7 @@ if (empty($initial_items)) {
                 <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Estimated Delivery</label>
                 <input type="datetime-local" name="estimated_delivery"
                        value="<?= e(!empty($delivery['estimated_delivery']) ? date('Y-m-d\TH:i', strtotime($delivery['estimated_delivery'])) : '') ?>"
-                       class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">
+                       class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
             </div>
         </div>
     </div>
@@ -213,19 +213,19 @@ if (empty($initial_items)) {
                 <div>
                     <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Rider Name</label>
                     <input type="text" name="rider_name" value="<?= e($delivery['rider_name'] ?? '') ?>"
-                           class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/30"
+                           class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/30"
                            placeholder="Name of rider / driver">
                 </div>
                 <div>
                     <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Rider Phone</label>
                     <input type="tel" maxlength="50" name="rider_phone" value="<?= e($delivery['rider_phone'] ?? '') ?>"
-                           class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/30"
+                           class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/30"
                            placeholder="e.g. 08012345678">
                 </div>
                 <div>
                     <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Booking Reference</label>
                     <input type="text" name="booking_reference" value="<?= e($delivery['booking_reference'] ?? '') ?>"
-                           class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/30"
+                           class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/30"
                            placeholder="3PL booking/order ID">
                 </div>
             </div>
@@ -243,13 +243,13 @@ if (empty($initial_items)) {
                 <div>
                     <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Tracking Number</label>
                     <input type="text" name="tracking_number" value="<?= e($delivery['tracking_number'] ?? '') ?>"
-                           class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/30"
+                           class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/30"
                            placeholder="Courier tracking ID">
                 </div>
                 <div>
                     <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Tracking URL</label>
                     <input type="url" name="tracking_url" value="<?= e($delivery['tracking_url'] ?? '') ?>"
-                           class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/30"
+                           class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/30"
                            placeholder="https://...">
                 </div>
             </div>
@@ -263,13 +263,13 @@ if (empty($initial_items)) {
             <div>
                 <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Special Instructions</label>
                 <textarea name="special_instructions" rows="2"
-                          class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/30 resize-none"
+                          class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/30 resize-none"
                           placeholder="Fragile, call before delivery, etc."><?= e($delivery['special_instructions'] ?? '') ?></textarea>
             </div>
             <div>
                 <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Internal Notes</label>
                 <textarea name="notes" rows="2"
-                          class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/30 resize-none"
+                          class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/30 resize-none"
                           placeholder="Private notes (not shown to recipient)"><?= e($delivery['notes'] ?? '') ?></textarea>
             </div>
         </div>
@@ -280,7 +280,7 @@ if (empty($initial_items)) {
     <?php if (!$editing || is_boss()): ?>
     <label class="flex items-start gap-3 bg-brand-white border border-brand-sand rounded-xl p-4 shadow-sm cursor-pointer">
         <input type="hidden" name="sign_box" value="1">
-        <input type="checkbox" name="sign_on" value="1" <?= $d_sign ? 'checked' : '' ?> class="mt-0.5 w-4 h-4 accent-[#8B004A] shrink-0">
+        <input type="checkbox" name="sign_on" value="1" <?= $d_sign ? 'checked' : '' ?> class="mt-0.5 w-4 h-4 shrink-0">
         <span>
             <span class="block text-xs font-bold text-brand-plum">Signed delivery note</span>
             <span class="block text-[10px] text-brand-plum/50 leading-snug">Signed for your business, and the receiver signs when it arrives. Leave it off and they confirm with one tap.</span>
@@ -290,7 +290,7 @@ if (empty($initial_items)) {
 
     <!-- Actions -->
     <div class="flex items-center justify-between">
-        <a href="<?= APP_URL ?>/deliveries" class="text-[10px] font-bold text-brand-plum/40 uppercase tracking-widest hover:text-brand-burgundy">Cancel</a>
+        <a href="<?= APP_URL ?>/deliveries" class="text-[10px] font-bold text-brand-plum/40 uppercase tracking-widest hover:text-accent-text">Cancel</a>
         <button type="submit" class="btn-primary text-white px-8 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-sm hover:shadow-md transition-all">
             <?= $editing ? 'Update Delivery' : 'Create Delivery' ?>
         </button>

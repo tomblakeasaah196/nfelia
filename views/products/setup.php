@@ -54,17 +54,17 @@ $step_done = ($has_products && $has_categories) ? 3 : ($has_products ? 2 : ($has
 <div class="bg-brand-white border border-brand-sand rounded-xl p-6 shadow-sm mb-8">
     <div class="flex items-center justify-between mb-4">
         <h2 class="font-heading font-bold text-xs text-brand-plum uppercase tracking-widest">Setup Progress</h2>
-        <span class="data-text text-[10px] font-bold text-brand-gold"><?= $product_count ?> item<?= $product_count !== 1 ? 's' : '' ?> added</span>
+        <span class="data-text text-[10px] font-bold text-accent-text"><?= $product_count ?> item<?= $product_count !== 1 ? 's' : '' ?> added</span>
     </div>
     <div class="flex items-center gap-2 mb-3">
         <?php for ($i = 1; $i <= 3; $i++): ?>
-            <div class="flex-1 h-2 rounded-full <?= $i <= $step_done ? 'bg-brand-gold' : 'bg-brand-sand' ?> transition-all"></div>
+            <div class="flex-1 h-2 rounded-full <?= $i <= $step_done ? 'bg-accent' : 'bg-brand-sand' ?> transition-all"></div>
         <?php endfor; ?>
     </div>
     <div class="flex items-center justify-between text-[9px] font-bold uppercase tracking-widest">
-        <span class="<?= $step_done >= 1 ? 'text-brand-gold' : 'text-brand-plum/30' ?>">Categories</span>
-        <span class="<?= $step_done >= 2 ? 'text-brand-gold' : 'text-brand-plum/30' ?>">First Items</span>
-        <span class="<?= $step_done >= 3 ? 'text-brand-gold' : 'text-brand-plum/30' ?>">Ready</span>
+        <span class="<?= $step_done >= 1 ? 'text-accent-text' : 'text-brand-plum/30' ?>">Categories</span>
+        <span class="<?= $step_done >= 2 ? 'text-accent-text' : 'text-brand-plum/30' ?>">First Items</span>
+        <span class="<?= $step_done >= 3 ? 'text-accent-text' : 'text-brand-plum/30' ?>">Ready</span>
     </div>
 </div>
 
@@ -77,11 +77,11 @@ $step_done = ($has_products && $has_categories) ? 3 : ($has_products ? 2 : ($has
         <div class="bg-brand-white border border-brand-sand rounded-xl shadow-sm overflow-hidden" x-data="{ expanded: true }">
             <button @click="expanded = !expanded" class="w-full flex items-center justify-between px-6 py-5 text-left">
                 <div class="flex items-center gap-3">
-                    <div class="w-8 h-8 rounded-lg flex items-center justify-center <?= $has_categories ? 'bg-green-100' : 'bg-brand-gold/10' ?>">
+                    <div class="w-8 h-8 rounded-lg flex items-center justify-center <?= $has_categories ? 'bg-green-100' : 'bg-accent/10' ?>">
                         <?php if ($has_categories): ?>
                             <svg class="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
                         <?php else: ?>
-                            <span class="text-sm font-bold text-brand-gold">1</span>
+                            <span class="text-sm font-bold text-accent-text">1</span>
                         <?php endif; ?>
                     </div>
                     <div>
@@ -102,7 +102,7 @@ $step_done = ($has_products && $has_categories) ? 3 : ($has_products ? 2 : ($has
                         $already_used = in_array($scat, $categories_list);
                     ?>
                         <span class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider border transition-all
-                            <?= $already_used ? 'bg-green-50 border-green-300 text-green-700' : 'bg-brand-cream border-brand-sand text-brand-plum/60 hover:border-brand-gold cursor-default' ?>">
+                            <?= $already_used ? 'bg-green-50 border-green-300 text-green-700' : 'bg-brand-cream border-brand-sand text-brand-plum/60 hover:border-accent cursor-default' ?>">
                             <?php if ($already_used): ?>
                                 <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
                             <?php endif; ?>
@@ -130,11 +130,11 @@ $step_done = ($has_products && $has_categories) ? 3 : ($has_products ? 2 : ($has
         <div class="bg-brand-white border border-brand-sand rounded-xl shadow-sm overflow-hidden" x-data="{ expanded: <?= $has_products ? 'false' : 'true' ?>, isService: false }">
             <button @click="expanded = !expanded" class="w-full flex items-center justify-between px-6 py-5 text-left">
                 <div class="flex items-center gap-3">
-                    <div class="w-8 h-8 rounded-lg flex items-center justify-center <?= $has_products ? 'bg-green-100' : 'bg-brand-gold/10' ?>">
+                    <div class="w-8 h-8 rounded-lg flex items-center justify-center <?= $has_products ? 'bg-green-100' : 'bg-accent/10' ?>">
                         <?php if ($has_products): ?>
                             <svg class="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
                         <?php else: ?>
-                            <span class="text-sm font-bold text-brand-gold">2</span>
+                            <span class="text-sm font-bold text-accent-text">2</span>
                         <?php endif; ?>
                     </div>
                     <div>
@@ -154,12 +154,12 @@ $step_done = ($has_products && $has_categories) ? 3 : ($has_products ? 2 : ($has
                         <div>
                             <label class="block text-[10px] font-bold text-brand-plum/70 uppercase tracking-widest mb-1.5">Name <span class="text-red-500">*</span></label>
                             <input type="text" name="name" required placeholder="e.g. Ankara Fabric, Screen Repair"
-                                   class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/25">
+                                   class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/25">
                         </div>
                         <div>
                             <label class="block text-[10px] font-bold text-brand-plum/70 uppercase tracking-widest mb-1.5">Category</label>
                             <input type="text" name="category" list="setup-cat-list" placeholder="Select or type"
-                                   class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum placeholder-brand-plum/25">
+                                   class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/25">
                             <datalist id="setup-cat-list">
                                 <?php foreach (array_unique(array_merge($suggested_cats, $categories_list)) as $sc): ?>
                                     <option value="<?= e($sc) ?>">
@@ -172,24 +172,24 @@ $step_done = ($has_products && $has_categories) ? 3 : ($has_products ? 2 : ($has
                         <div>
                             <label class="block text-[10px] font-bold text-brand-plum/70 uppercase tracking-widest mb-1.5">Sell Price (<?= e($currency) ?>)</label>
                             <input type="number" name="sell_price" step="0.01" min="0" placeholder="0.00"
-                                   class="w-full px-3 py-2.5 text-xs font-mono font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">
+                                   class="w-full px-3 py-2.5 text-xs font-mono font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
                         </div>
                         <div>
                             <label class="block text-[10px] font-bold text-brand-plum/70 uppercase tracking-widest mb-1.5">Cost Price (<?= e($currency) ?>)</label>
                             <input type="number" name="cost_price" step="0.01" min="0" placeholder="0.00"
-                                   class="w-full px-3 py-2.5 text-xs font-mono font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">
+                                   class="w-full px-3 py-2.5 text-xs font-mono font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
                         </div>
                         <div x-show="!isService">
                             <label class="block text-[10px] font-bold text-brand-plum/70 uppercase tracking-widest mb-1.5">Stock Qty</label>
                             <input type="number" name="stock_qty" step="0.01" min="0" placeholder="0"
-                                   class="w-full px-3 py-2.5 text-xs font-mono font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">
+                                   class="w-full px-3 py-2.5 text-xs font-mono font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
                         </div>
                     </div>
 
                     <div class="flex items-center gap-4 mb-4">
                         <div>
                             <label class="block text-[10px] font-bold text-brand-plum/70 uppercase tracking-widest mb-1.5">Unit</label>
-                            <select name="unit" class="px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">
+                            <select name="unit" class="px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
                                 <?php foreach ($suggested_units as $uval => $ulbl): ?>
                                     <option value="<?= $uval ?>"><?= $ulbl ?></option>
                                 <?php endforeach; ?>
@@ -268,7 +268,7 @@ $step_done = ($has_products && $has_categories) ? 3 : ($has_products ? 2 : ($has
                     <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
                     <div class="flex items-center gap-3">
                         <label class="flex-1 cursor-pointer">
-                            <div class="flex items-center gap-3 border-2 border-dashed border-brand-sand hover:border-brand-gold rounded-lg px-4 py-3 transition-all">
+                            <div class="flex items-center gap-3 border-2 border-dashed border-brand-sand hover:border-accent rounded-lg px-4 py-3 transition-all">
                                 <svg class="w-5 h-5 text-brand-plum/30 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                                 <span class="text-[10px] font-bold text-brand-plum/40 uppercase tracking-widest" id="csv-filename">Choose CSV file...</span>
                             </div>
@@ -374,15 +374,15 @@ $step_done = ($has_products && $has_categories) ? 3 : ($has_products ? 2 : ($has
         <div class="bg-brand-white border border-brand-sand rounded-xl shadow-sm p-6">
             <h3 class="font-heading font-bold text-xs text-brand-plum uppercase tracking-widest mb-4">Quick Actions</h3>
             <div class="space-y-2">
-                <a href="<?= APP_URL ?>/products/create" class="flex items-center gap-3 px-4 py-3 rounded-lg border border-brand-sand hover:border-brand-gold transition-all">
-                    <svg class="w-4 h-4 text-brand-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+                <a href="<?= APP_URL ?>/products/create" class="flex items-center gap-3 px-4 py-3 rounded-lg border border-brand-sand hover:border-accent transition-all">
+                    <svg class="w-4 h-4 text-accent-text" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
                     <span class="text-[10px] font-bold text-brand-plum uppercase tracking-widest">Full Add Form</span>
                 </a>
-                <a href="<?= APP_URL ?>/products" class="flex items-center gap-3 px-4 py-3 rounded-lg border border-brand-sand hover:border-brand-gold transition-all">
+                <a href="<?= APP_URL ?>/products" class="flex items-center gap-3 px-4 py-3 rounded-lg border border-brand-sand hover:border-accent transition-all">
                     <svg class="w-4 h-4 text-brand-plum/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
                     <span class="text-[10px] font-bold text-brand-plum uppercase tracking-widest">View All Items</span>
                 </a>
-                <a href="<?= APP_URL ?>/products/export" class="flex items-center gap-3 px-4 py-3 rounded-lg border border-brand-sand hover:border-brand-gold transition-all">
+                <a href="<?= APP_URL ?>/products/export" class="flex items-center gap-3 px-4 py-3 rounded-lg border border-brand-sand hover:border-accent transition-all">
                     <svg class="w-4 h-4 text-brand-plum/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                     <span class="text-[10px] font-bold text-brand-plum uppercase tracking-widest">Export to CSV</span>
                 </a>

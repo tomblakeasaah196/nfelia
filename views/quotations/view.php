@@ -55,8 +55,8 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
               require BASE_PATH . '/views/partials/doc_sign_control.php'; ?>
 
         <?php if (in_array($quotation['status'], ['draft', 'sent', 'in_negotiation'])): ?>
-            <a href="<?= APP_URL ?>/quotations/edit/<?= $quotation['id'] ?>" class="flex items-center gap-1.5 bg-brand-white border border-brand-sand hover:border-brand-gold px-3 py-2 rounded-lg transition-all">
-                <svg class="w-3.5 h-3.5 text-brand-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+            <a href="<?= APP_URL ?>/quotations/edit/<?= $quotation['id'] ?>" class="flex items-center gap-1.5 bg-brand-white border border-brand-sand hover:border-accent px-3 py-2 rounded-lg transition-all">
+                <svg class="w-3.5 h-3.5 text-accent-text" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                 <span class="text-[10px] font-bold text-brand-plum uppercase tracking-widest">Edit</span>
             </a>
         <?php endif; ?>
@@ -113,7 +113,7 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
 
     <!-- Copy Link -->
     <button onclick="navigator.clipboard.writeText('<?= e($public_url) ?>'); this.querySelector('span').textContent = 'Copied!'; setTimeout(() => this.querySelector('span').textContent = 'Copy Link', 2000);"
-            class="flex items-center gap-1.5 bg-brand-cream border border-brand-sand hover:border-brand-gold px-3 py-2 rounded-lg transition-all">
+            class="flex items-center gap-1.5 bg-brand-cream border border-brand-sand hover:border-accent px-3 py-2 rounded-lg transition-all">
         <svg class="w-3.5 h-3.5 text-brand-plum/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
         <span class="text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest">Copy Link</span>
     </button>
@@ -125,13 +125,13 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
     </a>
 
     <!-- Download PDF -->
-    <a href="<?= APP_URL ?>/doc/<?= e($quotation['token']) ?>?format=pdf" target="_blank" class="flex items-center gap-1.5 bg-brand-cream border border-brand-sand hover:border-brand-gold px-3 py-2 rounded-lg transition-all">
+    <a href="<?= APP_URL ?>/doc/<?= e($quotation['token']) ?>?format=pdf" target="_blank" class="flex items-center gap-1.5 bg-brand-cream border border-brand-sand hover:border-accent px-3 py-2 rounded-lg transition-all">
         <svg class="w-3.5 h-3.5 text-brand-plum/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
         <span class="text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest">Download PDF</span>
     </a>
 
     <!-- Open Public -->
-    <a href="<?= e($public_url) ?>" target="_blank" class="flex items-center gap-1.5 bg-brand-cream border border-brand-sand hover:border-brand-gold px-3 py-2 rounded-lg transition-all">
+    <a href="<?= e($public_url) ?>" target="_blank" class="flex items-center gap-1.5 bg-brand-cream border border-brand-sand hover:border-accent px-3 py-2 rounded-lg transition-all">
         <svg class="w-3.5 h-3.5 text-brand-plum/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
         <span class="text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest">Public View</span>
     </a>
@@ -329,7 +329,7 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
                 <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
                 <div class="flex gap-3">
                     <textarea name="message" rows="2" required placeholder="Reply to the client..." 
-                              class="flex-1 px-4 py-3 text-sm bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum resize-none"></textarea>
+                              class="flex-1 px-4 py-3 text-sm bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum resize-none"></textarea>
                     <button type="submit" class="btn-primary text-white px-6 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest self-end h-11">
                         Send
                     </button>

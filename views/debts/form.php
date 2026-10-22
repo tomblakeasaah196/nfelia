@@ -30,12 +30,12 @@ $currency = $business['currency_symbol'] ?? '₦';
             <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-2">Debt Type <span class="text-red-500">*</span></label>
             <div class="flex gap-2">
                 <button type="button" @click="debtType = 'receivable'"
-                        :class="debtType === 'receivable' ? 'btn-primary text-white shadow-sm' : 'bg-brand-cream text-brand-plum/60 border border-brand-sand hover:border-brand-gold'"
+                        :class="debtType === 'receivable' ? 'btn-primary text-white shadow-sm' : 'bg-brand-cream text-brand-plum/60 border border-brand-sand hover:border-accent'"
                         class="flex-1 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all text-center">
                     Owed to me
                 </button>
                 <button type="button" @click="debtType = 'payable'"
-                        :class="debtType === 'payable' ? 'btn-primary text-white shadow-sm' : 'bg-brand-cream text-brand-plum/60 border border-brand-sand hover:border-brand-gold'"
+                        :class="debtType === 'payable' ? 'btn-primary text-white shadow-sm' : 'bg-brand-cream text-brand-plum/60 border border-brand-sand hover:border-accent'"
                         class="flex-1 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all text-center">
                     I owe
                 </button>
@@ -50,7 +50,7 @@ $currency = $business['currency_symbol'] ?? '₦';
                 <input type="hidden" name="customer_id" :value="partyId">
                 <input type="text" x-model="partySearch" @input.debounce.300ms="searchParty()"
                        @focus="showPartyDrop = partyResults.length > 0"
-                       class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum"
+                       class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum"
                        :class="partyId ? 'border-green-300 bg-green-50/30' : ''"
                        placeholder="Search customer...">
                 <template x-if="partyId">
@@ -78,7 +78,7 @@ $currency = $business['currency_symbol'] ?? '₦';
                 <input type="hidden" name="supplier_id" :value="partyId">
                 <input type="text" x-model="partySearch" @input.debounce.300ms="searchParty()"
                        @focus="showPartyDrop = partyResults.length > 0"
-                       class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum"
+                       class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum"
                        :class="partyId ? 'border-green-300 bg-green-50/30' : ''"
                        placeholder="Search supplier...">
                 <template x-if="partyId">
@@ -103,7 +103,7 @@ $currency = $business['currency_symbol'] ?? '₦';
         <div>
             <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1">Description <span class="text-red-500">*</span></label>
             <input type="text" name="description" value="<?= e($debt['description'] ?? '') ?>" required
-                   class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum"
+                   class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum"
                    placeholder="e.g. Balance for 20 bags of cement, Outstanding rent payment...">
         </div>
 
@@ -112,7 +112,7 @@ $currency = $business['currency_symbol'] ?? '₦';
             <div>
                 <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1">Amount (<?= $currency ?>) <span class="text-red-500">*</span></label>
                 <input type="number" name="total_amount" step="0.01" min="0.01" value="<?= e($debt['total_amount'] ?? '') ?>" required
-                       class="w-full px-3 py-2.5 text-sm font-bold bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum"
+                       class="w-full px-3 py-2.5 text-sm font-bold bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum"
                        placeholder="0.00">
             </div>
 
@@ -120,7 +120,7 @@ $currency = $business['currency_symbol'] ?? '₦';
             <div>
                 <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1">Due Date</label>
                 <input type="date" name="due_date" value="<?= e($debt['due_date'] ?? '') ?>"
-                       class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum">
+                       class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
             </div>
         </div>
     </div>
@@ -130,7 +130,7 @@ $currency = $business['currency_symbol'] ?? '₦';
         <button type="submit" class="btn-primary text-white px-6 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-sm hover:shadow-md transition-all">
             Record Debt
         </button>
-        <a href="<?= APP_URL ?>/debts" class="text-[10px] font-bold text-brand-plum/40 uppercase tracking-widest hover:text-brand-burgundy">Cancel</a>
+        <a href="<?= APP_URL ?>/debts" class="text-[10px] font-bold text-brand-plum/40 uppercase tracking-widest hover:text-accent-text">Cancel</a>
     </div>
 </form>
 

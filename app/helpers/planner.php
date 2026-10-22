@@ -978,6 +978,23 @@ function planner_business_can_use(array $b, DateTimeImmutable $now): bool {
     ], $now->format('Y-m-d')) !== 'locked';
 }
 
+/**
+ * The colours the calendar tells kinds of things apart by: a task, a
+ * delivery, money in, a quote, money out. The same as dotClass() in
+ * assets/js/planner.js and the key in views/tasks/index.php.
+ */
+const PLANNER_DOT_COLOURS = ['#5B4650', '#B54708', '#00764A', '#026AA2', '#B42318'];
+
+/**
+ * Appointments' colour on the calendar: the business's own (the shade that
+ * reads on white), or the nearest colour to it that none of the other dots
+ * can be mistaken for (theme_distinct() in app/helpers/theme.php).
+ */
+function planner_appointment_colour(array $business): string {
+    $theme = theme_tokens($business['primary_color'] ?? null, $business['secondary_color'] ?? null);
+    return theme_distinct($theme['accent_text'], PLANNER_DOT_COLOURS);
+}
+
 /** White or ink text, whichever reads better on a business's own colour. */
 function planner_text_on(string $hex): string {
     if (!preg_match('/^#([0-9a-f]{6})$/i', $hex, $m)) return '#FFFFFF';

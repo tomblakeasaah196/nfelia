@@ -30,7 +30,7 @@
         <div>
             <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1">Supplier / Contact Name <span class="text-red-500">*</span></label>
             <input type="text" name="full_name" value="<?= e($supplier['full_name'] ?? '') ?>" required
-                   class="w-full px-3 py-2.5 text-sm font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum"
+                   class="w-full px-3 py-2.5 text-sm font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum"
                    placeholder="e.g. Alhaji Musa">
         </div>
 
@@ -38,7 +38,7 @@
         <div>
             <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1">Business Name</label>
             <input type="text" name="business_name" value="<?= e($supplier['business_name'] ?? '') ?>"
-                   class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum"
+                   class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum"
                    placeholder="e.g. Musa General Supplies Ltd">
         </div>
 
@@ -47,7 +47,7 @@
             <div>
                 <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1">Phone Number</label>
                 <input type="tel" name="phone" maxlength="50" value="<?= e($supplier['phone'] ?? '') ?>"
-                       class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum"
+                       class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum"
                        placeholder="08012345678">
             </div>
 
@@ -55,7 +55,7 @@
             <div>
                 <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1">WhatsApp Number</label>
                 <input type="tel" name="whatsapp" maxlength="50" value="<?= e($supplier['whatsapp'] ?? '') ?>"
-                       class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum"
+                       class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum"
                        placeholder="Same as phone if blank">
             </div>
         </div>
@@ -64,7 +64,7 @@
         <div>
             <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1">Email</label>
             <input type="email" name="email" value="<?= e($supplier['email'] ?? '') ?>"
-                   class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum"
+                   class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum"
                    placeholder="supplier@email.com">
         </div>
 
@@ -72,7 +72,7 @@
         <div>
             <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1">Address</label>
             <textarea name="address" rows="2"
-                      class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum resize-none"
+                      class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum resize-none"
                       placeholder="Shop / warehouse address..."><?= e($supplier['address'] ?? '') ?></textarea>
         </div>
 
@@ -80,7 +80,7 @@
         <div>
             <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1">Notes</label>
             <textarea name="notes" rows="3"
-                      class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-brand-gold text-brand-plum resize-none"
+                      class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum resize-none"
                       placeholder="What they supply, payment terms, etc..."><?= e($supplier['notes'] ?? '') ?></textarea>
         </div>
     </div>
@@ -90,6 +90,6 @@
         <button type="submit" class="btn-primary text-white px-6 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-sm hover:shadow-md transition-all">
             <?= $editing ? 'Update Supplier' : 'Add Supplier' ?>
         </button>
-        <a href="<?= APP_URL ?>/suppliers" class="text-[10px] font-bold text-brand-plum/40 uppercase tracking-widest hover:text-brand-burgundy">Cancel</a>
+        <a href="<?= APP_URL ?>/suppliers" class="text-[10px] font-bold text-brand-plum/40 uppercase tracking-widest hover:text-accent-text">Cancel</a>
     </div>
 </form>

@@ -20,7 +20,7 @@ $currency = $business["currency_symbol"] ?? "₦"; ?>
     <!-- Security Badges -->
     <div class="flex items-center gap-2">
         <span class="data-text text-[9px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg bg-brand-plum text-white shadow-sm flex items-center gap-1.5">
-            <svg class="w-3 h-3 text-brand-gold" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a6 6 0 00-6 6v3a2 2 0 00-2 2v5a2 2 0 002 2h12a2 2 0 002-2v-5a2 2 0 00-2-2V8a6 6 0 00-6-6zm-4 6a4 4 0 118 0v3H6V8z"/></svg>
+            <svg class="w-3 h-3 text-accent-soft" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a6 6 0 00-6 6v3a2 2 0 00-2 2v5a2 2 0 002 2h12a2 2 0 002-2v-5a2 2 0 00-2-2V8a6 6 0 00-6-6zm-4 6a4 4 0 118 0v3H6V8z"/></svg>
             Double-Lock Guard Active
         </span>
         <span class="data-text text-[9px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg <?= $has_pin
@@ -87,7 +87,7 @@ $currency = $business["currency_symbol"] ?? "₦"; ?>
                 <div>
                     <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1.5">Target Module</label>
                     <select x-model="targetModule" @change="candidates = []; selectedMap = {};"
-                            class="w-full px-3.5 py-2.5 text-xs font-bold uppercase tracking-wider bg-brand-cream border border-brand-sand rounded-xl text-brand-plum focus:outline-none focus:border-brand-gold">
+                            class="w-full px-3.5 py-2.5 text-xs font-bold uppercase tracking-wider bg-brand-cream border border-brand-sand rounded-xl text-brand-plum focus:outline-none focus:border-accent-text">
                         <option value="orders">Orders (ORD), with all their documents</option>
                         <option value="quotations">Quotations (QUO)</option>
                         <option value="invoices">Invoices (INV)</option>
@@ -105,7 +105,7 @@ $currency = $business["currency_symbol"] ?? "₦"; ?>
                         <input type="text" name="purge_search_identifier" x-model="exactString" @keyup.enter="scanCandidates()"
                                autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-form-type="other"
                                placeholder="e.g. QUO-0001, INV-0012, ORD-0004..."
-                               class="w-full px-4 py-2.5 text-xs font-bold data-text uppercase tracking-wider bg-brand-cream border border-brand-sand rounded-xl text-brand-plum focus:outline-none focus:border-brand-gold">
+                               class="w-full px-4 py-2.5 text-xs font-bold data-text uppercase tracking-wider bg-brand-cream border border-brand-sand rounded-xl text-brand-plum focus:outline-none focus:border-accent-text">
                     </div>
                     <div class="flex items-end">
                         <button type="button" @click="scanCandidates()" :disabled="scanning || !exactString"
@@ -199,7 +199,7 @@ $currency = $business["currency_symbol"] ?? "₦"; ?>
 
             <div class="mt-6 pt-4 border-t border-brand-sand flex items-center justify-between">
                 <span class="text-xs font-semibold text-brand-plum/60">
-                    Selected <strong class="text-brand-burgundy font-bold" x-text="getSelectedIds().length"></strong> candidates for annihilation.
+                    Selected <strong class="text-accent-text font-bold" x-text="getSelectedIds().length"></strong> candidates for annihilation.
                 </span>
                 <button type="button" @click="openBriefingCard()" :disabled="getSelectedIds().length === 0"
                         class="bg-[#ff0000] hover:bg-[#cc0000] text-white px-8 py-3 rounded-xl text-xs font-extrabold uppercase tracking-widest disabled:opacity-40 transition-all shadow-md active:scale-95">
@@ -376,7 +376,7 @@ $currency = $business["currency_symbol"] ?? "₦"; ?>
                                 <div x-show="expanded" style="display:none;" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" @click.stop>
                                     <div class="bg-brand-plum text-brand-cream p-6 rounded-2xl max-w-3xl w-full max-h-[80vh] overflow-y-auto text-left relative shadow-2xl border border-brand-sand/20">
                                         <div class="flex justify-between items-center pb-3 mb-3 border-b border-white/10">
-                                            <p class="text-xs font-bold uppercase tracking-widest text-brand-gold">Raw Immutable JSON Snapshot — Ledger #<?= $log[
+                                            <p class="text-xs font-bold uppercase tracking-widest text-accent-soft">Raw Immutable JSON Snapshot — Ledger #<?= $log[
                                                 "id"
                                             ] ?></p>
                                             <button @click="expanded = false" class="text-white/50 hover:text-white font-bold">✕</button>
@@ -421,12 +421,12 @@ $currency = $business["currency_symbol"] ?? "₦"; ?>
                 <div>
                     <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1.5">New Security PIN (4 - 8 digits)</label>
                     <input type="password" x-model="configPin" maxlength="8" placeholder="••••••••" required
-                           class="w-full px-4 py-3 text-sm font-bold data-text tracking-widest bg-brand-cream border border-brand-sand rounded-xl text-brand-plum focus:outline-none focus:border-brand-gold text-center">
+                           class="w-full px-4 py-3 text-sm font-bold data-text tracking-widest bg-brand-cream border border-brand-sand rounded-xl text-brand-plum focus:outline-none focus:border-accent-text text-center">
                 </div>
                 <div>
                     <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1.5">Confirm Account Login Password</label>
                     <input type="password" x-model="configPassword" placeholder="Live login password" required
-                           class="w-full px-4 py-3 text-xs font-bold bg-brand-cream border border-brand-sand rounded-xl text-brand-plum focus:outline-none focus:border-brand-gold">
+                           class="w-full px-4 py-3 text-xs font-bold bg-brand-cream border border-brand-sand rounded-xl text-brand-plum focus:outline-none focus:border-accent-text">
                 </div>
 
                 <div x-show="configMsg" x-text="configMsg" style="display:none;"

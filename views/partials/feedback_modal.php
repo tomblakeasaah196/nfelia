@@ -52,7 +52,7 @@
 
                     <!-- Message -->
                     <textarea x-model="message" rows="3" placeholder="Tell us more (optional)..."
-                              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-gold/30 focus:border-brand-gold resize-none"></textarea>
+                              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-accent/30 focus:border-accent-text resize-none"></textarea>
 
                     <!-- Image upload -->
                     <div class="mt-3">

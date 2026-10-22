@@ -38,6 +38,9 @@
  */
 class StorefrontController extends PublicController
 {
+    /** The shop this request is for, so its notices wear its colour (notice()). */
+    private ?array $shop = null;
+
     public function handle(string $label, string $path): void
     {
         header('Cache-Control: no-store');
@@ -58,6 +61,7 @@ class StorefrontController extends PublicController
                 $business = $holder;
             }
         }
+        $this->shop = $business;
 
         if ($business && preg_match('#^booking/([a-f0-9]{32})(/calendar\.ics)?$#', $path, $m) && in_array($method, ['GET', 'HEAD'], true)) {
             $this->booking_page($business, $m[1], !empty($m[2]));
@@ -633,12 +637,27 @@ class StorefrontController extends PublicController
 
     private function no_shop_here(): void
     {
+        // Nfelia's own colour: a shop switched off looks like no shop at all
         $this->notice([
             'title'        => 'There\'s no shop at this address',
             'body'         => 'Check the link for a typo, or ask the shop for its address.',
             'action_url'   => APP_URL,
             'action_label' => 'Go to Nfelia',
+            'colour'       => null,
         ]);
+    }
+
+    /**
+     * A notice on a shop's own address, in the shop's colour as its pages
+     * show it (views/public/notice.php). One that says its own 'colour'
+     * keeps it.
+     */
+    protected function notice(array $notice): void
+    {
+        if ($this->shop && !array_key_exists('colour', $notice)) {
+            $notice['colour'] = storefront_resolve(storefront_settings($this->shop), $this->shop)['palette']['accent'];
+        }
+        parent::notice($notice);
     }
 
     private function closed(array $business): void

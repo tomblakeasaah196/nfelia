@@ -146,13 +146,13 @@ $faqs = [
     <!-- Quick Search -->
     <div class="relative">
         <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
-        <input type="text" x-model="search" placeholder="Search the guide or FAQs..." class="w-full pl-10 pr-4 py-3 border rounded-xl text-sm focus:ring-2 focus:ring-brand-gold/30 focus:border-brand-gold">
+        <input type="text" x-model="search" placeholder="Search the guide or FAQs..." class="w-full pl-10 pr-4 py-3 border rounded-xl text-sm focus:ring-2 focus:ring-accent/30 focus:border-accent-text">
     </div>
 
     <!-- Quick Nav -->
     <div class="flex flex-wrap gap-2">
         <?php foreach ($sections as $i => $sec): ?>
-        <a href="#<?= $sec['id'] ?>" class="px-3 py-1.5 bg-white border rounded-lg text-xs font-medium text-gray-600 hover:bg-brand-gold/10 hover:text-brand-gold hover:border-brand-gold/30 transition-colors">
+        <a href="#<?= $sec['id'] ?>" class="px-3 py-1.5 bg-white border rounded-lg text-xs font-medium text-gray-600 hover:bg-accent/10 hover:text-accent-text hover:border-accent/30 transition-colors">
             <?= $sec['title'] ?>
         </a>
         <?php endforeach; ?>
@@ -180,7 +180,7 @@ $faqs = [
             <div class="px-5 pb-5 space-y-4 border-t pt-4">
                 <?php foreach ($sec['steps'] as $j => $step): ?>
                 <div class="flex gap-3">
-                    <div class="w-7 h-7 rounded-full bg-brand-gold/10 flex items-center justify-center text-brand-gold font-bold text-xs shrink-0 mt-0.5"><?= $j + 1 ?></div>
+                    <div class="w-7 h-7 rounded-full bg-accent/10 flex items-center justify-center text-accent-text font-bold text-xs shrink-0 mt-0.5"><?= $j + 1 ?></div>
                     <div>
                         <p class="font-medium text-sm text-gray-900"><?= $step['title'] ?></p>
                         <p class="text-sm text-gray-600 mt-0.5 leading-relaxed"><?= $step['text'] ?></p>

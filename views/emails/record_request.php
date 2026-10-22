@@ -16,9 +16,9 @@ $h = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES);
 <?php if (!empty($button) && !empty($url)): ?>
 <table cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px;">
     <tr>
-        <td style="background-color:#8B004A;">
+        <td style="background-color:<?= $h($biz_color) ?>;">
             <a href="<?= $h($url) ?>"
-               style="display:inline-block;padding:12px 24px;font-size:16px;line-height:1.25;font-weight:600;color:#FFFFFF;text-decoration:none;">
+               style="display:inline-block;padding:12px 24px;font-size:16px;line-height:1.25;font-weight:600;color:<?= $h($biz_on) ?>;text-decoration:none;">
                 <?= $h($button) ?>
             </a>
         </td>

@@ -49,7 +49,7 @@ $pending_discount = number_format(($stats['pending_discount_total'] ?? 0) / 100,
             <p class="text-xs text-gray-500 mt-1">Rewarded</p>
         </div>
         <div class="bg-white rounded-xl border border-gray-100 p-4 text-center">
-            <p class="text-2xl font-bold text-brand-gold"><?= $currency ?><?= $pending_discount ?></p>
+            <p class="text-2xl font-bold text-accent-text"><?= $currency ?><?= $pending_discount ?></p>
             <p class="text-xs text-gray-500 mt-1">Pending Credit</p>
         </div>
     </div>

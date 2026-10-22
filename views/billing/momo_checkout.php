@@ -24,14 +24,14 @@ foreach (billing_team(get_db(), (int)$business['id']) as $member) {
     </div>
 
     <!-- Payment Instructions Card -->
-    <div class="bg-white border-2 border-brand-gold rounded-2xl p-6 shadow-sm">
+    <div class="bg-white border-2 border-accent rounded-2xl p-6 shadow-sm">
         <div class="flex items-start gap-4 mb-5">
-            <div class="w-10 h-10 rounded-full bg-brand-gold/20 flex items-center justify-center shrink-0">
-                <svg class="w-5 h-5 text-brand-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <div class="w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center shrink-0">
+                <svg class="w-5 h-5 text-accent-text" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             </div>
             <div>
                 <h3 class="font-heading font-bold text-sm text-brand-plum uppercase tracking-wider mb-1">Step 1 — Send This Exact Amount</h3>
-                <div class="font-heading font-extrabold text-3xl text-brand-burgundy tracking-tight">
+                <div class="font-heading font-extrabold text-3xl text-accent-text tracking-tight">
                     <?= e($country['currency_symbol']) ?><?= number_format($amount_due, 0) ?>
                     <span class="text-base font-normal text-brand-plum/50 ml-1"><?= e($country['currency_code']) ?></span>
                 </div>
@@ -43,7 +43,7 @@ foreach (billing_team(get_db(), (int)$business['id']) as $member) {
             <p class="text-[10px] font-bold text-brand-plum/50 uppercase tracking-widest mb-1">Send to this Mobile Money Number</p>
             <div class="flex items-center justify-between gap-3">
                 <p class="font-mono font-extrabold text-xl text-brand-plum tracking-wider" id="momoNumber"><?= e($country['momo_number']) ?></p>
-                <button onclick="copyMomoNumber()" class="text-[10px] font-bold text-brand-burgundy border border-brand-burgundy/30 px-3 py-1.5 rounded-lg hover:bg-brand-burgundy hover:text-white transition-colors uppercase tracking-wider">
+                <button onclick="copyMomoNumber()" class="text-[10px] font-bold text-accent-text border border-accent/30 px-3 py-1.5 rounded-lg hover:bg-accent hover:text-on-accent transition-colors uppercase tracking-wider">
                     Copy
                 </button>
             </div>
@@ -72,9 +72,9 @@ foreach (billing_team(get_db(), (int)$business['id']) as $member) {
             <!-- Receipt Upload -->
             <div>
                 <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-2">
-                    Payment Receipt / Screenshot <span class="text-brand-burgundy">*</span>
+                    Payment Receipt / Screenshot <span class="text-accent-text">*</span>
                 </label>
-                <label for="receiptFile" class="flex flex-col items-center justify-center w-full h-36 border-2 border-dashed border-brand-sand rounded-xl cursor-pointer hover:border-brand-gold transition-colors bg-brand-cream/30 relative">
+                <label for="receiptFile" class="flex flex-col items-center justify-center w-full h-36 border-2 border-dashed border-brand-sand rounded-xl cursor-pointer hover:border-accent transition-colors bg-brand-cream/30 relative">
                     <input type="file" id="receiptFile" name="receipt" accept="image/jpeg,image/png,image/webp,application/pdf"
                            class="absolute inset-0 opacity-0 cursor-pointer" required onchange="previewFile(this)">
                     <div id="uploadPlaceholder" class="text-center">
@@ -96,7 +96,7 @@ foreach (billing_team(get_db(), (int)$business['id']) as $member) {
                     Transaction Reference Number <span class="text-brand-plum/40 normal-case">(optional but recommended)</span>
                 </label>
                 <input type="text" name="reference_number" maxlength="255"
-                       class="w-full px-4 py-3 border border-brand-sand rounded-xl text-sm font-mono focus:border-brand-gold outline-none"
+                       class="w-full px-4 py-3 border border-brand-sand rounded-xl text-sm font-mono focus:border-accent-text outline-none"
                        placeholder="e.g. TXN123456789">
                 <p class="text-[10px] text-brand-plum/40 mt-1">Found in your Mobile Money SMS confirmation message.</p>
             </div>
@@ -129,7 +129,7 @@ foreach (billing_team(get_db(), (int)$business['id']) as $member) {
             <p class="text-[11px] text-brand-plum/70 leading-relaxed">
                 Covers you<?= $covered_names ? ' and ' . e(implode(', ', $covered_names)) : ' only' ?>.
                 Anyone else on your team is switched off when the payment is approved.
-                <a href="<?= APP_URL ?>/settings?tab=billing" class="font-bold text-brand-burgundy">Change</a>
+                <a href="<?= APP_URL ?>/settings?tab=billing" class="font-bold text-accent-text">Change</a>
             </p>
             <?php endif; ?>
 

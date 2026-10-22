@@ -1,7 +1,8 @@
 <?php
 /**
  * Nfelia — Email Base Layout
- * Variables available: $biz_name, $biz_color, $biz_logo, $biz_tagline, $biz_email, $inner_content,
+ * Variables available: $biz_name, $biz_color, $biz_on, $biz_text, $biz_soft, $biz_link (render_email()),
+ * $biz_logo, $biz_tagline, $biz_email, $inner_content,
  * $is_platform (true for Nfelia's own emails: Nfelia mark, "Powered by JBS Praxis")
  * All email clients have poor CSS support — use table-based layout, inline styles only.
  */
@@ -44,7 +45,7 @@
                                                              style="display:block;border:0;outline:none;width:55px;height:40px;">
                                                     </td>
                                                     <td style="vertical-align:middle;">
-                                                        <span style="font-size:20px;font-weight:700;color:<?= htmlspecialchars($biz_color, ENT_QUOTES) ?>;letter-spacing:0.15em;text-transform:uppercase;">
+                                                        <span style="font-size:20px;font-weight:700;color:<?= htmlspecialchars($biz_text, ENT_QUOTES) ?>;letter-spacing:0.15em;text-transform:uppercase;">
                                                             <?= htmlspecialchars($biz_name, ENT_QUOTES) ?>
                                                         </span>
                                                     </td>
@@ -53,15 +54,15 @@
                                         <?php elseif ($biz_logo): ?>
                                             <!-- Styled alt text stands in for the logo when images are blocked. -->
                                             <img src="<?= htmlspecialchars($biz_logo, ENT_QUOTES) ?>" alt="<?= htmlspecialchars($biz_name, ENT_QUOTES) ?>"
-                                                 style="max-height:48px;max-width:160px;display:block;border:0;font-size:20px;font-weight:700;color:<?= htmlspecialchars($biz_color, ENT_QUOTES) ?>;letter-spacing:0.15em;">
+                                                 style="max-height:48px;max-width:160px;display:block;border:0;font-size:20px;font-weight:700;color:<?= htmlspecialchars($biz_text, ENT_QUOTES) ?>;letter-spacing:0.15em;">
                                         <?php else: ?>
-                                            <span style="font-size:20px;font-weight:700;color:<?= htmlspecialchars($biz_color, ENT_QUOTES) ?>;letter-spacing:0.15em;text-transform:uppercase;">
+                                            <span style="font-size:20px;font-weight:700;color:<?= htmlspecialchars($biz_text, ENT_QUOTES) ?>;letter-spacing:0.15em;text-transform:uppercase;">
                                                 <?= htmlspecialchars($biz_name, ENT_QUOTES) ?>
                                             </span>
                                         <?php endif; ?>
                                     </td>
                                     <td align="right" style="vertical-align:middle;">
-                                        <span style="font-size:9px;color:#B69F5E;letter-spacing:0.25em;text-transform:uppercase;font-weight:700;">
+                                        <span style="font-size:9px;color:<?= htmlspecialchars($biz_link, ENT_QUOTES) ?>;letter-spacing:0.25em;text-transform:uppercase;font-weight:700;">
                                             POWERED BY <?= $is_platform ? 'JBS PRAXIS' : 'NFELIA' ?>
                                         </span>
                                     </td>
@@ -89,11 +90,11 @@
                                         <?php endif; ?>
                                         <?php if ($biz_email && $biz_email !== MAIL_FROM_ADDRESS): ?>
                                             <a href="mailto:<?= htmlspecialchars($biz_email, ENT_QUOTES) ?>"
-                                               style="color:#B69F5E;text-decoration:none;"><?= htmlspecialchars($biz_email, ENT_QUOTES) ?></a><br>
+                                               style="color:<?= htmlspecialchars($biz_link, ENT_QUOTES) ?>;text-decoration:none;"><?= htmlspecialchars($biz_email, ENT_QUOTES) ?></a><br>
                                         <?php endif; ?>
                                     </td>
                                     <td align="right" style="font-size:10px;color:#c0b8b4;vertical-align:bottom;">
-                                        <a href="<?= APP_URL ?>" style="color:#B69F5E;text-decoration:none;">nfelia.com</a><br>
+                                        <a href="<?= APP_URL ?>" style="color:<?= htmlspecialchars($biz_link, ENT_QUOTES) ?>;text-decoration:none;">nfelia.com</a><br>
                                         <span style="color:#c0b8b4;">support@nfelia.com</span>
                                     </td>
                                 </tr>
