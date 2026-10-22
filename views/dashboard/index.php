@@ -3,7 +3,7 @@
  * Home. Renders inside views/layouts/app.php.
  *
  * From DashboardController::index:
- *   $greeting, $money (in, owed, spent: this month), $overdue_count,
+ *   $greeting, $money (in, owed, spent and the stock part of it: this month), $overdue_count,
  *   $overdue_value, $orders_waiting, $low_stock_count, $deliveries_open,
  *   $quotes_accepted, $plan (Tasks and Calendar items, late first),
  *   $recent_orders, $trial_days_left (null unless an owner on the free trial)
@@ -69,7 +69,10 @@ if ($deliveries_open > 0) {
                 <?php endif; ?>
                 <dl class="nf-figs">
                     <div><dt>Spent this month</dt><dd><?= planner_money($money['spent'], $currency) ?></dd></div>
-                    <div><dt>Left after spending</dt><dd class="<?= $left < 0 ? 'is-owed' : ($left > 0 ? 'is-in' : '') ?>"><?= $left < 0 ? '−' : '' ?><?= planner_money(abs($left), $currency) ?></dd></div>
+                    <div><dt>Left after spending</dt><dd class="<?= ['up' => $left > 0 ? 'is-in' : '', 'stock' => '', 'down' => 'is-owed'][money_left_reads($in, $money['spent'], $money['stock'])] ?>"><?= $left < 0 ? '−' : '' ?><?= planner_money(abs($left), $currency) ?></dd></div>
+                    <?php if ($money['stock'] > 0): ?>
+                        <div><dt>Of it, on stock</dt><dd><?= planner_money($money['stock'], $currency) ?></dd></div>
+                    <?php endif; ?>
                 </dl>
             </section>
         <?php endif; ?>

@@ -36,11 +36,15 @@ class DashboardController {
         $stmt = $this->db->prepare("SELECT * FROM v_dashboard_summary WHERE business_id = ?");
         $stmt->execute([$this->biz_id]);
         $summary = $stmt->fetch() ?: ['total_outstanding' => 0, 'total_expenses_this_month' => 0];
-        // Money in this month: the same basis as the profit and loss (money_in)
+        // Money in and out this month: the same basis as the profit and loss
+        // (money_in, money_out: what was paid, when it was paid)
+        $month_end = date('Y-m-t', strtotime($month));
+        $out       = money_out_by($this->db, $this->biz_id, $month, $month_end, 'category');
         $money = [
-            'in'    => money_in($this->db, $this->biz_id, $month, date('Y-m-t', strtotime($month))),
+            'in'    => money_in($this->db, $this->biz_id, $month, $month_end),
             'owed'  => (float)($summary['total_outstanding'] ?? 0),
-            'spent' => (float)($summary['total_expenses_this_month'] ?? 0),
+            'spent' => money2(array_sum($out)),
+            'stock' => $out['stock_purchase'] ?? 0.0,
         ];
 
         // What needs someone: each count is the true count, each links to its list.

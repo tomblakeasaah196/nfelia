@@ -12,6 +12,7 @@
 #   bash tests/notifications/run.sh orders/core      the orders hub (tests/orders/), one suite per file
 #   bash tests/notifications/run.sh orders/late      sales typed in late, kept money, deleting a cancelled order
 #   bash tests/notifications/run.sh docs/sign        signatures and verify codes on documents (tests/docs/)
+#   bash tests/notifications/run.sh reports/money    money out, cash in and cash out, on every screen (tests/reports/)
 #
 # Phones and inboxes are stood in for by push_sink.php and smtp_sink.py,
 # started here on NF_PUSH_PORT (8098) and NF_SMTP_PORT (2525, which the
@@ -60,6 +61,7 @@ for s in "${suites[@]}"; do
         orders/*) php "$root/tests/${s}_test.php" ;;
         docs/*) php "$root/tests/${s}_test.php" ;;
         auth/*) php "$root/tests/${s}_test.php" ;;
+        reports/*) php "$root/tests/${s}_test.php" ;;
         *)   echo "Unknown suite: $s" >&2; false ;;
     esac || failed+=("$s")
 done
