@@ -132,24 +132,25 @@ class OnboardingController {
      * Step 2: Money and payments (Bank & Tax)
      */
     public function step2() {
-        // Load countries for the currency dropdown + pre-select from step 1
         require_once __DIR__ . '/CountryController.php';
         $countries = CountryController::get_active_countries($this->db);
 
-        // Read the country saved in step 1
+        // The currency is the country's, chosen in step 1: shown here, never
+        // picked or posted. A country no longer offered keeps what is saved.
         $stmt = $this->db->prepare("SELECT country_id, currency_symbol FROM businesses WHERE id = ?");
         $stmt->execute([$this->biz_id]);
         $biz_fresh = $stmt->fetch();
-        $current_currency = $biz_fresh['currency_symbol'] ?? '₦';
+        $country = null;
+        foreach ($countries as $c) {
+            if ((int)$c['id'] === (int)($biz_fresh['country_id'] ?? 0)) { $country = $c; break; }
+        }
+        $current_currency = $country['currency_symbol'] ?? ($biz_fresh['currency_symbol'] ?? '₦');
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             csrf_verify();
 
-            // Only a currency the list offers; tax between 0 and 100%
-            $currency = trim($_POST['currency_symbol'] ?? '');
-            if (!in_array($currency, array_column($countries, 'currency_symbol'), true)) {
-                $currency = $current_currency;
-            }
+            // Tax between 0 and 100%
+            $currency = $current_currency;
             $tax_rate = min(100, max(0, (float)($_POST['default_tax_rate'] ?? 0.00)));
 
             $bank_name = trim($_POST['bank_name'] ?? '');
