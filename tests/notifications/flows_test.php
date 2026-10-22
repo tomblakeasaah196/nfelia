@@ -296,6 +296,59 @@ $cust->post('doc/' . $quote_token(504), ['action' => 'sign', 'name' => 'Someone'
 eq($cust->status, 409, 'an answered quote can\'t be signed again');
 eq(count(rows("SELECT id FROM notifications WHERE event = 'quote.accepted'")), 2, 'and no second "accepted"');
 
+section('A quote past its date: the owner gives it a new one, even while it waits to sign');
+clean_slate();
+$a = as_(ADA);
+exec_sql("UPDATE quotations SET status = 'pending_signature' WHERE id = 503");   // valid until yesterday
+$cust->post('doc/' . $quote_token(503), ['action' => 'accept']);
+ok($cust->status === 400 && str_contains($cust->data()['error'] ?? '', 'fresh quote') && q("SELECT status FROM quotations WHERE id = 503") === 'pending_signature',
+   'the customer can\'t accept it past its date, and is told to ask for a fresh quote');
+$cust->get('doc/' . $quote_token(503));
+ok(str_contains($cust->body, 'Ask for a fresh quote'), 'their page says so too');
+$a->get('quotations/view/503');
+ok(str_contains($a->body, 'quotations/edit/503'), 'the owner\'s page offers Edit for a quote waiting to sign');
+$a->get('quotations/edit/503');
+eq($a->status, 200, 'and its form opens');
+$new_date = planner_add_days(planner_today(), 14);
+$a->post('quotations/edit/503', ['customer_id' => '200', 'issue_date' => planner_today(), 'expiry_date' => $new_date, 'tax_rate' => '0',
+    'discount_amount' => '0', 'current_status' => 'pending_signature', 'item_description' => ['Body Wave 18in'], 'item_quantity' => ['1'],
+    'item_unit_price' => ['250000'], 'item_discount' => ['0'], 'item_product_id' => ['0']]);
+eq($a->to(), 'quotations/view/503', 'saved');
+eq(array_values(rows("SELECT status, expiry_date FROM quotations WHERE id = 503")[0] ?? []), ['pending_signature', $new_date],
+   'with its new date, still waiting to sign');
+eq((int)q("SELECT COUNT(*) FROM quotation_activities WHERE quotation_id = 503 AND action = 'quote_revised'"), 1, 'the change is in its history');
+$cust->post('doc/' . $quote_token(503), ['action' => 'accept']);
+ok(($cust->data()['success'] ?? false) && q("SELECT status FROM quotations WHERE id = 503") === 'converted', 'sent again, the customer accepts it');
+
+section('A draft whose link is shared is Sent, and nothing moves backwards');
+clean_slate();
+$draft = fn(int $id) => exec_sql("INSERT INTO quotations (id, business_id, customer_id, user_id, doc_number, status, issue_date, expiry_date, subtotal, total, token)
+                                  VALUES (?, 2, 200, 20, ?, 'draft', CURDATE(), DATE_ADD(CURDATE(), INTERVAL 5 DAY), 90000, 90000, ?)",
+                                 [$id, 'ADA-QUO-0' . $id, 'fxdraft' . $id . bin2hex(random_bytes(10))]);
+$draft(505);
+$a->get('quotations/view/505');
+ok(str_contains($a->body, 'quotations/mark-shared/505'), 'a draft\'s share buttons mark it sent');
+$a->post('quotations/mark-shared/505', [], ['X-Requested-With: XMLHttpRequest']);
+ok(($a->data()['success'] ?? false) && ($a->data()['status'] ?? '') === 'sent' && q("SELECT status FROM quotations WHERE id = 505") === 'sent',
+   'shared: the draft is Sent, so the list counts it as waiting');
+$a->post('quotations/mark-shared/505', [], ['X-Requested-With: XMLHttpRequest']);
+eq(array_map(fn($r) => [$r['old_status'], $r['new_status'], (int)$r['is_client_read']],
+             rows("SELECT old_status, new_status, is_client_read FROM quotation_activities WHERE quotation_id = 505")),
+   [['draft', 'sent', 1]], 'once, in its history, with no badge for the customer');
+$a->get('quotations/view/505');
+ok(!str_contains($a->body, 'quotations/mark-shared/'), 'a sent quote\'s buttons only share');
+foreach ([502 => 'in_negotiation', 503 => 'converted', 504 => 'accepted', 501 => 'declined'] as $id => $was) {
+    $a->post("quotations/mark-shared/{$id}", [], ['X-Requested-With: XMLHttpRequest']);
+    eq(q("SELECT status FROM quotations WHERE id = ?", [$id]), $was, "sharing a quote that is {$was} leaves it {$was}");
+}
+$draft(506);
+$cust->post('doc/' . $quote_token(506), ['action' => 'decline', 'reason' => 'Not this time']);
+ok(($cust->data()['success'] ?? false) && q("SELECT status FROM quotations WHERE id = 506") === 'declined', 'a draft the customer has the link to can still be answered');
+$a->post('quotations/update-status/504', ['status' => 'sent']);
+$a->follow();
+ok(str_contains($a->body, 'is “Accepted”') && str_contains($a->body, 'changed to “Sent”') && !str_contains($a->body, 'ACCEPTED'),
+   'a change that can\'t be made is refused in plain words');
+
 section('A customer signs for a delivery');
 clean_slate();
 exec_sql("UPDATE deliveries SET sign_on = 1 WHERE id = 600");   // a signed delivery note: the receiver signs (one that isn't is confirmed with a tap, tests/docs)

@@ -298,7 +298,8 @@ class DeliveryController {
         ];
 
         if (!in_array($new_status, $valid_transitions[$delivery['status']] ?? [])) {
-            flash('error', 'Invalid status transition from ' . $delivery['status'] . ' to ' . $new_status);
+            $from = self::STATUSES[$delivery['status']]['label'] ?? ucfirst(str_replace('_', ' ', $delivery['status']));
+            flash('error', "A delivery that is “{$from}” can't be marked “" . self::STATUSES[$new_status]['label'] . "”.");
             redirect('deliveries/view/' . $id);
             return;
         }
