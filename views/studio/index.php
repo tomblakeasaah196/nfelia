@@ -77,6 +77,7 @@ $studio = [
         'restore'    => APP_URL . '/landing-page/restore-version',
         'upload'     => APP_URL . '/landing-page/upload-image',
         'visibility' => APP_URL . '/landing-page/visibility',
+        'soldOut'    => APP_URL . '/landing-page/sold-out',
         'preview'    => APP_URL . '/landing-page/preview',
         'check'      => APP_URL . '/shop-setup/check',
         'products'   => APP_URL . '/products/create',
@@ -318,6 +319,16 @@ $samples_url = 'https://fonts.googleapis.com/css2?family=' . implode('&family=',
                             <button type="button" class="st-switch" role="switch" aria-checked="<?= (int)$business['landing_enabled'] ? 'true' : 'false' ?>" aria-labelledby="st-visible-label" data-visibility><span></span></button>
                         </div>
                         <p class="st-help">When it's off, your link says there is no shop at that address. Your products and orders stay as they are.</p>
+                    </section>
+
+                    <?php /* shop_sold_out(): saved at once, like the switch above */ ?>
+                    <section class="st-card">
+                        <h2 class="st-h2">Sold out</h2>
+                        <div class="st-switchrow">
+                            <span id="st-soldout-label">Show items as sold out when their stock runs out</span>
+                            <button type="button" class="st-switch" role="switch" aria-checked="<?= (int)($business['shop_sold_out'] ?? 0) ? 'true' : 'false' ?>" aria-labelledby="st-soldout-label" data-sold-out><span></span></button>
+                        </div>
+                        <p class="st-help">When it's on, an item with no stock left says “Sold out” and can't be ordered until you add stock. Leave it off if you don't count your stock in Nfelia. Services and things people book are never sold out.</p>
                     </section>
 
                     <section class="st-card">

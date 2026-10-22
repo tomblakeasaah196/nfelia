@@ -34,10 +34,10 @@ $lead = match (true) {
     default                           => $shop . ' is checking your payment. This page shows each step as it happens.',
 };
 
-// The order's lines, for WhatsApp and for "order again" (only what's still on sale)
+// The order's lines, for WhatsApp and for "order again" (only what's still on sale and not sold out)
 $lines = [];
 $again = [];
-$on_sale = array_column($catalogue['items'], null, 'id');
+$on_sale = array_column(array_filter($catalogue['items'], fn($i) => !$i['sold_out']), null, 'id');
 foreach ($order['items'] as $i => $line) {
     $lines[] = ($i + 1) . '. ' . $line['product_name'] . ' x' . (int)$line['quantity'] . ($line['variant_selection'] ? ' (' . $line['variant_selection'] . ')' : '');
     if (isset($on_sale[(int)$line['product_id']])) {

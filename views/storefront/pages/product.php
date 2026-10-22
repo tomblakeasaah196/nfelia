@@ -59,7 +59,8 @@ $wa_text = 'Hello ' . $business['name'] . ', I found ' . $item['name'] . ' on yo
                     <p class="sf-eyebrow"><?= e($item['category']) ?></p>
                 <?php endif; ?>
                 <h1 class="sf-h1 sf-pdp__name" id="sf-pdp-name"><?= e($item['name']) ?></h1>
-                <p class="sf-pdp__price"><?= sf_price_html($item, $ctx) ?></p>
+                <?php /* The price stays here when it's sold out; the buy box says so */ ?>
+                <p class="sf-pdp__price"><?= sf_price_html(['sold_out' => false] + $item, $ctx) ?></p>
                 <?php if ($reviews && $reviews['count']): ?>
                     <a class="sf-rating sf-rating--link" href="/#sf-reviews">
                         <?= sf_stars($reviews['average'], 16) ?>
@@ -77,6 +78,14 @@ $wa_text = 'Hello ' . $business['name'] . ', I found ' . $item['name'] . ' on yo
                     <a class="sf-btn sf-btn--block" href="<?= e(booking_page_path($item)) ?>" data-book="<?= (int)$item['id'] ?>"><?= sf_icon('calendar', 20) ?><span><?= match ($item['booking']['mode']) { 'nights' => 'Check dates and book', 'day' => 'Pick a day and book', default => 'Pick a time and book' } ?></span></a>
                     <?php if ($wa !== ''): ?>
                         <a class="sf-btn sf-btn--outline sf-btn--block" href="https://wa.me/<?= e($wa) ?>?text=<?= e(rawurlencode($wa_text)) ?>" target="_blank" rel="noopener"><?= sf_icon('whatsapp', 20) ?><span>Ask on WhatsApp</span></a>
+                    <?php endif; ?>
+                </div>
+                <?php elseif ($item['sold_out']): ?>
+                <?php /* No stock left and the shop shows that (shop_sold_out): nothing to add, but they can ask when it's back */ ?>
+                <div class="sf-buy">
+                    <button type="button" class="sf-btn sf-btn--block" disabled><span>Sold out</span></button>
+                    <?php if ($wa !== ''): ?>
+                        <a class="sf-btn sf-btn--outline sf-btn--block" href="https://wa.me/<?= e($wa) ?>?text=<?= e(rawurlencode('Hello ' . $business['name'] . ', I found ' . $item['name'] . ' on your shop and it says sold out. Will you have it again?')) ?>" target="_blank" rel="noopener"><?= sf_icon('whatsapp', 20) ?><span>Ask when it's back</span></a>
                     <?php endif; ?>
                 </div>
                 <?php else: ?>

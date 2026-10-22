@@ -41,26 +41,46 @@ rebuilt.
 - **16, the table:** it scrolled inside its own box, so the page itself did
   not spill. Fixed anyway, as it was awkward on a phone.
 
-## Needs a decision
+## Decided
 
-- **7. Stock on the shop.** Confirmed: the shop never reads `stock_qty`,
-  out-of-stock items list and can be ordered, and structured data always
-  says `InStock`. Not changed, because nothing tells "sold out" apart from
-  "doesn't count stock": every physical product tracks stock, and
-  products added without an opening count (quick add, CSV import, a blank
-  box) sit at 0 or below as they sell. Blocking at 0 would mark much of a
-  shop like this one "Sold out" overnight.
-  *Recommendation:* a shop setting, "Show items as sold out when their stock
-  runs out", off for existing shops and on for new ones. When on: tiles say
-  "Sold out" and can't be added, `place_order` refuses them with the
-  existing "no longer available" answer, and structured data says
-  `OutOfStock`. Services and booked items are never affected.
-- **A shop-only hide.** "Hide" takes an item off the shop *and* off the
-  item pickers, because that is what `is_active` does. A vendor who still
-  sells an item in person but not online can already use Shop Studio's
-  "only show these" on the catalogue section.
-  *Recommendation:* keep one Hide for now; add a shop-only switch if
-  vendors ask for it.
-- **Quote requests** (`send_quote_request`, another worker's area) still
-  match customers on the exact phone text, so they can duplicate customers
-  as orders did. *Recommendation:* use `order_match_customer()` there too.
+- **7. Stock on the shop: built as a shop setting.** The shop never read
+  `stock_qty`, but nothing tells "sold out" apart from "doesn't count
+  stock": products added without an opening count sit at 0 or below as
+  they sell. So it is a switch, **Shop Studio › More › Sold out: "Show
+  items as sold out when their stock runs out"**, saved at once like "Show
+  your shop".
+  - `businesses.shop_sold_out`
+    (`db/migrations/20261030102000_shop_sold_out.sql`): off (0) for every
+    business that existed, on (1) by default for new ones. Running it
+    twice changes nobody's choice.
+  - One rule, `shop_sold_out()` in `app/helpers/storefront.php`: the
+    switch is on, it is goods (not a service, not booked), and the
+    product's stock is 0 or less. Options have no stock of their own
+    (they share the product's count), so the product's count decides.
+  - When on: the item's tile price reads "Sold out", its labelled Add
+    button is switched off and its "+" goes; its page keeps the price, says
+    "Sold out" and offers "Ask when it's back" on WhatsApp; the product
+    sheet hides the Add box; the bag drops it, and "order again" leaves it
+    out. `place_order` treats it like an item taken off the shop, with the
+    existing "no longer available" answer (409 with `unavailable` when
+    other items came with it). Structured data says `OutOfStock`.
+  - When off: nothing changes from before.
+  - Tested in `tests/orders/core_test.php` (last three sections): the
+    migration, off as before, the Studio switch, the rule, the page and
+    structured data, checkout refusing it, and adding stock putting it back
+    on sale.
+  - Files: the migration, `app/helpers/storefront.php`,
+    `app/controllers/PublicController.php` (`place_order`),
+    `app/controllers/LandingPageController.php` (`sold_out`),
+    `views/studio/index.php`, `assets/js/studio.js`,
+    `views/storefront/parts/helpers.php`, `views/storefront/pages/product.php`,
+    `views/storefront/pages/order.php`, `views/storefront/shell.php`,
+    `assets/js/storefront.js`.
+  - Not changed: an order only takes stock off when the shop confirms it,
+    so two shoppers can still both order the last one before then.
+- **A shop-only hide: no.** "Hide" stays the single Hide. It takes an item
+  off the shop *and* off the item pickers, because that is what `is_active`
+  does. A vendor who still sells an item in person but not online can use
+  Shop Studio's "only show these" on the catalogue section.
+- **Quote requests:** handed to the quotes worker. They still match
+  customers on the exact phone text; `order_match_customer()` is the fix.

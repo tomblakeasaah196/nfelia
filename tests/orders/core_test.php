@@ -599,4 +599,90 @@ ok(str_contains($page, 'Emails to this address don’t arrive') && str_contains(
 $ada->post('bookings/email/5', ['email' => 'ngozi.eze@example.test']);
 eq(q("SELECT customer_email FROM bookings WHERE id = 5"), 'ngozi.eze@example.test', 'and takes the right address');
 
+/* ══ Sold out on the shop ═════════════════════════════════════ */
+
+section('Sold out: off for shops that existed, on for new ones');
+// The migration again, on a database that has shops already
+exec_sql("ALTER TABLE businesses DROP COLUMN shop_sold_out");
+$sold_out_migration = function () use ($db) {
+    $sql = (string)file_get_contents(BASE_PATH . '/db/migrations/20261030102000_shop_sold_out.sql');
+    foreach (preg_split('/;\s*\n/', $sql) as $statement) {
+        $statement = trim(preg_replace('/^(\s*--[^\n]*\n)+/', '', $statement));
+        if ($statement !== '') {
+            $db->exec($statement);
+        }
+    }
+};
+$sold_out_migration();
+eq((int)q("SELECT COUNT(*) FROM businesses WHERE shop_sold_out <> 0"), 0, 'every shop that existed has it off');
+eq((string)q("SELECT COLUMN_DEFAULT FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'businesses' AND COLUMN_NAME = 'shop_sold_out'"),
+   '1', 'a shop made from now on starts with it on');
+exec_sql("UPDATE businesses SET shop_sold_out = 1 WHERE id = ?", [BIZ]);
+$sold_out_migration();
+eq((int)q("SELECT shop_sold_out FROM businesses WHERE id = ?", [BIZ]), 1, 'run twice, it leaves an owner\'s choice alone');
+
+/** Ada's shop as shoppers get it: its products by id. */
+function shop_items(): array
+{
+    $biz = rows("SELECT * FROM businesses WHERE id = ?", [BIZ])[0];
+    return array_column(storefront_catalogue($biz, storefront_settings($biz, 'published'))['items'], null, 'id');
+}
+
+/** A shop order for these [product_id => quantity]; answers with what the shop said. */
+function shop_order(Http $shopper, array $lines, string $phone): array
+{
+    $shopper->post('checkout', [
+        'customer_name' => 'Tola Ade', 'customer_phone' => $phone, 'channel' => 'cart_pop', 'fulfillment_type' => 'pickup', 'payment_method' => 'none',
+        'items' => json_encode(array_map(fn($id, $qty) => ['product_id' => $id, 'quantity' => $qty], array_keys($lines), $lines)),
+    ]);
+    return ['status' => $shopper->status] + $shopper->data();
+}
+
+section('Sold out, switched off: the shop is as it was');
+exec_sql("UPDATE businesses SET shop_sold_out = 0 WHERE id = ?", [BIZ]);
+exec_sql("UPDATE products SET stock_qty = 0 WHERE id = 301");
+eq(shop_items()[301]['sold_out'], false, 'HD Closure has no stock, and is still on sale');
+$placed = shop_order($shopper, [301 => 1], '08065550001');
+ok(($placed['order_number'] ?? '') !== '', 'and can be ordered: ' . ($placed['order_number'] ?? json_encode($placed)));
+
+section('Sold out, switched on in Shop Studio');
+$ada->get('landing-page');
+ok(str_contains($ada->body, 'data-sold-out') && str_contains($ada->body, 'Show items as sold out when their stock runs out'), 'Studio has the switch');
+$ada->json('landing-page/sold-out', ['on' => true]);
+eq([$ada->data()['on'] ?? null, (int)q("SELECT shop_sold_out FROM businesses WHERE id = ?", [BIZ])], [true, 1], 'Ada turns it on');
+
+exec_sql("UPDATE products SET stock_qty = 10 WHERE id = 300");
+$items = shop_items();
+eq([$items[301]['sold_out'], $items[300]['sold_out']], [true, false], 'HD Closure (no stock) is sold out; Body Wave (in stock) is not');
+exec_sql("UPDATE products SET stock_qty = -2 WHERE id = 300");
+eq(shop_items()[300]['sold_out'], true, 'below zero, as stock left uncounted goes, is sold out too');
+exec_sql("UPDATE products SET stock_qty = 10 WHERE id = 300");
+eq([(float)q("SELECT stock_qty FROM products WHERE id = 302"), $items[302]['sold_out']], [0.0, false], 'Bridal styling, a booked service with no stock, never is');
+exec_sql("INSERT INTO product_variant_groups (id, product_id, business_id, name, sort_order) VALUES (3010, 301, 2, 'Lace', 0)");
+exec_sql("INSERT INTO product_variant_options (variant_group_id, label, price_delta, sort_order) VALUES (3010, 'HD', 0, 0), (3010, 'Transparent', -5000, 1)");
+eq(shop_items()[301]['sold_out'], true, 'its options share its one stock count, so they are sold out with it');
+
+$page = $shopper->get(ltrim(sf_product_path($items[301]), '/'));
+ok($page->status === 200 && str_contains($page->body, '>Sold out<') && !str_contains($page->body, 'data-buy='), 'its page says Sold out, with nothing to add to the bag');
+ok(str_contains($page->body, 'schema.org/OutOfStock') && !str_contains($page->body, 'schema.org/InStock'), 'and tells search engines it is out of stock');
+ok(str_contains($page->body, '"sold":true'), 'the bag is told too, so the sheet and "order again" leave it out');
+$home = $shopper->get('');
+ok(str_contains($home->body, 'schema.org/OutOfStock') && str_contains($home->body, 'schema.org/InStock'), 'the front page lists it out of stock, the rest in stock');
+ok(!str_contains($home->body, 'data-add="301"'), 'and has no Add button for it');
+
+$refused = shop_order($shopper, [301 => 1], '08065550002');
+eq([$refused['status'], $refused['error'] ?? null], [422, 'These items are no longer available. Reload the page to see what\'s in the shop now.'],
+   'ordering it alone is refused, as for an item taken off the shop');
+$refused = shop_order($shopper, [300 => 1, 301 => 1], '08065550002');
+eq([$refused['status'], $refused['unavailable'] ?? null], [409, [301]], 'with something else, the bag is told to drop it');
+eq((int)q("SELECT COUNT(*) FROM orders WHERE customer_phone = '08065550002'"), 0, 'and no order is made');
+
+exec_sql("UPDATE products SET stock_qty = 3 WHERE id = 301");
+$placed = shop_order($shopper, [301 => 1], '08065550003');
+ok(($placed['order_number'] ?? '') !== '', 'stock added: on sale again, and ordered');
+
+$ada->json('landing-page/sold-out', ['on' => false]);
+eq((int)q("SELECT shop_sold_out FROM businesses WHERE id = ?", [BIZ]), 0, 'Ada can turn it off again');
+exec_sql("DELETE FROM product_variant_groups WHERE id = 3010");
+
 done();
