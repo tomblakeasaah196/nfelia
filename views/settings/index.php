@@ -69,45 +69,46 @@ $current_staff_count = count($staff);
     <!-- Logo -->
     <div class="bg-brand-white border border-brand-sand rounded-xl p-5 shadow-sm">
         <h2 class="font-heading font-bold text-sm text-brand-plum mb-4 uppercase tracking-wider">Business Logo</h2>
-        <!-- Enhanced Logo Upload with Live Preview & Animated State -->
+        <!-- Logo upload: the picked picture shows at once; it is saved with the form.
+             The types and size are what save_image() takes (SettingsController::logo_max_mb). -->
+        <?php $logo_mb = SettingsController::logo_max_mb(); ?>
             <div x-data="{
-                uploadState: 'idle', // 'idle', 'loading', 'success'
+                saved: '<?= e($logo_url) ?>',
                 fileUrl: '<?= e($logo_url) ?>',
+                picked: false,
+                problem: '',
                 handleUpload(e) {
                     const file = e.target.files[0];
+                    // Nothing picked (or the dialog cancelled): the saved logo again
+                    this.problem = '';
+                    this.picked = false;
+                    this.fileUrl = this.saved;
                     if (!file) return;
-                    this.uploadState = 'loading';
-                    
-                    // Simulate processing time for UX feedback
-                    setTimeout(() => {
-                        this.fileUrl = URL.createObjectURL(file);
-                        this.uploadState = 'success';
-                    }, 600);
+                    if (file.size > <?= $logo_mb ?> * 1048576) {
+                        this.problem = 'That picture is over <?= $logo_mb ?> MB. Pick a smaller one.';
+                        e.target.value = '';
+                        return;
+                    }
+                    this.fileUrl = URL.createObjectURL(file);
+                    this.picked = true;
                 }
             }">
                 <label class="inline-flex items-center gap-2 px-4 py-2 bg-brand-cream border border-brand-sand rounded-lg cursor-pointer hover:border-accent transition-colors">
-                    
-                    <!-- 1. Idle Icon -->
-                    <svg x-show="uploadState === 'idle'" class="w-3.5 h-3.5 text-brand-plum/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-
-                    <!-- 2. Loading Spinner -->
-                    <svg x-show="uploadState === 'loading'" class="animate-spin w-3.5 h-3.5 text-brand-plum" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" x-cloak><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-
-                    <!-- 3. Success Tick -->
-                    <svg x-show="uploadState === 'success'" class="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3" x-cloak><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-                    
-                    <span class="text-[10px] font-bold uppercase tracking-widest transition-colors" 
-                          x-text="uploadState === 'loading' ? 'Processing...' : (uploadState === 'success' ? 'Ready to Save' : 'Upload Logo')" 
-                          :class="uploadState === 'success' ? 'text-green-600' : 'text-brand-plum/60'"></span>
-                    
-                    <input type="file" name="logo" accept="image/jpeg,image/png,image/gif,image/webp" class="hidden" @change="handleUpload($event)">
+                    <svg class="w-3.5 h-3.5 text-brand-plum/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                    <span class="text-[10px] font-bold uppercase tracking-widest text-brand-plum/60"><?= $logo_url ? 'Change logo' : 'Upload logo' ?></span>
+                    <input type="file" name="logo" accept="image/jpeg,image/png,image/webp" class="hidden" @change="handleUpload($event)">
                 </label>
+                <?php if ($logo_url && $is_owner): ?>
+                <label class="ml-3 inline-flex items-center gap-1 text-[10px] font-bold text-red-400 uppercase tracking-widest cursor-pointer hover:text-red-600">
+                    <input type="checkbox" name="remove_logo" value="1" class="w-3 h-3"> Remove logo
+                </label>
+                <?php endif; ?>
+                <p class="text-[9px] text-brand-plum/30 mt-1">JPG, PNG or WebP, up to <?= $logo_mb ?> MB.</p>
+                <p x-show="problem" x-text="problem" class="text-[10px] text-red-600 mt-1" role="alert" x-cloak></p>
+                <p x-show="picked" class="text-[10px] text-brand-plum/60 mt-1" x-cloak>Save changes below to use this logo.</p>
 
                 <!-- Live Preview updates instantly -->
                 <div class="mt-3 w-20 h-20 rounded-2xl overflow-hidden bg-brand-cream border-2 border-brand-sand flex items-center justify-center relative">
-                    <!-- Subtle image overlay during loading -->
-                    <div x-show="uploadState === 'loading'" class="absolute inset-0 bg-white/60 z-10 transition-opacity" x-cloak></div>
-                    
                     <template x-if="fileUrl">
                         <img :src="fileUrl" class="w-full h-full object-contain">
                     </template>
@@ -138,7 +139,7 @@ $current_staff_count = count($staff);
                 <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Tagline</label>
                 <input type="text" name="tagline" value="<?= e($business['tagline'] ?? '') ?>"
                        class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum"
-                       placeholder="e.g. Quality Auto Parts at the Best Prices">
+                       placeholder="e.g. Quality you can trust, at fair prices">
             </div>
             <div>
                 <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Phone</label>
@@ -147,6 +148,12 @@ $current_staff_count = count($staff);
                        placeholder="e.g. 08012345678">
             </div>
             <div>
+                <label for="biz_whatsapp" class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">WhatsApp</label>
+                <input id="biz_whatsapp" type="tel" name="whatsapp" maxlength="20" value="<?= e($business['whatsapp'] ?? '') ?>" aria-describedby="biz_whatsapp_hint"
+                       class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
+                <p id="biz_whatsapp_hint" class="mt-1 text-[10px] text-brand-plum/50">Your shop's WhatsApp buttons open this number. Leave it empty to use your phone.</p>
+            </div>
+            <div class="sm:col-span-2">
                 <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Email</label>
                 <input type="email" name="email" value="<?= e($business['email'] ?? '') ?>"
                        class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
@@ -198,7 +205,7 @@ $current_staff_count = count($staff);
         ];
     }
     $primary_now   = strtoupper(sf_hex($business['primary_color'] ?? null) ?? '#1A1A2E');
-    $secondary_now = strtoupper(sf_hex($business['secondary_color'] ?? null) ?? '#C27A62');
+    $secondary_now = strtoupper(sf_hex($business['secondary_color'] ?? null) ?? '#B69F5E');   // as at sign-up
     $brand_data = [
         'fonts'   => $brand_list,
         'samples' => brand_font_samples_url(),
@@ -567,8 +574,8 @@ foreach (['ORD' => 'Order', 'INV' => 'Invoice', 'REC' => 'Receipt', 'DEL' => 'De
         </div>
         <div class="divide-y divide-brand-sand/50">
             <?php foreach ($staff as $member): ?>
-            <div class="px-5 py-4 flex items-center justify-between">
-                <div class="flex items-center gap-3">
+            <div class="px-5 py-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+                <div class="flex items-center gap-3 min-w-0">
                     <div class="w-10 h-10 rounded-full overflow-hidden bg-brand-cream border border-brand-sand flex items-center justify-center shrink-0">
                         <?php if ($member['avatar_path']): ?>
                             <img src="<?= APP_URL ?>/<?= e($member['avatar_path']) ?>" alt="" class="w-full h-full object-cover">
@@ -576,16 +583,16 @@ foreach (['ORD' => 'Order', 'INV' => 'Invoice', 'REC' => 'Receipt', 'DEL' => 'De
                             <span class="text-sm font-extrabold text-brand-plum/20"><?= mb_strtoupper(mb_substr($member['full_name'], 0, 1)) ?></span>
                         <?php endif; ?>
                     </div>
-                    <div>
+                    <div class="min-w-0">
                         <div class="text-xs font-semibold text-brand-plum"><?= e($member['full_name']) ?></div>
-                        <div class="text-[10px] text-brand-plum/40"><?= e($member['email']) ?></div>
+                        <div class="text-[10px] text-brand-plum/40 break-all"><?= e($member['email']) ?></div>
                     </div>
                 </div>
-                <div class="flex items-center gap-3">
+                <div class="flex flex-wrap items-center gap-3">
                     <?php if ($member['role'] === 'owner'): ?>
                         <span class="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-purple-100 text-purple-700">Owner</span>
                     <?php elseif ($is_owner): ?>
-                        <select onchange="updateRole(<?= (int)$member['id'] ?>, this.value, this)"
+                        <select onchange="updateRole(<?= (int)$member['id'] ?>, this.value, this)" data-prev="<?= e($member['role']) ?>" aria-label="Role for <?= e($member['full_name']) ?>"
                                 class="text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded border border-brand-sand bg-brand-cream text-brand-plum focus:outline-none focus:border-accent-text cursor-pointer">
                             <option value="admin" <?= $member['role'] === 'admin' ? 'selected' : '' ?>>Admin</option>
                             <option value="staff" <?= $member['role'] === 'staff' ? 'selected' : '' ?>>Staff</option>
@@ -619,7 +626,7 @@ foreach (['ORD' => 'Order', 'INV' => 'Invoice', 'REC' => 'Receipt', 'DEL' => 'De
         <?= csrf_field() ?>
         <div class="bg-brand-white border border-brand-sand rounded-xl p-5 shadow-sm">
             <h2 class="font-heading font-bold text-sm text-brand-plum mb-4 uppercase tracking-wider">Add Team Member</h2>
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                     <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Full Name *</label>
                     <input type="text" name="staff_name" required
@@ -631,13 +638,13 @@ foreach (['ORD' => 'Order', 'INV' => 'Invoice', 'REC' => 'Receipt', 'DEL' => 'De
                            class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
                 </div>
                 <div>
-                    <div>
-                    <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Role</label>
-                    <select name="staff_role" class="w-full px-3 py-2.5 text-xs font-semibold bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum uppercase tracking-wider">
-                        <option value="staff">Staff — Operational access only</option>
-                        <option value="admin">Admin — Full access except billing</option>
+                    <label for="staff_role" class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Role</label>
+                    <select id="staff_role" name="staff_role" aria-describedby="staff_role_hint" class="w-full px-3 py-2.5 text-xs font-semibold bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum uppercase tracking-wider">
+                        <option value="staff">Staff — Day-to-day work</option>
+                        <option value="admin">Admin — Also money, refunds and the shop</option>
                     </select>
                 </div>
+                <div>
                     <label for="staff_password" class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Password *</label>
                     <input id="staff_password" type="password" name="staff_password" required minlength="9" maxlength="200" autocomplete="new-password"
                            class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum"
@@ -645,7 +652,7 @@ foreach (['ORD' => 'Order', 'INV' => 'Invoice', 'REC' => 'Receipt', 'DEL' => 'De
                     <?php $pw_input = '#staff_password'; $pw_confirm = ''; $pw_compact = true; require BASE_PATH . '/views/partials/password_rules.php'; ?>
                 </div>
             </div>
-            <p class="text-[9px] text-brand-plum/30 mt-2">Staff members can access operational modules but cannot manage billing, reports, or settings.</p>
+            <p id="staff_role_hint" class="text-[9px] text-brand-plum/30 mt-2">Staff do the day-to-day work. Admins can also see expenses, debts and profit, give refunds, cancel orders, edit your shop and sign for the business. Only you change the business details, payment accounts, team and billing.</p>
             <div class="flex justify-end mt-4">
                 <button type="submit" class="btn-primary text-white px-6 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-sm">Add Member</button>
             </div>
@@ -664,12 +671,13 @@ async function updateRole(memberId, newRole, selectEl) {
         const data = await res.json();
         if (!data.success) {
             alert(data.error || 'Failed to update role.');
-            selectEl.value = selectEl.dataset.prev || 'staff';
+            selectEl.value = selectEl.dataset.prev;   // back to the role they still have
         } else {
             selectEl.dataset.prev = newRole;
         }
     } catch (e) {
         alert('Network error. Please try again.');
+        selectEl.value = selectEl.dataset.prev;
     }
 }
 </script>
@@ -690,7 +698,12 @@ async function updateRole(memberId, newRole, selectEl) {
         <div class="flex items-start justify-between mb-4">
             <div>
                 <h2 class="font-heading font-bold text-sm text-brand-plum uppercase tracking-wider">Current Plan</h2>
+                <?php if ($access === 'trial'): // nothing paid yet: the trial, then what a month costs ?>
+                <div class="text-2xl font-extrabold text-brand-plum mt-1">Free trial · <?= $trial_days_left === 0 ? 'ends today' : $trial_days_left . ' day' . ($trial_days_left !== 1 ? 's' : '') . ' left' ?></div>
+                <div class="text-xs text-brand-plum/50 mt-0.5">Then <?= e($prices['symbol']) ?><?= number_format($prices['monthly_now'], 0) ?> a month.</div>
+                <?php else: ?>
                 <div class="text-2xl font-extrabold text-brand-plum mt-1"><?= e($prices['symbol']) ?><?= number_format($prices['monthly_now'], 0) ?><span class="text-sm font-medium text-brand-plum/40">/month</span></div>
+                <?php endif; ?>
                 <?php if (($subscription['extra_seats'] ?? 0) > 0): ?>
                     <div class="text-xs text-brand-plum/50 mt-0.5">+ <?= e($prices['symbol']) ?><?= number_format($subscription['extra_seats'] * $prices['seat_now'], 0) ?> for <?= $subscription['extra_seats'] ?> extra seat<?= $subscription['extra_seats'] > 1 ? 's' : '' ?></div>
                 <?php endif; ?>
@@ -706,11 +719,6 @@ async function updateRole(memberId, newRole, selectEl) {
 
         <?php if ($access === 'trial'): ?>
             <div class="text-xs text-blue-700 bg-blue-100 rounded-lg px-4 py-3">
-                <?php if ($trial_days_left === 0): ?>
-                    <strong>Your free trial ends today.</strong>
-                <?php else: ?>
-                    <strong><?= $trial_days_left ?> day<?= $trial_days_left !== 1 ? 's' : '' ?> left</strong> on your free trial.
-                <?php endif; ?>
                 Full access to everything. Pay for a month whenever you are ready.
             </div>
         <?php elseif ($access === 'paid' && $sub_status === 'cancelled'): ?>
@@ -937,17 +945,27 @@ async function updateRole(memberId, newRole, selectEl) {
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-brand-sand/50">
-                    <?php foreach ($payment_history as $ph): ?>
+                    <?php foreach ($payment_history as $ph):
+                        // Paystack's event names, in words (as Ops shows them)
+                        $ph_what = match ($ph['event_type']) {
+                            'charge.success'         => 'Paid by card',
+                            'invoice.payment_failed' => 'Card payment failed',
+                            'subscription.disable'   => 'Card renewals stopped',
+                            'manual_activation'      => 'Month opened by Nfelia',
+                            default                  => ucfirst(str_replace(['.', '_'], ' ', (string)$ph['event_type'])),
+                        };
+                        $ph_status = match ($ph['status']) { 'success' => 'Done', 'failed' => 'Failed', default => ucfirst(str_replace(['.', '_', '-'], ' ', (string)$ph['status'])) };
+                    ?>
                     <tr>
                         <td class="px-5 py-3 data-text text-[10px] text-brand-plum/60"><?= fmt_date($ph['created_at'], 'd/m/Y, H:i') ?></td>
-                        <td class="px-5 py-3 text-xs text-brand-plum"><?= e($ph['event_type']) ?> <?php /* NFELIA AUDIT FIX M08 2026-06-03: description col doesn't exist */ ?></td>
+                        <td class="px-5 py-3 text-xs text-brand-plum"><?= e($ph_what) ?> <?php /* NFELIA AUDIT FIX M08 2026-06-03: description col doesn't exist */ ?></td>
                         <td class="px-5 py-3 data-text text-xs font-bold text-brand-plum text-right"><?= $ph['amount'] ? e($country_pricing['currency_symbol']) . number_format($ph['amount'] / 100, 0) : '—' ?></td>
                         <td class="px-5 py-3 text-center">
                             <span class="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded
                                 <?php if ($ph['status'] === 'success'): ?>bg-green-100 text-green-700
                                 <?php elseif ($ph['status'] === 'failed'): ?>bg-red-100 text-red-700
                                 <?php else: ?>bg-gray-100 text-gray-600<?php endif; ?>">
-                                <?= e($ph['status']) ?>
+                                <?= e($ph_status) ?>
                             </span>
                         </td>
                     </tr>
