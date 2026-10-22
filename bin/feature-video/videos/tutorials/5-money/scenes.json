@@ -68,7 +68,7 @@
    ],
    "caption": "Add an expense",
    "sub": "Here, new stock from a supplier.",
-   "say": "Our supplier delivered ten bundles of deep wave. To record it, tap plus, then Add expense, and choose Stock purchase."
+   "say": "Our supplier delivered ten bundles of deep wave. To record it, tap the plus button, then Add expense, and choose Stock purchase."
   },
   {
    "chapter": "What you spend",
@@ -318,7 +318,7 @@
     ]
    ],
    "caption": "Who owes you, and who you owe",
-   "say": "Debts shows who owes you, and who you owe. Temitope owes the rest of her bridal order, and we owe our supplier."
+   "say": "Debts shows who owes you, and who you owe. The bride still owes the rest of her order, and we owe our supplier."
   },
   {
    "chapter": "Debts",
@@ -534,7 +534,7 @@
    ],
    "caption": "Someone asks for your records",
    "sub": "A lender, landlord or buyer.",
-   "say": "A bank or a savings group can check your records with that code, and ask to see them. Kemi, from a savings group, asked to check our sales for a loan."
+   "say": "A bank or a savings group can check your records with that code, and ask to see them. Here, Kemi from a savings group wants to check our sales, for a loan."
   },
   {
    "chapter": "Your records",

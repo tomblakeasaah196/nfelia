@@ -55,7 +55,7 @@
    ],
    "caption": "New quote",
    "sub": "The + button, then New quote.",
-   "say": "For a big job, send a quote first. Tap the plus button, then New quote."
+   "say": "For a big job, send a quote first. Tap the plus button, then tap New quote."
   },
   {
    "chapter": "A quote for a big job",
@@ -103,7 +103,7 @@
    ],
    "caption": "A new client",
    "sub": "Temitope, a bride.",
-   "say": "Temitope is getting married, and she wants hair for her bridesmaids. She is a new client, so add her name and phone number."
+   "say": "A bride called Temitope wants hair for her bridesmaids. She is new, so add her name and phone number."
   },
   {
    "chapter": "A quote for a big job",
@@ -166,7 +166,7 @@
     ]
    ],
    "caption": "Six bundles, 18 inches",
-   "say": "Type a few letters, and pick the product. She wants six bundles of bone straight, in eighteen inches, at one hundred and fifteen thousand naira each."
+   "say": "Type a few letters, and pick the product. She wants six bundles of bone straight, eighteen inches long. Each bundle is one hundred and fifteen thousand naira."
   },
   {
    "chapter": "A quote for a big job",
@@ -222,7 +222,7 @@
     ]
    ],
    "caption": "Two lace frontals",
-   "say": "Add another item, for two lace frontals."
+   "say": "Now add two lace frontals as another item."
   },
   {
    "chapter": "A quote for a big job",
@@ -373,7 +373,7 @@
    ],
    "caption": "Send it on WhatsApp",
    "sub": "The quote is marked sent.",
-   "say": "Send it to Temitope on WhatsApp, or copy the link. Nfelia marks the quote as sent."
+   "say": "Send it to her on WhatsApp, or copy the link. Nfelia marks the quote as sent."
   },
   {
    "as": "customer",
@@ -395,7 +395,7 @@
     ]
    ],
    "caption": "Temitope opens the quote",
-   "say": "Temitope opens the quote on her phone. She sees every item, the discount, and the total."
+   "say": "Now the bride opens the quote on her phone. She sees every item, the discount, and the total."
   },
   {
    "as": "customer",
@@ -565,7 +565,7 @@
    ],
    "caption": "Money paid before choosing",
    "sub": "Kept with you, then Add money.",
-   "say": "Sometimes a client pays before she chooses what to buy. Zainab sent one hundred thousand naira. Open her page, then Kept with you, and tap Add money."
+   "say": "Sometimes a client pays before she chooses what to buy. Here, Zainab sent one hundred thousand naira. Open her page, then Kept with you, and tap Add money."
   },
   {
    "chapter": "Kept with you",
@@ -780,7 +780,7 @@
    ],
    "caption": "Typed in by mistake?",
    "sub": "Cancel it, then delete it.",
-   "say": "And if you typed an order in by mistake, cancel it first, and then you can delete it for good."
+   "say": "And if you made an order by mistake, cancel it first, and then you can delete it for good."
   },
   {
    "card": {
