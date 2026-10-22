@@ -7,13 +7,14 @@
  "voice": {
   "engine": "yarngpt",
   "name": "chinenye",
-  "tempo": 0.9,
-  "pause": 0.45,
+  "tempo": 0.82,
+  "pause": 0.6,
   "say_as": {
    "Nfelia": "En-feh-lee-ya"
   }
  },
  "speed_limit": 1.8,
+ "breath": 0.8,
  "scenes": [
   {
    "card": {

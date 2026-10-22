@@ -6,8 +6,8 @@ Reads timeline.json and the frames (record.js), v<n>.wav for each scene that
 speaks (voice.py), bg.png, mask.png, cap<n>.png, card<n>.png and layout.json
 (stage.js); n is the scene's place in scenes.json, from 1.
 
-Each scene fills a slot as long as its voice line plus a breath (at least
-"min" seconds, 3 by default). A filmed scene's frames, between its start and
+Each scene fills a slot as long as its voice line plus a breath (the file's
+"breath", 0.38 s by default; at least "min" seconds, 3 by default). A filmed scene's frames, between its start and
 end marks, play faster when the slot is shorter, never more than "speed"
 (the scene's, else the file's, else 1.4x); a longer slot holds the last
 frame. A card scene shows its card over the whole frame. The phone screen
@@ -24,6 +24,7 @@ FPS = 30
 LEAD, TAIL, XF, BREATH, SHORTEST, FASTEST, RATE = 0.12, 0.55, 0.14, 0.38, 3.0, 1.4, 24000
 
 spec = json.load(open(SCENES))
+BREATH = float(spec.get('breath', BREATH))   # a slower tutorial leaves more room between lines
 L = json.load(open(f'{W}/layout.json'))
 t = json.load(open(f'{W}/timeline.json'))
 marks = {m['name']: m['ts'] for m in t['marks']}

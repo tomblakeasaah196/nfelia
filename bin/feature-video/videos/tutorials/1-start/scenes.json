@@ -4,13 +4,14 @@
  "voice": {
   "engine": "yarngpt",
   "name": "chinenye",
-  "tempo": 0.9,
-  "pause": 0.45,
+  "tempo": 0.82,
+  "pause": 0.6,
   "say_as": {
    "Nfelia": "En-feh-lee-ya"
   }
  },
  "speed_limit": 1.8,
+ "breath": 0.8,
  "scenes": [
   {
    "card": {
@@ -203,7 +204,7 @@
    ],
    "caption": "Check your email",
    "sub": "Nfelia sends you a welcome email.",
-   "say": "Nfelia sends you a welcome email. Open it, and tap the button to verify your email address."
+   "say": "You will get a welcome email from us. Open it, and tap the button to verify your email address."
   },
   {
    "chapter": "Check your email",
@@ -642,7 +643,7 @@
     ]
    ],
    "caption": "See it full size",
-   "say": "Tap See it full size, to see the look before you choose it."
+   "say": "Tap the button that says See it full size, to see the look before you choose it."
   },
   {
    "chapter": "Your Home",
@@ -729,7 +730,7 @@
    ],
    "caption": "Needs you",
    "sub": "What to do today.",
-   "say": "Needs you shows what to do today, like late payments, new orders, and stock that is running low."
+   "say": "The Needs you card shows what to do today, like late payments, new orders, and stock that is running low."
   },
   {
    "chapter": "Your Home",
@@ -764,7 +765,7 @@
    ],
    "caption": "The + button",
    "sub": "Add a sale, order, quote, client or product.",
-   "say": "The green plus button is how you add anything. A sale, an order, a quote, a client, or a product."
+   "say": "The green plus button is how you add anything, like a new order, a quote, a client, or a product."
   },
   {
    "chapter": "Your Home",
