@@ -1,11 +1,14 @@
 // The still parts of a feature video, drawn by the browser in Nfelia's own
 // colours (wine and gold) and font: the background with the phone, the
-// phone screen's rounded mask, and one caption card per scene.
+// phone screen's rounded mask, a caption for each filmed scene, and a
+// full-screen card for each "card" scene.
 //
 //   node stage.js <scenes.json> <work folder>
 //
-// Writes bg.png, mask.png, cap1.png ... and layout.json (where the screen
-// goes), which compose.py reads.
+// Writes bg.png, mask.png, cap<n>.png and card<n>.png (n: the scene's place,
+// from 1) and layout.json (where the screen goes), which compose.py reads.
+// A short video (7 scenes or fewer) numbers its captions and shows a dot per
+// scene; a longer one shows each scene's chapter (or the title) instead.
 const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
@@ -35,8 +38,11 @@ body { height: ${L.H}px; background: radial-gradient(120% 70% at 50% 0%, #A3105E
 
 const mask = `<html><head><style>html,body{margin:0;background:#000} div{width:${L.sw}px;height:${L.sh}px;border-radius:${L.r}px;background:#fff}</style></head><body><div></div></body></html>`;
 
-const n = spec.scenes.length;
-const caption = (i) => `<html><head>${head}<style>
+const filmed = spec.scenes.map((sc, i) => [sc, i]).filter(([sc]) => !sc.card);
+const n = filmed.length;
+const numbered = n > 1 && n <= 7;
+// k: the scene's place among the filmed ones (for the number and dots); i: its place in the file
+const caption = (k, i) => `<html><head>${head}<style>
 body { height: 400px; background: transparent; position: relative; color: #fff; }
 .top { position: absolute; left: 72px; right: 72px; top: 64px; display: flex; align-items: center; justify-content: space-between; }
 .kicker { font-size: 30px; font-weight: 700; color: #E9D7A2; letter-spacing: .01em; }
@@ -48,9 +54,26 @@ h1 { position: absolute; left: 72px; right: 72px; top: 128px; margin: 0; font-si
 p { position: absolute; left: 72px; right: 72px; top: 226px; margin: 0; font-size: 38px; line-height: 1.25; font-weight: 600; color: rgba(255,255,255,.86); }
 .n { color: #E9D7A2; }
 </style></head><body>
-<div class="top"><span class="kicker">${esc(spec.title || 'New in Nfelia')}</span>${n > 1 ? `<span class="dots">${[...Array(n).keys()].map(k => `<i class="${k === i ? 'on' : k < i ? 'done' : ''}"></i>`).join('')}</span>` : ''}</div>
-<h1>${n > 1 ? `<span class="n">${i + 1}.</span> ` : ''}${esc(spec.scenes[i].caption)}</h1>
+<div class="top"><span class="kicker">${esc(spec.scenes[i].chapter || spec.title || 'New in Nfelia')}</span>${numbered ? `<span class="dots">${[...Array(n).keys()].map(d => `<i class="${d === k ? 'on' : d < k ? 'done' : ''}"></i>`).join('')}</span>` : ''}</div>
+<h1>${numbered ? `<span class="n">${k + 1}.</span> ` : ''}${esc(spec.scenes[i].caption || '')}</h1>
 <p>${esc(spec.scenes[i].sub || '')}</p>
+</body></html>`;
+
+// A title card: the whole frame, for the start and end of a tutorial
+const card = (c) => `<html><head>${head}<style>
+body { height: ${L.H}px; background: radial-gradient(120% 70% at 50% 0%, #A3105E 0%, #8B004A 45%, #5C0031 100%); position: relative; overflow: hidden; color: #fff; }
+.glow { position: absolute; left: 50%; top: 900px; width: 1100px; height: 1100px; margin-left: -550px; border-radius: 50%;
+        background: radial-gradient(circle, rgba(182,159,94,.30), rgba(182,159,94,0) 65%); }
+.box { position: absolute; left: 96px; right: 96px; top: 560px; display: grid; gap: 34px; }
+.kicker { font-size: 38px; font-weight: 700; color: #E9D7A2; letter-spacing: .01em; }
+h1 { margin: 0; font-size: 104px; line-height: 1.04; font-weight: 800; letter-spacing: -.03em; text-wrap: balance; }
+p { margin: 0; font-size: 46px; line-height: 1.3; font-weight: 600; color: rgba(255,255,255,.86); text-wrap: pretty; }
+.rule { width: 120px; height: 8px; border-radius: 4px; background: #E9D7A2; }
+.brand { position: absolute; left: 96px; bottom: 120px; font-size: 44px; font-weight: 800; letter-spacing: -.01em; color: #fff; }
+.brand span { color: #E9D7A2; }
+</style></head><body><div class="glow"></div>
+<div class="box"><span class="kicker">${esc(c.kicker || '')}</span><div class="rule"></div><h1>${esc(c.title || '')}</h1><p>${esc(c.sub || '')}</p></div>
+<div class="brand">nfelia<span>.</span></div>
 </body></html>`;
 
 (async () => {
@@ -65,11 +88,14 @@ p { position: absolute; left: 72px; right: 72px; top: 226px; margin: 0; font-siz
   await page.goto('file://' + path.resolve(OUT) + '/');   // so the font loads from file://
   await shoot(background, 'bg.png', { width: L.W, height: L.H });
   await shoot(mask, 'mask.png', { width: L.sw, height: L.sh });
-  for (let i = 0; i < n; i++) {
-    await shoot(caption(i), `cap${i + 1}.png`, { width: L.W, height: 400 }, true);
+  for (const [k, [sc, i]] of filmed.entries()) {
+    await shoot(caption(k, i), `cap${i + 1}.png`, { width: L.W, height: 400 }, true);
     // A caption too long for one line runs into the line under it
     const lines = await page.evaluate(() => Math.round(document.querySelector('h1').getBoundingClientRect().height / 71));
-    if (lines > 1) console.warn(`[stage] caption ${i + 1} takes ${lines} lines: shorten "${spec.scenes[i].caption}"`);
+    if (lines > 1) console.warn(`[stage] scene ${i + 1}'s caption takes ${lines} lines: shorten "${sc.caption}"`);
+  }
+  for (const [i, sc] of spec.scenes.entries()) {
+    if (sc.card) await shoot(card(sc.card), `card${i + 1}.png`, { width: L.W, height: L.H });
   }
   fs.writeFileSync(OUT + '/layout.json', JSON.stringify(L));
   await browser.close();

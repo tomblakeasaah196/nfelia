@@ -7,7 +7,8 @@
 # The folder holds scenes.json (what to film and say) and seed.php (the demo
 # data it films). The seed WIPES the database the checkout's .env points at,
 # so like the tests it only runs with APP_ENV local or testing; the app must
-# be served at APP_URL.
+# be served at APP_URL. A video that reads Nfelia's emails ("mail" steps)
+# needs the mail catcher's folder in NF_MAIL_DIR (see README.md).
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 root="$(cd "$here/../.." && pwd)"
@@ -24,7 +25,11 @@ command -v ffmpeg >/dev/null || { echo "ffmpeg is needed (apt install ffmpeg)." 
 export NODE_PATH="$root/node_modules:$(npm root -g)"
 node -e "require('playwright')" 2>/dev/null || { echo "Playwright is needed: npm install --no-save playwright@1.56.1 (and npx playwright install chromium)." >&2; exit 2; }
 
-bash "$here/setup-voice.sh"
+# The narrator's engine (scenes.json "voice"): Kokoro unless it names YarnGPT
+engine="$(node -e "const v = require(process.argv[1]).voice; console.log((v && v.engine) || 'kokoro')" "$video/scenes.json")"
+bash "$here/setup-voice.sh" "$engine"
+speaker="$cache/venv/bin/python"
+[ "$engine" = yarngpt ] && speaker="$cache/yarn/bin/python"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 mkdir -p "$(dirname "$out")"
@@ -32,11 +37,11 @@ mkdir -p "$(dirname "$out")"
 echo "[video] seeding the demo data"
 ids="$(cd "$root" && php "$video/seed.php" | tail -1)"
 echo "[video] speaking"
-"$cache/venv/bin/python" -I "$here/voice.py" "$video/scenes.json" "$work" "$cache"
+"$speaker" -I "$here/voice.py" "$video/scenes.json" "$work" "$cache"
 echo "[video] filming"
-(cd "$root" && APP_URL="$app_url" node "$here/record.js" "$video/scenes.json" "$ids" "$work")
+(cd "$root" && APP_URL="$app_url" NF_MAIL_DIR="${NF_MAIL_DIR:-}" node "$here/record.js" "$video/scenes.json" "$ids" "$work")
 echo "[video] drawing the frame and captions"
 (cd "$root" && node "$here/stage.js" "$video/scenes.json" "$work")
 echo "[video] editing"
-"$cache/venv/bin/python" -I "$here/compose.py" "$work" "$out"
+"$cache/venv/bin/python" -I "$here/compose.py" "$work" "$out" "$video/scenes.json"
 echo "[video] $out"
