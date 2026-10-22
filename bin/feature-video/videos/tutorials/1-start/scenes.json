@@ -1,0 +1,166 @@
+{
+  "title": "Start your free trial",
+  "login": false,
+  "voice": {"engine": "yarngpt", "name": "chinenye", "tempo": 0.9, "pause": 0.45},
+  "speed_limit": 1.8,
+  "scenes": [
+    {"card": {"kicker": "Nfelia tutorials · 1 of 5", "title": "Start your 14-day free trial", "sub": "Create your account and set up your business, step by step."},
+     "min": 4,
+     "say": "Welcome to Nfelia. In this video, we will start your free trial and set up your business, one step at a time."},
+
+    {"open": "/", "chapter": "Create your account",
+     "steps": [["wait", 900], ["spot", "a:has-text('Start free for 14 days') >> nth=0", 6], ["wait", 1800], ["unspot"]],
+     "caption": "Open nfelia.com", "sub": "14 days free. No card needed.",
+     "say": "Open nfelia dot com on your phone. Your first fourteen days are free, and you do not need a bank card."},
+
+    {"chapter": "Create your account",
+     "steps": [["tap", "a:has-text('Start free for 14 days') >> nth=0", {"nav": true}], ["wait", 900]],
+     "caption": "Tap Start free",
+     "say": "Tap the button that says Start free for fourteen days."},
+
+    {"chapter": "Create your account",
+     "steps": [["tap", "#full_name"], ["type", "#full_name", "Adanna Okeke", 85], ["wait", 300],
+               ["tap", "#business_name"], ["type", "#business_name", "Adanna Luxe Hair", 85], ["wait", 600]],
+     "caption": "Your name and business", "sub": "The name your customers know.",
+     "say": "Type your full name, then the name of your business, the way your customers know it."},
+
+    {"chapter": "Create your account",
+     "steps": [["tap", "#email"], ["type", "#email", "adanna@adannaluxehair.com", 60], ["wait", 300],
+               ["tap", "#password"], ["type", "#password", "Lekki2026!hair", 150], ["wait", 900]],
+     "caption": "Email and password", "sub": "Each line turns green as you type.",
+     "say": "Add your email address, then choose a strong password. Each line below the password turns green as you type."},
+
+    {"chapter": "Create your account",
+     "steps": [["tap", "#password_confirm"], ["type", "#password_confirm", "Lekki2026!hair", 90], ["wait", 500],
+               ["tap", "button:has-text('Create my account')", {"nav": true}], ["wait", 600]],
+     "caption": "Create my account",
+     "say": "Type the same password again, then tap Create my account."},
+
+    {"chapter": "Check your email",
+     "steps": [["mail", "Verify"], ["wait", 800], ["scroll", "a:has-text('Verify Email Address')", 380], ["wait", 500],
+               ["spot", "a:has-text('Verify Email Address')", 6], ["wait", 1500], ["unspot"]],
+     "caption": "Check your email", "sub": "Nfelia sends you a welcome email.",
+     "say": "Nfelia sends you a welcome email. Open it, and tap the button to verify your email address."},
+
+    {"chapter": "Check your email",
+     "steps": [["tap", "a:has-text('Verify Email Address')", {"nav": true}], ["wait", 1600]],
+     "caption": "Email verified",
+     "say": "Your email is now verified. Next, we tell Nfelia about your business."},
+
+    {"chapter": "Step 1 · Your business",
+     "steps": [["tap", "select[name=country_id]"], ["select", "select[name=country_id]", "1"], ["wait", 700],
+               ["tap", "label:has(#btype_product), label[for=btype_product]"], ["wait", 900]],
+     "caption": "Country and what you sell", "sub": "Your country sets your money.",
+     "say": "Choose your country, because it sets your money. Then choose what you sell. We sell hair, so we choose Products."},
+
+    {"chapter": "Step 1 · Your business",
+     "steps": [["tap", "select[name=category]"], ["select", "select[name=category]", "beauty"], ["wait", 700],
+               ["tap", "input[name=tagline]"], ["type", "input[name=tagline]", "Luxury hair. Delivered to your door.", 70], ["wait", 600]],
+     "caption": "Hair & Beauty", "sub": "A short line your customers will see.",
+     "say": "For the type of business, choose Hair and Beauty. Then add a short line about your business, for your customers to see."},
+
+    {"chapter": "Step 1 · Your business",
+     "steps": [["tap", "input[name=phone]"], ["type", "input[name=phone]", "08031234567", 80], ["wait", 200],
+               ["tap", "input[name=whatsapp]"], ["type", "input[name=whatsapp]", "08031234567", 80], ["wait", 200],
+               ["tap", "textarea[name=address]"], ["type", "textarea[name=address]", "Shop 14, Admiralty Way, Lekki Phase 1, Lagos", 55], ["wait", 600]],
+     "caption": "Phone, WhatsApp, address", "sub": "They go on your invoices and receipts.",
+     "say": "Add your phone number, your WhatsApp number, and your shop address. They go on your invoices and your receipts."},
+
+    {"chapter": "Step 2 · Money",
+     "steps": [["tap", "button:has-text('Save and continue')", {"nav": true}], ["wait", 1200]],
+     "caption": "Save and continue",
+     "say": "Tap Save and continue. Step two is about your money."},
+
+    {"chapter": "Step 2 · Money",
+     "steps": [["spot", "select[name=currency_symbol], [data-currency], label:has-text('Currency') >> nth=0", 8], ["wait", 1600], ["unspot"],
+               ["spot", "input[name=default_tax_rate]", 8], ["wait", 1800], ["unspot"]],
+     "caption": "Currency and tax", "sub": "No VAT? Leave the tax at 0.",
+     "say": "Your currency comes from your country. If you do not charge VAT, leave the tax at zero."},
+
+    {"chapter": "Step 2 · Money",
+     "steps": [["tap", "input[name=bank_name]"], ["type", "input[name=bank_name]", "Moniepoint", 80], ["wait", 200],
+               ["tap", "input[name=account_number]"], ["type", "input[name=account_number]", "8031234567", 90], ["wait", 200],
+               ["tap", "input[name=account_name]"], ["type", "input[name=account_name]", "Adanna Luxe Hair", 70], ["wait", 600]],
+     "caption": "Where customers pay you", "sub": "It shows on your invoices.",
+     "say": "Now add the bank account your customers pay into. It shows on your invoices, so customers know where to pay."},
+
+    {"chapter": "Step 3 · Your look",
+     "steps": [["tap", "button:has-text('Save and continue')", {"nav": true}], ["wait", 900],
+               ["tap", "#primary_color_hex"], ["fill", "#primary_color_hex", ""], ["type", "#primary_color_hex", "#0B5A3C", 120], ["wait", 400],
+               ["tap", "#secondary_color_hex"], ["fill", "#secondary_color_hex", ""], ["type", "#secondary_color_hex", "#C9A55C", 120], ["wait", 700]],
+     "caption": "Your colours", "sub": "We use green and gold, from our logo.",
+     "say": "Step three is how your business looks. Pick your main colour and your second colour. We use green and gold, from our logo."},
+
+    {"chapter": "Step 3 · Your look",
+     "steps": [["tap", "select[name=font_pairing]"], ["select", "select[name=font_pairing]", "corporate_serif"], ["wait", 700],
+               ["tap", "input[name=logo] >> xpath=ancestor::label[1]"], ["upload", "input[name=logo]", "../assets/logo.jpg"], ["wait", 1200]],
+     "caption": "Lettering and logo", "sub": "Add your logo from your phone.",
+     "say": "Choose the lettering you like, then tap the box to add your logo from your phone."},
+
+    {"chapter": "Step 4 · Your shop",
+     "steps": [["tap", "button:has-text('Save and continue')", {"nav": true}], ["wait", 1400]],
+     "caption": "One last step",
+     "say": "Tap Save and continue. Now for the last step, your online shop."},
+
+    {"chapter": "Step 4 · Your shop",
+     "steps": [["spot", "input[name=shop_name]", 8], ["wait", 2200], ["unspot"], ["scrollBy", 160, 700], ["wait", 800]],
+     "caption": "Your shop link", "sub": "The address you share on WhatsApp.",
+     "say": "Choose your shop name. It becomes your shop link, the address you share on WhatsApp and Instagram."},
+
+    {"chapter": "Step 4 · Your shop",
+     "steps": [["scroll", "input[name=look][value=glow] >> xpath=ancestor::label[1]", 260], ["wait", 500],
+               ["spot", "input[name=look][value=glow] >> xpath=ancestor::label[1]", 6], ["wait", 2000], ["unspot"]],
+     "caption": "Pick a look", "sub": "Glow is made for hair and beauty.",
+     "say": "Now pick a look for your shop. Glow is made for hair and beauty businesses, so it is already chosen for us."},
+
+    {"chapter": "Step 4 · Your shop",
+     "steps": [["tap", "button:has-text('See it full size'):has-text('Glow')"], ["wait", 2400], ["scrollBy", 300, 900], ["wait", 900],
+               ["tap", "button:has-text('Use this look')"], ["wait", 700]],
+     "caption": "See it full size",
+     "say": "Tap See it full size, to see the look before you choose it."},
+
+    {"chapter": "Your Home",
+     "steps": [["tap", "button:has-text('Save my shop')", {"nav": true}], ["wait", 1800]],
+     "caption": "Your shop is ready", "sub": "And this is your Home.",
+     "say": "Tap Save my shop. Your online shop is ready, and this is your Home."},
+
+    {"chapter": "Your Home",
+     "steps": [["spot", ".nf-hello p:has-text('free trial')", 6], ["wait", 2000], ["unspot"]],
+     "caption": "Days left in your trial",
+     "say": "Here you can see how many days are left in your free trial."},
+
+    {"chapter": "Your Home",
+     "steps": [["spot", ".nf-money", 4], ["wait", 2400], ["unspot"]],
+     "caption": "Your money this month", "sub": "What came in, what you spent, what is left.",
+     "say": "This card shows the money that came in this month, what you spent, and what is left."},
+
+    {"chapter": "Your Home",
+     "steps": [["scroll", "#nf-attn-h", 200], ["wait", 400], ["spot", "section[aria-labelledby=nf-attn-h]", 4], ["wait", 2400], ["unspot"]],
+     "caption": "Needs you", "sub": "What to do today.",
+     "say": "Needs you shows what to do today, like late payments, new orders, and stock that is running low."},
+
+    {"chapter": "Your Home",
+     "steps": [["spot", ".nf-tabbar", 2], ["wait", 2600], ["unspot"]],
+     "caption": "Home, Orders, Tasks, More",
+     "say": "At the bottom of the screen, you have Home, Orders, Tasks and More."},
+
+    {"chapter": "Your Home",
+     "steps": [["tap", ".nf-tab-create"], ["wait", 2600]],
+     "caption": "The + button", "sub": "Add a sale, order, quote, client or product.",
+     "say": "The green plus button is how you add anything. A sale, an order, a quote, a client, or a product."},
+
+    {"chapter": "Your Home",
+     "steps": [["press", "Escape"], ["wait", 500], ["tap", ".nf-tab:has-text('More')", {"nav": true}], ["wait", 1400]],
+     "caption": "More", "sub": "Catalogue, clients, debts, Shop Studio.",
+     "say": "More holds everything else, like your catalogue, your clients, your debts, and your shop studio."},
+
+    {"chapter": "Your Home",
+     "steps": [["tap", "a:has-text('Settings')", {"nav": true}], ["wait", 1800]],
+     "caption": "Settings", "sub": "Change your details any time.",
+     "say": "And in Settings, you can change your business details at any time."},
+
+    {"card": {"kicker": "Next: video 2 of 5", "title": "Your products and your online shop", "sub": "Add your hair products, then share your shop on WhatsApp."},
+     "min": 4,
+     "say": "That is all for this video. Next time, we will add our hair products and open the online shop. See you there."}
+  ]
+}

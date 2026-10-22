@@ -85,6 +85,7 @@ function newestMail(text) {
   for (const { f } of files) {
     const raw = fs.readFileSync(path.join(MAIL_DIR, f), 'latin1');
     const subject = decodeHeader((raw.match(/^Subject: (.*(?:\r?\n[ \t].*)*)/mi) || [])[1] || '');
+    const from = decodeHeader((raw.match(/^From: (.*)/mi) || [])[1] || '').replace(/\s*<.*>/, '').replace(/"/g, '');
     if (!subject.toLowerCase().includes(String(text).toLowerCase())) continue;
     const part = raw.split(/\r?\n--/).find(p => /Content-Type:\s*text\/html/i.test(p)) || raw;
     const [head, ...rest] = part.split(/\r?\n\r?\n/);
@@ -93,7 +94,7 @@ function newestMail(text) {
     else if (/Content-Transfer-Encoding:\s*quoted-printable/i.test(head)) {
       body = Buffer.from(body.replace(/=\r?\n/g, '').replace(/=([0-9A-F]{2})/gi, (_, h) => String.fromCharCode(parseInt(h, 16))), 'latin1').toString('utf8');
     }
-    return { subject, html: body };
+    return { subject, from, html: body };
   }
   throw new Error('No email whose subject has "' + text + '"');
 }
@@ -104,8 +105,13 @@ function decodeHeader(h) {
 }
 
 (async () => {
-  const browser = await chromium.launch();
+  // Shops are subdomains: name.localhost for a local app, and with
+  // NF_VIDEO_DOMAIN (make.sh's HTTPS stand-in) the domain itself and its shops
+  const dom = process.env.NF_VIDEO_DOMAIN;
+  const rules = ['MAP *.localhost 127.0.0.1'].concat(dom ? [`MAP ${dom} 127.0.0.1`, `MAP *.${dom} 127.0.0.1`] : []);
+  const browser = await chromium.launch({ args: [`--host-resolver-rules=${rules.join(', ')}`] });
   const device = {
+    ignoreHTTPSErrors: !!dom,
     viewport: { width: phone.width, height: phone.height }, deviceScaleFactor: phone.scale, isMobile: true, hasTouch: true,
     userAgent: 'Mozilla/5.0 (Linux; Android 14; SM-S911B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36',
   };
@@ -207,9 +213,23 @@ function decodeHeader(h) {
       },
       goto: async (p) => { await page.goto(url(p), { waitUntil: 'load' }); await wait(350); },
       waitFor: (sel) => page.locator(sel).first().waitFor(),
+      // The email as a plain mail app shows it: sender and subject over the body
       mail: async (text) => {
         const m = newestMail(text);
         await page.setContent(m.html, { waitUntil: 'load' });
+        await page.evaluate(([subject, from]) => {
+          const bar = document.createElement('div');
+          bar.style.cssText = 'font:15px/1.35 system-ui,sans-serif;color:#1B0A11;background:#fff;padding:18px 18px 14px;border-bottom:1px solid #e6e1d8;text-align:left';
+          const initial = (from || 'N').trim()[0].toUpperCase();
+          bar.innerHTML = '<div style="font-size:20px;font-weight:700;margin-bottom:12px"></div>'
+            + '<div style="display:flex;gap:12px;align-items:center"><span data-a style="width:38px;height:38px;border-radius:50%;background:#8B004A;color:#fff;display:grid;place-items:center;font-weight:700"></span>'
+            + '<span><b></b><br><span style="color:#6b5a62;font-size:13px">to me · just now</span></span></div>';
+          bar.children[0].textContent = subject;
+          bar.querySelector('[data-a]').textContent = initial;
+          bar.querySelector('b').textContent = from || 'Nfelia';
+          document.body.prepend(bar);
+          document.body.style.margin = '0';
+        }, [m.subject, m.from]);
         await wait(350);
       },
       eval: (js) => page.evaluate(js),

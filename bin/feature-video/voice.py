@@ -6,21 +6,25 @@ place in scenes.json, from 1). Scenes with no "say" stay silent.
 The narrator comes from the scenes file:
   "voice": "af_heart", "speed": 1.15            Kokoro, as before
   "voice": {"engine": "kokoro", "name": "bf_emma", "speed": 1.0, "tempo": 0.92}
-  "voice": {"engine": "yarngpt", "name": "idera", "tempo": 0.94, "pause": 0.42}
+  "voice": {"engine": "yarngpt", "name": "chinenye", "tempo": 0.9, "pause": 0.45}
 "tempo" below 1 slows the finished line without lowering the voice (ffmpeg's
 atempo), for tutorials spoken slowly.
 
-YarnGPT (Nigerian English, saheedniyi/YarnGPT2b) runs in its own virtualenv
+YarnGPT (saheedniyi/YarnGPT2b, Nigerian English) runs in its own virtualenv
 (setup-voice.sh yarngpt; make.sh picks it). It reads letters only, so write
 "say" lines in words: "forty-five thousand naira", not "N45,000". It hears no
-punctuation either, so each sentence is spoken on its own and joined with a
-"pause" of silence. Every sentence is checked by Whisper against its words and
-made again (up to 5 tries, keeping the best) when it doesn't match. Sentences
-are kept in <cache>/lines, so only new or changed ones are made again.
+punctuation, so a line is spoken a sentence at a time and joined with a
+"pause" of silence; a sentence under 7 words rides with its neighbour, since
+the model says short ones badly. Whisper (medium.en) listens to every
+sentence and compares it with the words meant; one that doesn't match is made
+again, up to 5 times in all, and the best kept (named on stderr if still
+below the bar). Words in "loose" (names the listener can't know, like
+"Nfelia") are left out of the comparison. Sentences are kept in
+<cache>/lines, so only new or changed ones are made again.
 
 Prints each line's length in seconds.
 """
-import hashlib, json, os, re, subprocess, sys
+import difflib, hashlib, json, os, re, subprocess, sys
 import numpy as np
 import soundfile as sf
 
@@ -43,77 +47,112 @@ if engine == 'kokoro':
     kokoro = Kokoro(f'{cache}/model_quantized.onnx', f'{cache}/voices.npz')
 
     def speak(text):
-        audio, rate = kokoro.create(text, voice=name, speed=speed, lang='en-us')
-        return audio, rate
+        return kokoro.create(text, voice=name, speed=speed, lang='en-us')
 
 elif engine == 'yarngpt':
-    import difflib, torch, whisper
+    import torch, torchaudio, whisper
     from transformers import AutoModelForCausalLM
     from audiotokenizer import AudioTokenizerV2
 
     torch.set_num_threads(os.cpu_count() or 4)
-    yarn = f'{cache}/yarngpt'
-    tok = AudioTokenizerV2('saheedniyi/YarnGPT2b', f'{yarn}/wavtokenizer.ckpt', f'{yarn}/wavtokenizer.yaml')
-    model = AutoModelForCausalLM.from_pretrained('saheedniyi/YarnGPT2b', torch_dtype='auto').to(tok.device).eval()
-    ear = whisper.load_model('base.en', download_root=f'{cache}/whisper')
-    pause = float(v.get('pause', 0.42))
+    GOOD, TRIES, BATCH, SHORT = 0.9, 5, 8, 7
+    pause = float(v.get('pause', 0.45))
+    loose = set(w.lower() for w in v.get('loose', ['nfelia']))
     os.makedirs(f'{cache}/lines', exist_ok=True)
 
-    def trim(audio, floor=0.012, pad=0.06):
-        """Cut the silence (and the odd breath of noise) before and after a sentence."""
-        loud = np.flatnonzero(np.abs(audio) > floor)
-        if not len(loud):
-            return audio
-        a, b = max(0, loud[0] - int(pad * RATE)), min(len(audio), loud[-1] + int(pad * RATE))
-        return audio[a:b]
+    def sentences(text):
+        """A line in the pieces it is spoken in: sentences, the short ones joined to a neighbour."""
+        parts = [p.strip() for p in re.split(r'(?<=[.!?])\s+', text.strip()) if p.strip()]
+        out = []
+        for p in parts:
+            if out and (len(words(p)) < SHORT or len(words(out[-1])) < SHORT):
+                out[-1] += ' ' + p
+            else:
+                out.append(p)
+        return out
 
-    def heard(audio):
-        """What Whisper hears in the audio."""
-        return ear.transcribe(audio.astype(np.float32), language='en', fp16=False, temperature=0)['text']
+    def kept(text):
+        return f"{cache}/lines/{hashlib.sha1(json.dumps(['yarngpt2b', name, text]).encode()).hexdigest()[:20]}.wav"
 
-    def match(meant, got):
-        """How closely what was heard matches the words meant, 0 to 1."""
-        return difflib.SequenceMatcher(None, words(meant), words(got)).ratio()
+    needed = []
+    for scene in spec['scenes']:
+        for s in sentences(scene.get('say') or ''):
+            if s not in needed and not os.path.exists(kept(s)):
+                needed.append(s)
 
-    def sentence(text):
-        key = hashlib.sha1(json.dumps(['yarngpt2b', name, text]).encode()).hexdigest()[:20]
-        path = f'{cache}/lines/{key}.wav'
-        if os.path.exists(path):
-            return sf.read(path)[0]
-        best, best_score, best_got = None, -1.0, ''
-        for attempt in range(5):
+    if needed:
+        yarn = f'{cache}/yarngpt'
+        tok = AudioTokenizerV2('saheedniyi/YarnGPT2b', f'{yarn}/wavtokenizer.ckpt', f'{yarn}/wavtokenizer.yaml')
+        model = AutoModelForCausalLM.from_pretrained('saheedniyi/YarnGPT2b', dtype=torch.float32).eval()
+        tk = tok.tokenizer
+        tk.padding_side = 'left'
+        if tk.pad_token is None:
+            tk.pad_token = tk.eos_token
+        ear = whisper.load_model(v.get('judge', 'medium.en'), download_root=f'{cache}/whisper')
+
+        def trim(audio, floor=0.012, pad=0.06):
+            """Cut the silence (and any breath of noise) before and after."""
+            loud = np.flatnonzero(np.abs(audio) > floor)
+            if not len(loud):
+                return audio
+            return audio[max(0, loud[0] - int(pad * RATE)):min(len(audio), loud[-1] + int(pad * RATE))]
+
+        def score(meant, audio):
+            """What Whisper hears, and how closely it matches the words meant (0 to 1)."""
+            a16 = torchaudio.functional.resample(torch.from_numpy(audio.astype(np.float32)), RATE, 16000).numpy()
+            got = ear.transcribe(a16, language='en', fp16=False, temperature=0)['text'].strip()
+            m = [w for w in words(meant) if w not in loose]
+            return difflib.SequenceMatcher(None, m, words(got)).ratio(), got
+
+        def make(batch, attempt):
+            """One take of each sentence in the batch: greedy first, then sampled."""
             torch.manual_seed(1000 + attempt)
-            ids = tok.tokenize_prompt(tok.create_prompt(text, lang='english', speaker_name=name))
+            prompts = [tok.create_prompt(s, lang='english', speaker_name=name) for s in batch]
+            enc = tk(prompts, add_special_tokens=False, return_tensors='pt', padding=True)
+            most = max(len(words(s)) for s in batch)
+            extra = dict(do_sample=True, temperature=0.4, top_p=0.95) if attempt else dict(do_sample=False)
             with torch.inference_mode():
-                out = model.generate(input_ids=ids, repetition_penalty=1.1, max_length=4000,
-                                     do_sample=attempt > 0, temperature=0.1 if attempt else None, top_p=None, top_k=None)
-            codes = tok.get_codes(out)
-            if len(codes) < 10:
-                continue
-            audio = trim(tok.get_audio(codes).squeeze().numpy())
-            # Too long for its words means the model ran on (a sentence is never this slow)
-            if len(audio) / RATE > 1.2 + 0.75 * len(words(text)):
-                continue
-            got = heard(audio)
-            score = match(text, got)
-            if score > best_score:
-                best, best_score, best_got = audio, score, got
-            if score >= 0.9:
+                out = model.generate(**enc, repetition_penalty=1.1, max_new_tokens=min(3000, 150 + 90 * most),
+                                     pad_token_id=tk.pad_token_id, **extra)
+            takes = []
+            for i, s in enumerate(batch):
+                codes = tok.extract_integers(tk.decode(out[i][enc['input_ids'].shape[1]:]))
+                n = len(words(s))
+                if len(codes) < 20:
+                    takes.append(None)
+                    continue
+                audio = trim(tok.get_audio(codes).squeeze().numpy())
+                secs = len(audio) / RATE
+                # Ran on, or skipped words: no sentence is spoken this slow or this fast
+                takes.append(audio if 0.2 * n < secs < 1.2 + 0.75 * n else None)
+            return takes
+
+        best = {s: (-1.0, None, '') for s in needed}
+        for attempt in range(TRIES):
+            todo = [s for s in needed if best[s][0] < GOOD]
+            if not todo:
                 break
-        if best is None:
-            raise SystemExit(f'YarnGPT could not say: "{text}"')
-        if best_score < 0.9:
-            print(f'[voice] check by ear ({best_score:.2f}): "{text}" was heard as "{best_got.strip()}"', file=sys.stderr)
-        sf.write(path, best, RATE)
-        return best
+            print(f'[voice] take {attempt + 1}: {len(todo)} sentences', file=sys.stderr, flush=True)
+            for k in range(0, len(todo), BATCH):
+                batch = todo[k:k + BATCH]
+                for s, audio in zip(batch, make(batch, attempt)):
+                    if audio is None:
+                        continue
+                    sc, got = score(s, audio)
+                    if sc > best[s][0]:
+                        best[s] = (sc, audio, got)
+        for s, (sc, audio, got) in best.items():
+            if audio is None:
+                raise SystemExit(f'YarnGPT could not say: "{s}"')
+            if sc < GOOD:
+                print(f'[voice] check by ear ({sc:.2f}): "{s}" was heard as "{got}"', file=sys.stderr)
+            sf.write(kept(s), audio, RATE)
 
     def speak(text):
-        # One sentence at a time (YarnGPT hears no punctuation), joined by a pause
-        parts = [p.strip() for p in re.split(r'(?<=[.!?])\s+', text.strip()) if p.strip()]
         gap = np.zeros(int(pause * RATE))
         out = []
-        for k, p in enumerate(parts):
-            out += ([gap] if k else []) + [sentence(p)]
+        for k, s in enumerate(sentences(text)):
+            out += ([gap] if k else []) + [sf.read(kept(s))[0]]
         return np.concatenate(out), RATE
 
 else:
@@ -133,5 +172,4 @@ for i, scene in enumerate(spec['scenes'], 1):
         os.replace(path + '.tmp.wav', path)
     info = sf.info(path)
     lengths[i] = round(info.frames / info.samplerate, 2)
-    print(f'[voice] {i}: {lengths[i]}s', file=sys.stderr, flush=True)
 print(json.dumps({'voice': name, 'lengths': lengths, 'seconds': round(sum(lengths.values()), 1)}))
