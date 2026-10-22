@@ -61,4 +61,17 @@ Tests:
 
 ## Still open
 
-- The `businesses.secondary_color` column still defaults to #C27A62 (`db/schema.sql`), although sign-up sets #B69F5E. It only matters for a business made without sign-up.
+- Nothing from this pass. The `businesses.secondary_color` default of #C27A62 was changed to #B69F5E by another worker (`db/migrations/20261030100500_secondary_colour_default.sql`).
+
+## Round 3: sentence case
+
+Video 1 ends on Settings, where the small capitals with wide letter spacing ("BUSINESS LOGO", "CHANGE LOGO", "BUSINESS NAME *") clashed with the rest of the app. Every Settings tab now uses the app's own styles, in sentence case. No field name, value or behaviour changed.
+
+- **Page head and tabs:** the large title (`nf-head`, `nf-large-title`), and the segment tabs Orders and Debts use (`nf-segs`, with `aria-current="page"`): "Business", "Profile", "Team", "Billing".
+- **Headings:** in the app's card heading style. "Business logo", "Business details", "Your profile", "Change password", "Team seats", "Team members", "Add team member", "Current plan", "What's included", "Payment history", and "Passkeys" in its partial.
+- **Labels:** in the app's label style (600, .875rem, ink): "Business name *", "Phone", "Full name *", "Current password" and the rest.
+- **Buttons:** `nf-btn` primary, ghost or danger: "Change logo" / "Upload logo", "Save changes", "Save profile", "Update password", "Add member", "Pay for the month", "Pay for the seats", "Confirm cancellation", and the photo cropper's "Cancel" / "Crop & apply".
+- **Text actions:** `nf-link`: "Generate auto-logo", "Add seats", "Send reset link", "Remove", "Email support", "WhatsApp us", "All", "Cancel subscription".
+- **"Remove logo" and "Remove":** readable checkboxes in sentence case.
+- **Pills, the role selects and the payment-history column heads:** no longer all caps.
+- **CSS:** `assets/css/src/pages.css` gains `.nf-label` (the same words as `.nf-form label`, for a label above its own field) and `.nf-card-title` (the `.nf-card-h h2` heading, for Settings' hand-built cards). `app.css` needs a rebuild.
