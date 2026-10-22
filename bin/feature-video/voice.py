@@ -17,7 +17,7 @@ YarnGPT (saheedniyi/YarnGPT2b, Nigerian English) runs in its own virtualenv
 "say" lines in words: "forty-five thousand naira", not "N45,000". It hears no
 punctuation, so a line is spoken a sentence at a time and joined with a
 "pause" of silence; a sentence under 7 words rides with its neighbour, since
-the model says short ones badly. Whisper (medium.en) listens to every
+the model says short ones badly. Whisper (small.en) listens to every
 sentence and compares it with the words meant; one that doesn't match is made
 again, up to 4 times in all, and the best kept (named on stderr if still
 below the bar; the last try takes any take the model finishes). Words in "loose" (names the listener can't know, like
@@ -66,7 +66,8 @@ elif engine == 'yarngpt':
 
     torch.set_num_threads(os.cpu_count() or 4)
     # 0.85: Whisper (trained on other accents) mishears a few Nigerian vowels,
-    # "tap" as "top", and that costs a sentence about one word in ten
+    # "tap" as "top", and that costs a sentence about one word in ten. The
+    # judge is small.en: as good as medium.en on these voices, and three times faster
     GOOD, TRIES, BATCH, SHORT = 0.85, 4, 8, 7
     pause = float(v.get('pause', 0.45))
     loose = set(w.lower() for w in v.get('loose', ['nfelia'])) | set(w for s in say_as.values() for w in words(s))
@@ -100,7 +101,7 @@ elif engine == 'yarngpt':
         tk.padding_side = 'left'
         if tk.pad_token is None:
             tk.pad_token = tk.eos_token
-        ear = whisper.load_model(v.get('judge', 'medium.en'), download_root=f'{cache}/whisper')
+        ear = whisper.load_model(v.get('judge', 'small.en'), download_root=f'{cache}/whisper')
 
         def trim(audio, floor=0.012, pad=0.06):
             """Cut the silence (and any breath of noise) before and after."""

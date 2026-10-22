@@ -133,6 +133,7 @@ function decodeHeader(h) {
   const phoneFor = async (who) => {
     if (!phones[who]) {
       const ctx = await browser.newContext(device);
+      await ctx.grantPermissions(['clipboard-read', 'clipboard-write']);   // as a tap on a phone allows "Copy link"
       await ctx.addInitScript(FX);
       const page = await ctx.newPage();
       page.on('pageerror', e => errors.push(`${who}: ${e}`));

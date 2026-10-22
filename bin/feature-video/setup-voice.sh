@@ -13,7 +13,7 @@
 # With "yarngpt" it also sets up YarnGPT, a Nigerian English narrator, in a
 # virtualenv of its own (yarn/): CPU PyTorch, saheedniyi/YarnGPT2b (fetched
 # from Hugging Face on first use), the WavTokenizer it speaks through, and
-# Whisper (base.en) to check each sentence. About 4 GB, and it needs
+# Whisper (small.en) to check each sentence. About 4 GB, and it needs
 # huggingface.co, download.pytorch.org and openaipublic.azureedge.net.
 #
 # Kept in $NF_VIDEO_CACHE (default ~/.cache/nfelia-video). Safe to run again:

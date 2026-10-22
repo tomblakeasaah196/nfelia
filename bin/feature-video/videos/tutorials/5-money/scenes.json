@@ -343,8 +343,28 @@
     ],
     [
      "spot",
-     "a:has-text('WhatsApp'):visible",
+     "main a:has-text('left'), main :text('₦450,000 left')",
      6
+    ],
+    [
+     "wait",
+     1300
+    ],
+    [
+     "unspot"
+    ],
+    [
+     "tap",
+     "main button:has-text('WhatsApp')"
+    ],
+    [
+     "wait",
+     1000
+    ],
+    [
+     "spot",
+     "dialog[open] a:has-text('Balance reminder')",
+     4
     ],
     [
      "wait",
@@ -352,11 +372,19 @@
     ],
     [
      "unspot"
+    ],
+    [
+     "press",
+     "Escape"
+    ],
+    [
+     "wait",
+     300
     ]
    ],
    "caption": "A friendly reminder",
    "sub": "On WhatsApp, written for you.",
-   "say": "Open a debt to see what was paid, and when the rest is due. Send a friendly reminder on WhatsApp, already written for you."
+   "say": "Open her order to see what is left to pay. Tap WhatsApp, and send a friendly balance reminder, already written for you."
   },
   {
    "open": "/tasks",
@@ -368,17 +396,17 @@
     ],
     [
      "tap",
-     "input[placeholder*='task' i], input[name=title] >> nth=0"
+     "#pl-quick"
     ],
     [
      "type",
-     "input[placeholder*='task' i], input[name=title] >> nth=0",
+     "#pl-quick",
      "Call Temitope about the fitting",
      55
     ],
     [
      "tap",
-     "label:has-text('Tomorrow'):visible"
+     "button[role=radio]:has-text('Tomorrow')"
     ],
     [
      "wait",
@@ -386,7 +414,7 @@
     ],
     [
      "tap",
-     "button:has-text('Add'):visible >> nth=0"
+     "form:has(#pl-quick) button[type=submit]"
     ],
     [
      "wait",
@@ -402,7 +430,7 @@
    "steps": [
     [
      "tap",
-     ":is(a,button):has-text('Calendar'):visible"
+     "button[role=tab]:has-text('Calendar')"
     ],
     [
      "wait",
@@ -517,7 +545,10 @@
     ],
     [
      "tap",
-     "button:has-text('Approve')"
+     "button:has-text('Approve')",
+     {
+      "nav": true
+     }
     ],
     [
      "wait",

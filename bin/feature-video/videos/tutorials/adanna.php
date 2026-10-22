@@ -54,15 +54,24 @@ function adanna_reset(int $trial_days = 13): PDO
     fixture_reset();
     $db = get_db();
 
-    // Ada's fixture data goes; the business and its owner stay, renamed
-    foreach (['reviews', 'order_items', 'orders', 'debts', 'tasks', 'invoice_items', 'invoices', 'quotations', 'deliveries'] as $t) {
-        $col = $t === 'order_items' ? 'order_id IN (SELECT id FROM orders WHERE business_id = 2)'
-             : ($t === 'invoice_items' ? 'invoice_id IN (SELECT id FROM invoices WHERE business_id = 2)' : 'business_id = 2');
-        $db->exec("DELETE FROM `{$t}` WHERE {$col}");
+    // Ada's fixture data goes, from every table that holds a business's rows
+    // (expenses, suppliers, debts, stock, document numbers and the rest); the
+    // business, its owner and its subscription stay, renamed and reset below
+    $tables = $db->query("SELECT c.TABLE_NAME FROM information_schema.COLUMNS c
+                          JOIN information_schema.TABLES t ON t.TABLE_SCHEMA = c.TABLE_SCHEMA AND t.TABLE_NAME = c.TABLE_NAME
+                          WHERE c.TABLE_SCHEMA = DATABASE() AND c.COLUMN_NAME = 'business_id' AND t.TABLE_TYPE = 'BASE TABLE'")->fetchAll(PDO::FETCH_COLUMN);
+    $db->exec("SET FOREIGN_KEY_CHECKS = 0");
+    foreach (array_diff($tables, ['users', 'subscriptions']) as $t) {
+        $db->exec("DELETE FROM `{$t}` WHERE business_id = 2");
     }
-    $db->exec("DELETE FROM products WHERE business_id = 2");
-    $db->exec("DELETE FROM customers WHERE business_id = 2");
+    // Lines whose document went with it (these tables have no business_id)
+    foreach ([['order_items', 'order_id', 'orders'], ['invoice_items', 'invoice_id', 'invoices'], ['quotation_items', 'quotation_id', 'quotations'],
+              ['receipt_items', 'receipt_id', 'receipts'], ['delivery_items', 'delivery_id', 'deliveries'], ['expense_items', 'expense_id', 'expenses'],
+              ['product_variant_options', 'variant_group_id', 'product_variant_groups']] as [$lines, $fk, $doc]) {
+        $db->exec("DELETE FROM `{$lines}` WHERE `{$fk}` IS NOT NULL AND `{$fk}` NOT IN (SELECT id FROM `{$doc}`)");
+    }
     $db->exec("DELETE FROM users WHERE business_id = 2 AND id <> 20");
+    $db->exec("SET FOREIGN_KEY_CHECKS = 1");
 
     $logo = adanna_picture('logo.jpg', 'logos/2', 'logo_seed.png', 600, 'png');
     $db->prepare("UPDATE businesses SET name = 'Adanna Luxe Hair', slug = 'adannaluxehair', doc_prefix = 'ALH', subdomain = 'adannaluxehair',
@@ -73,7 +82,6 @@ function adanna_reset(int $trial_days = 13): PDO
                   WHERE id = 2")
        ->execute([$logo, ADANNA_EMAIL]);
     $db->prepare("UPDATE users SET full_name = 'Adanna Okeke', email = ? WHERE id = 20")->execute([ADANNA_EMAIL]);
-    $db->exec("DELETE FROM bank_accounts WHERE business_id = 2");
     $db->exec("INSERT INTO bank_accounts (business_id, kind, bank_name, account_number, account_name, is_default)
                VALUES (2, 'bank', 'Moniepoint', '8031234567', 'Adanna Luxe Hair', 1)");
     $db->prepare("UPDATE subscriptions SET plan = 'trial', status = 'trial', user_seats = 1, extra_seats = 0, monthly_amount = 0,
