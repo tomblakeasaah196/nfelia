@@ -14,7 +14,7 @@
         <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
     </a>
     <h1 class="font-heading font-extrabold text-xl text-brand-plum tracking-tight">
-        <?= $editing ? 'Edit — ' . e($supplier['full_name']) : 'New Supplier' ?>
+        <?= $editing ? 'Edit — ' . e($supplier['full_name']) : 'New supplier' ?>
     </h1>
 </div>
 
@@ -23,11 +23,11 @@
 
     <div class="bg-brand-white border border-brand-sand rounded-xl p-6 shadow-sm space-y-5">
 
-        <h2 class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest">Supplier Information</h2>
+        <h2 class="font-heading text-base font-semibold text-brand-plum">Supplier details</h2>
 
         <!-- Full Name -->
         <div>
-            <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1">Supplier / Contact Name <span class="text-red-500">*</span></label>
+            <label class="text-sm font-semibold text-brand-plum block mb-1">Supplier or contact name <span class="text-red-500">*</span></label>
             <input type="text" name="full_name" value="<?= e($supplier['full_name'] ?? '') ?>" required
                    class="w-full px-3 py-2.5 text-sm font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum"
                    placeholder="e.g. Alhaji Musa">
@@ -35,7 +35,7 @@
 
         <!-- Business Name -->
         <div>
-            <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1">Business Name</label>
+            <label class="text-sm font-semibold text-brand-plum block mb-1">Business name</label>
             <input type="text" name="business_name" value="<?= e($supplier['business_name'] ?? '') ?>"
                    class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum"
                    placeholder="e.g. Musa General Supplies Ltd">
@@ -44,7 +44,7 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <!-- Phone -->
             <div>
-                <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1">Phone Number</label>
+                <label class="text-sm font-semibold text-brand-plum block mb-1">Phone number</label>
                 <input type="tel" name="phone" maxlength="50" value="<?= e($supplier['phone'] ?? '') ?>"
                        class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum"
                        placeholder="08012345678">
@@ -52,7 +52,7 @@
 
             <!-- WhatsApp -->
             <div>
-                <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1">WhatsApp Number</label>
+                <label class="text-sm font-semibold text-brand-plum block mb-1">WhatsApp number</label>
                 <input type="tel" name="whatsapp" maxlength="50" value="<?= e($supplier['whatsapp'] ?? '') ?>"
                        class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum"
                        placeholder="Same as phone if blank">
@@ -61,7 +61,7 @@
 
         <!-- Email -->
         <div>
-            <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1">Email</label>
+            <label class="text-sm font-semibold text-brand-plum block mb-1">Email</label>
             <input type="email" name="email" value="<?= e($supplier['email'] ?? '') ?>"
                    class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum"
                    placeholder="supplier@email.com">
@@ -69,7 +69,7 @@
 
         <!-- Address -->
         <div>
-            <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1">Address</label>
+            <label class="text-sm font-semibold text-brand-plum block mb-1">Address</label>
             <textarea name="address" rows="2"
                       class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum resize-none"
                       placeholder="Shop / warehouse address..."><?= e($supplier['address'] ?? '') ?></textarea>
@@ -77,7 +77,7 @@
 
         <!-- Notes -->
         <div>
-            <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1">Notes</label>
+            <label class="text-sm font-semibold text-brand-plum block mb-1">Notes</label>
             <textarea name="notes" rows="3"
                       class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum resize-none"
                       placeholder="What they supply, payment terms, etc..."><?= e($supplier['notes'] ?? '') ?></textarea>
@@ -86,9 +86,9 @@
 
     <!-- Actions -->
     <div class="flex items-center gap-3 mt-6">
-        <button type="submit" class="btn-primary text-white px-6 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-sm hover:shadow-md transition-all">
-            <?= $editing ? 'Update Supplier' : 'Add Supplier' ?>
+        <button type="submit" class="nf-btn nf-btn-primary">
+            <?= $editing ? 'Save changes' : 'Add supplier' ?>
         </button>
-        <a href="<?= APP_URL ?>/suppliers" class="text-[10px] font-bold text-brand-plum/40 uppercase tracking-widest hover:text-accent-text">Cancel</a>
+        <a href="<?= APP_URL ?>/suppliers" class="nf-btn nf-btn-ghost">Cancel</a>
     </div>
 </form>

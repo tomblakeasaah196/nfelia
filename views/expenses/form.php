@@ -16,7 +16,7 @@ $currency = $business['currency_symbol'] ?? '₦';
         <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
     </a>
     <h1 class="font-heading font-extrabold text-xl text-brand-plum tracking-tight">
-        <?= $editing ? 'Edit — ' . e($expense['doc_number'] ?? '') : 'Record Expense' ?>
+        <?= $editing ? 'Edit — ' . e($expense['doc_number'] ?? '') : 'Record an expense' ?>
     </h1>
 </div>
 
@@ -31,15 +31,15 @@ $currency = $business['currency_symbol'] ?? '₦';
     <!-- Main Details -->
     <div class="bg-brand-white border border-brand-sand rounded-xl p-6 shadow-sm space-y-5 mb-6">
 
-        <h2 class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest">Expense Details</h2>
+        <h2 class="font-heading text-base font-semibold text-brand-plum">Expense details</h2>
 
         <!-- Category -->
         <div>
-            <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1">Category <span class="text-red-500">*</span></label>
+            <label class="text-sm font-semibold text-brand-plum block mb-1">Category <span class="text-red-500">*</span></label>
             <select name="category" x-model="category"
-                    class="w-full px-3 py-2.5 text-xs font-semibold bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum uppercase tracking-wider">
+                    class="w-full px-3 py-2.5 text-xs font-semibold bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
                 <?php foreach ($categories as $k => $v): ?>
-                    <option value="<?= $k ?>" <?= ($expense['category'] ?? 'miscellaneous') === $k ? 'selected' : '' ?>><?= $v ?></option>
+                    <option value="<?= $k ?>" <?= ($expense['category'] ?? 'miscellaneous') === $k ? 'selected' : '' ?>><?= e(ucfirst(strtolower($v))) ?></option>
                 <?php endforeach; ?>
             </select>
         </div>
@@ -47,14 +47,14 @@ $currency = $business['currency_symbol'] ?? '₦';
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <!-- Date -->
             <div>
-                <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1">Date <span class="text-red-500">*</span></label>
+                <label class="text-sm font-semibold text-brand-plum block mb-1">Date <span class="text-red-500">*</span></label>
                 <input type="date" name="expense_date" value="<?= e($expense['expense_date'] ?? date('Y-m-d')) ?>" required
                        class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
             </div>
 
             <!-- Reference -->
             <div>
-                <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1">Reference / Receipt No.</label>
+                <label class="text-sm font-semibold text-brand-plum block mb-1">Reference or receipt number</label>
                 <input type="text" name="reference" value="<?= e($expense['reference'] ?? '') ?>"
                        class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum"
                        placeholder="Optional receipt or ref number">
@@ -63,7 +63,7 @@ $currency = $business['currency_symbol'] ?? '₦';
 
         <!-- Supplier (optional) -->
         <div>
-            <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1">Supplier</label>
+            <label class="text-sm font-semibold text-brand-plum block mb-1">Supplier</label>
             <div class="relative">
                 <input type="hidden" name="supplier_id" :value="supplierId">
                 <input type="text" x-model="supplierSearch" @input.debounce.300ms="searchSuppliers()"
@@ -86,17 +86,17 @@ $currency = $business['currency_symbol'] ?? '₦';
                         <button type="button" @click="selectSupplier(s)"
                                 class="w-full text-left px-3 py-2 hover:bg-brand-cream transition-colors">
                             <div class="text-xs font-semibold text-brand-plum" x-text="s.full_name"></div>
-                            <div class="text-[10px] text-brand-plum/40" x-text="s.phone || s.business_name || ''"></div>
+                            <div class="text-xs text-brand-plum/40" x-text="s.phone || s.business_name || ''"></div>
                         </button>
                     </template>
                     <template x-if="supplierResults.length === 0 && supplierSearch.length >= 2">
-                        <div class="px-3 py-2 text-[10px] text-brand-plum/40 italic">
+                        <div class="px-3 py-2 text-xs text-brand-plum/40 italic">
                             No suppliers match "<span x-text="supplierSearch" class="font-semibold"></span>"
                         </div>
                     </template>
                     <button type="button" @click="showNewSupplier = true; showSupplierDrop = false"
-                            class="w-full text-left px-3 py-2 border-t border-brand-sand hover:bg-brand-cream text-[10px] font-bold text-accent-text uppercase tracking-widest">
-                        + Add New Supplier
+                            class="w-full text-left px-3 py-2 border-t border-brand-sand hover:bg-brand-cream text-sm font-semibold text-accent-text">
+                        + Add a new supplier
                     </button>
                 </div>
             </div>
@@ -105,11 +105,11 @@ $currency = $business['currency_symbol'] ?? '₦';
         <!-- Inline new supplier form -->
         <div x-show="showNewSupplier" x-transition class="bg-brand-cream/50 border border-brand-sand rounded-lg p-4 space-y-3">
             <div class="flex items-center justify-between">
-                <div class="text-[9px] font-bold text-accent-text uppercase tracking-widest">New Supplier</div>
+                <div class="text-sm font-semibold text-accent-text">New supplier</div>
                 <button type="button" x-show="hasContactsAPI" @click="importContact('supplier')"
-                        class="flex items-center gap-1.5 text-[10px] font-bold text-blue-600 uppercase tracking-widest hover:text-blue-800 transition-colors">
+                        class="flex items-center gap-1.5 text-sm font-semibold text-blue-600 hover:text-blue-800 transition-colors">
                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
-                    Pick from Contacts
+                    Pick from contacts
                 </button>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -119,14 +119,14 @@ $currency = $business['currency_symbol'] ?? '₦';
                        class="px-3 py-2 text-xs font-medium bg-brand-white border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
             </div>
             <div class="flex gap-2">
-                <button type="button" @click="saveNewSupplier()" class="btn-primary text-white px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest">Save</button>
-                <button type="button" @click="showNewSupplier = false" class="text-[10px] font-bold text-brand-plum/40 uppercase tracking-widest">Cancel</button>
+                <button type="button" @click="saveNewSupplier()" class="btn-primary text-white px-4 py-2 rounded-lg text-sm font-semibold">Save supplier</button>
+                <button type="button" @click="showNewSupplier = false" class="px-2 py-2 text-sm font-semibold text-brand-plum/60">Cancel</button>
             </div>
         </div>
 
         <!-- Description -->
         <div>
-            <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1">Description <span class="text-red-500">*</span></label>
+            <label class="text-sm font-semibold text-brand-plum block mb-1">Description <span class="text-red-500">*</span></label>
             <input type="text" name="description" value="<?= e($expense['description'] ?? '') ?>" required
                    class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum"
                    placeholder="e.g. Monthly rent for shop, Bought 50 cartons of rice...">
@@ -134,7 +134,7 @@ $currency = $business['currency_symbol'] ?? '₦';
 
         <!-- Amount (hidden for stock_purchase — calculated from items) -->
         <div x-show="category !== 'stock_purchase'">
-            <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1">Amount (<?= $currency ?>) <span class="text-red-500">*</span></label>
+            <label class="text-sm font-semibold text-brand-plum block mb-1">Amount (<?= $currency ?>) <span class="text-red-500">*</span></label>
             <input type="number" name="amount" step="0.01" min="0" value="<?= e($expense['amount'] ?? '') ?>"
                    class="w-full px-3 py-2.5 text-sm font-bold bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum"
                    placeholder="0.00">
@@ -142,7 +142,7 @@ $currency = $business['currency_symbol'] ?? '₦';
 
         <!-- Notes -->
         <div>
-            <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1">Notes</label>
+            <label class="text-sm font-semibold text-brand-plum block mb-1">Notes</label>
             <textarea name="notes" rows="2"
                       class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum resize-none"
                       placeholder="Additional notes..."><?= e($expense['notes'] ?? '') ?></textarea>
@@ -152,8 +152,8 @@ $currency = $business['currency_symbol'] ?? '₦';
     <!-- Stock Purchase Line Items (shown only for stock_purchase category) -->
     <div x-show="category === 'stock_purchase'" x-transition class="bg-brand-white border border-brand-sand rounded-xl p-6 shadow-sm space-y-4 mb-6">
         <div class="flex items-center justify-between">
-            <h2 class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest">Purchase Items</h2>
-            <button type="button" @click="addItem()" class="text-[10px] font-bold text-accent-text uppercase tracking-widest hover:text-accent-text">+ Add Item</button>
+            <h2 class="font-heading text-base font-semibold text-brand-plum">Purchase items</h2>
+            <button type="button" @click="addItem()" class="text-sm font-semibold text-accent-text hover:text-accent-text">+ Add item</button>
         </div>
 
         <template x-for="(item, idx) in items" :key="idx">
@@ -162,7 +162,7 @@ $currency = $business['currency_symbol'] ?? '₦';
 
                 <!-- Product search / description -->
                 <div class="col-span-12 sm:col-span-5">
-                    <label x-show="idx === 0" class="text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest block mb-1">Item</label>
+                    <label x-show="idx === 0" class="text-sm font-semibold text-brand-plum block mb-1">Item</label>
                     <div class="relative">
                         <input type="text" :name="'item_description[' + idx + ']'" x-model="item.description"
                                @input.debounce.300ms="searchProducts(idx)"
@@ -176,7 +176,7 @@ $currency = $business['currency_symbol'] ?? '₦';
                                 <button type="button" @click="selectProduct(idx, p)"
                                         class="w-full text-left px-3 py-2 hover:bg-brand-cream">
                                     <div class="text-xs font-semibold text-brand-plum" x-text="p.name"></div>
-                                    <div class="text-[9px] text-brand-plum/40">
+                                    <div class="text-xs text-brand-plum/40">
                                         <span x-text="p.sku || ''"></span>
                                         <span x-show="p.stock_quantity !== null"> &bull; Stock: <span x-text="p.stock_quantity"></span></span>
                                         <span x-show="p.cost_price > 0"> &bull; Cost: <?= $currency ?><span x-text="Number(p.cost_price).toLocaleString()"></span></span>
@@ -189,21 +189,21 @@ $currency = $business['currency_symbol'] ?? '₦';
 
                 <!-- Qty -->
                 <div class="col-span-4 sm:col-span-2">
-                    <label x-show="idx === 0" class="text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest block mb-1">Qty</label>
+                    <label x-show="idx === 0" class="text-sm font-semibold text-brand-plum block mb-1">Qty</label>
                     <input type="number" :name="'item_quantity[' + idx + ']'" x-model.number="item.quantity" step="0.01" min="0.01"
                            class="w-full px-3 py-2 text-xs font-bold bg-brand-white border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum text-center">
                 </div>
 
                 <!-- Unit cost -->
                 <div class="col-span-4 sm:col-span-2">
-                    <label x-show="idx === 0" class="text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest block mb-1">Unit Cost</label>
+                    <label x-show="idx === 0" class="text-sm font-semibold text-brand-plum block mb-1">Unit cost</label>
                     <input type="number" :name="'item_unit_cost[' + idx + ']'" x-model.number="item.unit_cost" step="0.01" min="0"
                            class="w-full px-3 py-2 text-xs font-bold bg-brand-white border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum text-right">
                 </div>
 
                 <!-- Line total -->
                 <div class="col-span-3 sm:col-span-2">
-                    <label x-show="idx === 0" class="text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest block mb-1">Total</label>
+                    <label x-show="idx === 0" class="text-sm font-semibold text-brand-plum block mb-1">Total</label>
                     <div class="px-3 py-2 text-xs font-bold text-brand-plum text-right bg-brand-cream rounded-lg" x-text="'<?= $currency ?>' + lineTotal(idx).toLocaleString()"></div>
                 </div>
 
@@ -219,7 +219,7 @@ $currency = $business['currency_symbol'] ?? '₦';
         <!-- Grand Total -->
         <div class="flex justify-end pt-3 border-t border-brand-sand">
             <div class="text-right">
-                <div class="text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest">Total Purchase</div>
+                <div class="text-sm font-semibold text-brand-plum/60">Total purchase</div>
                 <div class="font-heading font-extrabold text-xl text-brand-plum" x-text="'<?= $currency ?>' + grandTotal().toLocaleString()"></div>
             </div>
         </div>
@@ -227,23 +227,23 @@ $currency = $business['currency_symbol'] ?? '₦';
 
     <!-- Payment Section -->
     <div class="bg-brand-white border border-brand-sand rounded-xl p-6 shadow-sm space-y-5 mb-6">
-        <h2 class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest">Payment</h2>
+        <h2 class="font-heading text-base font-semibold text-brand-plum">Payment</h2>
 
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <!-- Payment Status -->
             <div>
-                <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1">Payment Status</label>
+                <label class="text-sm font-semibold text-brand-plum block mb-1">Payment status</label>
                 <select name="payment_status" x-model="paymentStatus"
-                        class="w-full px-3 py-2.5 text-xs font-semibold bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum uppercase tracking-wider">
-                    <option value="paid" <?= ($expense['payment_status'] ?? 'paid') === 'paid' ? 'selected' : '' ?>>Paid in Full</option>
-                    <option value="partial" <?= ($expense['payment_status'] ?? '') === 'partial' ? 'selected' : '' ?>>Partial Payment</option>
-                    <option value="unpaid" <?= ($expense['payment_status'] ?? '') === 'unpaid' ? 'selected' : '' ?>>Unpaid (Credit)</option>
+                        class="w-full px-3 py-2.5 text-xs font-semibold bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
+                    <option value="paid" <?= ($expense['payment_status'] ?? 'paid') === 'paid' ? 'selected' : '' ?>>Paid in full</option>
+                    <option value="partial" <?= ($expense['payment_status'] ?? '') === 'partial' ? 'selected' : '' ?>>Part paid</option>
+                    <option value="unpaid" <?= ($expense['payment_status'] ?? '') === 'unpaid' ? 'selected' : '' ?>>Unpaid, on credit</option>
                 </select>
             </div>
 
             <!-- Amount Paid (only for partial) -->
             <div x-show="paymentStatus === 'partial'">
-                <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1">Amount Paid (<?= $currency ?>)</label>
+                <label class="text-sm font-semibold text-brand-plum block mb-1">Amount paid (<?= $currency ?>)</label>
                 <input type="number" name="amount_paid" step="0.01" min="0" value="<?= e($expense['amount_paid'] ?? '') ?>"
                        class="w-full px-3 py-2.5 text-xs font-bold bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum"
                        placeholder="0.00">
@@ -251,12 +251,12 @@ $currency = $business['currency_symbol'] ?? '₦';
 
             <!-- Payment Method -->
             <div x-show="paymentStatus !== 'unpaid'">
-                <label class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest block mb-1">Payment Method</label>
+                <label class="text-sm font-semibold text-brand-plum block mb-1">Payment method</label>
                 <select name="payment_method"
-                        class="w-full px-3 py-2.5 text-xs font-semibold bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum uppercase tracking-wider">
+                        class="w-full px-3 py-2.5 text-xs font-semibold bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
                     <option value="">Select method</option>
                     <?php foreach ($payment_methods as $k => $v): ?>
-                        <option value="<?= $k ?>" <?= ($expense['payment_method'] ?? '') === $k ? 'selected' : '' ?>><?= $v ?></option>
+                        <option value="<?= $k ?>" <?= ($expense['payment_method'] ?? '') === $k ? 'selected' : '' ?>><?= e(screen_method($k)) ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
@@ -265,10 +265,10 @@ $currency = $business['currency_symbol'] ?? '₦';
 
     <!-- Actions -->
     <div class="flex items-center gap-3">
-        <button type="submit" class="btn-primary text-white px-6 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-sm hover:shadow-md transition-all">
-            <?= $editing ? 'Update Expense' : 'Save Expense' ?>
+        <button type="submit" class="nf-btn nf-btn-primary">
+            <?= $editing ? 'Save changes' : 'Save expense' ?>
         </button>
-        <a href="<?= APP_URL ?>/expenses" class="text-[10px] font-bold text-brand-plum/40 uppercase tracking-widest hover:text-accent-text">Cancel</a>
+        <a href="<?= APP_URL ?>/expenses" class="nf-btn nf-btn-ghost">Cancel</a>
     </div>
 </form>
 
