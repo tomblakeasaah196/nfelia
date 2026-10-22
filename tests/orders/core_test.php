@@ -685,4 +685,15 @@ $ada->json('landing-page/sold-out', ['on' => false]);
 eq((int)q("SELECT shop_sold_out FROM businesses WHERE id = ?", [BIZ]), 0, 'Ada can turn it off again');
 exec_sql("DELETE FROM product_variant_groups WHERE id = 3010");
 
+section('Stock counts say their unit, and Add stock says what it did');
+eq([stock_count(1, 'bundle'), stock_count(8, 'bundle'), stock_count(1, 'boxes'), stock_count(3, 'pcs'), stock_count(2.5, 'kg'), stock_count(1200, 'pcs'), stock_count(2, 'L')],
+   ['1 bundle', '8 bundles', '1 box', '3 pieces', '2.5 kg', '1,200 pieces', '2 L'], 'the plural for any number but 1; kg and L stay as they are');
+exec_sql("UPDATE products SET stock_qty = 10 WHERE id = 300");
+$page = $ada->get('products/view/300')->body;
+ok(str_contains($page, '10 bundles') && str_contains($page, 'data-stock-add') && str_contains($page, 'id="nf-stock-save"'), 'Body Wave\'s page shows 10 bundles, with Add stock');
+$ada->post('products/adjust-stock/300', ['adj_type' => 'stock_in', 'quantity' => '10', 'unit_cost' => '40000', 'note' => 'New stock from the supplier']);
+eq(stock_of(300), 20.0, 'new stock from the supplier: 10 more');
+$ada->follow();
+ok(str_contains($ada->body, 'Added 10 bundles. You have 20 bundles of Body Wave 18in now.'), 'and it says so in words');
+
 done();

@@ -25,6 +25,7 @@ $suggested_cats = match($biz_cat) {
 // Units relevant to business type
 $suggested_units = match($biz_cat) {
     'fashion'          => ['pcs' => 'Pieces', 'yards' => 'Yards', 'meters' => 'Metres', 'pairs' => 'Pairs', 'rolls' => 'Rolls', 'sets' => 'Sets'],
+    'beauty'           => ['bundle' => 'Bundles', 'pcs' => 'Pieces', 'sets' => 'Sets', 'packs' => 'Packs', 'hours' => 'Hours'],
     'food_beverage'    => ['pcs' => 'Pieces', 'kg' => 'Kilograms', 'g' => 'Grams', 'litres' => 'Litres', 'bottles' => 'Bottles', 'packs' => 'Packs', 'crates' => 'Crates', 'dozen' => 'Dozen'],
     'tech_repair'      => ['pcs' => 'Pieces', 'sets' => 'Sets', 'hours' => 'Hours'],
     'distribution'     => ['pcs' => 'Pieces', 'cartons' => 'Cartons', 'bags' => 'Bags', 'boxes' => 'Boxes', 'kg' => 'Kilograms', 'litres' => 'Litres', 'crates' => 'Crates', 'packs' => 'Packs'],

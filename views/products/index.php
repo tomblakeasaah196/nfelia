@@ -19,7 +19,6 @@ if ($svc_count > 0 || $services) $filters['service'] = 'Services';
 $counts    = ['low' => $low, 'out' => $out, 'restock' => $low + $out, 'service' => $svc_count];
 $sorts     = ['newest' => 'Newest first', 'oldest' => 'Oldest first', 'name_asc' => 'A to Z', 'name_desc' => 'Z to A',
               'stock_asc' => 'Least in stock', 'stock_desc' => 'Most in stock', 'price_asc' => 'Cheapest first', 'price_desc' => 'Dearest first'];
-$qty_text  = fn(float $q) => rtrim(rtrim(number_format($q, 2), '0'), '.');
 ?>
 <div class="nf-page">
 <div class="nf-head">
@@ -92,9 +91,9 @@ $qty_text  = fn(float $q) => rtrim(rtrim(number_format($q, 2), '0'), '.');
             } elseif ($qty <= 0) {
                 [$tag, $tag_cls] = ['Out of stock', 'is-owed'];
             } elseif ($qty <= (float)$p['low_stock_threshold']) {
-                [$tag, $tag_cls] = ['Only ' . $qty_text($qty) . ' left', 'is-warn'];
+                [$tag, $tag_cls] = ['Only ' . stock_count($qty, $p['unit']) . ' left', 'is-warn'];
             } else {
-                [$tag, $tag_cls] = [$qty_text($qty) . ' in stock', ''];
+                [$tag, $tag_cls] = [stock_count($qty, $p['unit']) . ' in stock', ''];
             }
             $line = implode(' · ', array_filter([$p['category'] ?? '', $p['sku'] ?? '']));
         ?>
