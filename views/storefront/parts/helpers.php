@@ -153,6 +153,27 @@ function sf_add_button(array $item, string $label, string $class = 'sf-btn sf-bt
 }
 
 /**
+ * The proof-of-payment picker, in the bag and on a booking: a box that
+ * reads "Add a screenshot of your transfer", then shows the picture picked,
+ * its name and "Change" (storefront.js fills that in). The file box is the
+ * same one as ever (payment_proof, the same pictures, sent with the form),
+ * only out of sight inside the label, so a tap anywhere opens it.
+ */
+function sf_proof_field(string $hint): string {
+    return '<label class="sf-field sf-proof" data-proof>'
+         . '<span class="sf-field__label">Proof of payment <span class="sf-field__opt">(optional)</span></span>'
+         . '<span class="sf-field__hint">' . e($hint) . '</span>'
+         . '<span class="sf-proof__box">'
+         . '<input type="file" name="payment_proof" accept="image/jpeg,image/png,image/webp" class="sf-proof__input">'
+         . '<span class="sf-proof__add" data-proof-empty>' . sf_icon('image', 22) . '<span>Add a screenshot of your transfer</span></span>'
+         . '<span class="sf-proof__picked" data-proof-picked hidden>'
+         . '<img class="sf-proof__thumb" data-proof-thumb alt="" width="44" height="44">'
+         . '<span class="sf-proof__name" data-proof-name></span>'
+         . '<span class="sf-proof__change" aria-hidden="true">Change</span>'
+         . '</span></span></label>';
+}
+
+/**
  * A WhatsApp link that asks about one product.
  */
 function sf_wa_ask(array $item, array $ctx, string $class = 'sf-iconbtn'): string {

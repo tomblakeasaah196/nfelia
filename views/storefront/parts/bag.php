@@ -140,11 +140,7 @@ $bag_word = $settings['look'] === 'market' ? 'order' : 'bag';
                         </label>
                     <?php endforeach; ?>
                 </fieldset>
-                <label class="sf-field">
-                    <span class="sf-field__label">Proof of payment <span class="sf-field__opt">(optional)</span></span>
-                    <span class="sf-field__hint">A screenshot of your transfer helps the shop confirm it quickly.</span>
-                    <input type="file" name="payment_proof" accept="image/jpeg,image/png,image/webp">
-                </label>
+                <?= sf_proof_field('A screenshot of your transfer helps the shop confirm it quickly.') ?>
             <?php else: ?>
                 <p class="sf-note">The shop will contact you about payment after you order.</p>
             <?php endif; ?>

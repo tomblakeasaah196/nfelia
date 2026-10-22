@@ -133,6 +133,8 @@ page, the Catalogue list ("Only 3 bundles left"), the stock messages, the
 invoice form's item search and the shop's "per bundle". Restock reminders
 on Tasks show no unit, so they are unchanged.
 
+**Proof of payment in the shop:** the bag's step 3 and the booking deposit no longer show "Choose File · No file chosen". The picker is a box reading "Add a screenshot of your transfer", then shows the picture, its name and "Change" (`sf_proof_field()`, `.sf-proof` in `assets/css/storefront.css`). The `payment_proof` input and the upload are unchanged.
+
 Styles are in `assets/css/src/orders.css` (`.nf-iform`, `.nf-if-*`,
 `.nf-pv-*`). Tested in `tests/orders/core_test.php`: the plurals, and
 Add stock from the item page.

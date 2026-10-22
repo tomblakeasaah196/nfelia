@@ -414,6 +414,28 @@
         });
     }
 
+    /* ── Proof of payment: the picture picked, its name and "Change" ── */
+    // The bag's and a booking's picker (sf_proof_field). Emptying the file box
+    // after an order sends a change too, which brings the empty box back.
+    document.addEventListener('change', function (e) {
+        var input = e.target;
+        var box = input && input.type === 'file' && input.closest && input.closest('[data-proof]');
+        if (!box) { return; }
+        var file = input.files && input.files[0];
+        var thumb = $('[data-proof-thumb]', box);
+        if (box.proofUrl) { URL.revokeObjectURL(box.proofUrl); box.proofUrl = null; }
+        $('[data-proof-empty]', box).hidden = !!file;
+        $('[data-proof-picked]', box).hidden = !file;
+        if (file) {
+            box.proofUrl = URL.createObjectURL(file);
+            thumb.src = box.proofUrl;
+            $('[data-proof-name]', box).textContent = file.name;
+        } else {
+            thumb.removeAttribute('src');
+            $('[data-proof-name]', box).textContent = '';
+        }
+    });
+
     /* ── Bag and checkout ────────────────────────── */
 
     var bag = $('#sf-bag');
