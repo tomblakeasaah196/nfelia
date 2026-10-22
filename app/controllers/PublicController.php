@@ -872,6 +872,10 @@ class PublicController
         if (!in_array($fulfillment, ["delivery", "pickup"])) {
             $fulfillment = "pickup";
         }
+        /* The bag asks for it too, but a browser check alone can be skipped */
+        if ($fulfillment === "delivery" && $delivery_address === "") {
+            json_response(["error" => "Type the address we should deliver to."], 422);
+        }
         if (
             !in_array($payment_method, [
                 "bank_transfer",
@@ -999,12 +1003,15 @@ class PublicController
                 ],
                 429,
             );
-        } /* Handle payment proof upload */
+        } /* Handle payment proof upload. One that can't be saved (too big,
+             not a picture) doesn't stop the order: the answer says so, and
+             the bag tells the shopper to send it another way */
         $proof_path = null;
-        if (
+        $proof_sent =
             $payment_method !== "none" &&
-            !empty($_FILES["payment_proof"]["tmp_name"])
-        ) {
+            is_int($_FILES["payment_proof"]["error"] ?? null) &&
+            $_FILES["payment_proof"]["error"] !== UPLOAD_ERR_NO_FILE;
+        if ($proof_sent && is_string($_FILES["payment_proof"]["tmp_name"] ?? null)) {
             /* Private: only the shop sees it (OrderController::proof) */
             $filename = bin2hex(random_bytes(16)) . ".jpg";
             $dest =
@@ -1019,6 +1026,7 @@ class PublicController
                     $filename;
             }
         }
+        $proof_failed = $proof_sent && $proof_path === null;
         $this->db->beginTransaction();
         $committed = false;
         try {
@@ -1069,29 +1077,15 @@ class PublicController
                     $oi["item_note"],
                     $oi["line_total"],
                 ]);
-            } /* Match or create customer */
-            $stmtExist = $this->db->prepare(
-                "SELECT id FROM customers WHERE business_id = ? AND phone = ? AND deleted_at IS NULL LIMIT 1",
+            } /* Match or create customer: by the phone's last 10 digits, so
+                 "0803 456 7812" and "+2348034567812" are one person */
+            $customer_id = order_match_customer(
+                $this->db,
+                $business_id,
+                $customer_name,
+                $customer_phone,
+                $customer_email,
             );
-            $stmtExist->execute([$business_id, $customer_phone]);
-            $existing_cust = $stmtExist->fetch();
-            $customer_id = null;
-            if ($existing_cust) {
-                $customer_id = (int) $existing_cust["id"];
-            } else {
-                $this->db
-                    ->prepare(
-                        "INSERT INTO customers (business_id, full_name, phone, email, notes) VALUES (?, ?, ?, ?, ?)",
-                    )
-                    ->execute([
-                        $business_id,
-                        $customer_name,
-                        $customer_phone,
-                        $customer_email ?: null,
-                        "Auto-created from storefront order",
-                    ]);
-                $customer_id = (int) $this->db->lastInsertId();
-            }
             $this->db
                 ->prepare("UPDATE orders SET customer_id = ? WHERE id = ?")
                 ->execute([
@@ -1152,6 +1146,7 @@ class PublicController
                 "order_url" => $order_url,
                 "total" => $subtotal,
                 "channel" => $channel,
+                "proof_failed" => $proof_failed,
             ]);
         } catch (\Throwable $e) {
             if ($this->db->inTransaction()) {
@@ -1165,7 +1160,7 @@ class PublicController
             if ($committed) {
                 // The order is placed; only something after it went wrong.
                 // Saying it failed would make the shopper order twice.
-                json_response(["success" => true, "order_number" => $order_number, "order_url" => null, "total" => $subtotal, "channel" => $channel]);
+                json_response(["success" => true, "order_number" => $order_number, "order_url" => null, "total" => $subtotal, "channel" => $channel, "proof_failed" => $proof_failed]);
             }
             if ($this->db->inTransaction()) {
                 $this->db->rollBack();

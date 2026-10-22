@@ -21,31 +21,48 @@ $threshold = (float)$product['low_stock_threshold'];
         </a>
         <h1 class="font-heading font-extrabold text-2xl text-brand-plum tracking-tight truncate"><?= e($product['name']) ?></h1>
         <?php if (!$product['is_active']): ?>
-            <span class="text-[9px] font-bold text-brand-plum/40 bg-brand-sand px-2 py-1 rounded uppercase tracking-widest">Inactive</span>
+            <span class="shrink-0 text-xs font-semibold text-brand-plum/60 bg-brand-sand px-2 py-1 rounded">Hidden</span>
         <?php endif; ?>
     </div>
-    <div class="flex items-center gap-2">
-        <a href="<?= APP_URL ?>/products/edit/<?= $product['id'] ?>" class="flex items-center gap-2 bg-brand-white border border-brand-sand hover:border-accent px-4 py-2.5 rounded-xl transition-all">
+    <?php /* Wraps at phone width rather than running off the screen */ ?>
+    <div class="flex flex-wrap items-center gap-2">
+        <a href="<?= APP_URL ?>/products/edit/<?= $product['id'] ?>" class="flex items-center gap-2 bg-brand-white border border-brand-sand hover:border-accent px-3 sm:px-4 py-2.5 rounded-xl transition-all">
             <svg class="w-4 h-4 text-accent-text" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-            <span class="text-[10px] font-bold text-brand-plum uppercase tracking-widest">Edit</span>
+            <span class="text-xs font-bold text-brand-plum">Edit</span>
         </a>
+        <?php /* Hidden: off the shop and out of the item pickers (toggle_status) */ ?>
+        <form method="POST" action="<?= APP_URL ?>/products/toggle-status/<?= $product['id'] ?>" class="inline">
+            <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
+            <button type="submit" class="flex items-center gap-2 bg-brand-white border border-brand-sand hover:border-accent px-3 sm:px-4 py-2.5 rounded-xl transition-all">
+                <?php if ($product['is_active']): ?>
+                    <svg class="w-4 h-4 text-brand-plum/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3l18 18M10.6 10.6a2 2 0 002.8 2.8M9.9 5.1A9.8 9.8 0 0112 5c4.5 0 8.3 2.9 9.5 7a9.9 9.9 0 01-2.6 4.2M6.6 6.6A9.9 9.9 0 002.5 12c1.2 4.1 5 7 9.5 7a9.8 9.8 0 005.4-1.6"/></svg>
+                    <span class="text-xs font-bold text-brand-plum/60">Hide</span>
+                <?php else: ?>
+                    <svg class="w-4 h-4 text-accent-text" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.5 12C3.7 7.9 7.5 5 12 5s8.3 2.9 9.5 7c-1.2 4.1-5 7-9.5 7s-8.3-2.9-9.5-7z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                    <span class="text-xs font-bold text-brand-plum">Show again</span>
+                <?php endif; ?>
+            </button>
+        </form>
         <form method="POST" action="<?= APP_URL ?>/products/duplicate/<?= $product['id'] ?>" class="inline">
             <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
-            <button type="submit" class="flex items-center gap-2 bg-brand-white border border-brand-sand hover:border-accent px-4 py-2.5 rounded-xl transition-all">
+            <button type="submit" class="flex items-center gap-2 bg-brand-white border border-brand-sand hover:border-accent px-3 sm:px-4 py-2.5 rounded-xl transition-all">
                 <svg class="w-4 h-4 text-brand-plum/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
-                <span class="text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest">Clone</span>
+                <span class="text-xs font-bold text-brand-plum/60">Clone</span>
             </button>
         </form>
         <form method="POST" action="<?= APP_URL ?>/products/delete/<?= $product['id'] ?>"
               onsubmit="return confirm('Remove <?= e(addslashes($product['name'])) ?> from inventory? This can be undone by support.');">
             <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
-            <button type="submit" class="flex items-center gap-2 bg-brand-white border border-red-200 hover:border-red-400 px-4 py-2.5 rounded-xl transition-all">
+            <button type="submit" class="flex items-center gap-2 bg-brand-white border border-red-200 hover:border-red-400 px-3 sm:px-4 py-2.5 rounded-xl transition-all">
                 <svg class="w-4 h-4 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                <span class="text-[10px] font-bold text-red-500 uppercase tracking-widest">Remove</span>
+                <span class="text-xs font-bold text-red-500">Remove</span>
             </button>
         </form>
     </div>
 </div>
+<?php if (!$product['is_active']): ?>
+    <p class="text-xs text-brand-plum/60 -mt-4 mb-6">Hidden: it isn't on your shop, and it doesn't come up when you add items to an invoice, quote or order. Its stock and history stay.</p>
+<?php endif; ?>
 
 <!-- ===== PRODUCT HEADER CARD ===== -->
 <div class="bg-brand-white border border-brand-sand rounded-xl shadow-sm overflow-hidden mb-6">
@@ -103,7 +120,7 @@ $threshold = (float)$product['low_stock_threshold'];
             </div>
 
             <?php if (!$is_svc): ?>
-            <div class="mt-4 pt-4 border-t border-brand-sand/50 flex items-center gap-6">
+            <div class="mt-4 pt-4 border-t border-brand-sand/50 flex flex-wrap items-center gap-x-6 gap-y-2">
                 <div>
                     <span class="text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest">Current Stock:</span>
                     <span class="data-text font-bold text-sm text-brand-plum ml-1"><?= number_format($qty, $qty == (int)$qty ? 0 : 2) ?> <?= e($product['unit'] ?? 'pcs') ?></span>
@@ -193,17 +210,19 @@ $threshold = (float)$product['low_stock_threshold'];
     </div>
 
     <?php if (!empty($movements)): ?>
+        <?php /* On a phone: Before, Note and By leave their columns, and the
+                 note and who made it go under the type, so nothing scrolls sideways */ ?>
         <div class="overflow-x-auto">
             <table class="w-full text-left">
                 <thead>
                     <tr class="border-b border-brand-sand bg-brand-cream/50">
-                        <th class="px-6 py-3 text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest">Date</th>
-                        <th class="px-6 py-3 text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest">Type</th>
-                        <th class="px-6 py-3 text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest text-right">Qty</th>
-                        <th class="px-6 py-3 text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest text-right">Before</th>
-                        <th class="px-6 py-3 text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest text-right">After</th>
-                        <th class="px-6 py-3 text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest">Note</th>
-                        <th class="px-6 py-3 text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest">By</th>
+                        <th class="px-3 sm:px-6 py-3 text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest">Date</th>
+                        <th class="px-3 sm:px-6 py-3 text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest">Type</th>
+                        <th class="px-3 sm:px-6 py-3 text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest text-right">Qty</th>
+                        <th class="hidden sm:table-cell px-6 py-3 text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest text-right">Before</th>
+                        <th class="px-3 sm:px-6 py-3 text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest text-right">After</th>
+                        <th class="hidden sm:table-cell px-6 py-3 text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest">Note</th>
+                        <th class="hidden sm:table-cell px-6 py-3 text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest">By</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-brand-sand/50">
@@ -218,17 +237,18 @@ $threshold = (float)$product['low_stock_threshold'];
                         };
                     ?>
                         <tr class="hover:bg-brand-cream/30 transition-colors">
-                            <td class="px-6 py-3 data-text text-[10px] text-brand-plum/60 whitespace-nowrap"><?= fmt_date($mv['movement_date'], 'd M Y') ?></td>
-                            <td class="px-6 py-3">
+                            <td class="px-3 sm:px-6 py-3 data-text text-[10px] text-brand-plum/60 sm:whitespace-nowrap"><?= fmt_date($mv['movement_date'], 'd M Y') ?></td>
+                            <td class="px-3 sm:px-6 py-3">
                                 <span class="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded <?= $type_config['color'] ?>">
                                     <?= $type_config['icon'] ?> <?= $type_config['label'] ?>
                                 </span>
+                                <p class="sm:hidden mt-1 text-[10px] text-brand-plum/60 break-words"><?= e(($mv['note'] ?? '') ?: '—') ?> · <?= e($mv['user_name'] ?? 'System') ?></p>
                             </td>
-                            <td class="px-6 py-3 data-text text-xs font-bold text-brand-plum text-right"><?= number_format((float)$mv['quantity'], 2) ?></td>
-                            <td class="px-6 py-3 data-text text-[10px] text-brand-plum/40 text-right"><?= number_format((float)$mv['stock_before'], 2) ?></td>
-                            <td class="px-6 py-3 data-text text-[10px] font-bold text-brand-plum text-right"><?= number_format((float)$mv['stock_after'], 2) ?></td>
-                            <td class="px-6 py-3 text-[10px] text-brand-plum/60 max-w-[200px] truncate"><?= e($mv['note'] ?? '—') ?></td>
-                            <td class="px-6 py-3 text-[10px] text-brand-plum/40 whitespace-nowrap"><?= e($mv['user_name'] ?? 'System') ?></td>
+                            <td class="px-3 sm:px-6 py-3 data-text text-xs font-bold text-brand-plum text-right"><?= number_format((float)$mv['quantity'], 2) ?></td>
+                            <td class="hidden sm:table-cell px-6 py-3 data-text text-[10px] text-brand-plum/40 text-right"><?= number_format((float)$mv['stock_before'], 2) ?></td>
+                            <td class="px-3 sm:px-6 py-3 data-text text-[10px] font-bold text-brand-plum text-right"><?= number_format((float)$mv['stock_after'], 2) ?></td>
+                            <td class="hidden sm:table-cell px-6 py-3 text-[10px] text-brand-plum/60 max-w-[200px] truncate"><?= e($mv['note'] ?? '—') ?></td>
+                            <td class="hidden sm:table-cell px-6 py-3 text-[10px] text-brand-plum/40 whitespace-nowrap"><?= e($mv['user_name'] ?? 'System') ?></td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>

@@ -482,7 +482,10 @@ $event_icons = ['created' => 'plus', 'confirmed' => 'check', 'payment' => 'money
 
 <!-- ===== SHEETS ===== -->
 
-<?php if ($stage['key'] === 'new'): $has_proof = !empty($order['payment_proof_path']); ?>
+<?php if ($stage['key'] === 'new'):
+    $has_proof   = !empty($order['payment_proof_path']);
+    // Paid by transfer with no screenshot: the owner can still say the money came
+    $by_transfer = in_array($order['payment_method'] ?? '', ['bank_transfer', 'mobile_money'], true); ?>
 <dialog class="nf-sheet" id="nf-confirm" aria-labelledby="nf-confirm-h">
     <div class="nf-grab"></div>
     <div class="nf-sheet-h"><h2 id="nf-confirm-h">Confirm order</h2><button type="button" class="nf-icon-btn" data-close aria-label="Close"><?= nav_icon('close') ?></button></div>
@@ -491,8 +494,10 @@ $event_icons = ['created' => 'plus', 'confirmed' => 'check', 'payment' => 'money
             <a class="nf-proof" href="<?= APP_URL ?>/orders/proof/<?= $oid ?>" target="_blank" rel="noopener">
                 <img src="<?= APP_URL ?>/orders/proof/<?= $oid ?>" alt="<?= e($first) ?>'s payment screenshot" loading="lazy">
             </a>
-            <label class="nf-switch"><input type="checkbox" role="switch" name="payment_received" value="1" checked x-model="paid">
-                <span><b><?= planner_money($total, $currency) ?> is in my account</b><small>Saves the payment and makes the receipt.</small></span></label>
+        <?php endif; ?>
+        <?php if ($has_proof || $by_transfer): ?>
+            <label class="nf-switch"><input type="checkbox" role="switch" name="payment_received" value="1"<?= $has_proof ? ' checked' : '' ?> x-model="paid">
+                <span><b><?= planner_money($total, $currency) ?> is in my account</b><small><?= $has_proof ? 'Saves the payment and makes the receipt.' : 'No screenshot came with this order. Turn this on once you see the money: it saves the payment and makes the receipt.' ?></small></span></label>
         <?php endif; ?>
         <fieldset class="nf-field">
             <legend>When will <?= e($first) ?> get it?</legend>

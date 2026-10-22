@@ -254,6 +254,7 @@ class ProductController {
 
             $name        = trim($_POST['name'] ?? '');
             $sku         = trim($_POST['sku'] ?? '');
+            $auto_sku    = !empty($_POST['auto_sku']);
             $category    = trim($_POST['category'] ?? '');
             $description = trim($_POST['description'] ?? '');
             $sell_price  = (float)($_POST['sell_price'] ?? 0);
@@ -261,6 +262,12 @@ class ProductController {
             $threshold   = (float)($_POST['low_stock_threshold'] ?? 5);
             $unit        = trim($_POST['unit'] ?? 'pcs');
             $is_service  = !empty($_POST['is_service']) ? 1 : 0;
+
+            // "Auto-generate" switches the SKU box off, so it sends nothing:
+            // make one, as on create, rather than saving it empty
+            if ($auto_sku || $sku === '') {
+                $sku = $this->generate_sku($name, (int)$id);
+            }
 
             $errors = [];
             if ($name === '') $errors[] = 'Product name is required.';
@@ -423,7 +430,8 @@ class ProductController {
         $this->db->prepare("UPDATE products SET deleted_at = NOW() WHERE id = ? AND business_id = ?")
                   ->execute([$id, $this->biz_id]);
 
-        flash('success', e($product['name']) . " removed from inventory.");
+        // The layout escapes flash messages itself
+        flash('success', $product['name'] . " removed from inventory.");
         redirect('products');
     }
 
@@ -496,20 +504,32 @@ class ProductController {
     }
 
     /* ──────────────────────────────────────────
-     *  TOGGLE STATUS — AJAX active/inactive
+     *  TOGGLE STATUS — hide / show (AJAX, or the
+     *  product page's button)
+     *  A hidden item is off the shop and out of the
+     *  item pickers on invoices, quotes and orders
      * ────────────────────────────────────────── */
     public function toggle_status($id = null) {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') { http_response_code(405); exit; }
         csrf_verify();
 
         $product = $this->find_product($id);
-        if (!$product) { json_response(['error' => 'Not found'], 404); }
+        if (!$product) {
+            if (is_ajax()) { json_response(['error' => 'Not found'], 404); }
+            not_found(); return;
+        }
 
         $new_status = $product['is_active'] ? 0 : 1;
         $this->db->prepare("UPDATE products SET is_active = ? WHERE id = ? AND business_id = ?")
                   ->execute([$new_status, $id, $this->biz_id]);
 
-        json_response(['status' => $new_status ? 'active' : 'inactive']);
+        if (is_ajax()) {
+            json_response(['status' => $new_status ? 'active' : 'inactive']);
+        }
+        flash('success', $new_status
+            ? $product['name'] . ' is back on your shop and in your item lists.'
+            : $product['name'] . ' is hidden. It is off your shop and out of the item lists for invoices, quotes and orders.');
+        redirect('products/view/' . (int)$id);
     }
 
     /* ──────────────────────────────────────────
@@ -973,7 +993,7 @@ class ProductController {
             foreach ($labels as $j => $label) {
                 $label = trim(str_replace(',', ' ', (string)$label));
                 if ($label === '') continue;
-                $delta = round((float)($prices[$j] ?? 0), 2);
+                $delta = round($this->amount($prices[$j] ?? 0), 2);
                 $options[] = [mb_substr($label, 0, 50), $delta];
             }
             if (!$options) continue;   // a group with no options is not a group
@@ -989,6 +1009,11 @@ class ProductController {
             }
             $sort++;
         }
+    }
+
+    /** A price change as typed: "25,000", "-2000", or "−2000" as the hint writes it. */
+    private function amount($typed): float {
+        return (float)str_replace([',', ' ', '−'], ['', '', '-'], trim((string)$typed));
     }
 
     private function get_variant_groups(int $product_id): array {

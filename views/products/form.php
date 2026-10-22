@@ -145,10 +145,12 @@ $units = [
 
                 <div class="grid sm:grid-cols-3 gap-4">
                     <div>
-                        <label class="block text-[10px] font-bold text-brand-plum/70 uppercase tracking-widest mb-2">Selling Price (<?= e($currency) ?>) <span class="text-red-500">*</span></label>
+                        <label class="block text-[10px] font-bold text-brand-plum/70 uppercase tracking-widest mb-2">Selling Price (<?= e($currency) ?>)</label>
                         <input type="number" name="sell_price" step="0.01" min="0" x-model.number="sellPrice"
                                value="<?= e($p_sell) ?>" placeholder="0.00"
                                class="w-full px-4 py-3 text-sm font-medium font-mono bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
+                        <?php /* No price is allowed: the shop then shows "Ask for the price" (sf_price_html) */ ?>
+                        <p class="text-[10px] text-brand-plum/50 mt-1">Leave it empty to show “Ask for the price” on your shop.</p>
                     </div>
                     <div>
                         <label class="block text-[10px] font-bold text-brand-plum/70 uppercase tracking-widest mb-2">Cost Price (<?= e($currency) ?>)</label>
@@ -303,11 +305,12 @@ $units = [
                         <?php if ($img['is_cover']): ?>
                             <span class="absolute top-1 left-1 text-[7px] font-bold uppercase tracking-wider bg-brand-primary text-white px-1.5 py-0.5 rounded">Cover</span>
                         <?php endif; ?>
-                        <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                        <?php /* Always showing on touch screens, which have no hover; on hover only where there is a mouse */ ?>
+                        <div class="absolute inset-x-0 bottom-0 bg-black/50 flex flex-wrap items-center justify-center gap-1 p-1 transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 focus-within:opacity-100">
                             <?php if (!$img['is_cover']): ?>
-                            <button type="button" @click="setCover(<?= (int)$img['id'] ?>)" class="text-white text-[8px] font-bold uppercase bg-white/20 px-2 py-1 rounded hover:bg-white/40">Cover</button>
+                            <button type="button" @click="setCover(<?= (int)$img['id'] ?>)" aria-label="Make this the cover photo" class="text-white text-[9px] font-bold bg-white/20 px-1.5 py-1 rounded hover:bg-white/40">Cover</button>
                             <?php endif; ?>
-                            <button type="button" @click="deleteImage(<?= (int)$img['id'] ?>, $el)" class="text-white text-[8px] font-bold uppercase bg-red-500/60 px-2 py-1 rounded hover:bg-red-500">Delete</button>
+                            <button type="button" @click="deleteImage(<?= (int)$img['id'] ?>, $el)" aria-label="Delete this photo" class="text-white text-[9px] font-bold bg-red-500/60 px-1.5 py-1 rounded hover:bg-red-500">Delete</button>
                         </div>
                     </div>
                     <?php endforeach; ?>
@@ -331,7 +334,7 @@ $units = [
                            @change="addPreviews($event.target.files)">
                     <svg class="w-5 h-5 text-brand-plum/30 mx-auto mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
                     <span class="text-[10px] font-bold text-brand-plum/40 uppercase tracking-widest">Upload Images</span>
-                    <span class="block text-[8px] text-brand-plum/20 mt-0.5">JPG, PNG or WebP · Max 2 MB each · Multiple allowed</span>
+                    <span class="block text-[8px] text-brand-plum/20 mt-0.5">JPG, PNG or WebP · Up to 20 MB each · Multiple allowed</span>
                 </label>
             </div>
 

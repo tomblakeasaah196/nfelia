@@ -40,15 +40,48 @@ function sf_unit_text(string $unit): string {
 }
 
 /**
+ * The least a shopper can pay for one: every choice group has an option
+ * picked (the first, until they change it), so it is the price plus the
+ * cheapest option of each group. Booked products don't use their choices.
+ */
+function sf_lowest_price(array $item): float {
+    $low = $item['price'];
+    if (empty($item['booking'])) {
+        foreach ($item['variants'] as $group) {
+            if (!empty($group['deltas'])) {
+                $low += min(array_map(fn($option) => (float)($group['deltas'][$option] ?? 0), $group['options']));
+            }
+        }
+    }
+    return max(0.0, round($low, 2));
+}
+
+/**
+ * The price a tile shows: "From ₦80,000" when the choices move it off the
+ * product's own price, else that price. Text; null when there is none.
+ */
+function sf_price_text(array $item, string $currency): ?string {
+    if ($item['price'] <= 0) {
+        return null;
+    }
+    $low = sf_lowest_price($item);
+    return $low > 0 && $low != $item['price'] ? 'From ' . sf_money($low, $currency) : sf_money($item['price'], $currency);
+}
+
+/**
  * A product's price as HTML: the amount, then its unit in a smaller span.
- * A price of zero reads "Ask for the price".
+ * A price of zero reads "Ask for the price"; one the choices change starts
+ * "From" with the lowest.
  */
 function sf_price_html(array $item, array $ctx, bool $with_unit = true): string {
     if ($item['price'] <= 0) {
         return '<span class="sf-amount sf-amount--ask">Ask for the price</span>';
     }
     $unit = $with_unit ? sf_unit_text($item['unit']) : '';
-    return '<span class="sf-amount">' . e(sf_money($item['price'], $ctx['currency'])) . '</span>'
+    $low  = sf_lowest_price($item);
+    $from = $low > 0 && $low != $item['price'];
+    return ($from ? '<span class="sf-unit">From </span>' : '')
+         . '<span class="sf-amount">' . e(sf_money($from ? $low : $item['price'], $ctx['currency'])) . '</span>'
          . ($unit !== '' ? '<span class="sf-unit">' . e($unit) . '</span>' : '');
 }
 
@@ -264,7 +297,7 @@ function sf_item_pricerow(array $item, array $ctx): string {
 }
 
 function sf_item_spec(array $item, array $ctx): string {
-    $sticker = $item['price'] > 0 ? '<span class="sf-sticker">' . e(sf_money($item['price'], $ctx['currency'])) . '</span>' : '';
+    $sticker = $item['price'] > 0 ? '<span class="sf-sticker">' . e(sf_price_text($item, $ctx['currency'])) . '</span>' : '';
     return '<article ' . sf_item_attrs($item, 'sf-item sf-item--spec') . '>'
          . '<div class="sf-item__visual">' . sf_open_link($item, sf_item_media($item, '120px'), 'sf-item__media', true) . $sticker . '</div>'
          . '<div class="sf-item__body">'
@@ -378,7 +411,7 @@ function sf_item_included(array $item, array $ctx): string {
  * A product in "New in": a tile in the look's own frame.
  */
 function sf_tile(array $item, array $ctx, string $style): string {
-    $sticker = $style === 'sticker' && $item['price'] > 0 ? '<span class="sf-sticker">' . e(sf_money($item['price'], $ctx['currency'])) . '</span>' : '';
+    $sticker = $style === 'sticker' && $item['price'] > 0 ? '<span class="sf-sticker">' . e(sf_price_text($item, $ctx['currency'])) . '</span>' : '';
     $sizes = match ($style) {
         'plate'  => '(min-width: 720px) 200px, 30vw',
         default  => '(min-width: 1080px) 260px, (min-width: 720px) 30vw, 46vw',

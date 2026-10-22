@@ -85,7 +85,9 @@ $qty_text  = fn(float $q) => rtrim(rtrim(number_format($q, 2), '0'), '.');
         <?php foreach ($products as $p):
             $is_svc = (int)$p['is_service'] === 1;
             $qty    = (float)$p['stock_qty'];
-            if ($is_svc) {
+            if (!$p['is_active']) {
+                [$tag, $tag_cls] = ['Hidden', 'is-line'];   // off the shop and the item pickers
+            } elseif ($is_svc) {
                 [$tag, $tag_cls] = ['Service', 'is-line'];
             } elseif ($qty <= 0) {
                 [$tag, $tag_cls] = ['Out of stock', 'is-owed'];
@@ -106,7 +108,7 @@ $qty_text  = fn(float $q) => rtrim(rtrim(number_format($q, 2), '0'), '.');
                 </span>
                 <span class="nf-item-main">
                     <b><?= e($p['name']) ?></b>
-                    <small><?= !$p['is_active'] ? 'Inactive' . ($line !== '' ? ' · ' . e($line) : '') : ($line !== '' ? e($line) : ($is_svc ? 'Service' : 'No category')) ?></small>
+                    <small><?= $line !== '' ? e($line) : ($is_svc ? 'Service' : 'No category') ?></small>
                 </span>
                 <span class="nf-item-end">
                     <b><?= planner_money((float)$p['sell_price'], $currency) ?></b>
