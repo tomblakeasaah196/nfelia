@@ -249,7 +249,7 @@ jobs:
           echo "::error::the app did not start"; cat "$RUNNER_TEMP/app.log"; exit 1
 
       - name: Engine, every trigger over HTTP, the cron, the service worker, Nfelia Ops, the orders hub, the Records Book, signatures
-        run: bash tests/notifications/run.sh engine flows cron sw ops/foundation ops/monitor ops/clients ops/sales ops/uploads orders/core orders/late ops/records docs/sign auth/signin
+        run: bash tests/notifications/run.sh engine flows cron sw ops/foundation ops/monitor ops/clients ops/sales ops/uploads orders/core orders/late ops/records docs/sign auth/signin auth/onboarding
 
       # What the app itself said (PHP errors above all), right in the job's
       # log: the artifact below has the whole file.
