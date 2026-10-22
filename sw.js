@@ -8,13 +8,16 @@
  *    carries <meta name="nf-cached" content="when it was saved"> and
  *    assets/js/shell.js says so on screen. Kept pages belong to whoever was
  *    signed in, so all of them are dropped at every sign-in and sign-out.
+ *    When the server is up but too busy to answer, the kept copy shows too,
+ *    or offline.html says Nfelia is busy and tries again by itself, never
+ *    the host's own error page.
  * 3. Phone notifications: show them, and open the right page when tapped.
  *
  * Only pages the server marks as app pages are kept (views/layouts/app.php
  * sends X-Nfelia-Page). Never kept: anything but GET, /api, sign-in pages,
  * documents shared with customers (/doc) and downloads.
  */
-var VERSION = '2026-10-23.2';
+var VERSION = '2026-10-23.3';
 var FILES = 'nf-files-' + VERSION; // the app's own files, replaced with each version
 var PAGES = 'nf-pages';            // pages someone opened, kept for offline reading
 var SLOW_MS = 8000;                // after this long, show the kept copy instead of waiting
@@ -85,7 +88,7 @@ self.addEventListener('fetch', function (event) {
         // Every navigation is answered here, so the server sees exactly one
         // request for it: one-time sign-in links must never be sent twice.
         var skip = auth || /^(api|doc|cron|webhook)(\/|$)/.test(path) || /(export|download)/.test(path);
-        event.respondWith(skip ? straight(event) : page(event));
+        event.respondWith(skip ? straight(event, path === 'login') : page(event));
         return;
     }
     if (req.headers.has('Range') || /^assets\/video\//.test(path)) return;
@@ -95,10 +98,20 @@ self.addEventListener('fetch', function (event) {
 });
 
 // Straight to the server, using the request the browser already started.
-function straight(event) {
+// The sign-in page ($busyPage) says when the server is busy, as app pages do;
+// a one-time link is never tried again by itself.
+function straight(event, busyPage) {
     return Promise.resolve(event.preloadResponse)
         .then(function (res) { return res || fetch(event.request); })
+        .then(function (res) { return busyPage && busy(res) ? offline('busy') : res; })
         .catch(function () { return offline(); });
+}
+
+// The server is there but can't answer for now: the host's own "busy" page
+// (503), or Cloudflare's when it can't reach it (502, 504, 520 to 524). The
+// app's own error page (500) says what went wrong, so it shows as it is.
+function busy(res) {
+    return res.status === 502 || res.status === 503 || res.status === 504 || (res.status >= 520 && res.status <= 524);
 }
 
 // ---------- Pages: the network first, the kept copy when it fails or stalls ----------
@@ -118,11 +131,17 @@ function page(event) {
     return new Promise(function (resolve) {
         var answered = false;
         var answer = function (res) { if (!answered) { answered = true; resolve(res); } };
-        network.then(answer, function () {
+        // No answer the person can use: the page as it was, if it is kept, else why not
+        var fallBack = function (why) {
             caches.open(PAGES).then(function (c) { return c.match(key); })
-                .then(function (kept) { return kept || offline(); })
-                .then(answer, function () { answer(offline()); });
-        });
+                .then(function (kept) { return kept ? because(kept, why) : offline(why); })
+                .then(answer, function () { answer(offline(why)); });
+        };
+        network.then(function (res) {
+            if (!busy(res)) answer(res);
+            else if (mayWait) fallBack('busy');
+            else answer(offline('busy'));   // just after a form: never the old copy, which would hide what it did
+        }, function () { fallBack('offline'); });
         if (!mayWait) return;
         setTimeout(function () {
             if (answered) return;
@@ -163,10 +182,29 @@ function keep(key, res) {
     }).catch(function () {});
 }
 
-function offline() {
+// "No connection", or, when the server said it is busy ($why), "Nfelia is
+// busy", which tries again by itself (offline.html shows one or the other).
+function offline(why) {
     return caches.match(new URL('offline.html', scope).href).then(function (res) {
-        return res || new Response('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>No connection</title><p style="font:16px system-ui;padding:24px">No connection. Pages you have opened before still work offline.</p>',
-            { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+        if (!res) {
+            return new Response(why === 'busy'
+                ? '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Nfelia is busy</title><p style="font:16px system-ui;padding:24px">Nfelia is busy for a moment. Please try again shortly.</p>'
+                : '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>No connection</title><p style="font:16px system-ui;padding:24px">No connection. Pages you have opened before still work offline.</p>',
+                { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+        }
+        if (why !== 'busy') return res;
+        return res.text().then(function (html) {
+            return new Response(html.replace('<html lang="en">', '<html lang="en" data-reason="busy">'),
+                { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+        });
+    });
+}
+
+// A kept page shown because the server was busy says so (assets/js/shell.js).
+function because(kept, why) {
+    if (why !== 'busy') return kept;
+    return kept.text().then(function (html) {
+        return new Response(html.replace('<meta name="nf-cached"', '<meta name="nf-cached" data-why="busy"'), { status: 200, headers: kept.headers });
     });
 }
 
