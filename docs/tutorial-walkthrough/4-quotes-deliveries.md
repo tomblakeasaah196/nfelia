@@ -49,3 +49,19 @@ Tom decided these. Each one is built, and tests cover it in `tests/notifications
 ## Also seen (not changed)
 
 - The owner can still accept a quote past its date for the customer. That is left as the owner's call.
+
+## Round 3: sentence case
+
+Videos 3 and 4 film the quote, invoice, receipt and delivery screens. They still used the old all-caps labels. Now they are in sentence case, like the rest of the app.
+
+- **Screens:** quotes (page, form, the customer's page), deliveries (page, form, list, the customer's note, sign-off), invoices (page, form, the customer's page) and receipts (page, the customer's page).
+- **Styles:** `uppercase` and its wide letter-spacing are gone, and bold labels are semibold. The sizes follow the order form and onboarding:
+  - section headings 16px
+  - form labels and buttons 14px
+  - small labels, table headings and tags 12px
+  - nothing smaller (no more 9 to 11px text)
+  - faint grey labels one shade darker, so lowercase stays readable
+- **Words:** labels written in Title Case were rewritten in sentence case. For example, "Line Items" became "Line items", "Grand Total" became "Grand total", and "Sign & Accept" became "Sign & accept". "New Request for Engagement" and "New Commercial Invoice" are gone. The customer's quote tabs read "Offer, Terms, Discussion". Delivery status names read "Pending dispatch" and "In transit" wherever these pages show them. The failed-delivery button says "Try again" instead of "Retry (Reset)". A quote's badge shows the quotes list's own words ("Customer replied", "Waiting to sign") instead of the raw status code.
+- **Left as they are:** the printed document titles (QUOTATION, INVOICE, RECEIPT) and the PAID / CANCELLED stamp, the same as the PDFs. The PDF templates themselves weren't touched.
+- **Unchanged:** every field name, value, id, `data-` hook and behaviour. The test in `tests/docs/sign_test.php` now looks for "Sign & accept". The quote page's Share PDF button lives in `views/partials/share_pdf.php`; only the quote page uses that style of it, and it is sentence case now too.
+- **Checked at 384px:** each page was rendered with sample data (long names, a two-line address) and loaded in headless Chromium at 384px wide. None scrolls sideways, and none shows text under 11px. Every class the customer pages use is already in `public.css`.

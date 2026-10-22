@@ -276,11 +276,11 @@ if ($quotation) {
                     <div>
                         <h2 class="font-heading font-extrabold text-lg" style="color: <?= e($doc_colours['text']) ?>;"><?= e($business['name']) ?></h2>
                         <?php if ($business['tagline']): ?>
-                            <p class="text-[10px] text-gray-500"><?= e($business['tagline']) ?></p>
+                            <p class="text-xs text-gray-500"><?= e($business['tagline']) ?></p>
                         <?php endif; ?>
                     </div>
                 </div>
-                <div class="text-[10px] text-gray-500 space-y-0.5">
+                <div class="text-xs text-gray-500 space-y-0.5">
                     <?php if ($business['address']): ?><div><?= e($business['address']) ?></div><?php endif; ?>
                     <?php if ($business['phone']): ?><div>Tel: <?= e($business['phone']) ?></div><?php endif; ?>
                     <?php if ($business['email']): ?><div><?= e($business['email']) ?></div><?php endif; ?>
@@ -293,7 +293,7 @@ if ($quotation) {
                 <h1 class="font-heading font-extrabold text-2xl uppercase tracking-wider" style="color: <?= e($doc_colours['text']) ?>;">Invoice</h1>
                 <div class="data-text text-sm font-bold text-gray-700 mt-1"><?= e($invoice['doc_number']) ?></div>
                 <?php if ($order): ?><div class="data-text text-xs text-gray-600 mt-0.5">Order: <?= e($order['order_number']) ?></div><?php endif; ?>
-                <div class="text-[10px] text-gray-500 mt-2 space-y-0.5">
+                <div class="text-xs text-gray-500 mt-2 space-y-0.5">
                     <div>Issued: <?= fmt_date($invoice['issue_date'], 'd M Y') ?></div>
                     <?php if ($invoice['due_date']): ?>
                         <div class="<?= $days_overdue > 0 ? 'text-red-600 font-bold' : '' ?>">Due: <?= fmt_date($invoice['due_date'], 'd M Y') ?></div>
@@ -308,12 +308,12 @@ if ($quotation) {
         <!-- Client Block -->
         <?php if ($customer): ?>
         <div class="mb-8 p-4 rounded-lg" style="background: <?= e($doc_colours['primary']) ?>0A;">
-            <div class="text-[9px] font-bold uppercase tracking-widest mb-1" style="color: <?= e($doc_colours['text']) ?>;">Bill To</div>
+            <div class="text-xs font-semibold mb-1" style="color: <?= e($doc_colours['text']) ?>;">Bill to</div>
             <div class="text-sm font-bold text-gray-800"><?= e($customer['full_name']) ?></div>
-            <?php if (!empty($customer['business_name'])): ?><div class="text-[10px] text-gray-600"><?= e($customer['business_name']) ?></div><?php endif; ?>
-            <?php if (!empty($customer['phone'])): ?><div class="text-[10px] text-gray-500"><?= e($customer['phone']) ?></div><?php endif; ?>
-            <?php if (!empty($customer['email'])): ?><div class="text-[10px] text-gray-500"><?= e($customer['email']) ?></div><?php endif; ?>
-            <?php if (!empty($customer['address'])): ?><div class="text-[10px] text-gray-500"><?= e($customer['address']) ?></div><?php endif; ?>
+            <?php if (!empty($customer['business_name'])): ?><div class="text-xs text-gray-600"><?= e($customer['business_name']) ?></div><?php endif; ?>
+            <?php if (!empty($customer['phone'])): ?><div class="text-xs text-gray-500"><?= e($customer['phone']) ?></div><?php endif; ?>
+            <?php if (!empty($customer['email'])): ?><div class="text-xs text-gray-500"><?= e($customer['email']) ?></div><?php endif; ?>
+            <?php if (!empty($customer['address'])): ?><div class="text-xs text-gray-500"><?= e($customer['address']) ?></div><?php endif; ?>
         </div>
         <?php endif; ?>
 
@@ -322,22 +322,22 @@ if ($quotation) {
             <table class="w-full text-left">
                 <thead>
                     <tr style="border-bottom: 2px solid <?= e($doc_colours['primary']) ?>;">
-                        <th class="pb-2 text-[9px] font-bold uppercase tracking-widest text-gray-500">#</th>
-                        <th class="pb-2 text-[9px] font-bold uppercase tracking-widest text-gray-500">Description</th>
-                        <th class="pb-2 text-[9px] font-bold uppercase tracking-widest text-gray-500 text-center">Qty</th>
-                        <th class="pb-2 text-[9px] font-bold uppercase tracking-widest text-gray-500 text-right">Unit Price</th>
-                        <th class="pb-2 text-[9px] font-bold uppercase tracking-widest text-gray-500 text-center">Discount</th>
-                        <th class="pb-2 text-[9px] font-bold uppercase tracking-widest text-gray-500 text-right">Subtotal</th>
+                        <th class="pb-2 text-xs font-semibold text-gray-500">#</th>
+                        <th class="pb-2 text-xs font-semibold text-gray-500">Description</th>
+                        <th class="pb-2 text-xs font-semibold text-gray-500 text-center">Qty</th>
+                        <th class="pb-2 text-xs font-semibold text-gray-500 text-right">Unit price</th>
+                        <th class="pb-2 text-xs font-semibold text-gray-500 text-center">Discount</th>
+                        <th class="pb-2 text-xs font-semibold text-gray-500 text-right">Subtotal</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
                     <?php foreach ($items as $idx => $it): ?>
                         <tr>
-                            <td class="py-3 text-[10px] text-gray-400"><?= $idx + 1 ?></td>
+                            <td class="py-3 text-xs text-gray-400"><?= $idx + 1 ?></td>
                             <td class="py-3">
                                 <div class="text-xs font-semibold text-gray-800"><?= e($it['description']) ?></div>
                                 <?php if (!empty($it['product_sku'])): ?>
-                                    <div class="data-text text-[9px] text-gray-400"><?= e($it['product_sku']) ?></div>
+                                    <div class="data-text text-xs text-gray-400"><?= e($it['product_sku']) ?></div>
                                 <?php endif; ?>
                             </td>
                             <td class="py-3 data-text text-xs text-gray-700 text-center"><?= number_format((float)$it['quantity'], 2) ?></td>
@@ -370,18 +370,18 @@ if ($quotation) {
                     </div>
                 <?php endif; ?>
                 <div class="flex justify-between text-sm pt-2" style="border-top: 2px solid <?= e($doc_colours['primary']) ?>;">
-                    <span class="font-heading font-bold uppercase tracking-wider" style="color: <?= e($doc_colours['text']) ?>;">Grand Total</span>
+                    <span class="font-heading font-semibold" style="color: <?= e($doc_colours['text']) ?>;">Grand total</span>
                     <span class="font-heading font-extrabold text-lg" style="color: <?= e($doc_colours['text']) ?>;"><?= money((float)$invoice['total'], $currency) ?></span>
                 </div>
 
                 <!-- Amount Paid / Balance Due -->
                 <?php if ((float)$invoice['amount_paid'] > 0): ?>
                     <div class="flex justify-between text-xs pt-1">
-                        <span class="text-green-600 font-semibold">Amount Paid</span>
+                        <span class="text-green-600 font-semibold">Amount paid</span>
                         <span class="data-text font-bold text-green-600">-<?= money((float)$invoice['amount_paid'], $currency) ?></span>
                     </div>
                     <div class="flex justify-between text-sm pt-1" style="border-top: 1px dashed <?= e($doc_colours['primary']) ?>66;">
-                        <span class="font-heading font-bold uppercase tracking-wider <?= (float)$invoice['balance_due'] > 0 ? 'text-red-600' : 'text-green-600' ?>">Balance Due</span>
+                        <span class="font-heading font-semibold <?= (float)$invoice['balance_due'] > 0 ? 'text-red-600' : 'text-green-600' ?>">Balance due</span>
                         <span class="font-heading font-extrabold text-lg <?= (float)$invoice['balance_due'] > 0 ? 'text-red-600' : 'text-green-600' ?>">
                             <?= (float)$invoice['balance_due'] > 0 ? money((float)$invoice['balance_due'], $currency) : 'PAID' ?>
                         </span>
@@ -393,11 +393,11 @@ if ($quotation) {
         <!-- Bank Details -->
         <?php if ($bank): ?>
         <div class="mt-8 p-4 rounded-lg bg-gray-50 border border-gray-200">
-            <div class="text-[9px] font-bold uppercase tracking-widest text-gray-500 mb-2">Payment Details</div>
+            <div class="text-xs font-semibold text-gray-500 mb-2">Payment details</div>
             <div class="data-text text-xs text-gray-700 space-y-0.5">
                 <div>Bank: <?= e($bank['bank_name']) ?></div>
-                <div>Account Name: <?= e($bank['account_name']) ?></div>
-                <div>Account Number: <strong><?= e($bank['account_number']) ?></strong></div>
+                <div>Account name: <?= e($bank['account_name']) ?></div>
+                <div>Account number: <strong><?= e($bank['account_number']) ?></strong></div>
             </div>
         </div>
         <?php endif; ?>
@@ -405,7 +405,7 @@ if ($quotation) {
         <!-- Payment Terms -->
         <?php if ($invoice['payment_terms']): ?>
         <div class="mt-6">
-            <div class="text-[9px] font-bold uppercase tracking-widest text-gray-500 mb-1">Payment Terms</div>
+            <div class="text-xs font-semibold text-gray-500 mb-1">Payment terms</div>
             <p class="text-xs text-gray-600 leading-relaxed whitespace-pre-line"><?= e($invoice['payment_terms']) ?></p>
         </div>
         <?php endif; ?>
@@ -413,7 +413,7 @@ if ($quotation) {
         <!-- Notes -->
         <?php if ($invoice['notes']): ?>
         <div class="mt-4">
-            <div class="text-[9px] font-bold uppercase tracking-widest text-gray-500 mb-1">Notes</div>
+            <div class="text-xs font-semibold text-gray-500 mb-1">Notes</div>
             <p class="text-xs text-gray-600 leading-relaxed whitespace-pre-line"><?= e($invoice['notes']) ?></p>
         </div>
         <?php endif; ?>
@@ -424,7 +424,7 @@ if ($quotation) {
         <!-- Footer -->
         <?php if ($business['tagline']): ?>
         <div class="mt-8 text-center">
-            <p class="text-[9px] uppercase tracking-[.3em] font-bold" style="color: <?= e($doc_colours['secondary_text']) ?>;"><?= e($business['tagline']) ?></p>
+            <p class="text-xs font-semibold" style="color: <?= e($doc_colours['secondary_text']) ?>;"><?= e($business['tagline']) ?></p>
         </div>
         <?php endif; ?>
     </div>

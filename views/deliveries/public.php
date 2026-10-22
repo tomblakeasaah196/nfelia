@@ -13,7 +13,8 @@ $currency  = $business['currency_symbol'] ?? '₦';
 $doc_fonts = brand_doc_fonts($business);   // the brand fonts (app/helpers/brand.php)
 $logo_url  = !empty($business['logo_path']) ? APP_URL . '/' . $business['logo_path'] : null;
 
-$status_label = $statuses[$delivery['status']]['label'] ?? ucfirst($delivery['status']);
+// In sentence case ("Pending dispatch"), as the rest of the app writes it
+$status_label = ucfirst(strtolower($statuses[$delivery['status']]['label'] ?? str_replace('_', ' ', $delivery['status'])));
 $status_color = $statuses[$delivery['status']]['color'] ?? 'bg-gray-100 text-gray-700';
 // A tracking link is a web address (DeliveryController checks it): never javascript:
 $tracking_link = preg_match('#^https?://#i', (string)$delivery['tracking_url']) ? $delivery['tracking_url'] : '';
@@ -58,8 +59,8 @@ $tracking_link = preg_match('#^https?://#i', (string)$delivery['tracking_url']) 
                 <span class="text-sm font-bold brand-primary"><?= e($business['name']) ?></span>
             </div>
             <div class="flex items-center gap-2">
-                <button onclick="window.print()" class="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">Print</button>
-                <button onclick="downloadPDF()" class="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-on-brand rounded-lg transition-colors bg-brand-primary hover:opacity-90">Download PDF</button>
+                <button onclick="window.print()" class="px-3 py-1.5 text-sm font-semibold border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">Print</button>
+                <button onclick="downloadPDF()" class="px-3 py-1.5 text-sm font-semibold text-on-brand rounded-lg transition-colors bg-brand-primary hover:opacity-90">Download PDF</button>
             </div>
         </div>
     </div>
@@ -84,35 +85,35 @@ $tracking_link = preg_match('#^https?://#i', (string)$delivery['tracking_url']) 
                         <?php endif; ?>
                     </div>
                     <div class="text-right">
-                        <div class="text-[10px] font-bold uppercase tracking-widest opacity-60">Dispatch Confirmation</div>
+                        <div class="text-xs font-semibold opacity-60">Dispatch confirmation</div>
                         <div class="text-xl font-extrabold mt-1"><?= e($delivery['doc_number']) ?></div>
                         <?php if (!empty($order_number)): ?><div class="text-xs font-semibold mt-0.5 opacity-80">Order: <?= e($order_number) ?></div><?php endif; ?>
-                        <div class="inline-block mt-2 px-2.5 py-1 rounded text-[9px] font-bold uppercase tracking-wider <?= $status_color ?>"><?= $status_label ?></div>
+                        <div class="inline-block mt-2 px-2.5 py-1 rounded text-xs font-semibold <?= $status_color ?>"><?= $status_label ?></div>
                     </div>
                 </div>
             </div>
 
             <!-- Dates Bar -->
-            <div class="bg-gray-50 border-b border-gray-200 px-8 py-3 flex flex-wrap gap-6 text-[10px]">
+            <div class="bg-gray-50 border-b border-gray-200 px-8 py-3 flex flex-wrap gap-6 text-xs">
                 <div>
-                    <span class="font-bold text-gray-400 uppercase tracking-widest">Created</span>
+                    <span class="font-semibold text-gray-500">Created</span>
                     <span class="ml-2 font-bold text-gray-700"><?= fmt_date($delivery['created_at'], 'd M Y') ?></span>
                 </div>
                 <?php if ($delivery['dispatch_date']): ?>
                 <div>
-                    <span class="font-bold text-gray-400 uppercase tracking-widest">Dispatched</span>
+                    <span class="font-semibold text-gray-500">Dispatched</span>
                     <span class="ml-2 font-bold text-gray-700"><?= fmt_date($delivery['dispatch_date'], 'd M Y, H:i') ?></span>
                 </div>
                 <?php endif; ?>
                 <?php if ($delivery['estimated_delivery']): ?>
                 <div>
-                    <span class="font-bold text-gray-400 uppercase tracking-widest">ETA</span>
+                    <span class="font-semibold text-gray-500">ETA</span>
                     <span class="ml-2 font-bold text-gray-700"><?= fmt_date($delivery['estimated_delivery'], 'd M Y, H:i') ?></span>
                 </div>
                 <?php endif; ?>
                 <?php if ($delivery['actual_delivery']): ?>
                 <div>
-                    <span class="font-bold text-green-500 uppercase tracking-widest">Delivered</span>
+                    <span class="font-semibold text-green-500">Delivered</span>
                     <span class="ml-2 font-bold text-green-700"><?= fmt_date($delivery['actual_delivery'], 'd M Y, H:i') ?></span>
                 </div>
                 <?php endif; ?>
@@ -123,7 +124,7 @@ $tracking_link = preg_match('#^https?://#i', (string)$delivery['tracking_url']) 
                 <!-- From / To -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div>
-                        <div class="text-[9px] font-bold uppercase tracking-widest text-gray-400 mb-2">From (Sender)</div>
+                        <div class="text-xs font-semibold text-gray-500 mb-2">From (Sender)</div>
                         <div class="text-sm font-bold brand-primary"><?= e($business['name']) ?></div>
                         <?php if ($delivery['pickup_address']): ?>
                             <p class="text-xs text-gray-600 mt-1 leading-relaxed"><?= nl2br(e($delivery['pickup_address'])) ?></p>
@@ -133,7 +134,7 @@ $tracking_link = preg_match('#^https?://#i', (string)$delivery['tracking_url']) 
                         <?php endif; ?>
                     </div>
                     <div>
-                        <div class="text-[9px] font-bold uppercase tracking-widest text-gray-400 mb-2">To (Recipient)</div>
+                        <div class="text-xs font-semibold text-gray-500 mb-2">To (Recipient)</div>
                         <div class="text-sm font-bold brand-primary"><?= e($delivery['recipient_name']) ?></div>
                         <p class="text-xs text-gray-600 mt-1 leading-relaxed"><?= nl2br(e($delivery['delivery_address'])) ?></p>
                         <?php if ($delivery['recipient_phone']): ?>
@@ -144,28 +145,28 @@ $tracking_link = preg_match('#^https?://#i', (string)$delivery['tracking_url']) 
 
                 <!-- Items Table -->
                 <div>
-                    <div class="text-[9px] font-bold uppercase tracking-widest text-gray-400 mb-3">Items Dispatched</div>
+                    <div class="text-xs font-semibold text-gray-500 mb-3">Items dispatched</div>
                     <table class="w-full text-left border border-gray-200 rounded-lg overflow-hidden">
                         <thead>
                             <tr class="bg-gray-50">
-                                <th class="px-4 py-2.5 text-[9px] font-bold text-gray-400 uppercase tracking-widest border-b border-gray-200">#</th>
-                                <th class="px-4 py-2.5 text-[9px] font-bold text-gray-400 uppercase tracking-widest border-b border-gray-200">Description</th>
-                                <th class="px-4 py-2.5 text-[9px] font-bold text-gray-400 uppercase tracking-widest border-b border-gray-200 text-center">Qty</th>
-                                <th class="px-4 py-2.5 text-[9px] font-bold text-gray-400 uppercase tracking-widest border-b border-gray-200">Unit</th>
+                                <th class="px-4 py-2.5 text-xs font-semibold text-gray-500 border-b border-gray-200">#</th>
+                                <th class="px-4 py-2.5 text-xs font-semibold text-gray-500 border-b border-gray-200">Description</th>
+                                <th class="px-4 py-2.5 text-xs font-semibold text-gray-500 border-b border-gray-200 text-center">Qty</th>
+                                <th class="px-4 py-2.5 text-xs font-semibold text-gray-500 border-b border-gray-200">Unit</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php foreach ($items as $i => $item): ?>
                             <tr class="<?= $i % 2 ? 'bg-gray-50/50' : '' ?>">
-                                <td class="px-4 py-2.5 text-[10px] text-gray-400 border-b border-gray-100"><?= $i + 1 ?></td>
+                                <td class="px-4 py-2.5 text-xs text-gray-400 border-b border-gray-100"><?= $i + 1 ?></td>
                                 <td class="px-4 py-2.5 text-xs font-semibold text-gray-800 border-b border-gray-100">
                                     <?= e($item['product_name'] ?: $item['description']) ?>
                                     <?php if ($item['notes']): ?>
-                                        <span class="text-[10px] text-gray-400 block"><?= e($item['notes']) ?></span>
+                                        <span class="text-xs text-gray-400 block"><?= e($item['notes']) ?></span>
                                     <?php endif; ?>
                                 </td>
                                 <td class="px-4 py-2.5 text-xs font-bold text-gray-800 border-b border-gray-100 text-center"><?= number_format((float)$item['quantity'], $item['quantity'] == (int)$item['quantity'] ? 0 : 2) ?></td>
-                                <td class="px-4 py-2.5 text-[10px] text-gray-500 border-b border-gray-100"><?= $item['unit'] ? e($item['unit']) : '—' ?></td>
+                                <td class="px-4 py-2.5 text-xs text-gray-500 border-b border-gray-100"><?= $item['unit'] ? e($item['unit']) : '—' ?></td>
                             </tr>
                             <?php endforeach; ?>
                         </tbody>
@@ -175,29 +176,29 @@ $tracking_link = preg_match('#^https?://#i', (string)$delivery['tracking_url']) 
                 <!-- Provider / Rider -->
                 <?php if ($delivery['provider'] || $delivery['rider_name']): ?>
                 <div>
-                    <div class="text-[9px] font-bold uppercase tracking-widest text-gray-400 mb-3">Courier / Rider Details</div>
+                    <div class="text-xs font-semibold text-gray-500 mb-3">Courier or rider</div>
                     <div class="bg-gray-50 rounded-lg p-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
                         <?php if ($delivery['provider']): ?>
                         <div>
-                            <div class="text-[9px] text-gray-400 uppercase">Provider</div>
+                            <div class="text-xs text-gray-500">Provider</div>
                             <div class="text-xs font-bold text-gray-700"><?= $providers[$delivery['provider']] ?? e(ucfirst($delivery['provider'])) ?></div>
                         </div>
                         <?php endif; ?>
                         <?php if ($delivery['rider_name']): ?>
                         <div>
-                            <div class="text-[9px] text-gray-400 uppercase">Rider</div>
+                            <div class="text-xs text-gray-500">Rider</div>
                             <div class="text-xs font-bold text-gray-700"><?= e($delivery['rider_name']) ?></div>
                         </div>
                         <?php endif; ?>
                         <?php if ($delivery['rider_phone']): ?>
                         <div>
-                            <div class="text-[9px] text-gray-400 uppercase">Rider Phone</div>
+                            <div class="text-xs text-gray-500">Rider phone</div>
                             <div class="text-xs text-gray-700"><?= e($delivery['rider_phone']) ?></div>
                         </div>
                         <?php endif; ?>
                         <?php if ($delivery['booking_reference']): ?>
                         <div>
-                            <div class="text-[9px] text-gray-400 uppercase">Booking Ref</div>
+                            <div class="text-xs text-gray-500">Booking ref</div>
                             <div class="text-xs font-bold text-gray-700"><?= e($delivery['booking_reference']) ?></div>
                         </div>
                         <?php endif; ?>
@@ -208,7 +209,7 @@ $tracking_link = preg_match('#^https?://#i', (string)$delivery['tracking_url']) 
                 <!-- Tracking -->
                 <?php if ($delivery['tracking_number'] || $tracking_link): ?>
                 <div>
-                    <div class="text-[9px] font-bold uppercase tracking-widest text-gray-400 mb-3">Tracking</div>
+                    <div class="text-xs font-semibold text-gray-500 mb-3">Tracking</div>
                     <div class="bg-blue-50 rounded-lg p-4 flex items-center justify-between">
                         <div>
                             <?php if ($delivery['tracking_number']): ?>
@@ -216,7 +217,7 @@ $tracking_link = preg_match('#^https?://#i', (string)$delivery['tracking_url']) 
                             <?php endif; ?>
                         </div>
                         <?php if ($tracking_link): ?>
-                            <a href="<?= e($tracking_link) ?>" target="_blank" class="text-[10px] font-bold text-blue-600 uppercase tracking-widest hover:text-blue-800">Track Shipment &rarr;</a>
+                            <a href="<?= e($tracking_link) ?>" target="_blank" class="text-sm font-semibold text-blue-600 hover:text-blue-800">Track shipment &rarr;</a>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -225,28 +226,28 @@ $tracking_link = preg_match('#^https?://#i', (string)$delivery['tracking_url']) 
                 <!-- Special Instructions -->
                 <?php if ($delivery['special_instructions']): ?>
                 <div>
-                    <div class="text-[9px] font-bold uppercase tracking-widest text-gray-400 mb-2">Special Instructions</div>
+                    <div class="text-xs font-semibold text-gray-500 mb-2">Special instructions</div>
                     <div class="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-xs text-amber-800 leading-relaxed"><?= nl2br(e($delivery['special_instructions'])) ?></div>
                 </div>
                 <?php endif; ?>
 
                 <!-- Proof of delivery: the receiver's confirmation, the signatures (when signed) and the verify code -->
                 <div class="border-t-2 border-dashed border-gray-200 pt-6">
-                    <div class="text-[9px] font-bold uppercase tracking-widest text-gray-400 mb-4">Proof of Delivery</div>
+                    <div class="text-xs font-semibold text-gray-500 mb-4">Proof of delivery</div>
 
                     <?php if ($delivery['status'] === 'signed_off' && $delivery['signoff_name']): ?>
                         <div class="bg-green-50 border border-green-200 rounded-xl p-5">
                             <div class="flex items-center gap-2 mb-3">
                                 <svg class="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                                <span class="text-sm font-bold text-green-700">Receipt Confirmed</span>
+                                <span class="text-sm font-bold text-green-700">Receipt confirmed</span>
                             </div>
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
-                                    <div class="text-[9px] text-green-500 uppercase font-bold tracking-widest"><?= $delivery['signoff_signature_path'] ? 'Signed By' : 'Received By' ?></div>
+                                    <div class="text-xs text-green-500 font-semibold"><?= $delivery['signoff_signature_path'] ? 'Signed by' : 'Received by' ?></div>
                                     <div class="text-sm font-bold text-green-900"><?= e($delivery['signoff_name']) ?></div>
                                 </div>
                                 <div>
-                                    <div class="text-[9px] text-green-500 uppercase font-bold tracking-widest">Date & Time</div>
+                                    <div class="text-xs text-green-500 font-semibold">Date and time</div>
                                     <div class="text-sm text-green-900"><?= $delivery['signoff_timestamp'] ? fmt_date($delivery['signoff_timestamp'], 'd M Y, H:i') : '—' ?></div>
                                 </div>
                             </div>
@@ -264,7 +265,7 @@ $tracking_link = preg_match('#^https?://#i', (string)$delivery['tracking_url']) 
 
             <!-- Footer -->
             <div class="bg-gray-50 border-t border-gray-200 px-8 py-4 text-center">
-                <p class="text-[10px] text-gray-400">This is a computer-generated document from <strong><?= e($business['name']) ?></strong> via Nfelia.</p>
+                <p class="text-xs text-gray-400">This is a computer-generated document from <strong><?= e($business['name']) ?></strong> via Nfelia.</p>
             </div>
         </div>
     </div>
