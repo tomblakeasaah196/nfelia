@@ -119,11 +119,13 @@ class ReportController {
             $trend[] = ['label' => $label, 'revenue' => $rev, 'expenses' => $exp, 'profit' => $rev - $exp];
         }
 
-        // ── 8. INVOICES ISSUED this period (for context)
+        // ── 8. INVOICES ISSUED this period (for context): drafts and cancelled
+        // ones were never issued, as in the Records Book (app/helpers/records.php)
         $stmtInv = $this->db->prepare("
             SELECT COUNT(*) AS count, COALESCE(SUM(total), 0) AS total
             FROM invoices
             WHERE business_id = ?
+              AND status NOT IN ('draft', 'cancelled')
               AND issue_date BETWEEN ? AND ?
         ");
         $stmtInv->execute([$this->biz_id, $period_start, $period_end]);
