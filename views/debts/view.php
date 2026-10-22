@@ -9,7 +9,9 @@
 $currency = $business['currency_symbol'] ?? '₦';
 $wa_link  = $wa_number ? "https://wa.me/{$wa_number}" : '';
 
-$is_overdue = $debt['due_date'] && $debt['due_date'] < date('Y-m-d') && in_array($debt['status'], ['active', 'settling']);
+// Late, counted the same way as the debts list
+$is_overdue = $debt['due_date'] && $debt['due_date'] < planner_today() && in_array($debt['status'], ['active', 'settling']);
+$days_late  = $is_overdue ? planner_days_between($debt['due_date'], planner_today()) : 0;
 $is_open    = in_array($debt['status'], ['active', 'settling']);
 $pct_settled = $debt['total_amount'] > 0 ? min(100, round((float)$debt['amount_settled'] / (float)$debt['total_amount'] * 100)) : 0;
 
@@ -23,11 +25,10 @@ $status_class = match($debt['status']) {
 
 // WhatsApp reminder message
 if ($wa_link && $debt['type'] === 'receivable' && $is_open) {
-    $days_overdue = $is_overdue ? (int)((time() - strtotime($debt['due_date'])) / 86400) : 0;
     $wa_msg = "Hello " . (planner_first_name($party['full_name'] ?? '') ?: 'there') . ", a friendly reminder from " . $business['name'] . ":\n\n"
         . "the balance " . ($order ? "on your order " . $order['order_number'] : ($debt['description'] ? "for " . $debt['description'] : '')) . " is *" . planner_money((float)$debt['balance'], $currency) . "*"
         . ($debt['due_date'] ? ", due " . fmt_date($debt['due_date'], 'D j M') : '') . "."
-        . ($days_overdue > 0 ? " It is {$days_overdue} day" . ($days_overdue === 1 ? '' : 's') . " late." : "")
+        . ($days_late > 0 ? " It is {$days_late} day" . ($days_late === 1 ? '' : 's') . " late." : "")
         . "\n\nThank you!";
     $wa_reminder_link = $wa_link . "?text=" . rawurlencode($wa_msg);
 }
@@ -49,7 +50,7 @@ if ($wa_link && $debt['type'] === 'receivable' && $is_open) {
                     <?= $debt['type'] === 'receivable' ? 'Owed to me' : 'I owe' ?>
                 </span>
                 <span class="data-text text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded <?= $status_class ?>">
-                    <?= $is_overdue ? 'Overdue' : ucfirst(str_replace('_', ' ', $debt['status'])) ?>
+                    <?= $is_overdue ? 'Late' : ucfirst(str_replace('_', ' ', $debt['status'])) ?>
                 </span>
                 <?php if ($debt['source'] !== 'manual'): ?>
                     <span class="data-text text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-50 text-blue-500"><?= $order ? 'From an order' : ($debt['source'] === 'invoice' ? 'From an invoice' : 'From an expense') ?></span>
@@ -101,7 +102,7 @@ if ($wa_link && $debt['type'] === 'receivable' && $is_open) {
             <div class="text-sm font-medium <?= $is_overdue ? 'text-red-600 font-bold' : 'text-brand-plum' ?>">
                 <?= $debt['due_date'] ? fmt_date($debt['due_date'], 'd M Y') : 'No due date set' ?>
                 <?php if ($is_overdue): ?>
-                    <span class="text-[9px] font-bold text-red-500 ml-1">(<?= (int)((time() - strtotime($debt['due_date'])) / 86400) ?> days overdue)</span>
+                    <span class="text-[9px] font-bold text-red-500 ml-1">(<?= $days_late ?> day<?= $days_late === 1 ? '' : 's' ?> late)</span>
                 <?php endif; ?>
             </div>
         </div>
