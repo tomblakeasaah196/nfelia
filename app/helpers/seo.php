@@ -192,6 +192,7 @@ function main_pages_sitemap(PDO $db): string {
 function directory_categories(): array {
     return [
         'fashion'          => ['slug' => 'fashion', 'name' => 'Fashion and tailoring'],
+        'beauty'           => ['slug' => 'hair-and-beauty', 'name' => 'Hair and beauty'],
         'food_beverage'    => ['slug' => 'food', 'name' => 'Food and drinks'],
         'tech_repair'      => ['slug' => 'phones-and-gadgets', 'name' => 'Phones, gadgets and repairs'],
         'services'         => ['slug' => 'services', 'name' => 'Home and business services'],

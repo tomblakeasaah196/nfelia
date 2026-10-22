@@ -1131,7 +1131,7 @@ function records_since_text(string $joined, string $made): string
 /** What the business does, in words. */
 function records_category_text(array $b): string
 {
-    $cat = ['fashion' => 'Fashion', 'food_beverage' => 'Food and drinks', 'tech_repair' => 'Phones, tech and repairs', 'distribution' => 'Distribution',
+    $cat = ['fashion' => 'Fashion', 'beauty' => 'Hair and beauty', 'food_beverage' => 'Food and drinks', 'tech_repair' => 'Phones, tech and repairs', 'distribution' => 'Distribution',
             'services' => 'Services', 'wholesale_retail' => 'Wholesale and retail', 'creative' => 'Creative work', 'other' => ''][$b['category'] ?? 'other'] ?? '';
     $type = ['product' => 'sells products', 'service' => 'sells services', 'mixed' => 'sells products and services'][$b['business_type'] ?? ''] ?? '';
     return trim($cat . ($cat && $type ? ', ' : '') . ($cat ? $type : ucfirst($type)));

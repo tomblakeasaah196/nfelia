@@ -25,6 +25,7 @@ $p_image       = $product['image_path'] ?? '';
 // Suggested categories based on business type
 $cat_suggestions = match($biz_cat) {
     'fashion'          => ['Fabrics', 'Ready-to-Wear', 'Accessories', 'Footwear', 'Bags', 'Jewelry', 'Materials', 'Alterations'],
+    'beauty'           => ['Wigs', 'Bundles', 'Closures', 'Frontals', 'Edge Control'],
     'food_beverage'    => ['Ingredients', 'Beverages', 'Snacks', 'Prepared Meals', 'Frozen', 'Bakery', 'Dairy', 'Condiments'],
     'tech_repair'      => ['Phones', 'Laptops', 'Accessories', 'Spare Parts', 'Screens', 'Batteries', 'Cables', 'Repair Service'],
     'distribution'     => ['Fast-Moving', 'Slow-Moving', 'Perishable', 'Non-Perishable', 'Bulk', 'Imported', 'Local'],

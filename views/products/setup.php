@@ -12,6 +12,7 @@ $biz_cat  = $business['category'] ?? 'other';
 // Sector-specific category suggestions
 $suggested_cats = match($biz_cat) {
     'fashion'          => ['Fabrics', 'Ready-to-Wear', 'Accessories', 'Footwear', 'Bags', 'Jewelry', 'Tailoring Materials', 'Alterations (Service)'],
+    'beauty'           => ['Wigs', 'Bundles', 'Closures', 'Frontals', 'Edge Control'],
     'food_beverage'    => ['Ingredients', 'Beverages', 'Snacks & Pastries', 'Prepared Meals', 'Frozen Items', 'Bakery', 'Dairy & Eggs', 'Condiments & Spices', 'Catering (Service)'],
     'tech_repair'      => ['Phones', 'Laptops & Tablets', 'Accessories', 'Spare Parts', 'Screens & Displays', 'Batteries', 'Cables & Chargers', 'Repair Service', 'Software Install (Service)'],
     'distribution'     => ['Fast-Moving Goods', 'Slow-Moving Goods', 'Perishable', 'Non-Perishable', 'Imported', 'Local Supply', 'Bulk / Wholesale', 'Delivery (Service)'],
