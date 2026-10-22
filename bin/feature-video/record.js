@@ -31,6 +31,9 @@
 //   · ["waitFor", sel] · ["mail", text in the subject] (shows the newest such
 //   email, as sent) · ["eval", "js"] · ["run", "php add-more.php"] (a command,
 //   run beside scenes.json, for changes made off camera: put it in "before")
+//   · ["keep", key, sel, attr] (remembers a link or value shown on screen as
+//   {key}, for a later scene: attr "value" for an input, else an attribute,
+//   href by default)
 // Selectors are Playwright's: CSS, or button:has-text("Save").
 const { chromium } = require('playwright');
 const fs = require('fs');
@@ -266,6 +269,11 @@ function decodeHeader(h) {
       },
       eval: (js) => page.evaluate(js),
       run: (cmd) => { execSync(cmd, { cwd: DIR, stdio: ['ignore', 'ignore', 'inherit'] }); },
+      keep: async (key, sel, attr) => {
+        const el = page.locator(sel).first();
+        ids[key] = attr === 'value' ? await el.inputValue() : await el.getAttribute(attr || 'href');
+        if (!ids[key]) throw new Error(`nothing to keep at ${sel}`);
+      },
     };
     const steps = async (list) => {
       for (const [name, ...args] of list || []) {
