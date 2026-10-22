@@ -6,7 +6,7 @@
  *            $photos (DeedController::item_photos(): the items' photos)
  */
 
-['primary' => $primary, 'secondary' => $accent] = brand_doc_colours($business);   // the brand colours, else Nfelia's (app/helpers/brand.php)
+['primary' => $primary, 'secondary' => $accent, 'text' => $text, 'secondary_text' => $accent_text, 'on' => $on] = brand_doc_colours($business);   // the brand colours, else Nfelia's (app/helpers/brand.php)
 $biz_name = $business['name']            ?? 'Nfelia';
 $biz_type = $business['business_type']   ?? 'product';
 $currency = $deed['currency_symbol']     ?? '₦';
@@ -54,8 +54,8 @@ $pdf_url = APP_URL . '/deed/download/' . $deed['token'];
     <!-- The PDF first: on a phone it is what most people came for -->
     <div class="w-full max-w-2xl flex justify-end mb-3 sm:mb-4">
         <a href="<?= e($pdf_url) ?>"
-           class="w-full sm:w-auto text-center px-6 py-3 text-xs font-bold uppercase tracking-widest text-white font-sans transition-opacity hover:opacity-90"
-           style="background:<?= e($primary) ?>">
+           class="w-full sm:w-auto text-center px-6 py-3 text-xs font-bold uppercase tracking-widest font-sans transition-opacity hover:opacity-90"
+           style="background:<?= e($primary) ?>; color:<?= e($on) ?>">
             Download PDF
         </a>
     </div>
@@ -73,7 +73,7 @@ $pdf_url = APP_URL . '/deed/download/' . $deed['token'];
                     <img src="<?= e($logo_src) ?>" alt="<?= e($biz_name) ?>" class="h-12 object-contain mb-2">
                 <?php else: ?>
                     <div class="font-sans font-bold text-lg uppercase tracking-widest mb-2"
-                         style="color:<?= e($primary) ?>"><?= e($biz_name) ?></div>
+                         style="color:<?= e($text) ?>"><?= e($biz_name) ?></div>
                 <?php endif; ?>
                 <!-- On a phone the address shows once, under Issuing Party -->
                 <p class="hidden sm:block text-xs text-stone-400 leading-relaxed font-sans tracking-wide">
@@ -82,9 +82,9 @@ $pdf_url = APP_URL . '/deed/download/' . $deed['token'];
             </div>
             <div class="sm:text-right sm:shrink-0">
                 <div class="font-sans font-bold text-sm uppercase tracking-[0.15em] sm:tracking-[0.25em]"
-                     style="color:<?= e($primary) ?>"><?= e($deed_title) ?></div>
+                     style="color:<?= e($text) ?>"><?= e($deed_title) ?></div>
                 <div class="text-[10px] uppercase tracking-[0.2em] mt-1.5 font-sans"
-                     style="color:<?= e($accent) ?>"><?= e($deed['doc_number']) ?></div>
+                     style="color:<?= e($accent_text) ?>"><?= e($deed['doc_number']) ?></div>
                 <div class="text-[10px] text-stone-400 uppercase tracking-wider mt-0.5 font-sans">
                     <?= date('d F Y', strtotime($deed['issued_at'])) ?>
                 </div>
@@ -95,8 +95,8 @@ $pdf_url = APP_URL . '/deed/download/' . $deed['token'];
         <div class="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-stone-200 border-b border-stone-200">
             <div class="px-5 py-5 sm:px-10 sm:py-7 min-w-0">
                 <p class="text-[9px] uppercase tracking-[0.28em] font-bold mb-3 font-sans"
-                   style="color:<?= e($accent) ?>">Issuing Party</p>
-                <p class="font-sans font-bold text-sm uppercase tracking-wide mb-2" style="color:<?= e($primary) ?>">
+                   style="color:<?= e($accent_text) ?>">Issuing Party</p>
+                <p class="font-sans font-bold text-sm uppercase tracking-wide mb-2" style="color:<?= e($text) ?>">
                     <?= e($biz_name) ?>
                 </p>
                 <p class="garamond text-sm text-stone-600 leading-relaxed">
@@ -106,8 +106,8 @@ $pdf_url = APP_URL . '/deed/download/' . $deed['token'];
             </div>
             <div class="px-5 py-5 sm:px-10 sm:py-7 min-w-0">
                 <p class="text-[9px] uppercase tracking-[0.28em] font-bold mb-3 font-sans"
-                   style="color:<?= e($accent) ?>"><?= $biz_type === 'service' ? 'Client' : 'Acquired By' ?></p>
-                <p class="font-sans font-bold text-sm uppercase tracking-wide mb-2" style="color:<?= e($primary) ?>">
+                   style="color:<?= e($accent_text) ?>"><?= $biz_type === 'service' ? 'Client' : 'Acquired By' ?></p>
+                <p class="font-sans font-bold text-sm uppercase tracking-wide mb-2" style="color:<?= e($text) ?>">
                     <?= e($customer['full_name'] ?? 'Client') ?>
                 </p>
                 <p class="garamond text-sm text-stone-600 leading-relaxed break-words">
@@ -121,7 +121,7 @@ $pdf_url = APP_URL . '/deed/download/' . $deed['token'];
         <!-- Subject / Provenance -->
         <div class="px-5 py-6 sm:px-10 sm:py-8 border-b border-stone-200">
             <p class="text-[9px] uppercase tracking-[0.28em] font-bold mb-5 font-sans"
-               style="color:<?= e($accent) ?>"><?= e($items_heading) ?></p>
+               style="color:<?= e($accent_text) ?>"><?= e($items_heading) ?></p>
 
             <?php if (!empty($deed['provenance_text'])): ?>
             <div class="border-l-2 pl-5 mb-4" style="border-color:<?= e($accent) ?>">
@@ -147,7 +147,7 @@ $pdf_url = APP_URL . '/deed/download/' . $deed['token'];
                     <span class="garamond text-sm text-stone-800"><?= e($it['description'] ?? '') ?></span>
                     <span class="text-xs text-stone-400 ml-2 font-sans whitespace-nowrap">× <?= number_format((float)($it['quantity'] ?? 1), 0) ?></span>
                 </div>
-                <span class="font-sans font-bold text-sm whitespace-nowrap shrink-0" style="color:<?= e($primary) ?>">
+                <span class="font-sans font-bold text-sm whitespace-nowrap shrink-0" style="color:<?= e($text) ?>">
                     <?= money((float)($it['subtotal'] ?? 0), $currency) ?>
                 </span>
             </div>
@@ -155,10 +155,10 @@ $pdf_url = APP_URL . '/deed/download/' . $deed['token'];
 
             <!-- Total -->
             <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 pt-5 mt-3 border-t-2" style="border-color:<?= e($primary) ?>">
-                <span class="font-sans text-xs font-bold uppercase tracking-[0.18em]" style="color:<?= e($primary) ?>">
+                <span class="font-sans text-xs font-bold uppercase tracking-[0.18em]" style="color:<?= e($text) ?>">
                     Total <?= $biz_type === 'service' ? 'Service Value' : 'Acquisition Value' ?>
                 </span>
-                <span class="font-sans font-bold text-xl whitespace-nowrap" style="color:<?= e($primary) ?>">
+                <span class="font-sans font-bold text-xl whitespace-nowrap" style="color:<?= e($text) ?>">
                     <?= money((float)$deed['total_amount'], $currency) ?>
                 </span>
             </div>
@@ -175,8 +175,8 @@ $pdf_url = APP_URL . '/deed/download/' . $deed['token'];
             <div class="font-sans"><?php require BASE_PATH . '/views/partials/doc_signs.php'; ?></div>
             <div class="sm:text-right mt-6">
                 <a href="<?= e($pdf_url) ?>"
-                   class="block sm:inline-block text-center px-6 py-3 text-[10px] font-bold uppercase tracking-widest text-white font-sans transition-opacity hover:opacity-90"
-                   style="background:<?= e($primary) ?>">
+                   class="block sm:inline-block text-center px-6 py-3 text-[10px] font-bold uppercase tracking-widest font-sans transition-opacity hover:opacity-90"
+                   style="background:<?= e($primary) ?>; color:<?= e($on) ?>">
                     Download PDF
                 </a>
             </div>

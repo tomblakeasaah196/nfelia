@@ -45,8 +45,11 @@ $brand = [
 // (views/layouts/app.php): buttons and selections in the colour, and the
 // wine-tinted greys of studio.css turned to its hue.
 $chrome = theme_tokens($business['primary_color'] ?? null, $business['secondary_color'] ?? null);
-$greys  = ['--st-ground' => '#FBF8F9', '--st-stage' => '#F1E8EC', '--st-tint' => '#F8EEF3', '--st-line' => '#E9DCE2', '--st-line-soft' => '#F1E6EB',
-           '--st-handle' => '#DCCAD3', '--st-field' => '#A8909C', '--st-disabled' => '#B9A9B1', '--st-control' => '#8E7A85'];
+$greys  = array_map(fn($grey) => theme_retint($grey, $chrome['accent']), [
+    '--st-ground' => '#FBF8F9', '--st-stage' => '#F1E8EC', '--st-tint' => '#F8EEF3', '--st-line' => '#E9DCE2', '--st-line-soft' => '#F1E6EB',
+    '--st-handle' => '#DCCAD3', '--st-field' => '#A8909C', '--st-disabled' => '#B9A9B1', '--st-control' => '#8E7A85']);
+// Its links also sit on the stage behind the preview, the darkest of its greys
+$chrome['accent_text'] = theme_readable($chrome['accent_text'], [$greys['--st-stage'], $greys['--st-tint']]);
 
 $currency = trim((string)($business['currency_symbol'] ?? '')) ?: '₦';
 $product_list = [];
@@ -134,7 +137,7 @@ $samples_url = 'https://fonts.googleapis.com/css2?family=' . implode('&family=',
     <style>
         :root {
             --accent: <?= $chrome['accent'] ?>; --on-accent: <?= $chrome['on_accent'] ?>; --accent-text: <?= $chrome['accent_text'] ?>;
-            <?php foreach ($greys as $name => $grey): ?><?= $name ?>: <?= theme_retint($grey, $chrome['accent']) ?>; <?php endforeach; ?>
+            <?php foreach ($greys as $name => $grey): ?><?= $name ?>: <?= $grey ?>; <?php endforeach; ?>
 
         }
     </style>

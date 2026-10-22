@@ -228,12 +228,23 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
   // ---------- The opening ----------
   console.log('Opening');
   page = await signIn(phone);
+  // Every colour the status bar is asked to be, from the first byte
+  await page.addInitScript(() => {
+    window.nfBar = [];
+    new MutationObserver(() => {
+      const m = document.querySelector('meta[name=theme-color]');
+      if (m && m.content !== window.nfBar[window.nfBar.length - 1]) window.nfBar.push(m.content);
+    }).observe(document, { subtree: true, childList: true, attributes: true, attributeFilter: ['content'] });
+  });
   await page.goto(BASE + '/dashboard?source=pwa');
   ok(await page.evaluate(() => document.documentElement.classList.contains('nf-splashing')), 'app start: the opening shows');
-  ok(await page.evaluate(() => document.querySelector('meta[name=theme-color]').content) === '#6E0039', 'app start: status bar is wine');
+  ok(await page.evaluate(() => getComputedStyle(document.getElementById('nf-splash')).animationName) === 'nf-from-light', 'app start on Android: the opening fades in from white, the colour the app launched on');
   await page.waitForTimeout(1250);
   await shot(page, 'phone_opening_mid');
   await page.waitForFunction(() => !document.getElementById('nf-splash'), null, { timeout: 12000 });
+  const bar = await page.evaluate(() => window.nfBar);
+  const asked = bar[0] === '#6E0039' ? bar.slice(1) : bar;   // the page's wine, for an iPhone, is swapped before anything is drawn
+  ok(asked[0] === '#FFFFFF' && asked[1] === '#6E0039' && asked[asked.length - 1] === '#FFFFFF', `Android status bar: white like the launch screen, wine once the opening has faded in, white after (${bar.join(' > ')})`);
   ok(!/source=pwa/.test(page.url()), 'after the opening the address is clean');
   ok(await page.evaluate(() => document.querySelector('meta[name=theme-color]').content) === '#FFFFFF', 'after the opening the status bar is white');
   await page.goto(BASE + '/dashboard?source=pwa');
@@ -248,6 +259,17 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
   await page.waitForFunction(() => !document.getElementById('nf-splash'), null, { timeout: 12000 });
   ok(/\/login$/.test(page.url()), 'sign-in address is clean after the opening');
   await phone.close();
+
+  // An iPhone launches on wine (its launch screens), so its opening starts there.
+  // Chromium has no navigator.standalone, which only an iPhone or iPad has.
+  const iphoneApp = await browser.newContext({ ...PHONE, userAgent: IPHONE_UA });
+  await iphoneApp.addInitScript(() => Object.defineProperty(Navigator.prototype, 'standalone', { get: () => true, configurable: true }));
+  page = await signIn(iphoneApp);
+  await page.goto(BASE + '/dashboard?source=pwa');
+  ok(await page.evaluate(() => document.documentElement.classList.contains('nf-splashing') && !document.documentElement.classList.contains('nf-launch-light')
+      && getComputedStyle(document.getElementById('nf-splash')).animationName === 'none' && document.querySelector('meta[name=theme-color]').content === '#6E0039'),
+     'iPhone: the opening starts on wine under a wine status bar, as its launch screen does');
+  await iphoneApp.close();
 
   // ---------- Install invitation on iPhone ----------
   console.log('Install');

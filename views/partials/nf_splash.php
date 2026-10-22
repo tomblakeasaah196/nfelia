@@ -2,9 +2,12 @@
 /**
  * The opening, shown when the installed app starts (its start URL carries
  * ?source=pwa): on the app's first page, or on sign-in when the app starts
- * signed out. The page puts class="nf-splashing" on <html>. The first frame
- * is the launch screen the phone has just shown (icons/launch/*.png, drawn
- * the same way by docs/brand/icons/make_icons.js), so nothing jumps.
+ * signed out. The page puts class="nf-splashing" on <html>. On an iPhone or
+ * iPad the first frame is the launch screen the phone has just shown
+ * (icons/launch/*.png, drawn the same way by docs/brand/icons/make_icons.js),
+ * so nothing jumps. Android launches the app on white, which it keeps for its
+ * bottom bar (site.webmanifest), so there the opening fades in from white in
+ * 0.3s and the status bar turns wine once it has (nf_splash_head.php).
  * assets/js/splash.js then plays the film the first time, and the gold
  * thread after that. Everything it needs is here, so any page can show it.
  * The mark's parts come from assets/img/brand/nfelia-mark-parts.svg.
@@ -25,6 +28,10 @@ $splash_js = BASE_PATH . '/assets/js/splash.js';
         -webkit-mask-image: radial-gradient(ellipse 72% 68% at 50% 50%, #000 62%, transparent 100%); mask-image: radial-gradient(ellipse 72% 68% at 50% 50%, #000 62%, transparent 100%); }
     .nf-splash.is-film .film-bg, .nf-splash.is-film video { opacity: 1; }
     .nf-splash.is-done { opacity: 0; transition: opacity 300ms ease; pointer-events: none; }
+    html.nf-launch-light .nf-splash { animation: nf-from-light 300ms ease; }
+    html.nf-launch-light .nf-splash > svg { animation: nf-fade-in 300ms ease; }
+    @keyframes nf-from-light { from { background-color: #FFFFFF; } }
+    @keyframes nf-fade-in { from { opacity: 0; } }
     @media (prefers-reduced-motion: reduce) { .nf-splash.is-done { transition: none; } }
 </style>
 <div class="nf-splash" id="nf-splash" aria-hidden="true">
@@ -67,6 +74,16 @@ $splash_js = BASE_PATH . '/assets/js/splash.js';
     }
     var w = 1300 / 0.62, h = w * innerHeight / Math.max(1, innerWidth);
     svg.setAttribute('viewBox', [650 - w / 2, 475 - h / 2 - 60, w, h].join(' '));
+    // Started on white: the status bar turns wine with the opening, unless the
+    // film has taken over or the opening has already been tapped away.
+    if (document.documentElement.classList.contains('nf-launch-light')) {
+        s.addEventListener('animationend', function wine(e) {
+            if (e.target !== s) return;
+            s.removeEventListener('animationend', wine);
+            var m = document.querySelector('meta[name="theme-color"]');
+            if (m && !s.classList.contains('is-film') && !s.classList.contains('is-done')) m.setAttribute('content', '#6E0039');
+        });
+    }
 })();
 </script>
 <script src="<?= APP_URL ?>/assets/js/splash.js?v=<?= is_file($splash_js) ? filemtime($splash_js) : 1 ?>" defer></script>

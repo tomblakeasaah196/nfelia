@@ -284,10 +284,23 @@ function brand_colours(array $business): ?array {
  * of them. The brand colours when the business chose them; Nfelia's wine and
  * gold when it never did, as the app shows it.
  *
- * @return array{primary:string, secondary:string}
+ *   primary, secondary  the colours themselves, for bars, borders and fills
+ *   text                words in the primary: darkened until they read on
+ *                       white, cream and a pale tint (4.5:1), as in the app
+ *   secondary_text      the same for the secondary
+ *   on                  words on a fill of the primary: white or ink,
+ *                       whichever reads
+ *
+ * @return array{primary:string, secondary:string, text:string, secondary_text:string, on:string}
  */
 function brand_doc_colours(array $business): array {
-    return brand_colours($business) ?? ['primary' => THEME_NFELIA, 'secondary' => '#B69F5E'];
+    $colours = brand_colours($business) ?? ['primary' => THEME_NFELIA, 'secondary' => '#B69F5E'];
+    $theme   = theme_tokens($colours['primary'], $colours['secondary']);
+    return $colours + [
+        'text'           => $theme['accent_text'],
+        'secondary_text' => theme_readable($colours['secondary'], ['#FFFFFF', THEME_CREAM]),
+        'on'             => $theme['on_accent'],
+    ];
 }
 
 /**

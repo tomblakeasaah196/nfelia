@@ -19,6 +19,7 @@ $splash = ($_GET['source'] ?? '') === 'pwa';
     <title>Sign in: Nfelia</title>
     <meta name="description" content="Sign in to your Nfelia business account.">
     <meta name="theme-color" content="<?= $splash ? '#6E0039' : '#8B004A' ?>" data-theme-color="#8B004A">
+<?php if ($splash) require BASE_PATH . '/views/partials/nf_splash_head.php'; ?>
 <?php require BASE_PATH . '/views/partials/pwa_head.php'; ?>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

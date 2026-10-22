@@ -274,7 +274,7 @@ if ($quotation) {
                         <img src="<?= APP_URL ?>/<?= e($business['logo_path']) ?>" alt="" class="h-12 w-12 object-contain rounded">
                     <?php endif; ?>
                     <div>
-                        <h2 class="font-heading font-extrabold text-lg" style="color: <?= e($doc_colours['primary']) ?>;"><?= e($business['name']) ?></h2>
+                        <h2 class="font-heading font-extrabold text-lg" style="color: <?= e($doc_colours['text']) ?>;"><?= e($business['name']) ?></h2>
                         <?php if ($business['tagline']): ?>
                             <p class="text-[10px] text-gray-500"><?= e($business['tagline']) ?></p>
                         <?php endif; ?>
@@ -290,7 +290,7 @@ if ($quotation) {
 
             <!-- Doc Info (Right) -->
             <div class="text-right">
-                <h1 class="font-heading font-extrabold text-2xl uppercase tracking-wider" style="color: <?= e($doc_colours['primary']) ?>;">Invoice</h1>
+                <h1 class="font-heading font-extrabold text-2xl uppercase tracking-wider" style="color: <?= e($doc_colours['text']) ?>;">Invoice</h1>
                 <div class="data-text text-sm font-bold text-gray-700 mt-1"><?= e($invoice['doc_number']) ?></div>
                 <?php if ($order): ?><div class="data-text text-xs text-gray-600 mt-0.5">Order: <?= e($order['order_number']) ?></div><?php endif; ?>
                 <div class="text-[10px] text-gray-500 mt-2 space-y-0.5">
@@ -308,7 +308,7 @@ if ($quotation) {
         <!-- Client Block -->
         <?php if ($customer): ?>
         <div class="mb-8 p-4 rounded-lg" style="background: <?= e($doc_colours['primary']) ?>0A;">
-            <div class="text-[9px] font-bold uppercase tracking-widest mb-1" style="color: <?= e($doc_colours['primary']) ?>;">Bill To</div>
+            <div class="text-[9px] font-bold uppercase tracking-widest mb-1" style="color: <?= e($doc_colours['text']) ?>;">Bill To</div>
             <div class="text-sm font-bold text-gray-800"><?= e($customer['full_name']) ?></div>
             <?php if (!empty($customer['business_name'])): ?><div class="text-[10px] text-gray-600"><?= e($customer['business_name']) ?></div><?php endif; ?>
             <?php if (!empty($customer['phone'])): ?><div class="text-[10px] text-gray-500"><?= e($customer['phone']) ?></div><?php endif; ?>
@@ -370,8 +370,8 @@ if ($quotation) {
                     </div>
                 <?php endif; ?>
                 <div class="flex justify-between text-sm pt-2" style="border-top: 2px solid <?= e($doc_colours['primary']) ?>;">
-                    <span class="font-heading font-bold uppercase tracking-wider" style="color: <?= e($doc_colours['primary']) ?>;">Grand Total</span>
-                    <span class="font-heading font-extrabold text-lg" style="color: <?= e($doc_colours['primary']) ?>;"><?= money((float)$invoice['total'], $currency) ?></span>
+                    <span class="font-heading font-bold uppercase tracking-wider" style="color: <?= e($doc_colours['text']) ?>;">Grand Total</span>
+                    <span class="font-heading font-extrabold text-lg" style="color: <?= e($doc_colours['text']) ?>;"><?= money((float)$invoice['total'], $currency) ?></span>
                 </div>
 
                 <!-- Amount Paid / Balance Due -->
@@ -424,7 +424,7 @@ if ($quotation) {
         <!-- Footer -->
         <?php if ($business['tagline']): ?>
         <div class="mt-8 text-center">
-            <p class="text-[9px] uppercase tracking-[.3em] font-bold" style="color: <?= e($doc_colours['secondary']) ?>;"><?= e($business['tagline']) ?></p>
+            <p class="text-[9px] uppercase tracking-[.3em] font-bold" style="color: <?= e($doc_colours['secondary_text']) ?>;"><?= e($business['tagline']) ?></p>
         </div>
         <?php endif; ?>
     </div>

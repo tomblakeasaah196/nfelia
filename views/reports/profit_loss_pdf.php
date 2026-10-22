@@ -2,7 +2,7 @@
 /**
  * Nfelia — Profit & Loss PDF Template (dompdf)
  * Variables: $business, $month_label, $revenue, $expenses_total, $gross_profit,
- *            $expense_categories, $currency, $primary, $logo_src, $period_start, $period_end
+ *            $expense_categories, $currency, $primary, $primary_text, $logo_src, $period_start, $period_end
  */
 ?>
 <!DOCTYPE html>
@@ -16,7 +16,7 @@
         .header { border-bottom: 4px solid <?= $primary ?>; padding-bottom: 20px; margin-bottom: 28px; }
         .header table { width: 100%; }
         .logo { max-height: 48px; max-width: 140px; }
-        .biz-name { font-size: 18px; font-weight: bold; color: <?= $primary ?>; }
+        .biz-name { font-size: 18px; font-weight: bold; color: <?= $primary_text ?>; }
         .doc-title { font-size: 22px; font-weight: bold; color: #0f172a; text-align: right; text-transform: uppercase; }
         .period { text-align: right; font-size: 10px; color: #64748b; margin-top: 4px; }
         .kpi-table { width: 100%; border-collapse: collapse; margin-bottom: 28px; }
@@ -25,12 +25,12 @@
         .kpi-value { font-size: 22px; font-weight: bold; }
         .kpi-green { color: #16a34a; }
         .kpi-red   { color: #dc2626; }
-        .kpi-blue  { color: <?= $primary ?>; }
+        .kpi-blue  { color: <?= $primary_text ?>; }
         .section-label { font-size: 9px; font-weight: bold; text-transform: uppercase; color: #94a3b8; letter-spacing: 0.1em; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px; margin: 20px 0 12px; }
         .line-table { width: 100%; border-collapse: collapse; }
         .line-table td { padding: 8px 0; border-bottom: 1px solid #f1f5f9; font-size: 11px; }
         .line-table td:last-child { text-align: right; font-weight: bold; }
-        .total-row td { border-top: 2px solid <?= $primary ?>; border-bottom: none; font-weight: bold; font-size: 13px; color: <?= $primary ?>; padding-top: 10px; }
+        .total-row td { border-top: 2px solid <?= $primary ?>; border-bottom: none; font-weight: bold; font-size: 13px; color: <?= $primary_text ?>; padding-top: 10px; }
         .footer { position: fixed; bottom: 0; left: 0; right: 0; text-align: center; font-size: 8px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding: 6px 0; }
     </style>
 </head>

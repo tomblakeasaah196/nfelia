@@ -9,7 +9,7 @@
  *   $delivery, $business, $items, $customer, $statuses, $providers
  */
 $currency  = $business['currency_symbol'] ?? '₦';
-['primary' => $primary, 'secondary' => $secondary] = brand_doc_colours($business);   // the brand colours, else Nfelia's (app/helpers/brand.php)
+['primary' => $primary, 'secondary' => $secondary, 'text' => $text, 'on' => $on] = brand_doc_colours($business);   // the brand colours, else Nfelia's (app/helpers/brand.php)
 $doc_fonts = brand_doc_fonts($business);   // the brand fonts (app/helpers/brand.php)
 $logo_url  = !empty($business['logo_path']) ? APP_URL . '/' . $business['logo_path'] : null;
 
@@ -31,9 +31,11 @@ $status_color = $statuses[$delivery['status']]['color'] ?? 'bg-gray-100 text-gra
         :root {
             --brand-primary: <?= e($primary) ?>;
             --brand-secondary: <?= e($secondary) ?>;
+            --brand-text: <?= e($text) ?>;
+            --on-brand: <?= e($on) ?>;
         }
         body { --font-body: <?= $doc_fonts['body_stack'] ?>; --font-heading: <?= $doc_fonts['head_stack'] ?>; font-family: <?= $doc_fonts['body_stack'] ?>; }
-        .brand-primary { color: var(--brand-primary); }
+        .brand-primary { color: var(--brand-text); }
         .brand-secondary { color: var(--brand-secondary); }
         .bg-brand-primary { background-color: var(--brand-primary); }
         .bg-brand-secondary { background-color: var(--brand-secondary); }
@@ -55,7 +57,7 @@ $status_color = $statuses[$delivery['status']]['color'] ?? 'bg-gray-100 text-gra
             </div>
             <div class="flex items-center gap-2">
                 <button onclick="window.print()" class="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">Print</button>
-                <button onclick="downloadPDF()" class="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-white rounded-lg transition-colors bg-brand-primary hover:opacity-90">Download PDF</button>
+                <button onclick="downloadPDF()" class="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-on-brand rounded-lg transition-colors bg-brand-primary hover:opacity-90">Download PDF</button>
             </div>
         </div>
     </div>
@@ -65,7 +67,7 @@ $status_color = $statuses[$delivery['status']]['color'] ?? 'bg-gray-100 text-gra
         <div class="bg-white rounded-xl shadow-lg overflow-hidden">
 
             <!-- Header -->
-            <div class="bg-brand-primary text-white px-8 py-6">
+            <div class="bg-brand-primary text-on-brand px-8 py-6">
                 <div class="flex items-start justify-between">
                     <div>
                         <?php if ($logo_url): ?>

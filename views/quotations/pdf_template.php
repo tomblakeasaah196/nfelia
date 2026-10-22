@@ -4,7 +4,7 @@
  * Expects: $business, $customer, $quotation, $items, $bank, $sign (doc_sign_state)
  */
 $currency = $business['currency_symbol'] ?? '₦';
-$primary_color = brand_doc_colours($business)['primary'];   // the brand colour, else Nfelia's (app/helpers/brand.php)
+['primary' => $primary_color, 'text' => $text_color] = brand_doc_colours($business);   // the brand colours, else Nfelia's (app/helpers/brand.php)
 
 // Convert logo to base64 to ensure Dompdf renders it flawlessly
 $logo_src = '';
@@ -30,7 +30,7 @@ if (!empty($business['logo_path']) && file_exists(BASE_PATH . '/' . $business['l
         .header { width: 100%; border-bottom: 3px solid <?= $primary_color ?>; padding-bottom: 20px; margin-bottom: 30px; }
         .header table { width: 100%; }
         .logo { max-height: 60px; max-width: 150px; }
-        .company-title { font-size: 24px; font-weight: bold; color: <?= $primary_color ?>; margin: 0 0 5px 0; }
+        .company-title { font-size: 24px; font-weight: bold; color: <?= $text_color ?>; margin: 0 0 5px 0; }
         .company-details { font-size: 10px; color: #666; }
         .doc-title { font-size: 28px; font-weight: bold; text-align: right; color: #111; margin: 0; text-transform: uppercase; }
         .doc-meta { text-align: right; font-size: 11px; color: #555; }
@@ -48,7 +48,7 @@ if (!empty($business['logo_path']) && file_exists(BASE_PATH . '/' . $business['l
         .totals-box { width: 40%; float: right; margin-bottom: 40px; }
         .totals-table { width: 100%; border-collapse: collapse; }
         .totals-table td { padding: 6px 0; font-size: 12px; }
-        .totals-table .grand-total { font-size: 18px; font-weight: bold; color: <?= $primary_color ?>; border-top: 2px solid <?= $primary_color ?>; padding-top: 10px; }
+        .totals-table .grand-total { font-size: 18px; font-weight: bold; color: <?= $text_color ?>; border-top: 2px solid <?= $primary_color ?>; padding-top: 10px; }
         
         .footer-blocks { clear: both; margin-top: 30px; width: 100%; }
         .block-title { font-size: 10px; font-weight: bold; text-transform: uppercase; color: #888; margin-bottom: 5px; border-bottom: 1px solid #eee; padding-bottom: 3px; }

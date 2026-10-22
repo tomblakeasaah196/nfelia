@@ -8,7 +8,7 @@
  *   $delivery, $business, $items, $providers, $statuses
  *   $already_signed (bool) — true if delivery already signed off
  */
-['primary' => $primary, 'secondary' => $secondary] = brand_doc_colours($business);   // the brand colours, else Nfelia's (app/helpers/brand.php)
+['primary' => $primary, 'secondary' => $secondary, 'text' => $text, 'on' => $on] = brand_doc_colours($business);   // the brand colours, else Nfelia's (app/helpers/brand.php)
 $doc_fonts = brand_doc_fonts($business);   // the brand fonts (app/helpers/brand.php)
 $logo_url  = !empty($business['logo_path']) ? APP_URL . '/' . $business['logo_path'] : null;
 $already_signed = ($delivery['status'] === 'signed_off' && $delivery['signoff_name']);
@@ -29,9 +29,9 @@ $was_signed      = !empty($delivery['signoff_signature_path']);
     <script defer src="<?= APP_URL ?>/assets/vendor/alpine-3.14.3.min.js"></script>
     <style>
         [x-cloak] { display: none !important; }
-        :root { --brand-primary: <?= e($primary) ?>; --brand-secondary: <?= e($secondary) ?>; }
+        :root { --brand-primary: <?= e($primary) ?>; --brand-secondary: <?= e($secondary) ?>; --brand-text: <?= e($text) ?>; --on-brand: <?= e($on) ?>; }
         body { --font-body: <?= $doc_fonts['body_stack'] ?>; --font-heading: <?= $doc_fonts['head_stack'] ?>; font-family: <?= $doc_fonts['body_stack'] ?>; -webkit-tap-highlight-color: transparent; }
-        .brand-primary { color: var(--brand-primary); }
+        .brand-primary { color: var(--brand-text); }
         .bg-brand-primary { background-color: var(--brand-primary); }
 
         /* Signature canvas */
@@ -105,7 +105,7 @@ $was_signed      = !empty($delivery['signoff_signature_path']);
         <div class="bg-white rounded-2xl shadow-lg overflow-hidden" id="signoff-form">
 
             <!-- Delivery Summary -->
-            <div class="bg-brand-primary text-white px-6 py-4">
+            <div class="bg-brand-primary text-on-brand px-6 py-4">
                 <div class="flex items-center justify-between">
                     <div>
                         <div class="text-[10px] font-bold uppercase tracking-widest opacity-60">Delivery Note</div>
@@ -196,7 +196,7 @@ $was_signed      = !empty($delivery['signoff_signature_path']);
                     <p class="text-sm font-bold text-green-700">Receipt Confirmed!</p>
                     <p class="text-[10px] text-green-500 mt-1">Thank you. The sender has been notified.</p>
                     <a x-show="reviewUrl" x-cloak :href="reviewUrl"
-                       class="mt-4 inline-flex items-center justify-center w-full py-3 rounded-xl text-sm font-bold text-white bg-brand-primary hover:opacity-90">
+                       class="mt-4 inline-flex items-center justify-center w-full py-3 rounded-xl text-sm font-bold text-on-brand bg-brand-primary hover:opacity-90">
                         Rate your order
                     </a>
                 </div>
@@ -204,7 +204,7 @@ $was_signed      = !empty($delivery['signoff_signature_path']);
                 <!-- Submit Button -->
                 <button type="button" @click="submitSignoff()" x-show="!success"
                         :disabled="submitting"
-                        class="w-full py-4 rounded-xl text-sm font-extrabold uppercase tracking-widest text-white shadow-lg transition-all disabled:opacity-50"
+                        class="w-full py-4 rounded-xl text-sm font-extrabold uppercase tracking-widest text-on-brand shadow-lg transition-all disabled:opacity-50"
                         :class="submitting ? 'bg-gray-400' : 'bg-brand-primary hover:opacity-90 active:scale-[0.98]'">
                     <span x-show="!submitting"><?= $sign_to_receive ? 'Sign and confirm' : 'Confirm received' ?></span>
                     <span x-show="submitting" x-cloak class="flex items-center justify-center gap-2">

@@ -37,7 +37,8 @@
     function playThread() {
         if (threading) return;
         threading = true;
-        if (reduceMotion) { setTimeout(finish, 350); return; }
+        // Held still a moment, after fading in from white where it started on white
+        if (reduceMotion) { setTimeout(finish, root.classList.contains('nf-launch-light') ? 650 : 350); return; }
         splash.querySelectorAll('.glint use').forEach(function (u) {
             var len = +u.getAttribute('data-len');
             u.animate([{ strokeDashoffset: String(len) }, { strokeDashoffset: String(len - 1060) }],

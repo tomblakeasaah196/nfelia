@@ -161,7 +161,7 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
                         <img src="<?= APP_URL ?>/<?= e($business['logo_path']) ?>" alt="" class="h-12 w-12 object-contain rounded">
                     <?php endif; ?>
                     <div>
-                        <h2 class="font-heading font-extrabold text-lg" style="color: <?= e($doc_colours['primary']) ?>;"><?= e($business['name']) ?></h2>
+                        <h2 class="font-heading font-extrabold text-lg" style="color: <?= e($doc_colours['text']) ?>;"><?= e($business['name']) ?></h2>
                         <?php if ($business['tagline']): ?>
                             <p class="text-[10px] text-gray-500"><?= e($business['tagline']) ?></p>
                         <?php endif; ?>
@@ -177,7 +177,7 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
 
             <!-- Doc Info (Right) -->
             <div class="text-right">
-                <h1 class="font-heading font-extrabold text-2xl uppercase tracking-wider" style="color: <?= e($doc_colours['primary']) ?>;">Quotation</h1>
+                <h1 class="font-heading font-extrabold text-2xl uppercase tracking-wider" style="color: <?= e($doc_colours['text']) ?>;">Quotation</h1>
                 <div class="data-text text-sm font-bold text-gray-700 mt-1"><?= e($quotation['doc_number']) ?></div>
                 <div class="text-[10px] text-gray-500 mt-2 space-y-0.5">
                     <div>Issued: <?= fmt_date($quotation['issue_date'], 'd M Y') ?></div>
@@ -191,7 +191,7 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
         <!-- Client Block -->
         <?php if ($customer): ?>
         <div class="mb-8 p-4 rounded-lg" style="background: <?= e($doc_colours['primary']) ?>0A;">
-            <div class="text-[9px] font-bold uppercase tracking-widest mb-1" style="color: <?= e($doc_colours['primary']) ?>;">Prepared For</div>
+            <div class="text-[9px] font-bold uppercase tracking-widest mb-1" style="color: <?= e($doc_colours['text']) ?>;">Prepared For</div>
             <div class="text-sm font-bold text-gray-800"><?= e($customer['full_name']) ?></div>
             <?php if ($customer['business_name']): ?><div class="text-[10px] text-gray-600"><?= e($customer['business_name']) ?></div><?php endif; ?>
             <?php if ($customer['phone']): ?><div class="text-[10px] text-gray-500"><?= e($customer['phone']) ?></div><?php endif; ?>
@@ -253,8 +253,8 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
                     </div>
                 <?php endif; ?>
                 <div class="flex justify-between text-sm pt-2" style="border-top: 2px solid <?= e($doc_colours['primary']) ?>;">
-                    <span class="font-heading font-bold uppercase tracking-wider" style="color: <?= e($doc_colours['primary']) ?>;">Grand Total</span>
-                    <span class="font-heading font-extrabold text-lg" style="color: <?= e($doc_colours['primary']) ?>;"><?= money((float)$quotation['total'], $currency) ?></span>
+                    <span class="font-heading font-bold uppercase tracking-wider" style="color: <?= e($doc_colours['text']) ?>;">Grand Total</span>
+                    <span class="font-heading font-extrabold text-lg" style="color: <?= e($doc_colours['text']) ?>;"><?= money((float)$quotation['total'], $currency) ?></span>
                 </div>
             </div>
         </div>
@@ -285,7 +285,7 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
         <!-- Footer -->
         <?php if ($business['tagline']): ?>
         <div class="mt-8 text-center">
-            <p class="text-[9px] uppercase tracking-[.3em] font-bold" style="color: <?= e($doc_colours['secondary']) ?>;"><?= e($business['tagline']) ?></p>
+            <p class="text-[9px] uppercase tracking-[.3em] font-bold" style="color: <?= e($doc_colours['secondary_text']) ?>;"><?= e($business['tagline']) ?></p>
         </div>
         <?php endif; ?>
     </div>
