@@ -7,4 +7,4 @@
 require __DIR__ . '/../adanna.php';
 $db  = adanna_reset(12);
 $ids = adanna_products($db);
-echo json_encode(['body' => $ids['body']]), "\n";
+echo json_encode(['body' => $ids['body'], 'yesterday' => planner_add_days(planner_today(), -1)]), "\n";

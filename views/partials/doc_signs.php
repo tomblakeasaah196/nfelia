@@ -24,7 +24,7 @@ $sig_when  = fn(string $at) => date('j M Y, g:ia', strtotime($at));
             <?php if ($sig_b = $sign['business']): ?>
             <div class="<?= $sig_b['image'] ? '' : 'inline-block border-2 border-gray-700 rounded-lg px-3 py-2' ?>" data-sign-business>
                 <?php if ($sig_b['image']): ?><img src="<?= e($sig_b['image']) ?>" alt="Signature of <?= e($sig_b['signer_name']) ?>" class="h-12 w-auto mb-1"><?php endif; ?>
-                <div class="text-[9px] font-bold uppercase tracking-widest text-gray-500"><?= $sig_b['image'] ? 'Signed' : 'Digitally signed' ?> for <?= e($business['name']) ?></div>
+                <div class="text-xs font-semibold text-gray-600"><?= $sig_b['image'] ? 'Signed' : 'Digitally signed' ?> for <?= e($business['name']) ?></div>
                 <div class="text-xs font-semibold text-gray-800"><?= e($sig_b['signer_name']) ?><?= !empty($sig_b['signer_role']) ? ', ' . e($sig_b['signer_role']) : '' ?></div>
                 <div class="text-[10px] text-gray-500"><?= e($sig_when($sig_b['signed_at'])) ?><?= $sig_b['seal'] !== '' ? ' · Seal ' . e(doc_seal_short($sig_b['seal'])) : '' ?></div>
                 <?php if ((int)$sig_b['version'] > 1): ?><div class="text-[10px] text-gray-500">Signed again (version <?= (int)$sig_b['version'] ?>)</div><?php endif; ?>
@@ -36,7 +36,7 @@ $sig_when  = fn(string $at) => date('j M Y, g:ia', strtotime($at));
             <?php if ($sig_c = $sign['customer']): ?>
             <div data-sign-customer>
                 <?php if ($sig_c['image']): ?><img src="<?= e($sig_c['image']) ?>" alt="Signature of <?= e($sig_c['signer_name']) ?>" class="h-12 w-auto mb-1"><?php endif; ?>
-                <div class="text-[9px] font-bold uppercase tracking-widest text-gray-500"><?= e($sign['customer_words'] ?? 'Signed by') ?></div>
+                <div class="text-xs font-semibold text-gray-600"><?= e($sign['customer_words'] ?? 'Signed by') ?></div>
                 <div class="text-xs font-semibold text-gray-800"><?= e($sig_c['signer_name']) ?></div>
                 <div class="text-[10px] text-gray-500"><?= e($sig_when($sig_c['signed_at'])) ?><?= $sig_c['seal'] !== '' ? ' · Seal ' . e(doc_seal_short($sig_c['seal'])) : '' ?></div>
             </div>

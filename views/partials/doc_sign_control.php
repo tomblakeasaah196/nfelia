@@ -32,7 +32,7 @@ if (!$sign['on'] || !$sign['business']) {
     <button type="submit" data-sign="<?= $sig_on ? 'on' : 'off' ?>"
             class="flex items-center gap-1.5 bg-white border border-gray-200 hover:border-gray-400 text-gray-700 px-3 py-2 rounded-lg transition-all">
         <?= str_replace('width="24" height="24"', 'width="14" height="14"', nav_icon('sign')) ?>
-        <span class="text-[10px] font-bold uppercase tracking-widest"><?= e($sig_words) ?></span>
+        <span class="text-xs font-semibold"><?= e($sig_words) ?></span>
     </button>
     <?php endif; ?>
 </form>
