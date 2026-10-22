@@ -1457,6 +1457,18 @@
         }).catch(function (err) { say(err.message, true); }).then(function () { visible.disabled = false; });
     });
 
+    // Saved at once, like the switch above; the preview redraws to show it
+    var soldOut = $('[data-sold-out]');
+    soldOut.addEventListener('click', function () {
+        var on = soldOut.getAttribute('aria-checked') !== 'true';
+        soldOut.disabled = true;
+        api(D.urls.soldOut, { on: on }).then(function (json) {
+            soldOut.setAttribute('aria-checked', String(json.on));
+            reloadPreview();
+            toast(json.on ? 'Items with no stock left now say Sold out.' : 'Items stay on sale whatever their stock.');
+        }).catch(function (err) { say(err.message, true); }).then(function () { soldOut.disabled = false; });
+    });
+
     $$('[data-copy]').forEach(function (b) {
         b.addEventListener('click', function () {
             if (!navigator.clipboard) { toast(b.dataset.copy); return; }

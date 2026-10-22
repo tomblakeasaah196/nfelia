@@ -108,10 +108,10 @@
     var cart = [];
     function loadCart() {
         try { cart = JSON.parse(localStorage.getItem(CART_KEY)) || []; } catch (e) { cart = []; }
-        // Keep lines for products still on sale, at today's name and price
+        // Keep lines for products still on sale and not sold out, at today's name and price
         cart = cart.filter(function (line) {
             var item = line && S.items[String(line.id)];
-            if (!item) { return false; }
+            if (!item || item.sold) { return false; }
             line.name = item.name;
             line.price = linePrice(item, line.variant);
             line.qty = Math.max(1, Math.min(999, parseInt(line.qty, 10) || 1));
@@ -139,6 +139,7 @@
     function addLine(id, qty, variant, note) {
         var item = S.items[String(id)];
         if (!item) { return; }
+        if (item.sold) { toast(item.name + ' is sold out.'); return; }
         putLine(item, qty, variant, note);
         saveCart();
         toast(addedText());
@@ -148,7 +149,7 @@
         var added = 0;
         lines.forEach(function (l) {
             var item = S.items[String(l.id)];
-            if (!item) { return; }
+            if (!item || item.sold) { return; }
             putLine(item, Math.max(1, Math.min(999, parseInt(l.qty, 10) || 1)), l.variant || '', l.note || '');
             added++;
         });
@@ -345,19 +346,23 @@
         });
         $('[data-p-note]', sheet).value = '';
         $('[data-p-qty]', sheet).textContent = '1';
-        // Booked, not bought: a link to its booking page instead of the bag
+        // Booked, not bought: a link to its booking page instead of the bag.
+        // Sold out: nothing to add, and the line under the price says so.
         var book = item.book;
-        $('[data-p-note]', sheet).closest('.sf-field').hidden = !!book;
-        $('.sf-product__buy', sheet).hidden = !!book;
-        variants.hidden = !!book;
+        var sold = !book && !!item.sold;
+        $('[data-p-note]', sheet).closest('.sf-field').hidden = !!book || sold;
+        $('.sf-product__buy', sheet).hidden = !!book || sold;
+        variants.hidden = !!book || sold;
         var bookLink = $('[data-p-book]', sheet);
         var bookText = $('[data-p-book-text]', sheet);
         bookLink.hidden = !book;
-        bookText.hidden = !book;
+        bookText.hidden = !book && !sold;
         if (book) {
             bookLink.href = LIVE ? book.url : '#item-' + item.id;
             bookLink.lastElementChild.textContent = book.label;
             bookText.textContent = book.text;
+        } else if (sold) {
+            bookText.textContent = 'Sold out for now.' + (S.wa ? ' Ask ' + S.name + ' on WhatsApp when it will be back.' : '');
         }
         updateSheetWa();
         updateSheetPrice();

@@ -1031,16 +1031,32 @@ function storefront_css_vars(array $vars): string {
  * ────────────────────────────────────────── */
 
 /**
+ * Whether a product is sold out on its shop: only when the owner switched on
+ * "Show items as sold out when their stock runs out" (businesses.shop_sold_out,
+ * Shop Studio › More), and only goods, as services and things people book
+ * are never sold out. Options share the product's one stock count, so the
+ * product's count decides. The shop, its structured data and checkout
+ * (PublicController::place_order) all ask here.
+ */
+function shop_sold_out(array $business, array $product): bool {
+    return !empty($business['shop_sold_out'])
+        && empty($product['is_service'])
+        && (string)($product['booking_mode'] ?? 'none') === 'none'
+        && (float)($product['stock_qty'] ?? 0) <= 0;
+}
+
+/**
  * The products a shop shows, with their photos and choices, its categories
  * and its bank accounts. Products the owner switched off or deleted never
- * appear; when the catalogue section lists products, only those do.
+ * appear; when the catalogue section lists products, only those do. Each
+ * says whether it is sold out (shop_sold_out).
  */
 function storefront_catalogue(array $business, array $settings): array {
     $db  = get_db();
     $bid = (int)$business['id'];
 
     $stmt = $db->prepare("
-        SELECT id, name, description, category, image_path, sell_price, unit, is_service, created_at, updated_at,
+        SELECT id, name, description, category, image_path, sell_price, unit, is_service, stock_qty, created_at, updated_at,
                booking_mode, booking_minutes, booking_capacity, deposit_type, deposit_value
         FROM products
         WHERE business_id = ? AND deleted_at IS NULL AND is_active = 1
@@ -1112,6 +1128,7 @@ function storefront_catalogue(array $business, array $settings): array {
             'images'      => array_values(array_filter($paths, fn($p) => is_string($p) && $p !== '')),
             'variants'    => $groups,
             'booking'     => booking_info($row),   // null unless people book it
+            'sold_out'    => shop_sold_out($business, $row),
         ];
         $item += sf_item_details($item);
         $items[] = $item;

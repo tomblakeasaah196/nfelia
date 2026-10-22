@@ -909,17 +909,21 @@ class PublicController
         } /* The real name and price of every product, from this shop only:
              what its page sells (S10). Bookable services are booked, not
              bought, and a shop that lists only some products sells only
-             those. */
+             those. One the shop shows as sold out is no longer available
+             either (shop_sold_out). */
         $product_ids = array_values(array_unique(array_column($lines, "product_id")));
         $placeholders = implode(",", array_fill(0, count($product_ids), "?"));
         $stmtProducts = $this->db->prepare(
-            "SELECT id, name, sell_price FROM products WHERE business_id = ? AND deleted_at IS NULL AND is_active = 1 AND booking_mode = 'none' AND id IN ({$placeholders})",
+            "SELECT id, name, sell_price, is_service, stock_qty, booking_mode FROM products WHERE business_id = ? AND deleted_at IS NULL AND is_active = 1 AND booking_mode = 'none' AND id IN ({$placeholders})",
         );
         $stmtProducts->execute(array_merge([$business_id], $product_ids));
         $only = sf_section(storefront_settings($business, "published"), "catalogue")["only"] ?? [];
         $catalogue = [];
         foreach ($stmtProducts->fetchAll() as $product) {
             if ($only && !in_array((int) $product["id"], $only, true)) {
+                continue;
+            }
+            if (shop_sold_out($business, $product)) {
                 continue;
             }
             $catalogue[(int) $product["id"]] = $product;

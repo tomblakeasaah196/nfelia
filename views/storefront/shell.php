@@ -183,7 +183,7 @@ if ($catalogue['items']) {
                 '@type' => 'Offer',
                 'price' => number_format($item['price'], 2, '.', ''),
                 'priceCurrency' => business_currency_code($business),
-                'availability'  => 'https://schema.org/InStock',
+                'availability'  => $item['sold_out'] ? 'https://schema.org/OutOfStock' : 'https://schema.org/InStock',
             ],
         ], array_slice($catalogue['items'], 0, 10)),
     ];
@@ -229,7 +229,8 @@ if ($kind === 'product') {
             'url'           => $canonical,
             'price'         => number_format($item['price'], 2, '.', ''),
             'priceCurrency' => business_currency_code($business),
-            'availability'  => 'https://schema.org/InStock',
+            // Only when the shop shows sold out (shop_sold_out); otherwise as before
+            'availability'  => $item['sold_out'] ? 'https://schema.org/OutOfStock' : 'https://schema.org/InStock',
             'seller'        => ['@type' => 'Organization', 'name' => (string)$business['name'], 'url' => $shop_url],
         ];
     }
@@ -338,6 +339,7 @@ foreach ($catalogue['items'] as $item) {
         'svc'      => $item['is_service'],
         'img'      => $images,
         'variants' => $item['variants'],
+        'sold'     => $item['sold_out'],   // can't go in the bag (shop_sold_out)
         'book'     => $item['booking'] ? [
             'url'   => booking_page_path($item),
             'text'  => booking_summary($item['booking'], $item['price'], $currency),

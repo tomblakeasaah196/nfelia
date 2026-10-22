@@ -19,6 +19,7 @@
  * POST /landing-page/location-find     places matching an address, for the map's pin
  * POST /landing-page/location-link     the pin in a pasted Google Maps link
  * POST /landing-page/visibility        switch the whole shop on or off
+ * POST /landing-page/sold-out          show items with no stock left as sold out, or not
  *
  * Every POST checks the CSRF token, sent as the X-CSRF-Token header or a
  * csrf_token field. The shop link itself is changed through ShopSetupController.
@@ -307,6 +308,21 @@ class LandingPageController {
         $on = sf_bool($this->input()['on'] ?? false) ? 1 : 0;
         $this->db->prepare("UPDATE businesses SET landing_enabled = ? WHERE id = ?")->execute([$on, $this->biz_id]);
         update_business_session(['landing_enabled' => $on]);
+        storefront_purge($this->biz_id);
+        json_response(['ok' => true, 'on' => (bool)$on]);
+    }
+
+    /* ──────────────────────────────────────────
+     *  SOLD OUT — POST /landing-page/sold-out
+     *  "Show items as sold out when their stock runs out" (shop_sold_out()):
+     *  goods with no stock left say so on the shop and can't be ordered.
+     *  Saved straight away, like the shop's on/off switch.
+     * ────────────────────────────────────────── */
+    public function sold_out() {
+        $this->require_post();
+        $on = sf_bool($this->input()['on'] ?? false) ? 1 : 0;
+        $this->db->prepare("UPDATE businesses SET shop_sold_out = ? WHERE id = ?")->execute([$on, $this->biz_id]);
+        update_business_session(['shop_sold_out' => $on]);
         storefront_purge($this->biz_id);
         json_response(['ok' => true, 'on' => (bool)$on]);
     }

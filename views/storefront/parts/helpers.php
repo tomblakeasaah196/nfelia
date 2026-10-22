@@ -58,9 +58,13 @@ function sf_lowest_price(array $item): float {
 
 /**
  * The price a tile shows: "From ₦80,000" when the choices move it off the
- * product's own price, else that price. Text; null when there is none.
+ * product's own price, else that price; "Sold out" when it is
+ * (shop_sold_out). Text; null when there is none.
  */
 function sf_price_text(array $item, string $currency): ?string {
+    if (!empty($item['sold_out'])) {
+        return 'Sold out';
+    }
     if ($item['price'] <= 0) {
         return null;
     }
@@ -71,9 +75,12 @@ function sf_price_text(array $item, string $currency): ?string {
 /**
  * A product's price as HTML: the amount, then its unit in a smaller span.
  * A price of zero reads "Ask for the price"; one the choices change starts
- * "From" with the lowest.
+ * "From" with the lowest. A sold-out product reads "Sold out" instead.
  */
 function sf_price_html(array $item, array $ctx, bool $with_unit = true): string {
+    if (!empty($item['sold_out'])) {
+        return '<span class="sf-amount sf-amount--ask">Sold out</span>';
+    }
     if ($item['price'] <= 0) {
         return '<span class="sf-amount sf-amount--ask">Ask for the price</span>';
     }
@@ -133,6 +140,11 @@ function sf_add_button(array $item, string $label, string $class = 'sf-btn sf-bt
         $href = sf_live_links() ? booking_page_path($item) : '#item-' . (int)$item['id'];
         return '<a class="' . e($class) . '" href="' . e($href) . '" data-book="' . (int)$item['id'] . '"' . $aria . '>'
              . ($icon ? sf_icon('calendar', 18) : '') . ($label !== '' ? '<span>Book</span>' : '') . '</a>';
+    }
+    // Sold out: a switched-off button where there are words, none where
+    // there is only a "+" (the price already says "Sold out")
+    if (!empty($item['sold_out'])) {
+        return $label === '' ? '' : '<button type="button" class="' . e($class) . '" disabled><span>Sold out</span></button>';
     }
     $aria = $label === '' ? ' aria-label="Add ' . e($item['name']) . ' to your bag"' : '';
     return '<button type="button" class="' . e($class) . '" data-add="' . (int)$item['id'] . '"' . $aria . '>'
@@ -345,7 +357,7 @@ function sf_item_crate(array $item, array $ctx): string {
          . '<h3 class="sf-item__name">' . sf_open_link($item, e($item['name'])) . '</h3>'
          . ($item['description'] !== '' ? '<p class="sf-item__desc">' . e($item['description']) . '</p>' : '')
          . '<div class="sf-item__foot"><span class="sf-item__price">' . sf_price_html($item, $ctx, false)
-         . ($unit !== '' && $item['price'] > 0 ? '<small>' . e(trim($unit)) . '</small>' : '') . '</span>'
+         . ($unit !== '' && $item['price'] > 0 && empty($item['sold_out']) ? '<small>' . e(trim($unit)) . '</small>' : '') . '</span>'
          . sf_add_button($item, 'Add') . '</div>'
          . '</div></article>';
 }
