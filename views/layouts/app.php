@@ -315,7 +315,7 @@ $flash = get_flash();
         <?php if ($show_verify_banner): ?>
             <div class="nf-banner is-info" x-data="{ show: true }" x-show="show" role="status">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8l7.9 5.3a2 2 0 0 0 2.2 0L21 8M5 19h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2Z"/></svg>
-                <span class="grow">Verify your email to share documents with your customers.</span>
+                <span class="grow">Verify your email so we can reach you, and so you can reset your password if you forget it.</span>
                 <form action="<?= APP_URL ?>/resend-verification" method="POST" class="m-0">
                     <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
                     <button type="submit">Resend the link</button>

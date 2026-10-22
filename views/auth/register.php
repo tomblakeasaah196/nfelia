@@ -40,7 +40,7 @@ $flash = get_flash();
     <main class="auth-main">
         <div class="auth-card">
             <h1>Start your free trial</h1>
-            <p class="lead">Set up your business in about two minutes.</p>
+            <p class="lead">Set up your business in a few minutes.</p>
             <p class="trial-strip"><?= nf_icon('check-circle') ?>Free for <?= (int)TRIAL_DAYS ?> days. No card needed.</p>
 
             <?php if ($flash): ?>
