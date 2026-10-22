@@ -15,7 +15,7 @@ confirmed and fixed; a few needed more than the claim said, and those notes are 
 | 3a | (Found while fixing 3.) The passkey and add-to-home-screen offers, meant for the first page after sign-in or onboarding, opened over the shop setup screen. | Shop setup passes the offer on to the next page, so it opens on Home after setup. | `app/controllers/ShopSetupController.php` |
 | 4 | Bank fields were required in the form but optional on the server. | Not required now. The fields are marked "(optional)" and a line says "No business account yet? Leave this empty and add it later in Settings, under Payment accounts." Before, a half-filled account was dropped without a word. Now the person is asked for all three fields or none, and what they typed is kept. | `wizard.php`, `OnboardingController.php` |
 | 5 | Only the browser required a country. The server quietly fell back to ₦. | The server refuses a missing or unknown country: "Choose your country. It sets your money and your Nfelia price." | `OnboardingController.php` |
-| 6 | Some values were saved without being checked. | Category must be a `BUSINESS_CATEGORIES` key (else `other`). Currency must be one the list offers (else the current one). Tax is held between 0 and 100, and the field has `min`/`max`. Colours must be `#rrggbb` (else the current colour). The font must be a `FONT_PAIRINGS` key (else the current font). | `OnboardingController.php`, `wizard.php` |
+| 6 | Some values were saved without being checked. | Category must be a `BUSINESS_CATEGORIES` key (else `other`). Currency is no longer posted at all: it comes from the country (see Decided, 2). Tax is held between 0 and 100, and the field has `min`/`max`. Colours must be `#rrggbb` (else the current colour). The font must be a `FONT_PAIRINGS` key (else the current font). | `OnboardingController.php`, `wizard.php` |
 | 7 | A phone error on step 1 wiped everything typed. | A refused save (phone, country, half a bank account, a failed save) now returns to the step with every field filled back in (`back_to_step()` and `$old` in the wizard). | `OnboardingController.php`, `wizard.php` |
 | 8 | A failed logo upload was dropped without a word, and "Max 2MB" was wrong (`save_image()` takes 20MB). | The other choices on step 3 are still saved, and the owner is told: "Your logo didn't upload. Use a JPG, PNG or WebP picture up to 20MB. You can add it any time in Settings." The label now reads "JPG, PNG or WebP, up to 20MB". The upload box also shows the name of the picked file, so people can see the pick worked. | `OnboardingController.php`, `wizard.php` |
 | 9 | Step 3's colour pickers started at navy and terracotta, so an owner who didn't change them lost the burgundy and gold set at sign-up. | The pickers, and the lettering choice, start from the business's current values. The server keeps those values when nothing valid is sent. | `wizard.php`, `OnboardingController.php` |
@@ -28,10 +28,9 @@ confirmed and fixed; a few needed more than the claim said, and those notes are 
 | 16 | `/more` (and so the bell's `/more#notifications`) and POST `/signing/settings` sent an owner to shop setup, losing a signature save. | `more` is exempt. So are both Settings › Signatures saves, `signing/settings` and `signing/mine` (a drawn signature was lost the same way). `signing/sign`, which signs a document, still waits for setup. | `app/middleware/auth_check.php` |
 | 17 | "About two minutes". | With four screens and about twenty fields it isn't two minutes. Now: "Set up your business in a few minutes." | `views/auth/register.php` |
 
-Still to do outside this area, for Hair & Beauty to read well everywhere:
-- `directory_categories()` in `app/helpers/seo.php` has no `beauty` entry. Beauty shops list under "Beauty, farms, stays and more".
-- `records_category_text()` in `app/helpers/records_book.php` gives no words for `beauty`.
-- `views/products/setup.php` and `views/products/form.php` could suggest beauty items (Wigs, Bundles, Closures, Frontals, Installation (Service)) instead of the generic list.
+The follow-ups for Hair & Beauty outside onboarding are done too (Decided, 4).
+
+**The wizard looks like sign-up** (Video 1 cuts from one to the other). It now uses sign-up's page and pieces from `assets/css/home.css` (plain CSS, not a Tailwind build): the same pink ground, the real mark (`assets/img/nfelia-mark-email.png`) beside "NFELIA", the same fonts (Bricolage Grotesque and Plus Jakarta Sans), the soft rounded white card, the same rounded fields and the burgundy button. What sign-up doesn't have is in a small block at the end of the auth section of `home.css`, all under `.setup-card`: the "Step N of 4" pill, selects, the Products / Services / Both cards, the colour swatches with their codes, and the logo box. The card is 520px wide (sign-up's is 440px), and pairs of fields sit side by side from 560px. Every field name, value and behaviour is as before. Checked at 384px and 1280px with no sideways scroll. Labels now point at their fields (`for`/`id`), and "What do you sell?" is a fieldset. The wizard no longer loads `public.css`. `tailwind.public.config.js` still lists `wizard.php`, which is harmless: the next `npm run build:public` just drops the classes only the old wizard used.
 
 ## Not a bug
 
@@ -39,8 +38,33 @@ Still to do outside this area, for Hair & Beauty to read well everywhere:
 - **Claim 15's "call `subscription_banner()`"**. The banner can't be used from web code, as explained in row 15 above. The days-left line was built another way, so the claim still holds.
 - **Claim 8's 20MB**. 20MB is the real limit. The server accepts more (`upload_max_filesize` 32M, `docs/ops/INFRASTRUCTURE.md`), so the 20MB in `save_image()` is the cap.
 
-## Needs a decision
+## Decided
 
-1. **The tax rate starts at 7.5%.** Step 2 fills in 7.50, and every new invoice and quote then adds 7.5% VAT. Most market traders are small enough not to charge VAT. For now there's a hint, "Put 0 if you don't charge VAT". *Recommendation:* start at 0 and keep the hint.
-2. **The category can't be changed after onboarding.** Settings has no category field, so a hair vendor who picked Fashion or Other before Hair & Beauty existed (or by mistake) is stuck with it, and it sets their first shop look and product suggestions. *Recommendation:* add it to Settings › Business, and offer existing Fashion/Other shops on the Glow look a one-tap switch.
-3. **"Step 4 of 4" on the shop setup screen.** Shop setup is also where existing owners are sent at sign-in, so a fixed step badge there would confuse them. The step-3 message ("One last step") carries the count instead. *Recommendation:* leave it as is, or show the badge only when coming straight from onboarding.
+Tom's decisions, and what was built for each.
+
+1. **Tax starts at 0%.** The 7.5 came only from the wizard: the column default was already 0.00, and sign-up never set a rate. Step 2's box now starts at 0 (placeholder "e.g. 7.5"), and its hint reads "Add your VAT rate if you charge it." A business that skips the box is stored with 0. Existing businesses are untouched. (`views/onboarding/wizard.php`)
+2. **The currency follows the country.** Step 2 no longer offers a currency to pick. It shows the currency of the country chosen in step 1, read-only, with "It comes from your country, Ghana." The server takes it from that country and ignores any `currency_symbol` posted. A country no longer offered keeps the currency already saved. Step 1 already took the currency from the country, and sign-up has no country, so it keeps the column default until step 1. Settings is another worker's. (`app/controllers/OnboardingController.php`, `wizard.php`)
+3. **The second colour defaults to gold.** Sign-up and onboarding already used #B69F5E: onboarding's #C27A62 went in the first round, when the pickers began starting from the business's own colours. The `businesses.secondary_color` column default is now #B69F5E too, from `db/migrations/20261030100500_secondary_colour_default.sql` (`ALTER … SET DEFAULT`). Only the default changes; existing rows keep their colours. `db/schema.sql` (the baseline) is left alone, as with other migrations.
+4. **Hair & Beauty everywhere.**
+   - The shops directory has its own entry, "Hair and beauty" at `/shops/…/hair-and-beauty` (`app/helpers/seo.php`). "Beauty, farms, stays and more" keeps its name, because beauty shops filed under Other still list there.
+   - The Records Book says "Hair and beauty" (`app/helpers/records_book.php`).
+   - Product suggestions for this category are Wigs, Bundles, Closures, Frontals and Edge Control (`views/products/setup.php`, `views/products/form.php`).
+5. **The step badge stays as it is.** Shop setup shows no "Step 4 of 4". The step-3 message ("Saved. One last step: your shop link and look.") carries the count.
+
+Test: `tests/auth/onboarding_test.php` (`bash tests/notifications/run.sh auth/onboarding`, added to CI in `.github/workflows/deploy.yml`). It walks Adanna through the whole journey and checks:
+- signing up again while signed in;
+- the column default;
+- the refused country, with what was typed kept;
+- the category check;
+- the currency from Ghana, ignoring a posted ₦;
+- tax at 0;
+- half a bank account;
+- colours and font left alone;
+- shop setup as step 4, Glow preselected, and the offers held back;
+- More and a signatures save before shop setup;
+- the days-left line on Home;
+- the Hair & Beauty entries.
+
+## Still to decide
+
+- **The category can't be changed after onboarding.** Settings has no category field, so a hair vendor who picked Fashion or Other before Hair & Beauty existed (or by mistake) is stuck with it. The category sets their first shop look and their product suggestions. *Recommendation:* add it to Settings › Business, and offer existing Fashion and Other shops on the Glow look a one-tap switch.
