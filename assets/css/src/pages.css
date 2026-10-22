@@ -305,6 +305,14 @@ a.nf-item:active { background: rgb(31 10 20 / .05); }
   .nf-rb-cover { height: 136px; }
 }
 
+/* Expense form, a stock purchase line. On a phone twelve columns leave the
+   line total about 60px, too narrow for ₦125,000: quantity and unit cost
+   share the second row, and the total has the third, beside the bin. */
+@media (max-width: 639px) {
+  .nf-buy-line > .col-span-4 { grid-column: span 6 / span 6; }
+  .nf-buy-line > .col-span-3 { grid-column: span 11 / span 11; }
+}
+
 /* Profit and loss: the period menu opens under its button. On a phone the
    button sits at the left edge, so the menu grows rightwards from it. */
 .nf-pop.is-period { left: 0; right: auto; }

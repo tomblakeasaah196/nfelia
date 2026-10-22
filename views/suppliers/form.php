@@ -24,7 +24,6 @@
     <div class="bg-brand-white border border-brand-sand rounded-xl p-6 shadow-sm space-y-5">
 
         <h2 class="text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest">Supplier Information</h2>
-        <p class="text-[10px] text-brand-plum/40 -mt-3">Phone or email is required</p>
 
         <!-- Full Name -->
         <div>
