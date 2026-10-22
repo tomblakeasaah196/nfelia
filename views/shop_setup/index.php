@@ -85,7 +85,7 @@ $look_fonts_url = 'https://fonts.googleapis.com/css2?' . implode('&', array_uniq
                 <div class="mt-1 flex items-stretch rounded-xl border-2 bg-white focus-within:ring-2 focus-within:ring-accent/30"
                      :class="borderClass">
                     <input id="shop-name" name="shop_name" type="text" required
-                           autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="40"
+                           autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="<?= SHOP_NAME_MAX ?>"
                            value="<?= e($prefill) ?>" x-model="name" @input.debounce.350ms="check()"
                            aria-describedby="shop-name-status shop-name-rules"
                            class="flex-1 min-w-0 h-12 px-4 text-base bg-transparent rounded-l-xl focus:outline-none">
@@ -106,7 +106,7 @@ $look_fonts_url = 'https://fonts.googleapis.com/css2?' . implode('&', array_uniq
                 </div>
 
                 <p id="shop-name-rules" class="mt-4 text-sm text-[#5B4650]">
-                    Use <?= SHOP_NAME_MIN ?> to <?= SHOP_NAME_MAX ?> letters, numbers or hyphens. No spaces.
+                    Use <?= SHOP_NAME_MIN ?> to <?= SHOP_NAME_MAX ?> letters, numbers or hyphens; spaces become hyphens.
                     You can change it once later.
                 </p>
                 <p class="mt-3 text-sm text-[#5B4650]">

@@ -4,8 +4,10 @@
  * Handles: Business Profile, User Profile, Staff Management, Billing.
  * Tabbed interface — all settings in one place.
  *
- * NFELIA FIX — Currency options now driven by countries table — 2026-06-04
  * NFELIA FIX — Billing pricing now dynamic per country — 2026-06-04
+ *
+ * The currency follows the business's country (Tom, October 2026): Settings
+ * shows it and never takes a symbol from the form.
  */
 class SettingsController {
 
@@ -22,28 +24,15 @@ class SettingsController {
         $this->biz_id = auth_business_id();
     }
 
-    /**
-     * Build currency options from the active countries table.
-     * Returns ['₦' => '🇳🇬 ₦ — Nigerian Naira', 'FCFA' => '🇨🇲 FCFA — CFA Franc BEAC', ...]
-     */
-    private function build_currency_options(): array {
-        require_once __DIR__ . '/CountryController.php';
-        $active = CountryController::get_active_countries($this->db);
-        $opts = [];
-        foreach ($active as $c) {
-            $flag  = $c['flag_emoji'] ?? '🌐';
-            $sym   = $c['currency_symbol'];
-            $label = $flag . ' ' . $sym . ' — ' . ($c['currency_name'] ?: $c['currency_code']);
-            // Avoid duplicate symbols (e.g. two countries sharing $)
-            if (!isset($opts[$sym])) {
-                $opts[$sym] = $label;
-            }
-        }
-        // Always ensure ₦ is present as a fallback
-        if (!isset($opts['₦'])) {
-            $opts['₦'] = '🇳🇬 ₦ — Nigerian Naira';
-        }
-        return $opts;
+    /** The business's own country (onboarding, or More › Country and currency), or null when it has none. */
+    private function business_country(): ?array {
+        $stmt = $this->db->prepare("
+            SELECT c.name, c.iso_code, c.flag_emoji, c.currency_name, c.currency_code, c.currency_symbol
+            FROM businesses b JOIN countries c ON c.id = b.country_id
+            WHERE b.id = ?
+        ");
+        $stmt->execute([$this->biz_id]);
+        return $stmt->fetch() ?: null;
     }
 
     /* ══════════════════════════════════════════
@@ -139,7 +128,8 @@ class SettingsController {
             ];
         }
 
-        $currency_options = $this->build_currency_options();
+        // The currency Business details shows, from the country
+        $country = $tab === 'business' ? $this->business_country() : null;
 
         $title     = "Settings";
         $view_file = BASE_PATH . '/views/settings/index.php';
@@ -208,25 +198,13 @@ class SettingsController {
 
     /** The biggest logo that can be sent, in MB: save_image() takes 20, or less when the server takes less. */
     public static function logo_max_mb(): int {
-        $mb = 20;
-        foreach (['upload_max_filesize', 'post_max_size'] as $key) {
-            $ini   = trim((string)ini_get($key));
-            $bytes = (int)$ini * match (strtoupper(substr($ini, -1))) { 'G' => 1073741824, 'M' => 1048576, 'K' => 1024, default => 1 };
-            if ($bytes > 0) $mb = min($mb, intdiv($bytes, 1048576));
-        }
-        return max(1, $mb);
+        $server = upload_limit_mb();
+        return $server ? min(20, $server) : 20;
     }
 
     public function update_business() {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') { redirect('settings'); return; }
-        // A logo over the server's limit empties the whole form, token and
-        // all: say so, rather than "Security session expired"
-        if (empty($_POST) && (int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
-            flash('error', 'Nothing was saved: that logo is over ' . self::logo_max_mb() . ' MB. Pick a smaller picture and save again.');
-            redirect('settings?tab=business');
-            return;
-        }
-        csrf_verify();
+        csrf_verify();   // a logo too big for the whole form is told there
 
         $user = auth_user();
         if (($user['role'] ?? 'staff') !== 'owner') {
@@ -244,7 +222,8 @@ class SettingsController {
         $address         = trim($_POST['address'] ?? '');
         $primary_color   = trim($_POST['primary_color'] ?? '#1a1a2e');
         $secondary_color = trim($_POST['secondary_color'] ?? '#B69F5E');   // as at sign-up
-        $currency_symbol = trim($_POST['currency_symbol'] ?? '₦');
+        // The kind of business, from BUSINESS_CATEGORIES; left as it is when not sent
+        $category        = array_key_exists((string)($_POST['category'] ?? ''), BUSINESS_CATEGORIES) ? (string)$_POST['category'] : null;
         // What the business sells, as at onboarding; it names the deed
         // (services: a certificate of completion). Left as it is when not sent.
         $business_type   = in_array($_POST['business_type'] ?? '', ['product', 'service', 'mixed'], true) ? $_POST['business_type'] : null;
@@ -269,9 +248,9 @@ class SettingsController {
         if (!preg_match('/^#[0-9a-fA-F]{6}$/', $primary_color)) $primary_color = '#1a1a2e';
         if (!preg_match('/^#[0-9a-fA-F]{6}$/', $secondary_color)) $secondary_color = '#B69F5E';
 
-        // Validate currency against active countries
-        $valid_currencies = $this->build_currency_options();
-        if (!array_key_exists($currency_symbol, $valid_currencies)) $currency_symbol = '₦';
+        // The currency is the country's, never what the form says; a business
+        // with no country keeps the one it has
+        $country = $this->business_country();
 
         $logo_path  = null;
         $logo_error = $_FILES['logo']['error'] ?? UPLOAD_ERR_NO_FILE;
@@ -300,7 +279,7 @@ class SettingsController {
 
         // A rename: remember what the old name suggested, so the Document
         // numbers card offers a new prefix only because the name changed
-        $stmt_was = $this->db->prepare("SELECT name, prefix_nudge_seen FROM businesses WHERE id = ?");
+        $stmt_was = $this->db->prepare("SELECT name, prefix_nudge_seen, category, storefront_look FROM businesses WHERE id = ?");
         $stmt_was->execute([$this->biz_id]);
         $was = $stmt_was->fetch() ?: [];
         if ($name !== '' && ($was['name'] ?? '') !== $name && ($was['prefix_nudge_seen'] ?? null) === null) {
@@ -311,10 +290,10 @@ class SettingsController {
         $sql = "UPDATE businesses SET
                     name = ?, tagline = ?, phone = ?, whatsapp = ?, email = ?,
                     address = ?, primary_color = ?, secondary_color = ?,
-                    brand_font_head = ?, brand_font_body = ?, currency_symbol = ?";
+                    brand_font_head = ?, brand_font_body = ?";
         $params = [$name, $tagline ?: null, $phone ?: null, $whatsapp ?: null, $email ?: null,
                    $address ?: null, $primary_color, $secondary_color,
-                   $font_head, $font_body, $currency_symbol];
+                   $font_head, $font_body];
 
         $session_updates = [
             'name'            => $name,
@@ -322,18 +301,38 @@ class SettingsController {
             'secondary_color' => $secondary_color,
             'brand_font_head' => $font_head,
             'brand_font_body' => $font_body,
-            'currency_symbol' => $currency_symbol,
-            'tagline'         => $tagline, 
+            'tagline'         => $tagline,
             'address'         => $address, 
             'phone'           => $phone,
             'whatsapp'        => $whatsapp,
             'email'           => $email
         ];
 
+        if ($country && $country['currency_symbol'] !== '') {
+            $sql .= ", currency_symbol = ?";
+            $params[] = $country['currency_symbol'];
+            $session_updates['currency_symbol'] = $country['currency_symbol'];
+        }
+
         if ($business_type !== null) {
             $sql .= ", business_type = ?";
             $params[] = $business_type;
             $session_updates['business_type'] = $business_type;
+        }
+
+        if ($category !== null) {
+            $sql .= ", category = ?";
+            $params[] = $category;
+            $session_updates['category'] = $category;
+            // The category only suggests a look to a shop that never chose
+            // one (storefront_default_look). Shop Studio stays in charge of
+            // the look, so such a shop keeps the one it shows today.
+            if ($category !== ($was['category'] ?? null) && !isset(STOREFRONT_LOOKS[(string)($was['storefront_look'] ?? '')])) {
+                $look = storefront_default_look($was);
+                $sql .= ", storefront_look = ?";
+                $params[] = $look;
+                $session_updates['storefront_look'] = $look;
+            }
         }
 
         if ($logo_path) {
@@ -744,14 +743,16 @@ class SettingsController {
         }
 
         $subscription = $this->get_subscription();
-        $max_seats = ($subscription['user_seats'] ?? 1) + ($subscription['extra_seats'] ?? 0);
+        $max_seats = billing_seats($subscription);   // a free trial includes one staff member
 
         $stmt = $this->db->prepare("SELECT COUNT(*) FROM users WHERE business_id = ? AND is_active = 1");
         $stmt->execute([$this->biz_id]);
         $current_staff = (int)$stmt->fetchColumn();
 
         if ($current_staff >= $max_seats) {
-            flash('error', "You've reached your seat limit ({$max_seats}). Upgrade to add more team members.");
+            flash('error', billing_access($subscription) === 'trial'
+                ? 'Your free trial includes ' . TRIAL_STAFF_SEATS . ' staff member' . (TRIAL_STAFF_SEATS === 1 ? '' : 's') . '. To add more, pay for a month with more seats under Billing.'
+                : 'Every seat you pay for is taken (' . $max_seats . ' people, with you). Add seats under Billing to add someone new.');
             redirect('settings?tab=staff');
             return;
         }
