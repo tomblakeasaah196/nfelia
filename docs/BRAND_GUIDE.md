@@ -25,7 +25,9 @@ Inside the app, in Shop Studio, on a shop's own pages and in the emails a busine
 
 A filled button is `bg-accent text-on-accent`, never `text-white`: a light brand colour gets ink. A business that never chose a colour (its `primary_color` is still the column's default, `#1A1A2E`) gets Nfelia's wine through the same variables.
 
-Documents (the invoice, receipt, quotation, delivery and deed pages customers open, their PDFs, and the app's own view of them) take their colours from `brand_doc_colours()` in `app/helpers/brand.php`: the brand colours, else Nfelia's wine and gold. No page reads `primary_color` itself. As in the app, the colour itself is for bars, borders and fills; words in it use `text` (and `secondary_text` for the secondary), the shade that reads on white and cream, and words on a fill of it use `on`, white or ink. The public pages built with Tailwind (`tailwind.public.config.js`) have these as `brand-text` and `on-brand`.
+Documents (the invoice, receipt, quotation, delivery and deed pages customers open, their PDFs, and the app's own view of them) take their colours from `brand_doc_colours()` in `app/helpers/brand.php`: the brand colours, else Nfelia's wine and gold. No page reads `primary_color` itself. As in the app, the colour itself is for bars, borders and fills; words in it use `text` (and `secondary_text` for the secondary), the shade that reads on white and cream, and words on a fill of it use `on`, white or ink. The public pages built with Tailwind (`tailwind.public.config.js`) have these as `brand-text` and `on-brand`. The QR code that checks a document is genuine is drawn in the colour too, deepened until a phone camera reads it easily (`qr_inks()` in `app/helpers/qr.php`, 7:1 on white).
+
+Two pages stand outside the app's frame but are still the business's: a page that isn't there shows someone signed in their business's colour and the way back to their dashboard (`views/404.php`), and the installed app's "No connection" page takes the colours the app last saved on the phone (`offline.html`, saved by `assets/js/shell.js`). Both are Nfelia's to anyone else.
 
 The neutrals are the same for everyone:
 

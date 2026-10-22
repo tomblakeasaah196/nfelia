@@ -1,7 +1,7 @@
 // Tailwind for the pages outside the signed-in app that used to load the
 // Tailwind CDN compiler at run time (sign-in links, password reset, the
-// public documents customers open, delivery sign-off, deeds, onboarding,
-// the 404 page). Compiled ahead of time by `npm run build:public` into
+// public documents customers open, delivery sign-off, deeds, onboarding).
+// Compiled ahead of time by `npm run build:public` into
 // assets/css/public.css, which is committed: the server has no Node.
 //
 // Fonts and the business's own colour are CSS variables, set inline by
@@ -15,7 +15,7 @@ module.exports = {
     './views/auth/forgot-password.php', './views/auth/reset-password.php',
     './views/quotations/public.php', './views/invoices/public.php', './views/receipts/public.php',
     './views/deliveries/public.php', './views/deliveries/signoff.php', './views/deeds/view.php',
-    './views/onboarding/wizard.php', './views/404.php',
+    './views/onboarding/wizard.php',
     './views/partials/password_rules.php', './views/partials/pwa_head.php', './views/partials/doc_*.php',
     './assets/js/password.js',
     // A delivery's status badge, whose colours DeliveryController::STATUSES names
