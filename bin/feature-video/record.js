@@ -28,10 +28,12 @@
 //   scenes.json) · ["change", sel] · ["spot", sel, padding] · ["unspot"]
 //   · ["scroll", sel, px from the top] · ["scrollBy", px, ms] · ["goto", path]
 //   · ["waitFor", sel] · ["mail", text in the subject] (shows the newest such
-//   email, as sent) · ["eval", "js"]
+//   email, as sent) · ["eval", "js"] · ["run", "php add-more.php"] (a command,
+//   run beside scenes.json, for changes made off camera: put it in "before")
 // Selectors are Playwright's: CSS, or button:has-text("Save").
 const { chromium } = require('playwright');
 const fs = require('fs');
+const { execSync } = require('child_process');
 const path = require('path');
 const [scenesFile, idsJson, OUT] = process.argv.slice(2);
 const spec = JSON.parse(fs.readFileSync(scenesFile, 'utf8'));
@@ -233,6 +235,7 @@ function decodeHeader(h) {
         await wait(350);
       },
       eval: (js) => page.evaluate(js),
+      run: (cmd) => { execSync(cmd, { cwd: DIR, stdio: ['ignore', 'ignore', 'inherit'] }); },
     };
     const steps = async (list) => {
       for (const [name, ...args] of list || []) {

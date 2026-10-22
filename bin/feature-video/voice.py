@@ -141,11 +141,14 @@ elif engine == 'yarngpt':
                     sc, got = score(s, audio)
                     if sc > best[s][0]:
                         best[s] = (sc, audio, got)
+                        if sc >= GOOD:   # kept at once, so a stopped run loses nothing that passed
+                            sf.write(kept(s), audio, RATE)
         for s, (sc, audio, got) in best.items():
+            if sc >= GOOD:
+                continue
             if audio is None:
                 raise SystemExit(f'YarnGPT could not say: "{s}"')
-            if sc < GOOD:
-                print(f'[voice] check by ear ({sc:.2f}): "{s}" was heard as "{got}"', file=sys.stderr)
+            print(f'[voice] check by ear ({sc:.2f}): "{s}" was heard as "{got}"', file=sys.stderr)
             sf.write(kept(s), audio, RATE)
 
     def speak(text):
