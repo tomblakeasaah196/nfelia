@@ -65,3 +65,28 @@ Videos 3 and 4 film the quote, invoice, receipt and delivery screens. They still
 - **Left as they are:** the printed document titles (QUOTATION, INVOICE, RECEIPT) and the PAID / CANCELLED stamp, the same as the PDFs. The PDF templates themselves weren't touched.
 - **Unchanged:** every field name, value, id, `data-` hook and behaviour. The test in `tests/docs/sign_test.php` now looks for "Sign & accept". The quote page's Share PDF button lives in `views/partials/share_pdf.php`; only the quote page uses that style of it, and it is sentence case now too.
 - **Checked at 384px:** each page was rendered with sample data (long names, a two-line address) and loaded in headless Chromium at 384px wide. None scrolls sideways, and none shows text under 11px. Every class the customer pages use is already in `public.css`.
+
+## Round 4: no browser pop-ups for customers
+
+Video 4 films a bride accepting a quote on her phone. The quote page asked her with the browser's own box (`confirm()`). A phone shows that as a grey pop-up outside the page, which a screen recording can't even show. Errors also came in `alert()`.
+
+- **Accept asks in the page.** Accept quote still calls `acceptQuote()`, so its button works as before, but that now opens a sheet built like the Decline one. The sheet reads "Accept this quote?" and "You agree to pay ₦450,000.00 to Adanna Luxe Hair for these items.", with **Not yet** and **Yes, accept**. Hooks:
+  - the sheet: `[data-accept-sheet]`
+  - the confirm button: `[data-accept-confirm]`
+  - Yes, accept calls `confirmAccept()`, which sends the answer.
+  - It closes with Not yet, Escape, or a tap outside it.
+- **Errors show in the page.** A problem is shown where it happened, in a red line marked `role="alert"`: in the accept sheet, the signing sheet, the decline sheet, or under the message box. The wording:
+  - the server's own words when it refuses, e.g. "This quote was valid until 9 Nov 2026. Please ask the business for a fresh quote."
+  - "We couldn't reach the internet. Check your connection, then try again." with no connection
+  - "Something went wrong on our side. Please try again in a minute, or contact *Business*." for anything else
+  - "Please draw your signature in the box, then tap Accept quote." when signing with an empty box
+
+  The buttons work again after a problem.
+- **No flash of hidden sheets.** The page used `x-cloak` but never defined it, so its sheets could flash on screen while the page loaded. It defines it now.
+- **Other customer pages checked:** the delivery sign-off already shows its errors in the page. The customer's delivery note, invoice and receipt pages open no pop-ups. Nothing to change there.
+- **Owner pages still using `confirm()`** (out of scope this round):
+  - quote page: Delete (`views/quotations/view.php`)
+  - delivery page: each status change, and Delete (`views/deliveries/view.php`)
+  - invoice page: Mark sent, Cancel, and Delete draft (`views/invoices/view.php`)
+  - receipt page: Delete (`views/receipts/view.php`)
+- **Checked:** in headless Chromium at 384px, with the page served and answered through Playwright and no app server. Accept opens the sheet and Not yet closes it without sending anything. Yes, accept sends the answer. A refusal, a server failure and a lost connection each show in the sheet. Decline and message problems show in place, and signing without drawing is explained. No browser dialog opened in any run.

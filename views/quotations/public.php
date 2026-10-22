@@ -47,6 +47,7 @@ if (!empty($activities)) {
                 --brand-rgb: <?= e(brand_rgb($primary)) ?>; --brand-text-rgb: <?= e(brand_rgb($text)) ?>; --on-brand: <?= e($on) ?>; }
     </style>
     <style>
+        [x-cloak] { display: none !important; }   /* sheets stay hidden until Alpine starts */
         body { background-color: #F8FAFC; -webkit-tap-highlight-color: transparent; }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
@@ -219,6 +220,7 @@ if (!empty($activities)) {
                 <?php if ($is_active): ?>
                     <div class="mt-auto pt-4 border-t border-slate-200">
                         <textarea x-model="commentText" rows="2" class="w-full p-3 border-2 border-slate-200 rounded-lg focus:border-brand-text focus:ring-0 text-sm resize-none mb-2 font-medium" placeholder="Ask a question or request a revision..."></textarea>
+                        <p x-show="problem.where === 'comment'" x-text="problem.text" role="alert" class="mb-2 p-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg"></p>
                         <button @click="submitAction('comment')" :disabled="!commentText.trim() || isSubmitting" 
                                 class="w-full py-3 bg-slate-900 text-white text-sm font-semibold rounded-lg disabled:opacity-50 transition-opacity">
                             Send message
@@ -230,7 +232,7 @@ if (!empty($activities)) {
 
         <?php if ($is_active): ?>
             <div class="fixed bottom-0 left-0 right-0 z-30 max-w-2xl mx-auto bg-white border-t border-slate-200 p-4 flex gap-3 shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.1)]">
-                <button @click="modals.decline = true" class="flex-1 py-3.5 border-2 border-slate-200 text-slate-600 text-sm font-semibold rounded-lg hover:bg-slate-50 transition-colors">
+                <button @click="problem = { where: '', text: '' }; modals.decline = true" class="flex-1 py-3.5 border-2 border-slate-200 text-slate-600 text-sm font-semibold rounded-lg hover:bg-slate-50 transition-colors">
                     Decline
                 </button>
                 <?php if ($past_date): ?>
@@ -249,11 +251,30 @@ if (!empty($activities)) {
             </div>
         <?php endif; ?>
         
+        <?php if ($is_active && !$past_date && !$sign_to_accept): ?>
+        <!-- Accept, asked in the page: never the browser's own box, which a phone
+             shows outside the page (acceptQuote() opens it, confirmAccept() sends) -->
+        <div x-show="modals.accept" x-cloak @keydown.escape.window="modals.accept = false" class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4" data-accept-sheet>
+            <div @click.away="modals.accept = false" x-transition.translate.y.bottom role="dialog" aria-modal="true" aria-labelledby="accept-title" class="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl">
+                <h3 id="accept-title" class="font-heading font-bold text-lg text-slate-900 mb-2">Accept this quote?</h3>
+                <p class="text-sm text-slate-600 mb-4">You agree to pay <b class="text-slate-900"><?= money((float)$quotation['total'], $currency) ?></b> to <?= e($business['name']) ?> for these items.</p>
+                <p x-show="problem.where === 'accept'" x-text="problem.text" role="alert" class="mb-4 p-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg"></p>
+                <div class="flex gap-3">
+                    <button type="button" @click="modals.accept = false" class="flex-1 py-3 text-sm font-semibold text-slate-600 bg-slate-100 rounded-lg">Not yet</button>
+                    <button type="button" x-ref="acceptYes" @click="confirmAccept()" :disabled="isSubmitting" data-accept-confirm class="flex-[2] py-3 text-sm font-semibold text-on-brand bg-brand rounded-lg shadow-md disabled:opacity-50">
+                        <span x-text="isSubmitting ? 'Accepting…' : 'Yes, accept'">Yes, accept</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <div x-show="modals.decline" x-cloak class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
             <div @click.away="modals.decline = false" x-transition.translate.y.bottom class="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl">
                 <h3 class="font-heading font-bold text-lg text-slate-900 mb-2">Decline this quote</h3>
                 <p class="text-xs text-slate-500 mb-4">Please let us know why so we can improve.</p>
                 <textarea x-model="declineReason" rows="3" class="w-full p-3 border-2 border-slate-200 rounded-lg mb-4 text-sm focus:border-brand-text outline-none resize-none"></textarea>
+                <p x-show="problem.where === 'decline'" x-text="problem.text" role="alert" class="mb-4 p-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg"></p>
                 <div class="flex gap-3">
                     <button @click="modals.decline = false" class="flex-1 py-3 text-sm font-semibold text-slate-600 bg-slate-100 rounded-lg">Cancel</button>
                     <button @click="submitAction('decline')" :disabled="isSubmitting" class="flex-1 py-3 text-sm font-semibold text-white bg-red-600 rounded-lg disabled:opacity-50">Decline quote</button>
@@ -281,6 +302,7 @@ if (!empty($activities)) {
                     <div class="border-2 border-slate-900 rounded-xl bg-slate-50 overflow-hidden relative" style="height: 200px;">
                         <canvas id="sig-canvas" width="600" height="200" class="w-full h-full absolute inset-0"></canvas>
                     </div>
+                    <p x-show="problem.where === 'sign'" x-text="problem.text" role="alert" class="mt-4 p-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg"></p>
                 </div>
 
                 <div class="p-5 border-t border-slate-100 flex gap-3 bg-white">
@@ -303,7 +325,10 @@ if (!empty($activities)) {
                 commentText: '',
                 declineReason: '',
                 signName: <?= json_encode((string)($customer['contact_name'] ?? $customer['full_name'] ?? ''), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>,
-                modals: { sign: false, decline: false },
+                modals: { sign: false, decline: false, accept: false },
+                // What went wrong, shown where it happened ('accept', 'sign', 'decline',
+                // 'comment'): in the page, never in a browser pop-up
+                problem: { where: '', text: '' },
                 isSubmitting: false,
                 ctx: null,
                 canvas: null,
@@ -346,6 +371,7 @@ if (!empty($activities)) {
                 },
 
                 openSignatureModal() {
+                    this.problem = { where: '', text: '' };
                     this.modals.sign = true;
                     // Slight delay to ensure modal is visible before clearing/focusing
                     setTimeout(() => { this.clearSignature(); }, 100);
@@ -389,53 +415,68 @@ if (!empty($activities)) {
 
                 async submitSignature() {
                     if (!this.hasDrawn) {
-                        alert("Please draw your signature to legally accept this document.");
+                        this.problem = { where: 'sign', text: 'Please draw your signature in the box, then tap Accept quote.' };
                         return;
                     }
                     const dataUrl = this.canvas.toDataURL('image/png');
-                    
+
                     const fd = new FormData();
                     fd.append('action', 'sign');
                     fd.append('name', this.signName);
                     fd.append('signature', dataUrl);
-                    
-                    await this.postData(fd);
+
+                    await this.postData(fd, 'sign');
                 },
 
-                async acceptQuote() {
-                    if (!confirm(<?= json_encode('Accept this quote from ' . $business['name'] . '?', JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>)) return;
+                // Accept quote: asks first in the page's own sheet ([data-accept-sheet])
+                acceptQuote() {
+                    this.problem = { where: '', text: '' };
+                    this.modals.accept = true;
+                    this.$nextTick(() => this.$refs.acceptYes && this.$refs.acceptYes.focus());
+                },
+
+                // Yes, accept ([data-accept-confirm])
+                async confirmAccept() {
                     const fd = new FormData();
                     fd.append('action', 'accept');
-                    await this.postData(fd);
+                    await this.postData(fd, 'accept');
                 },
 
                 async submitAction(action) {
                     const fd = new FormData();
                     fd.append('action', action);
-                    
+
                     if (action === 'comment') {
                         fd.append('message', this.commentText);
                     } else if (action === 'decline') {
                         fd.append('reason', this.declineReason);
                     }
-                    
-                    await this.postData(fd);
+
+                    await this.postData(fd, action);
                 },
 
-                async postData(formData) {
+                // Sends an answer; on success the page reloads to show it. A problem
+                // is shown in plain words where it happened (`where`), and the
+                // buttons work again
+                async postData(formData, where) {
                     this.isSubmitting = true;
+                    this.problem = { where: '', text: '' };
+                    let res;
                     try {
-                        const res = await fetch(window.location.href, { method: 'POST', body: formData });
-                        const json = await res.json();
-                        
-                        if (json.success) {
-                            window.location.reload(); // Reload to show new state/comments
-                        } else {
-                            alert(json.error || "An error occurred.");
-                        }
+                        res = await fetch(window.location.href, { method: 'POST', body: formData });
                     } catch (e) {
-                        alert("Network error. Please try again.");
+                        this.problem = { where, text: "We couldn't reach the internet. Check your connection, then try again." };
+                        this.isSubmitting = false;
+                        return;
                     }
+                    let json = null;
+                    try { json = await res.json(); } catch (e) {}
+                    if (json && json.success) {
+                        window.location.reload(); // Reload to show new state/comments
+                        return;
+                    }
+                    this.problem = { where, text: (json && json.error)
+                        || <?= json_encode('Something went wrong on our side. Please try again in a minute, or contact ' . $business['name'] . '.', JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?> };
                     this.isSubmitting = false;
                 }
             }
