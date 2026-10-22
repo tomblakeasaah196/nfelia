@@ -807,25 +807,10 @@ class PublicController
             $message,
         ]);
         $request_id = (int) $this->db->lastInsertId();
-        /* Also create/update customer record so business owner sees them in CRM */
-        $stmtExist = $this->db->prepare(
-            " SELECT id FROM customers WHERE business_id = ? AND phone = ? AND deleted_at IS NULL LIMIT 1 ",
-        );
-        $stmtExist->execute([$business_id, $phone]);
-        $existing = $stmtExist->fetch();
-        if (!$existing) {
-            $this->db
-                ->prepare(
-                    " INSERT INTO customers (business_id, full_name, phone, email, notes) VALUES (?, ?, ?, ?, ?) ",
-                )
-                ->execute([
-                    $business_id,
-                    $name,
-                    $phone,
-                    $email ?: null,
-                    "Auto-created from landing page quote request",
-                ]);
-        }
+        /* The customer with this phone, else a new one, so the owner sees
+           them in Clients: matched as shop orders are, by the phone's last
+           ten digits, so "0803 111 0000" and "+234 803 111 0000" are one */
+        order_match_customer($this->db, $business_id, $name, $phone, $email);
         // A sale waiting to happen: the team hears straight away, by phone
         // and email (quotations/requests/{id} shows it).
         notify("quote_request.new", $business_id, [

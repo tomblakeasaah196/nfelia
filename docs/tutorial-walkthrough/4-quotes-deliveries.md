@@ -8,7 +8,7 @@ original list.
 
 | # | Claim | Change | File |
 |---|---|---|---|
-| 1 | A quote waiting for a signature (`pending_signature`) hid the customer's Accept/Sign bar, though the server takes the answer. | The page now offers an answer in exactly the states the server takes: draft, sent, in negotiation, waiting to sign. (The draft half is under Needs a decision.) | `views/quotations/public.php` |
+| 1 | A quote waiting for a signature (`pending_signature`) hid the customer's Accept/Sign bar, though the server takes the answer. | The page now offers an answer in exactly the states the server takes: draft, sent, in negotiation, waiting to sign. (The draft half is under Decided.) | `views/quotations/public.php` |
 | 2 | A quote past its "Valid until" day could still be accepted. | Accepting or signing after that day is refused: "This quote was valid until 9 Nov 2026. Please ask the business for a fresh quote." The page says the same in an amber note, and the Accept button becomes **Ask for a fresh quote**, which opens the Discussion tab. Commenting and declining still work, so the customer can ask. An expired quote says "This quote has expired" instead of "already answered". The quote counts as valid through its last day, the same as the cron. | `app/controllers/PublicController.php` (`document_action`), `views/quotations/public.php` |
 | 3 | The owner's "Make it an order" showed on a quote still in negotiation or waiting to sign, skipping the customer's yes. | This is on purpose: the owner can accept for the customer, say after a call. `order_from_quote()` takes these states, and ORDERS_HUB says "owner marks it accepted". The button now says **Accept and make the order**, the same as on a sent quote. On an accepted quote whose order wasn't made, it still says **Make it an order**. | `views/quotations/view.php` |
 | 4 | After accepting, the customer saw a grey "converted" badge. | A quote that became its order reads **Accepted**, in green. The badge is in sentence case, not capitals. | `views/quotations/public.php` |
@@ -30,16 +30,22 @@ original list.
 |---|---|---|
 | 11 | The customer can sign for a delivery that is still "Pending Dispatch". | This is meant to work. The sign-off guard (S11) lists `pending_dispatch` on purpose next to the "on its way" states, and the owner's page gives out the sign-off link from the moment the note is made. In practice "Pending" often just means nobody tapped Dispatched: the vendor handed it over in person, or the rider left before the status changed. The person signing has the goods in hand, so turning them away would be wrong. Signing fills in the delivered time (`actual_delivery`). |
 
-## Needs a decision
+## Decided
 
-1. **Can a customer answer a quote that is still a draft?** (the other half of claim 1)
-   Today they can. The page and the server agree on this, and the server's comment counts a quote as open until it is accepted, declined, expired or converted. Only the owner's own "Make it an order" refuses a draft ("Send the quote first"). That isn't a clash: when the customer accepts, the quote turns Accepted first, then becomes its order. The October audit (M8) suggested shutting drafts, but sharing a quote (WhatsApp, Copy Link, Share PDF) doesn't mark it sent. Shutting drafts would break the usual "save, then WhatsApp the link" flow, and the customer would see no way to answer.
-   **Recommendation:** keep drafts answerable. If the quote list should count these quotes as "Waiting", mark a draft as sent when the owner shares its link.
+Tom decided these. Each one is built, and tests cover it in `tests/notifications/flows_test.php` and `flows_shop.php`.
 
-2. **A quote waiting to sign that is past its date.** The customer can't accept it now (claim 2), and the owner can't edit it to move the date, because only drafts, sent quotes and quotes in negotiation can be edited. No button in the app sets "waiting to sign" today; only a direct request to update-status can. If that state comes back into use, it will need a way to give it a new date.
-   **Recommendation:** let the owner edit a quote that is waiting to sign, or move it back to "in negotiation" when its date passes.
+1. **A draft whose link is shared becomes Sent.** Customers can still answer a draft, which was the other half of claim 1. When the owner taps WhatsApp, Copy Link or Share PDF on a draft, the page posts to the new `quotations/mark-shared/{id}`. That moves the draft to Sent, so the list counts it as waiting. It moves only draft → sent, and once: any other quote stays as it is. The change goes in the quote's history as "Sent to the customer.", marked as already read, so the customer's Discussion tab shows no new badge. The page then shows Sent and drops Mark Sent without a reload. Tapping a share button counts as sharing, even if the owner then closes WhatsApp without sending.
+   Files: `app/controllers/QuotationController.php` (`mark_shared()`), `views/quotations/view.php`.
+
+2. **The owner can edit a quote that is waiting to sign.** This lets them give it a new valid-until date and send it again. The states that can be edited are in one list, `QuotationController::EDITABLE`: draft, sent, in negotiation and waiting to sign. The page's Edit button uses the same list. Editing a quote that is waiting to sign is logged in its history like any other change, and the quote stays waiting to sign.
+   Files: `app/controllers/QuotationController.php`, `views/quotations/view.php`.
+
+3. **Quote requests match customers the way shop orders do.** `send_quote_request()` calls `order_match_customer()`, which matches on the phone's last ten digits. "+234 803 111 0000" is now the same customer as "08031110000", where it used to make a duplicate. The request's page uses the same rule to find that customer, so **Write a quote** starts a quote addressed to them. A customer made this way no longer gets the old "Auto-created from landing page quote request" note.
+   Files: `app/controllers/PublicController.php` (`send_quote_request()` only), `app/controllers/QuotationController.php` (`requests()`).
+
+4. **Refusals in plain words.** The quote's `update_status()` now says "A quote that is “Accepted” can't be changed to “Sent”.", using the words the quotes list shows. Before, it said "Invalid status transition from ACCEPTED TO SENT". The delivery's `update_status()` had the same problem, with raw codes like "pending_dispatch to delivered". It now says "A delivery that is “Pending Dispatch” can't be marked “Delivered”."
+   Files: `app/controllers/QuotationController.php`, `app/controllers/DeliveryController.php`.
 
 ## Also seen (not changed)
 
 - The owner can still accept a quote past its date for the customer. That is left as the owner's call.
-- `QuotationController::update_status()` writes its refusal in capitals ("Invalid status transition from SENT TO ACCEPTED"). It wasn't on the list, so it was left alone.

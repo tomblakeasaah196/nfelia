@@ -44,7 +44,7 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
         </a>
         <div>
             <h1 class="font-heading font-extrabold text-xl text-brand-plum tracking-tight"><?= e($quotation['doc_number']) ?></h1>
-            <span class="data-text text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded <?= $status_cfg[0] ?>"><?= $status_cfg[1] ?></span>
+            <span class="data-text text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded <?= $status_cfg[0] ?>" data-quote-status><?= $status_cfg[1] ?></span>
         </div>
     </div>
 
@@ -54,7 +54,7 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
         <?php $sign_row = false; $sign_back = 'quotations/view/' . (int)$quotation['id'];
               require BASE_PATH . '/views/partials/doc_sign_control.php'; ?>
 
-        <?php if (in_array($quotation['status'], ['draft', 'sent', 'in_negotiation'])): ?>
+        <?php if (in_array($quotation['status'], QuotationController::EDITABLE, true)): ?>
             <a href="<?= APP_URL ?>/quotations/edit/<?= $quotation['id'] ?>" class="flex items-center gap-1.5 bg-brand-white border border-brand-sand hover:border-accent px-3 py-2 rounded-lg transition-all">
                 <svg class="w-3.5 h-3.5 text-accent-text" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                 <span class="text-[10px] font-bold text-brand-plum uppercase tracking-widest">Edit</span>
@@ -62,7 +62,7 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
         <?php endif; ?>
 
         <?php if ($quotation['status'] === 'draft'): ?>
-            <form method="POST" action="<?= APP_URL ?>/quotations/send/<?= $quotation['id'] ?>" class="inline">
+            <form method="POST" action="<?= APP_URL ?>/quotations/send/<?= $quotation['id'] ?>" class="inline" data-mark-sent>
                 <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?? '' ?>">
                 <button class="flex items-center gap-1.5 btn-primary text-white px-3 py-2 rounded-lg transition-all">
                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
@@ -107,21 +107,21 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
     </div>
 </div>
 
-<!-- Share Actions Bar -->
-<div class="bg-brand-white border border-brand-sand rounded-xl p-4 mb-6 shadow-sm flex flex-wrap items-center gap-3">
+<!-- Share Actions Bar (Share PDF, Copy Link and WhatsApp send a draft: see the script at the foot) -->
+<div class="bg-brand-white border border-brand-sand rounded-xl p-4 mb-6 shadow-sm flex flex-wrap items-center gap-3" data-quote-share>
     <?php $share_pdf = ['url' => $public_url, 'name' => $quotation['doc_number'] . '.pdf', 'title' => 'Quote ' . $quotation['doc_number'],
                         'text' => 'Quote ' . $quotation['doc_number'] . ' from ' . $business['name'] . ': ' . $public_url];
           require BASE_PATH . '/views/partials/share_pdf.php'; ?>
 
     <!-- Copy Link -->
     <button onclick="navigator.clipboard.writeText('<?= e($public_url) ?>'); this.querySelector('span').textContent = 'Copied!'; setTimeout(() => this.querySelector('span').textContent = 'Copy Link', 2000);"
-            class="flex items-center gap-1.5 bg-brand-cream border border-brand-sand hover:border-accent px-3 py-2 rounded-lg transition-all">
+            class="flex items-center gap-1.5 bg-brand-cream border border-brand-sand hover:border-accent px-3 py-2 rounded-lg transition-all" data-shares>
         <svg class="w-3.5 h-3.5 text-brand-plum/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
         <span class="text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest">Copy Link</span>
     </button>
 
     <!-- WhatsApp -->
-    <a href="<?= $wa_link ?>" target="_blank" class="flex items-center gap-1.5 bg-green-500 text-white px-3 py-2 rounded-lg hover:bg-green-600 transition-all">
+    <a href="<?= $wa_link ?>" target="_blank" class="flex items-center gap-1.5 bg-green-500 text-white px-3 py-2 rounded-lg hover:bg-green-600 transition-all" data-shares>
         <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
         <span class="text-[10px] font-bold uppercase tracking-widest">WhatsApp</span>
     </a>
@@ -340,3 +340,32 @@ $wa_link = "https://wa.me/{$wa_number}?text={$wa_text}";
         </div>
     <?php endif; ?>
 </div>
+
+<?php if ($quotation['status'] === 'draft'): ?>
+<script>
+// A draft whose link goes out (Share PDF, Copy Link, WhatsApp) is Sent, so
+// the list counts it as waiting (QuotationController::mark_shared()). Once.
+(function () {
+    var bar = document.querySelector('[data-quote-share]');
+    var asked = false;
+    if (!bar) return;
+    bar.addEventListener('click', function (e) {
+        if (asked || !e.target.closest('[data-share-pdf], [data-shares]')) return;
+        asked = true;
+        var fd = new FormData();
+        fd.append('csrf_token', <?= json_encode((string)($_SESSION['csrf_token'] ?? '')) ?>);
+        fetch(<?= json_encode(APP_URL . '/quotations/mark-shared/' . (int)$quotation['id'], JSON_UNESCAPED_SLASHES) ?>,
+              { method: 'POST', body: fd, credentials: 'same-origin', keepalive: true })
+            .then(function (r) { return r.json(); })
+            .then(function (res) {
+                if (!res.success || res.status !== 'sent') return;
+                var tag = document.querySelector('[data-quote-status]');
+                var mark = document.querySelector('[data-mark-sent]');
+                if (tag) { tag.textContent = 'Sent'; tag.className = tag.className.replace(/bg-gray-100 text-gray-700 border-gray-300/, 'bg-blue-100 text-blue-700 border-blue-300'); }
+                if (mark) mark.remove();
+            })
+            .catch(function () { asked = false; });
+    });
+})();
+</script>
+<?php endif; ?>

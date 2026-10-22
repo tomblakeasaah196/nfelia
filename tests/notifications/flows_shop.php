@@ -44,6 +44,15 @@ deliver();
 ok((bool)array_filter(mails_to(EMAIL[BISI]), fn($m) => str_contains($m['text'], '30 bridesmaids')), 'by email, with the whole message');
 opens(BISI, 'quote_request.new', "quotations/requests/{$rid}", '30 bridesmaids');
 eq((string)q("SELECT status FROM quote_requests WHERE id = ?", [$rid]), 'reviewed', 'opened: no longer new');
+$by_phone = fn(string $last10) => (int)q("SELECT COUNT(*) FROM customers WHERE business_id = 2 AND deleted_at IS NULL
+                                          AND RIGHT(REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', ''), 10) = ?", [$last10]);
+eq($by_phone('8077776666'), 1, 'a new number: one new customer');
+$shopper->post('quote-request', ['name' => 'Ngozi', 'phone' => '+234 803 111 0000', 'message' => 'A closure to go with it']);
+eq($shopper->data()['success'] ?? null, true, 'Ngozi asks too, writing her number another way');
+eq($by_phone('8031110000'), 1, 'matched by the last ten digits, as shop orders are: no second Ngozi');
+$rid2 = (int)q("SELECT id FROM quote_requests WHERE business_id = 2 AND message = 'A closure to go with it'");
+as_(ADA)->get("quotations/requests/{$rid2}");
+ok(str_contains(as_(ADA)->body, 'quotations/create?customer=200'), 'Write a quote starts one addressed to her');
 
 section('A shopper books');
 clean_slate();
