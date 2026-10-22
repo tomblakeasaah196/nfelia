@@ -107,11 +107,7 @@ $price_line = $item['price'] > 0 ? sf_money($item['price'], $currency) . ($night
                                 </label>
                             <?php endforeach; ?>
                         </fieldset>
-                        <label class="sf-field">
-                            <span class="sf-field__label">Proof of payment <span class="sf-field__opt">(optional)</span></span>
-                            <span class="sf-field__hint">A screenshot of your transfer helps <?= e($business['name']) ?> confirm it quickly.</span>
-                            <input type="file" name="payment_proof" accept="image/jpeg,image/png,image/webp">
-                        </label>
+                        <?= sf_proof_field('A screenshot of your transfer helps ' . $business['name'] . ' confirm it quickly.') ?>
                     <?php else: ?>
                         <p class="sf-note"><?= e($business['name']) ?> will tell you how to pay the deposit, on the number you give.</p>
                     <?php endif; ?>
