@@ -65,9 +65,9 @@ Test: `tests/auth/onboarding_test.php` (`bash tests/notifications/run.sh auth/on
 - the days-left line on Home;
 - the Hair & Beauty entries.
 
-## Still to decide
+## Decided in Settings
 
-- **The category can't be changed after onboarding.** Settings has no category field, so a hair vendor who picked Fashion or Other before Hair & Beauty existed (or by mistake) is stuck with it. The category sets their first shop look and their product suggestions. *Recommendation:* add it to Settings › Business, and offer existing Fashion and Other shops on the Glow look a one-tap switch.
+- **The category can't be changed after onboarding.** Tom chose to add it to Settings › Business, and it is built there (see `3-settings-studio.md`). Changing it keeps the shop's look.
 
 ## Round 3: sentence case
 
