@@ -1,11 +1,15 @@
 <?php
 /**
- * The period a report covers (app/helpers/report_period.php). Pure dates,
- * no database, so it runs on its own:
+ * The period a report covers (app/helpers/report_period.php), and how money
+ * in less money out reads on Home and the profit and loss (money_left_reads()
+ * in app/helpers/money.php). Pure dates and sums, no database, so it runs on
+ * its own:
  *   php tests/reports/period_test.php
+ * What counts as money out is pinned against the database in money_test.php.
  */
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 require __DIR__ . '/../../app/helpers/report_period.php';
+require __DIR__ . '/../../app/helpers/money.php';
 
 $fails = 0;
 function same(string $what, $want, $got): void {
@@ -82,6 +86,17 @@ same('change up', ['up', '50%'], report_period_change(150, 100));
 same('change down', ['down', '25%'], report_period_change(75, 100));
 same('change from a loss is measured from its size', ['up', '200%'], report_period_change(100, -100));
 same('nothing before, nothing to compare', null, report_period_change(100, 0));
+
+// Cash in, cash out (Tom's decision, October 2026): stock bought is money out,
+// but a gap it covers is money put into stock, not a loss
+same('more came in than went out', 'up', money_left_reads(500000, 300000, 200000));
+same('exactly even is not a gap', 'up', money_left_reads(300000, 300000, 0));
+same('nothing in, nothing out', 'up', money_left_reads(0, 0, 0));
+same('a restock week: the gap is all stock', 'stock', money_left_reads(200000, 500000, 400000));
+same('stock covering the gap to the kobo', 'stock', money_left_reads(100.10, 300.30, 200.20));
+same('stock covers only part of the gap', 'down', money_left_reads(200000, 500000, 100000));
+same('more went out, and none of it on stock', 'down', money_left_reads(100000, 150000, 0));
+same('nothing came in but stock was bought', 'stock', money_left_reads(0, 180000, 180000));
 
 echo $fails ? "\n{$fails} failed\n" : "\nall passed\n";
 exit($fails ? 1 : 0);

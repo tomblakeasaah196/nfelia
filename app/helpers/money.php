@@ -10,6 +10,14 @@
  * one of a customer's orders to another (app/helpers/orders.php): the money
  * came in once, when it was first paid, so they are left out.
  *
+ * money_out() is its twin for money paid out, on Home, the profit and loss
+ * and the Records Book alike (Tom's decision, October 2026: cash in, cash
+ * out). An expense counts what was paid on it when it was recorded, on its
+ * date; what was paid later, by paying off its supplier debt, counts on the
+ * day of that payment (debt_settlements). What is still unpaid is not money
+ * out but owed. Stock bought is money out like the rest, and the screens say
+ * how much of it went on stock.
+ *
  * customer_refresh_totals() works a client's invoiced, received and owed
  * figures out again from their documents after every change (Tom's decision,
  * October 2026), instead of nudging stored running totals up and down.
@@ -57,6 +65,57 @@ function money_in_by(PDO $db, int $biz_id, string $from, string $to, string $for
         $out[$row['ym']] = (float)$row['total'];
     }
     return $out;
+}
+
+/** Money paid out from $from to $to inclusive (Y-m-d): what was paid, when it was paid. */
+function money_out(PDO $db, int $biz_id, string $from, string $to): float {
+    return money2(array_sum(money_out_by($db, $biz_id, $from, $to, 'category')));
+}
+
+/**
+ * money_out() split by expense category ($by 'category', largest first, so
+ * 'stock_purchase' is the stock bought) or into DATE_FORMAT($by) buckets.
+ * Two kinds of payment: the part of an expense paid when it was recorded
+ * (all that is paid on it, less what its supplier debt's payments added
+ * later), on the expense's date; and those later payments, on their own.
+ */
+function money_out_by(PDO $db, int $biz_id, string $from, string $to, string $by): array {
+    $key  = $by === 'category' ? 'category' : "DATE_FORMAT(paid_on, '{$by}')";
+    $stmt = $db->prepare("
+        SELECT {$key} AS k, SUM(amount) AS total FROM (
+            SELECT e.expense_date AS paid_on, e.category,
+                   GREATEST(0, e.amount_paid - (SELECT COALESCE(SUM(s.amount), 0) FROM debt_settlements s JOIN debts d ON d.id = s.debt_id
+                                                WHERE d.expense_id = e.id AND d.business_id = e.business_id AND d.type = 'payable' AND d.source = 'expense')) AS amount
+            FROM expenses e
+            WHERE e.business_id = ? AND e.deleted_at IS NULL AND e.expense_date BETWEEN ? AND ?
+            UNION ALL
+            SELECT s.settlement_date, e.category, s.amount
+            FROM debt_settlements s
+            JOIN debts d ON d.id = s.debt_id AND d.type = 'payable' AND d.source = 'expense'
+            JOIN expenses e ON e.id = d.expense_id AND e.business_id = d.business_id AND e.deleted_at IS NULL
+            WHERE d.business_id = ? AND s.settlement_date BETWEEN ? AND ?
+        ) paid GROUP BY k HAVING total > 0 ORDER BY total DESC
+    ");
+    $stmt->execute([$biz_id, $from, $to, $biz_id, $from, $to]);
+    $out = [];
+    foreach ($stmt->fetchAll() as $row) {
+        $out[$row['k']] = money2((float)$row['total']);
+    }
+    return $out;
+}
+
+/**
+ * How money in less money out reads, on Home and in the profit and loss:
+ * 'up' when what came in covered what went out; 'stock' when more went out,
+ * but no more than was spent on stock (money put into stock to sell, not
+ * lost); 'down' when more went out, and not only on stock.
+ */
+function money_left_reads(float $in, float $out, float $stock): string {
+    $left = money2($in - $out);
+    if ($left >= 0) {
+        return 'up';
+    }
+    return money2($left + $stock) >= 0 ? 'stock' : 'down';
 }
 
 /**

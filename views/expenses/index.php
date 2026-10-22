@@ -25,7 +25,7 @@ $currency = $business['currency_symbol'] ?? '₦';
 <!-- Summary Cards -->
 <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
     <div class="bg-brand-white p-4 rounded-xl border border-brand-sand shadow-sm">
-        <div class="data-text text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">Total Spent</div>
+        <div class="data-text text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">All Recorded</div>
         <div class="font-heading font-extrabold text-xl text-brand-plum truncate"><?= money((float)($summary['total_amount'] ?? 0), $currency) ?></div>
     </div>
     <div class="bg-brand-white p-4 rounded-xl border border-brand-sand shadow-sm">
