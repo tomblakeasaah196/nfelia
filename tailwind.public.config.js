@@ -6,7 +6,9 @@
 //
 // Fonts and the business's own colour are CSS variables, set inline by
 // each page (a document shows the business's fonts; everything else shows
-// Nfelia's), so one stylesheet serves every business.
+// Nfelia's), so one stylesheet serves every business. Words in the brand
+// colour take brand-text, its shade that reads on white; words on a fill of
+// it take on-brand, white or ink (brand_doc_colours(), app/helpers/brand.php).
 module.exports = {
   content: [
     './views/auth/login-link.php', './views/auth/recovery-sent.php', './views/auth/signin.php',
@@ -16,6 +18,8 @@ module.exports = {
     './views/onboarding/wizard.php', './views/404.php',
     './views/partials/password_rules.php', './views/partials/pwa_head.php', './views/partials/doc_*.php',
     './assets/js/password.js',
+    // A delivery's status badge, whose colours DeliveryController::STATUSES names
+    './app/controllers/DeliveryController.php',
   ],
   theme: {
     extend: {
@@ -24,6 +28,7 @@ module.exports = {
           DEFAULT:   'rgb(var(--brand-rgb) / <alpha-value>)',
           primary:   'rgb(var(--brand-rgb) / <alpha-value>)',
           secondary: 'rgb(var(--brand-secondary-rgb) / <alpha-value>)',
+          text:      'rgb(var(--brand-text-rgb) / <alpha-value>)',
           plum: '#1B0A11',
           sand: '#E8E4DA',
           cream: '#F2EFE7',
@@ -31,6 +36,7 @@ module.exports = {
           gold: '#B69F5E',
           burgundy: '#8B004A',
         },
+        'on-brand': 'var(--on-brand)',
       },
       fontFamily: {
         sans:       ['var(--font-body)'],

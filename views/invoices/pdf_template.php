@@ -4,7 +4,7 @@
  * Variables: $business, $customer, $invoice, $items, $bank, $payments, $sign (doc_sign_state)
  */
 $currency = $business['currency_symbol'] ?? '₦';
-$primary  = brand_doc_colours($business)['primary'];   // the brand colour, else Nfelia's (app/helpers/brand.php)
+['primary' => $primary, 'text' => $text, 'on' => $on] = brand_doc_colours($business);   // the brand colours, else Nfelia's (app/helpers/brand.php)
 
 $logo_src = '';
 if (!empty($business['logo_path']) && file_exists(BASE_PATH . '/' . $business['logo_path'])) {
@@ -38,7 +38,7 @@ $status_color = match($invoice['status'] ?? '') {
         .header-bar { width: 100%; border-bottom: 4px solid <?= $primary ?>; padding-bottom: 20px; margin-bottom: 28px; }
         .header-bar table { width: 100%; }
         .logo { max-height: 56px; max-width: 150px; }
-        .biz-name { font-size: 20px; font-weight: bold; color: <?= $primary ?>; margin: 0 0 4px; }
+        .biz-name { font-size: 20px; font-weight: bold; color: <?= $text ?>; margin: 0 0 4px; }
         .biz-detail { font-size: 9.5px; color: #64748b; line-height: 1.6; }
         .doc-title { font-size: 26px; font-weight: bold; text-align: right; color: #0f172a; text-transform: uppercase; margin: 0 0 6px; }
         .doc-meta { text-align: right; font-size: 10px; color: #475569; }
@@ -52,14 +52,14 @@ $status_color = match($invoice['status'] ?? '') {
         .bill-name { font-size: 14px; font-weight: bold; color: #0f172a; margin-bottom: 3px; }
         .bill-detail { font-size: 10px; color: #475569; line-height: 1.6; }
         .items-table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
-        .items-table thead th { background: <?= $primary ?>; color: #fff; padding: 10px 12px; text-align: left; font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; }
+        .items-table thead th { background: <?= $primary ?>; color: <?= $on ?>; padding: 10px 12px; text-align: left; font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; }
         .items-table tbody td { padding: 11px 12px; border-bottom: 1px solid #e2e8f0; font-size: 11px; vertical-align: top; }
         .items-table tbody tr:nth-child(even) td { background: #f8fafc; }
         .text-right { text-align: right; }
         .totals-block { width: 42%; float: right; margin-bottom: 32px; }
         .totals-table { width: 100%; border-collapse: collapse; }
         .totals-table td { padding: 6px 0; font-size: 11px; color: #334155; }
-        .totals-table .grand td { font-size: 14px; font-weight: bold; color: <?= $primary ?>; border-top: 2px solid <?= $primary ?>; padding-top: 10px; }
+        .totals-table .grand td { font-size: 14px; font-weight: bold; color: <?= $text ?>; border-top: 2px solid <?= $primary ?>; padding-top: 10px; }
         .totals-table .balance td { font-size: 13px; font-weight: bold; color: <?= $status_color ?>; padding-top: 6px; }
         .section-label { font-size: 9px; font-weight: bold; text-transform: uppercase; color: #94a3b8; letter-spacing: 0.1em; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-bottom: 10px; }
         .bank-box { float: left; width: 50%; font-size: 10px; line-height: 1.7; color: #334155; }

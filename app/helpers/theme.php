@@ -29,17 +29,15 @@ function theme_tokens(?string $primary, ?string $secondary): array
     $secondary = theme_valid_hex($secondary) ?? '#B69F5E';
 
     $rgb = theme_hex_to_rgb($primary);
-    [$l, $c, $h] = theme_rgb_to_oklch($rgb);
+    [, $c, $h] = theme_rgb_to_oklch($rgb);
     $white = [255, 255, 255];
     $ink   = theme_hex_to_rgb(THEME_INK);
+    $soft  = theme_rgb_to_hex(theme_oklch_to_rgb(0.955, min(0.04, $c * 0.35), $h));
 
-    // Text and icons in the brand colour: darken until they read on white.
-    $text = $rgb;
-    for ($i = 0, $tl = $l; theme_contrast($text, $white) < 4.5 && $i < 50; $i++) {
-        $tl -= 0.02;
-        $text = theme_oklch_to_rgb($tl, $c, $h);
-    }
-    $text = theme_rgb_to_hex($text);
+    // Text and icons in the brand colour: darkened until they read on white,
+    // on the cream background people can choose, and on the pale tint behind
+    // a selected chip.
+    $text = theme_readable($primary, ['#FFFFFF', THEME_CREAM, $soft]);
 
     return [
         'accent'          => theme_rgb_to_hex($rgb),
@@ -47,11 +45,28 @@ function theme_tokens(?string $primary, ?string $secondary): array
         'on_accent'       => theme_contrast($rgb, $white) >= theme_contrast($rgb, $ink) ? '#FFFFFF' : THEME_INK,
         'accent_text'     => $text,
         'accent_text_rgb' => implode(' ', theme_hex_to_rgb($text)),
-        'accent_soft'     => theme_rgb_to_hex(theme_oklch_to_rgb(0.955, min(0.04, $c * 0.35), $h)),
+        'accent_soft'     => $soft,
         'glow'            => theme_rgb_to_hex(theme_oklch_to_rgb(0.958, min(0.045, $c * 0.4), $h)),
         'glow_2'          => theme_rgb_to_hex(theme_oklch_to_rgb(0.975, min(0.03, $c * 0.25), $h + 0.35)),
         'secondary_rgb'   => implode(' ', theme_hex_to_rgb($secondary)),
     ];
+}
+
+/**
+ * $hex darkened, keeping its hue and strength, until words in it read on
+ * every one of $grounds (4.5:1): white, the cream background people can
+ * choose, a pale tint. A colour that already reads comes back as it is.
+ */
+function theme_readable(string $hex, array $grounds, float $ratio = 4.5): string
+{
+    $grounds = array_map('theme_hex_to_rgb', $grounds);
+    $rgb = theme_hex_to_rgb($hex);
+    [$l, $c, $h] = theme_rgb_to_oklch($rgb);
+    for ($i = 0; $i < 120 && min(array_map(fn($g) => theme_contrast($rgb, $g), $grounds)) < $ratio; $i++) {
+        $l -= 0.01;
+        $rgb = theme_hex_to_rgb(theme_rgb_to_hex(theme_oklch_to_rgb($l, $c, $h)));
+    }
+    return theme_rgb_to_hex($rgb);
 }
 
 function theme_valid_hex(?string $hex): ?string
@@ -150,35 +165,46 @@ function theme_distance(array $a, array $b): float
  * the calendar's dots: $hex itself when it stands far enough from every one
  * of $others, else the nearest colour that does. First a deeper shade of the
  * same hue; when no shade will do, the hue turns a few degrees at a time,
- * either way, until one does. A shade keeps as much of the colour's strength
- * as a screen can show at its lightness. Far enough is $gap in OKLab, about
- * what the calendar's own colours keep between them. Every colour tried reads
- * on white (4.5:1), so it also serves for a label.
+ * either way, until one does. A grey, which has no hue to turn, goes deeper
+ * still. A shade keeps as much of the colour's strength as a screen can show
+ * at its lightness. Far enough is $gap in OKLab, about what the calendar's
+ * own colours keep between them. Every colour tried reads on white and on the
+ * cream background (4.5:1), so it also serves for a label.
  */
 function theme_distinct(string $hex, array $others, float $gap = 0.12): string
 {
-    $white  = [255, 255, 255];
+    $cream  = theme_hex_to_rgb(THEME_CREAM);   // darker than white, so what reads on it reads on both
     $others = array_map('theme_hex_to_rgb', $others);
     [$l0, $c0, $h0] = theme_rgb_to_oklch(theme_hex_to_rgb($hex));
+    // The colour at lightness $l and hue $h when it reads and stands apart, else null
+    $try = function (float $l, float $h) use ($c0, $cream, $others, $gap): ?string {
+        $c = $c0;
+        while ($c > 0 && !theme_oklch_fits($l, $c, $h)) {
+            $c -= 0.005;
+        }
+        $rgb = theme_hex_to_rgb(theme_rgb_to_hex(theme_oklch_to_rgb($l, max(0.0, $c), $h)));
+        if (theme_contrast($rgb, $cream) < 4.5) {
+            return null;
+        }
+        foreach ($others as $other) {
+            if (theme_distance($rgb, $other) < $gap) {
+                return null;
+            }
+        }
+        return theme_rgb_to_hex($rgb);
+    };
     for ($turn = 0; $turn <= 180; $turn += 3) {
         foreach (array_unique([$turn, -$turn]) as $t) {
-            $h = $h0 + deg2rad($t);
             for ($l = $l0; $l >= $l0 - 0.2; $l -= 0.01) {
-                $c = $c0;
-                while ($c > 0 && !theme_oklch_fits($l, $c, $h)) {
-                    $c -= 0.005;
+                if ($found = $try($l, $h0 + deg2rad($t))) {
+                    return $found;
                 }
-                $rgb = theme_hex_to_rgb(theme_rgb_to_hex(theme_oklch_to_rgb($l, max(0.0, $c), $h)));
-                if (theme_contrast($rgb, $white) < 4.5) {
-                    continue;
-                }
-                foreach ($others as $other) {
-                    if (theme_distance($rgb, $other) < $gap) {
-                        continue 2;
-                    }
-                }
-                return theme_rgb_to_hex($rgb);
             }
+        }
+    }
+    for ($l = $l0 - 0.21; $l >= 0.2; $l -= 0.01) {
+        if ($found = $try($l, $h0)) {
+            return $found;
         }
     }
     return $hex;

@@ -20,12 +20,12 @@ Inside the app, in Shop Studio, on a shop's own pages and in the emails a busine
 |---|---|---|
 | `accent` | `--accent` | Fills: main buttons, the selected tab, today on the calendar, progress |
 | `on-accent` | `--on-accent` | Text and icons on an `accent` fill (white or ink, whichever reads) |
-| `accent-text` | `--accent-text` | Text, links, icons, selected borders and rings on white (4.5:1) |
+| `accent-text` | `--accent-text` | Text, links, icons, selected borders and rings: the colour darkened, if it must be, until it reads (4.5:1) on white, on the cream background and on `accent-soft` |
 | `accent-soft` | `--accent-soft` | The pale tint behind a selected chip |
 
 A filled button is `bg-accent text-on-accent`, never `text-white`: a light brand colour gets ink. A business that never chose a colour (its `primary_color` is still the column's default, `#1A1A2E`) gets Nfelia's wine through the same variables.
 
-Documents (the invoice, receipt, quotation, delivery and deed pages customers open, their PDFs, and the app's own view of them) take their two colours from `brand_doc_colours()` in `app/helpers/brand.php`: the brand colours, else Nfelia's wine and gold. No page reads `primary_color` itself.
+Documents (the invoice, receipt, quotation, delivery and deed pages customers open, their PDFs, and the app's own view of them) take their colours from `brand_doc_colours()` in `app/helpers/brand.php`: the brand colours, else Nfelia's wine and gold. No page reads `primary_color` itself. As in the app, the colour itself is for bars, borders and fills; words in it use `text` (and `secondary_text` for the secondary), the shade that reads on white and cream, and words on a fill of it use `on`, white or ink. The public pages built with Tailwind (`tailwind.public.config.js`) have these as `brand-text` and `on-brand`.
 
 The neutrals are the same for everyone:
 

@@ -34,6 +34,8 @@
     --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
     --brand-rgb: 139 0 74;            /* Nfelia wine, until a page sets the business's colour */
     --brand-secondary-rgb: 182 159 94;
+    --brand-text-rgb: 139 0 74;       /* words in it; wine reads on white as it is */
+    --on-brand: #FFFFFF;              /* words on a fill of it */
   }
   body { font-family: var(--font-body); -webkit-font-smoothing: antialiased; }
   h1, h2, h3, .font-heading { font-family: var(--font-heading); }

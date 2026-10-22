@@ -119,6 +119,7 @@ $flash = get_flash();
     <title><?= e($title ?? 'Home') ?> — <?= e($business['name']) ?> | Nfelia</title>
     <meta name="robots" content="noindex, nofollow">
     <meta name="theme-color" content="<?= $splash ? '#6E0039' : ($ui['bg'] === 'cream' ? '#F7F3EA' : '#FFFFFF') ?>" data-theme-color="<?= $ui['bg'] === 'cream' ? '#F7F3EA' : '#FFFFFF' ?>">
+<?php if ($splash) require BASE_PATH . '/views/partials/nf_splash_head.php'; ?>
 <?php require BASE_PATH . '/views/partials/pwa_head.php'; ?>
     <link rel="preload" href="<?= APP_URL ?>/assets/fonts/plus-jakarta-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="<?= APP_URL ?>/assets/fonts/bricolage-grotesque-latin.woff2" as="font" type="font/woff2" crossorigin>

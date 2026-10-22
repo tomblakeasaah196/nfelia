@@ -4,7 +4,7 @@
  * Standalone Mobile-First View
  */
 $currency = $business['currency_symbol'] ?? '₦';
-$primary  = brand_doc_colours($business)['primary'];   // the brand colour, else Nfelia's (app/helpers/brand.php)
+['primary' => $primary, 'text' => $text, 'on' => $on] = brand_doc_colours($business);   // the brand colours, else Nfelia's (app/helpers/brand.php)
 $doc_fonts    = brand_doc_fonts($business);   // the brand fonts (app/helpers/brand.php)
 $font_mono    = 'Roboto Mono';
 
@@ -39,7 +39,7 @@ if (!empty($activities)) {
     
     <style>
         :root { --font-heading: <?= $doc_fonts['head_stack'] ?>; --font-body: <?= $doc_fonts['body_stack'] ?>; --font-mono: "<?= e($font_mono) ?>", monospace;
-                --brand-rgb: <?= e(brand_rgb($primary)) ?>; }
+                --brand-rgb: <?= e(brand_rgb($primary)) ?>; --brand-text-rgb: <?= e(brand_rgb($text)) ?>; --on-brand: <?= e($on) ?>; }
     </style>
     <style>
         body { background-color: #F8FAFC; -webkit-tap-highlight-color: transparent; }
@@ -49,7 +49,7 @@ if (!empty($activities)) {
         #sig-canvas { touch-action: none; cursor: crosshair; }
     </style>
 </head>
-<body class="text-slate-800 antialiased selection:bg-brand selection:text-white" x-data="portalController()">
+<body class="text-slate-800 antialiased selection:bg-brand selection:text-on-brand" x-data="portalController()">
 
     <div class="max-w-2xl mx-auto bg-white min-h-screen relative shadow-2xl border-x border-slate-200 flex flex-col pb-24">
         
@@ -92,7 +92,7 @@ if (!empty($activities)) {
             <template x-for="t in ['offer', 'terms', 'discuss']" :key="t">
                 <button @click="switchTab(t)" 
                         class="flex-1 py-4 text-xs font-bold uppercase tracking-widest border-b-2 transition-colors flex items-center justify-center gap-2"
-                        :class="tab === t ? 'border-brand text-brand' : 'border-transparent text-slate-400 hover:text-slate-600'">
+                        :class="tab === t ? 'border-brand text-brand-text' : 'border-transparent text-slate-400 hover:text-slate-600'">
                     <span x-text="t === 'discuss' ? 'Discussion' : t"></span>
                     
                     <!-- Notification Badge -->
@@ -143,7 +143,7 @@ if (!empty($activities)) {
                     <?php endif; ?>
                     <div class="pt-4 mt-2 border-t-2 border-slate-200 flex justify-between items-center">
                         <span class="font-heading font-extrabold uppercase tracking-widest text-slate-900">Total</span>
-                        <span class="font-mono font-bold text-2xl text-brand"><?= money((float)$quotation['total'], $currency) ?></span>
+                        <span class="font-mono font-bold text-2xl text-brand-text"><?= money((float)$quotation['total'], $currency) ?></span>
                     </div>
                 </div>
 
@@ -167,7 +167,7 @@ if (!empty($activities)) {
                         <div class="p-5 border-2 border-slate-900 rounded-lg bg-white">
                             <p class="text-sm font-medium text-slate-500 mb-1">Bank: <span class="font-bold text-slate-900"><?= e($bank['bank_name']) ?></span></p>
                             <p class="text-sm font-medium text-slate-500 mb-1">Name: <span class="font-bold text-slate-900"><?= e($bank['account_name']) ?></span></p>
-                            <p class="text-sm font-medium text-slate-500">Account: <span class="font-mono font-bold text-lg text-brand"><?= e($bank['account_number']) ?></span></p>
+                            <p class="text-sm font-medium text-slate-500">Account: <span class="font-mono font-bold text-lg text-brand-text"><?= e($bank['account_number']) ?></span></p>
                         </div>
                     </div>
                 <?php endif; ?>
@@ -192,7 +192,7 @@ if (!empty($activities)) {
                                     <?= $is_client ? e($customer['full_name'] ?? 'You') : e($business['name']) ?> • <?= date('M d, H:i', strtotime($act['created_at'])) ?>
                                 </span>
                                 <?php if ($act['action'] === 'comment_added'): ?>
-                                    <div class="px-4 py-3 rounded-2xl max-w-[85%] text-sm <?= $is_client ? 'bg-brand text-white rounded-tr-sm' : 'bg-slate-100 text-slate-800 border border-slate-200 rounded-tl-sm' ?>">
+                                    <div class="px-4 py-3 rounded-2xl max-w-[85%] text-sm <?= $is_client ? 'bg-brand text-on-brand rounded-tr-sm' : 'bg-slate-100 text-slate-800 border border-slate-200 rounded-tl-sm' ?>">
                                         <?= nl2br(e($act['message'])) ?>
                                     </div>
                                 <?php else: ?>
@@ -207,7 +207,7 @@ if (!empty($activities)) {
 
                 <?php if ($is_active): ?>
                     <div class="mt-auto pt-4 border-t border-slate-200">
-                        <textarea x-model="commentText" rows="2" class="w-full p-3 border-2 border-slate-200 rounded-lg focus:border-brand focus:ring-0 text-sm resize-none mb-2 font-medium" placeholder="Ask a question or request a revision..."></textarea>
+                        <textarea x-model="commentText" rows="2" class="w-full p-3 border-2 border-slate-200 rounded-lg focus:border-brand-text focus:ring-0 text-sm resize-none mb-2 font-medium" placeholder="Ask a question or request a revision..."></textarea>
                         <button @click="submitAction('comment')" :disabled="!commentText.trim() || isSubmitting" 
                                 class="w-full py-3 bg-slate-900 text-white text-xs font-bold uppercase tracking-widest rounded-lg disabled:opacity-50 transition-opacity">
                             Send Message
@@ -223,11 +223,11 @@ if (!empty($activities)) {
                     Decline
                 </button>
                 <?php if ($sign_to_accept): ?>
-                <button @click="openSignatureModal()" class="flex-[2] py-3.5 bg-brand text-white text-xs font-bold uppercase tracking-widest rounded-lg shadow-lg hover:shadow-xl transition-all">
+                <button @click="openSignatureModal()" class="flex-[2] py-3.5 bg-brand text-on-brand text-xs font-bold uppercase tracking-widest rounded-lg shadow-lg hover:shadow-xl transition-all">
                     Sign & Accept
                 </button>
                 <?php else: ?>
-                <button @click="acceptQuote()" :disabled="isSubmitting" class="flex-[2] py-3.5 bg-brand text-white text-xs font-bold uppercase tracking-widest rounded-lg shadow-lg hover:shadow-xl transition-all disabled:opacity-50">
+                <button @click="acceptQuote()" :disabled="isSubmitting" class="flex-[2] py-3.5 bg-brand text-on-brand text-xs font-bold uppercase tracking-widest rounded-lg shadow-lg hover:shadow-xl transition-all disabled:opacity-50">
                     Accept quote
                 </button>
                 <?php endif; ?>
@@ -238,7 +238,7 @@ if (!empty($activities)) {
             <div @click.away="modals.decline = false" x-transition.translate.y.bottom class="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl">
                 <h3 class="font-heading font-bold text-lg text-slate-900 mb-2">Decline Proposal</h3>
                 <p class="text-xs text-slate-500 mb-4">Please let us know why so we can improve.</p>
-                <textarea x-model="declineReason" rows="3" class="w-full p-3 border-2 border-slate-200 rounded-lg mb-4 text-sm focus:border-brand outline-none resize-none"></textarea>
+                <textarea x-model="declineReason" rows="3" class="w-full p-3 border-2 border-slate-200 rounded-lg mb-4 text-sm focus:border-brand-text outline-none resize-none"></textarea>
                 <div class="flex gap-3">
                     <button @click="modals.decline = false" class="flex-1 py-3 text-xs font-bold text-slate-600 bg-slate-100 rounded-lg uppercase tracking-widest">Cancel</button>
                     <button @click="submitAction('decline')" :disabled="isSubmitting" class="flex-1 py-3 text-xs font-bold text-white bg-red-600 rounded-lg uppercase tracking-widest disabled:opacity-50">Confirm</button>
@@ -257,11 +257,11 @@ if (!empty($activities)) {
                 
                 <div class="p-5 overflow-y-auto">
                     <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Your Full Name</label>
-                    <input type="text" x-model="signName" class="w-full p-3 border-2 border-slate-200 rounded-lg mb-5 text-sm font-bold text-slate-900 focus:border-brand outline-none" placeholder="John Doe">
+                    <input type="text" x-model="signName" class="w-full p-3 border-2 border-slate-200 rounded-lg mb-5 text-sm font-bold text-slate-900 focus:border-brand-text outline-none" placeholder="John Doe">
                     
                     <div class="flex justify-between items-end mb-2">
                         <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">Draw Signature</label>
-                        <button @click="clearSignature()" type="button" class="text-[10px] font-bold text-brand uppercase tracking-widest hover:underline">Clear</button>
+                        <button @click="clearSignature()" type="button" class="text-[10px] font-bold text-brand-text uppercase tracking-widest hover:underline">Clear</button>
                     </div>
                     <div class="border-2 border-slate-900 rounded-xl bg-slate-50 overflow-hidden relative" style="height: 200px;">
                         <canvas id="sig-canvas" width="600" height="200" class="w-full h-full absolute inset-0"></canvas>
@@ -270,7 +270,7 @@ if (!empty($activities)) {
 
                 <div class="p-5 border-t border-slate-100 flex gap-3 bg-white">
                     <button @click="modals.sign = false" class="py-3.5 px-6 text-xs font-bold text-slate-600 border-2 border-slate-200 rounded-lg uppercase tracking-widest hover:bg-slate-50">Cancel</button>
-                    <button @click="submitSignature()" :disabled="!signName.trim() || isSubmitting" class="flex-1 py-3.5 text-xs font-bold text-white bg-brand rounded-lg uppercase tracking-widest shadow-md disabled:opacity-50">
+                    <button @click="submitSignature()" :disabled="!signName.trim() || isSubmitting" class="flex-1 py-3.5 text-xs font-bold text-on-brand bg-brand rounded-lg uppercase tracking-widest shadow-md disabled:opacity-50">
                         <span x-text="isSubmitting ? 'Processing...' : 'Accept Proposal'"></span>
                     </button>
                 </div>

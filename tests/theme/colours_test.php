@@ -19,6 +19,15 @@
  * on its documents alike. Its invoices, receipts and quotes went out navy
  * while the app showed it wine, because each document read the colour
  * itself; documents now ask brand_doc_colours().
+ *
+ * Words in a business's colour read (4.5:1) wherever they sit: on white, on
+ * the cream background people can choose and on the pale tint behind a
+ * selected chip, in the app and on documents. A light gold read on white
+ * but not on cream, and documents wrote words in the colour as it is.
+ *
+ * Android launches the installed app on the manifest's background_color and
+ * keeps it for its bottom bar, the same for every business: white, not
+ * Nfelia's wine, with the opening fading in from it.
  */
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 
@@ -134,22 +143,76 @@ ok(!str_contains($css, 'brand-burgundy') && !str_contains($css, 'brand-gold'), '
 $t = theme_tokens('#C08436', null);
 ok($t['accent'] === '#C08436' && $t['on_accent'] === THEME_INK, 'a light gold gets ink, not white, on its buttons');
 ok(theme_contrast(theme_hex_to_rgb($t['accent_text']), [255, 255, 255]) >= 4.5, 'and a text shade that reads on white');
+$grounds = ['white' => '#FFFFFF', 'cream' => THEME_CREAM];
+foreach (['#C08436', '#F4C430', '#D4AF37', '#E0A526', '#FF7F50', '#F48FB1', '#4FC3F7', '#66BB6A', '#B39DDB', '#9CA3AF', '#00B3A4', '#8B004A', '#1F3A93', '#7C3AED'] as $brand) {
+    $t    = theme_tokens($brand, null);
+    $text = theme_hex_to_rgb($t['accent_text']);
+    $low  = min(array_map(fn($g) => theme_contrast($text, theme_hex_to_rgb($g)), $grounds + ['the tint' => $t['accent_soft']]));
+    [, , $h0] = theme_rgb_to_oklch(theme_hex_to_rgb($brand));
+    [, , $h1] = theme_rgb_to_oklch($text);
+    // Within 15 degrees: a screen can't show a deep yellow at full strength, so it leans a little to amber
+    ok($low >= 4.5 && abs(rad2deg(atan2(sin($h1 - $h0), cos($h1 - $h0)))) < 15,
+       sprintf('%s writes words in %s, %.2f:1 at worst on white, cream and its tint, in its own hue', $brand, $t['accent_text'], $low));
+}
+foreach (['#8B004A', '#1F3A93', '#7C3AED', '#00764A'] as $brand) {
+    ok(theme_tokens($brand, null)['accent_text'] === $brand, "{$brand} already reads everywhere, so its words are the colour itself");
+}
 ok($t['accent_text_rgb'] === implode(' ', theme_hex_to_rgb($t['accent_text'])), 'whose channels Tailwind reads as --accent-text-rgb');
 ok(theme_tokens('#1A1A2E', null)['accent'] === THEME_NFELIA, 'a colour nobody chose is Nfelia\'s wine');
 
 // Documents: the brand colours, else Nfelia's
-ok(brand_doc_colours(['primary_color' => '#1A1A2E', 'secondary_color' => '#C27A62']) === ['primary' => THEME_NFELIA, 'secondary' => '#B69F5E'],
+$unset = brand_doc_colours(['primary_color' => '#1A1A2E', 'secondary_color' => '#C27A62']);
+ok($unset['primary'] === THEME_NFELIA && $unset['secondary'] === '#B69F5E' && $unset['text'] === THEME_NFELIA && $unset['on'] === '#FFFFFF',
    'a business that never chose a colour gets Nfelia\'s wine and gold on its documents, not navy');
-ok(brand_doc_colours(['primary_color' => '#c08436', 'secondary_color' => '#3B2414']) === ['primary' => '#C08436', 'secondary' => '#3B2414'],
-   'and one that chose gets its own');
+$doc = brand_doc_colours(['primary_color' => '#c08436', 'secondary_color' => '#3B2414']);
+ok($doc['primary'] === '#C08436' && $doc['secondary'] === '#3B2414', 'and one that chose gets its own');
+foreach (['text' => $doc['text'], 'secondary_text' => $doc['secondary_text'], "the wine's secondary_text" => $unset['secondary_text']] as $what => $hex) {
+    $low = min(array_map(fn($g) => theme_contrast(theme_hex_to_rgb($hex), theme_hex_to_rgb($g)), $grounds));
+    ok($low >= 4.5, sprintf('a document\'s %s, %s, reads on white and cream (%.2f:1)', $what, $hex, $low));
+}
+ok($doc['text'] !== $doc['primary'] && $doc['on'] === THEME_INK, 'a light gold document writes its words in a deeper gold, and ink on its gold bars');
+ok($doc['secondary_text'] === '#3B2414', 'a dark secondary is written as it is');
+
+// No document writes words in the fill colour itself, or white on it: words
+// take text (or secondary_text) and words on a fill take on. The public pages
+// built with Tailwind say brand-text and on-brand.
+$docs = ['views/invoices/public.php', 'views/receipts/public.php', 'views/quotations/public.php', 'views/deliveries/public.php',
+         'views/deliveries/signoff.php', 'views/deeds/view.php', 'views/deeds/pdf_template.php', 'views/invoices/pdf_template.php',
+         'views/receipts/pdf_template.php', 'views/quotations/pdf_template.php', 'views/invoices/view.php', 'views/receipts/view.php',
+         'views/quotations/view.php', 'views/reports/profit_loss_pdf.php'];
+foreach ($docs as $path) {
+    foreach (preg_split('/\R/', (string)file_get_contents($root . '/' . $path)) as $i => $line) {
+        $fill = '\$(?:primary|primary_color|secondary|accent|doc_colours\[\'(?:primary|secondary)\'\])';
+        if (preg_match('/(?<![\w-])color:\s*<\?=\s*(?:e\()?' . $fill . '\)?\s*\?>/', $line)
+            || preg_match('/(?<![\w:-])text-brand(?:-primary|-secondary)?(?![\w-])/', $line)
+            || preg_match('/(?<![\w-])bg-brand(?:-primary)?(?![\w-])[^"]*\btext-white\b|\btext-white\b[^"]*(?<![\w-])bg-brand(?:-primary)?(?![\w-])/', $line)
+            || preg_match('/background(?:-color)?:\s*<\?=\s*(?:e\()?' . $fill . '\)?\s*\?>;?\s*color:\s*#(?:fff|ffffff)\b/i', $line)) {
+            ok(false, "{$path} line " . ($i + 1) . ' writes words in text, secondary_text or on, not the fill colour or white (' . trim(mb_substr($line, 0, 110)) . ')');
+        }
+    }
+}
+ok(count($docs) === 14, 'the documents were read (' . count($docs) . ' files)');
+$public = (string)file_get_contents($root . '/assets/css/public.css');
+foreach (['.text-brand-text{', '.text-on-brand{', '.focus\:border-brand-text:focus{'] as $rule) {
+    ok(str_contains($public, $rule), "assets/css/public.css is built with {$rule}..}");
+}
+// A delivery note's status badge sits on the brand colour: without its pale
+// background its blue or green words sat on the brand itself
+preg_match_all("/'color'\s*=>\s*'([^']+)'/", (string)file_get_contents($root . '/app/controllers/DeliveryController.php'), $badges);
+$missing = array_filter(array_unique(explode(' ', implode(' ', $badges[1]))), fn($class) => !str_contains($public, ".{$class}{"));
+ok(count($badges[1]) >= 6 && !$missing, 'assets/css/public.css has every delivery status badge colour' . ($missing ? ' (missing ' . implode(', ', $missing) . ')' : ''));
+
+// Shop Studio's links also sit on its stage, the darkest of its greys
+ok(str_contains((string)file_get_contents($root . '/views/studio/index.php'), "theme_readable(\$chrome['accent_text']"),
+   'views/studio/index.php deepens its link colour until it reads on its stage');
 
 // Appointments on the calendar: the business's colour, kept apart from the other dots
 ok(planner_appointment_colour(['primary_color' => THEME_NFELIA]) === THEME_NFELIA, 'wine appointments stay wine');
-foreach (['#C08436', '#F4C430', '#B54708', '#00764A', '#026AA2', '#0F766E', '#DC2626', '#5B4650', '#9CA3AF', '#111111', '#7C3AED'] as $brand) {
+foreach (['#C08436', '#F4C430', '#B54708', '#00764A', '#026AA2', '#0F766E', '#DC2626', '#5B4650', '#9CA3AF', '#777777', '#E5E7EB', '#111111', '#7C3AED'] as $brand) {
     $dot  = planner_appointment_colour(['primary_color' => $brand]);
     $near = min(array_map(fn($o) => theme_distance(theme_hex_to_rgb($dot), theme_hex_to_rgb($o)), PLANNER_DOT_COLOURS));
-    ok($near >= 0.12 && theme_contrast(theme_hex_to_rgb($dot), [255, 255, 255]) >= 4.5,
-       sprintf('%s appointments are %s, %.2f from the nearest other dot and readable on white', $brand, $dot, $near));
+    ok($near >= 0.12 && theme_contrast(theme_hex_to_rgb($dot), theme_hex_to_rgb(THEME_CREAM)) >= 4.5,
+       sprintf('%s appointments are %s, %.2f from the nearest other dot and readable on white and cream', $brand, $dot, $near));
 }
 $gold = planner_appointment_colour(['primary_color' => '#C08436']);
 ok($gold !== theme_tokens('#C08436', null)['accent_text'], 'a gold that sits by the amber delivery dot is moved off it');
@@ -163,6 +226,22 @@ foreach (['#FBF8F9', '#F1E8EC', '#E9DCE2', '#A8909C', '#8E7A85'] as $grey) {
     [, $c] = theme_rgb_to_oklch(theme_hex_to_rgb(theme_retint($grey, '#777777')));
     ok($c < 0.005, "a grey brand gets a plain grey for {$grey}");
 }
+
+// The installed app's launch colour: Android shows it while the app starts and
+// keeps it for its bottom bar under every business's app, so it is white, and
+// the opening, which is wine, fades in from white there. An iPhone launches
+// on its own launch screens, which are wine, so its opening starts wine.
+$manifest = json_decode((string)file_get_contents($root . '/site.webmanifest'), true);
+ok(($manifest['background_color'] ?? '') === '#FFFFFF' && ($manifest['theme_color'] ?? '') === '#FFFFFF', 'the installed app launches on white, so Android\'s bottom bar is white');
+$head = (string)file_get_contents($root . '/views/partials/nf_splash_head.php');
+ok(str_contains($head, "'standalone' in navigator") && str_contains($head, 'nf-launch-light') && str_contains($head, "'#FFFFFF'"),
+   'away from an iPhone or iPad, the opening is told it starts on white, under a white status bar');
+foreach (['views/layouts/app.php', 'views/auth/login.php'] as $page) {
+    ok(str_contains((string)file_get_contents($root . '/' . $page), "if (\$splash) require BASE_PATH . '/views/partials/nf_splash_head.php';"), "{$page} decides the opening's first colour in <head>");
+}
+$splash = (string)file_get_contents($root . '/views/partials/nf_splash.php');
+ok(preg_match('/html\.nf-launch-light \.nf-splash \{ animation: nf-from-light 300ms/', $splash) && str_contains($splash, '@keyframes nf-from-light { from { background-color: #FFFFFF; } }'),
+   'and the opening fades in from white over 300ms');
 
 echo $fails ? "\n{$fails} failed\n" : "\nall passed\n";
 exit($fails ? 1 : 0);

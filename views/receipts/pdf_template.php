@@ -4,7 +4,7 @@
  * Variables: $business, $customer, $receipt, $items, $invoice, $sign (doc_sign_state)
  */
 $currency = $business['currency_symbol'] ?? '₦';
-$primary  = brand_doc_colours($business)['primary'];   // the brand colour, else Nfelia's (app/helpers/brand.php)
+['primary' => $primary, 'text' => $text, 'on' => $on] = brand_doc_colours($business);   // the brand colours, else Nfelia's (app/helpers/brand.php)
 
 $logo_src = '';
 if (!empty($business['logo_path']) && file_exists(BASE_PATH . '/' . $business['logo_path'])) {
@@ -33,7 +33,7 @@ $method_label = match($receipt['method'] ?? 'cash') {
         .header { width: 100%; border-bottom: 4px solid <?= $primary ?>; padding-bottom: 20px; margin-bottom: 28px; }
         .header table { width: 100%; }
         .logo { max-height: 56px; max-width: 150px; }
-        .biz-name { font-size: 20px; font-weight: bold; color: <?= $primary ?>; margin: 0 0 4px; }
+        .biz-name { font-size: 20px; font-weight: bold; color: <?= $text ?>; margin: 0 0 4px; }
         .biz-detail { font-size: 9.5px; color: #64748b; line-height: 1.6; }
         .doc-title { font-size: 26px; font-weight: bold; text-align: right; color: #0f172a; text-transform: uppercase; margin: 0 0 6px; }
         .paid-stamp { font-size: 16px; font-weight: bold; color: #16a34a; border: 3px solid #16a34a; padding: 4px 14px; display: inline-block; letter-spacing: 0.15em; }
@@ -42,7 +42,7 @@ $method_label = match($receipt['method'] ?? 'cash') {
         .label { font-size: 8.5px; font-weight: bold; text-transform: uppercase; color: #94a3b8; letter-spacing: 0.1em; margin-bottom: 5px; }
         .client-name { font-size: 14px; font-weight: bold; color: #0f172a; margin-bottom: 3px; }
         .client-detail { font-size: 10px; color: #475569; line-height: 1.6; }
-        .amount-block { text-align: center; margin: 24px 0; padding: 24px; background: <?= $primary ?>; color: #fff; }
+        .amount-block { text-align: center; margin: 24px 0; padding: 24px; background: <?= $primary ?>; color: <?= $on ?>; }
         .amount-label { font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; opacity: 0.75; margin-bottom: 8px; }
         .amount-value { font-size: 36px; font-weight: bold; }
         .amount-method { font-size: 10px; opacity: 0.75; margin-top: 6px; }

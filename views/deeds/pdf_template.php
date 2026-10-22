@@ -9,7 +9,7 @@
  * the signature when signed and the verify code, brand colors injected per business.
  */
 
-['primary' => $primary, 'secondary' => $accent] = brand_doc_colours($business);   // the brand colours, else Nfelia's (app/helpers/brand.php)
+['primary' => $primary, 'secondary' => $accent, 'text' => $text, 'secondary_text' => $accent_text, 'on' => $on] = brand_doc_colours($business);   // the brand colours, else Nfelia's (app/helpers/brand.php)
 $biz_name = $business['name']            ?? 'Nfelia';
 $tagline  = $business['tagline']         ?? '';
 $currency = $deed['currency_symbol']     ?? '₦';
@@ -100,7 +100,7 @@ $total = (float)$deed['total_amount'];
         .biz-name-text {
             font-size: 18px;
             font-weight: bold;
-            color: <?= $primary ?>;
+            color: <?= $text ?>;
             letter-spacing: 0.12em;
             text-transform: uppercase;
             font-family: Georgia, serif;
@@ -109,7 +109,7 @@ $total = (float)$deed['total_amount'];
         .deed-title-text {
             font-size: 17px;
             letter-spacing: 0.22em;
-            color: <?= $primary ?>;
+            color: <?= $text ?>;
             text-transform: uppercase;
             font-family: Georgia, serif;
             font-weight: bold;
@@ -118,7 +118,7 @@ $total = (float)$deed['total_amount'];
         .doc-ref-text {
             font-size: 9px;
             letter-spacing: 0.18em;
-            color: <?= $accent ?>;
+            color: <?= $accent_text ?>;
             text-transform: uppercase;
             font-family: Arial, sans-serif;
         }
@@ -130,7 +130,7 @@ $total = (float)$deed['total_amount'];
         .party-label {
             font-size: 8px;
             letter-spacing: 0.28em;
-            color: <?= $accent ?>;
+            color: <?= $accent_text ?>;
             text-transform: uppercase;
             font-family: Arial, sans-serif;
             border-bottom: 1px solid <?= $primary ?>;
@@ -140,7 +140,7 @@ $total = (float)$deed['total_amount'];
         .party-name {
             font-size: 14px;
             font-weight: bold;
-            color: <?= $primary ?>;
+            color: <?= $text ?>;
             text-transform: uppercase;
             letter-spacing: 0.05em;
             margin-bottom: 5px;
@@ -156,7 +156,7 @@ $total = (float)$deed['total_amount'];
         .subject-label {
             font-size: 8px;
             letter-spacing: 0.28em;
-            color: <?= $accent ?>;
+            color: <?= $accent_text ?>;
             text-transform: uppercase;
             font-family: Arial, sans-serif;
             border-bottom: 1px solid <?= $primary ?>;
@@ -172,7 +172,7 @@ $total = (float)$deed['total_amount'];
         .subject-story-cell { vertical-align: top; padding: 24px 28px; }
         .item-title-text {
             font-size: 15px;
-            color: <?= $primary ?>;
+            color: <?= $text ?>;
             text-transform: uppercase;
             letter-spacing: 0.08em;
             font-weight: bold;
@@ -192,7 +192,7 @@ $total = (float)$deed['total_amount'];
         .fin-table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
         .fin-table thead th {
             background-color: <?= $primary ?>;
-            color: #ffffff;
+            color: <?= $on ?>;
             font-size: 8.5px;
             letter-spacing: 0.2em;
             text-transform: uppercase;
@@ -212,7 +212,7 @@ $total = (float)$deed['total_amount'];
             border-top: 1px solid <?= $primary ?>;
             font-size: 13px;
             font-weight: bold;
-            color: <?= $primary ?>;
+            color: <?= $text ?>;
             font-family: Arial, sans-serif;
             letter-spacing: 0.05em;
             padding-top: 12px;
@@ -226,7 +226,7 @@ $total = (float)$deed['total_amount'];
             vertical-align: bottom;
             font-size: 9px;
             letter-spacing: 0.3em;
-            color: <?= $primary ?>;
+            color: <?= $text ?>;
             text-transform: uppercase;
             font-family: Arial, sans-serif;
         }
@@ -343,7 +343,7 @@ $total = (float)$deed['total_amount'];
             </td>
             <?php elseif ($logo_src): /* Use logo as a stand-in visual if no product image */ ?>
             <td class="subject-image-cell">
-                <div style="font-size:8px;letter-spacing:0.2em;color:<?= $accent ?>;text-transform:uppercase;font-family:Arial,sans-serif;margin-bottom:8px;">[ PIECE ]</div>
+                <div style="font-size:8px;letter-spacing:0.2em;color:<?= $accent_text ?>;text-transform:uppercase;font-family:Arial,sans-serif;margin-bottom:8px;">[ PIECE ]</div>
                 <img src="<?= $logo_src ?>" alt="" style="max-height:100px;opacity:0.4;">
             </td>
             <?php endif; ?>
@@ -418,11 +418,11 @@ $total = (float)$deed['total_amount'];
             <td style="width:55%;"></td>
             <td class="tagline-cell" style="width:45%;">
                 <?php if ($tagline): ?>
-                    <div style="font-size:8.5px;letter-spacing:0.28em;color:<?= $accent ?>;text-transform:uppercase;margin-bottom:6px;font-family:Arial,sans-serif;">
+                    <div style="font-size:8.5px;letter-spacing:0.28em;color:<?= $accent_text ?>;text-transform:uppercase;margin-bottom:6px;font-family:Arial,sans-serif;">
                         <?= e($tagline) ?>
                     </div>
                 <?php endif; ?>
-                <div style="font-size:8px;letter-spacing:0.15em;color:<?= $primary ?>;text-transform:uppercase;font-family:Arial,sans-serif;">
+                <div style="font-size:8px;letter-spacing:0.15em;color:<?= $text ?>;text-transform:uppercase;font-family:Arial,sans-serif;">
                     <?= e($deed['currency_code'] ?? 'NGN') ?> · <?= date('Y') ?>
                 </div>
             </td>
