@@ -1,7 +1,8 @@
 <?php
 /**
  * Nfelia — Onboarding Controller
- * Guides new workspaces through the 3-step setup process.
+ * Guides new workspaces through three setup steps here; the shop link and
+ * look come fourth (ShopSetupController).
  *
  * NFELIA FIX — Country selection added to Step 1 — 2026-06-04
  * NFELIA FIX — Currency session sync in Step 2 — 2026-06-04
@@ -29,7 +30,7 @@ class OnboardingController {
     }
 
     /**
-     * Step 1: Operational Profile (Contacts, Category & Country)
+     * Step 1: About your business (Contacts, Category & Country)
      */
     public function step1() {
         // Load active countries for the dropdown
@@ -39,7 +40,8 @@ class OnboardingController {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             csrf_verify();
 
-            $category      = $_POST['category'] ?? 'other';
+            $category      = in_array($_POST['category'] ?? '', array_keys(BUSINESS_CATEGORIES), true)
+                             ? $_POST['category'] : 'other';
             $phone         = trim($_POST['phone'] ?? '');
             $whatsapp      = trim($_POST['whatsapp'] ?? '');
             $address       = trim($_POST['address'] ?? '');
@@ -53,8 +55,7 @@ class OnboardingController {
             // A phone too long for its column is refused here, not lost in a
             // failed save (D4)
             if ($p = phone_problem($phone) ?? phone_problem($whatsapp)) {
-                flash('error', $p);
-                redirect('onboarding/step1');
+                $this->back_to_step(1, $p);
             }
 
             // Resolve the selected country for currency sync
@@ -63,6 +64,10 @@ class OnboardingController {
                 foreach ($countries as $c) {
                     if ((int)$c['id'] === $country_id) { $selected_country = $c; break; }
                 }
+            }
+            // The country sets the money and the price, so it is never guessed
+            if (!$selected_country) {
+                $this->back_to_step(1, 'Choose your country. It sets your money and your Nfelia price.');
             }
 
             try {
@@ -114,18 +119,17 @@ class OnboardingController {
 
             } catch (Exception $e) {
                 error_log("Onboarding Step 1 Error: " . $e->getMessage());
-                flash('error', 'Failed to save operational profile. Please try again.');
-                redirect('onboarding/step1');
+                $this->back_to_step(1, 'We couldn\'t save that. Please try again.');
             }
         }
 
         $step = 1;
-        $title = "Operational Profile";
+        $title = "About your business";
         require_once BASE_PATH . '/views/onboarding/wizard.php';
     }
 
     /**
-     * Step 2: Financial Infrastructure (Bank & Tax)
+     * Step 2: Money and payments (Bank & Tax)
      */
     public function step2() {
         // Load countries for the currency dropdown + pre-select from step 1
@@ -141,12 +145,21 @@ class OnboardingController {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             csrf_verify();
 
-            $currency = trim($_POST['currency_symbol'] ?? '₦');
-            $tax_rate = (float)($_POST['default_tax_rate'] ?? 0.00);
-            
+            // Only a currency the list offers; tax between 0 and 100%
+            $currency = trim($_POST['currency_symbol'] ?? '');
+            if (!in_array($currency, array_column($countries, 'currency_symbol'), true)) {
+                $currency = $current_currency;
+            }
+            $tax_rate = min(100, max(0, (float)($_POST['default_tax_rate'] ?? 0.00)));
+
             $bank_name = trim($_POST['bank_name'] ?? '');
             $acc_num   = trim($_POST['account_number'] ?? '');
             $acc_name  = trim($_POST['account_name'] ?? '');
+
+            // The account is optional, but half of one is not saved quietly
+            if (($bank_name || $acc_num || $acc_name) && !($bank_name && $acc_num && $acc_name)) {
+                $this->back_to_step(2, 'Add the bank, the account number and the account name, or leave all three empty.');
+            }
 
             try {
                 $this->db->beginTransaction();
@@ -182,31 +195,37 @@ class OnboardingController {
             } catch (Exception $e) {
                 $this->db->rollBack();
                 error_log("Onboarding Step 2 Error: " . $e->getMessage());
-                flash('error', 'Failed to save financial details.');
-                redirect('onboarding/step2');
+                $this->back_to_step(2, 'We couldn\'t save that. Please try again.');
             }
         }
 
         $step = 2;
-        $title = "Financial Infrastructure";
+        $title = "Money and payments";
         require_once BASE_PATH . '/views/onboarding/wizard.php';
     }
 
     /**
-     * Step 3: Aesthetic & Deployment (Brand Colors, Font, Logo)
+     * Step 3: How your business looks (Brand Colors, Font, Logo)
      */
     public function step3() {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             csrf_verify();
 
-            $primary   = trim($_POST['primary_color'] ?? '#1A1A2E');
-            $secondary = trim($_POST['secondary_color'] ?? '#C27A62');
-            $font      = $_POST['font_pairing'] ?? 'modern_sans';
-            
+            // Anything but a #rrggbb colour or a known font keeps what the
+            // business has (the burgundy and gold it got at sign-up)
+            $biz       = auth_business();
+            $hex       = fn(string $v, string $now) => preg_match('/^#[0-9A-Fa-f]{6}$/', $v) ? $v : $now;
+            $primary   = $hex(trim($_POST['primary_color'] ?? ''), $biz['primary_color'] ?? '#8B004A');
+            $secondary = $hex(trim($_POST['secondary_color'] ?? ''), $biz['secondary_color'] ?? '#B69F5E');
+            $font      = in_array($_POST['font_pairing'] ?? '', array_keys(FONT_PAIRINGS), true)
+                         ? $_POST['font_pairing'] : ($biz['font_pairing'] ?? 'modern_sans');
+
             $logo_path = null;
+            $logo_failed = false;
 
             try {
-                if (isset($_FILES['logo']) && $_FILES['logo']['error'] === UPLOAD_ERR_OK) {
+                $logo_error = $_FILES['logo']['error'] ?? UPLOAD_ERR_NO_FILE;
+                if ($logo_error === UPLOAD_ERR_OK) {
                     $dir = UPLOAD_PATH . '/logos/' . $this->biz_id;
                     if (!is_dir($dir)) {
                         mkdir($dir, 0775, true);
@@ -217,7 +236,11 @@ class OnboardingController {
                     
                     if (save_image($_FILES['logo'], $dest, 600)) {
                         $logo_path = 'uploads/logos/' . $this->biz_id . '/' . $filename;
+                    } else {
+                        $logo_failed = true;
                     }
+                } elseif ($logo_error !== UPLOAD_ERR_NO_FILE) {
+                    $logo_failed = true;   // too big for the server, or cut off
                 }
 
                 $sql = "UPDATE businesses SET primary_color = ?, secondary_color = ?, font_pairing = ?, onboarding_step = 4, onboarding_complete = 1";
@@ -248,18 +271,36 @@ class OnboardingController {
                 update_business_session($session_updates);
                 $_SESSION['just_signed_in'] = true; // offer the home-screen app on the first page
 
-                flash('success', 'Deployment complete. Welcome to your workspace.');
-                redirect('dashboard');
+                // The shop link and look are the last step (ShopSetupController)
+                $next = is_owner() && shop_setup_needed() ? 'shop-setup' : 'dashboard';
+                if ($logo_failed) {
+                    flash('warning', 'Your logo didn\'t upload. Use a JPG, PNG or WebP picture up to 20MB. You can add it any time in Settings.');
+                } else {
+                    flash('success', $next === 'shop-setup' ? 'Saved. One last step: your shop link and look.' : 'All set. Welcome to Nfelia.');
+                }
+                redirect($next);
 
             } catch (Exception $e) {
                 error_log("Onboarding Step 3 Error: " . $e->getMessage());
-                flash('error', 'System error during aesthetic deployment. Please try again.');
+                flash('error', 'We couldn\'t save that. Please try again.');
                 redirect('onboarding/step3');
             }
         }
 
         $step = 3;
-        $title = "Aesthetic Deployment";
+        $title = "How your business looks";
         require_once BASE_PATH . '/views/onboarding/wizard.php';
+    }
+
+    /**
+     * Back to a step with a message and what the person typed, so a mistake
+     * does not mean filling the form again (the wizard puts it back).
+     */
+    private function back_to_step(int $step, string $message): never {
+        $_SESSION['onboarding_old'] = array_map('strval', array_filter(
+            array_diff_key($_POST, ['csrf_token' => 1]), 'is_scalar'
+        ));
+        flash('error', $message);
+        redirect('onboarding/step' . $step);
     }
 }
