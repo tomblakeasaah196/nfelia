@@ -62,15 +62,15 @@ if (empty($items_json)) {
             <!-- Client Selection -->
             <div class="bg-brand-white border border-brand-sand rounded-xl p-6 shadow-sm">
                 <div class="flex items-center justify-between mb-4">
-                    <h2 class="font-heading font-bold text-xs text-brand-plum uppercase tracking-widest">Client</h2>
+                    <h2 class="font-heading font-semibold text-base text-brand-plum">Client</h2>
                     <div class="flex items-center gap-3">
                         <button type="button" x-show="showNewClient && hasContactsAPI" @click="importClientFromContacts()"
-                                class="flex items-center gap-1.5 text-[10px] font-bold text-blue-600 uppercase tracking-widest hover:text-blue-800 transition-colors">
+                                class="flex items-center gap-1.5 text-sm font-semibold text-blue-600 hover:text-blue-800 transition-colors">
                             <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
-                            Pick from Contacts
+                            Pick from contacts
                         </button>
-                        <button type="button" @click="showNewClient = !showNewClient" class="text-[10px] font-bold text-accent-text uppercase tracking-widest hover:text-accent-text transition-colors">
-                            <span x-text="showNewClient ? 'Cancel' : '+ New Client'"></span>
+                        <button type="button" @click="showNewClient = !showNewClient" class="text-sm font-semibold text-accent-text hover:text-accent-text transition-colors">
+                            <span x-text="showNewClient ? 'Cancel' : '+ New client'"></span>
                         </button>
                     </div>
                 </div>
@@ -100,28 +100,28 @@ if (empty($items_json)) {
                         <input type="email" x-model="newClient.email" placeholder="Email"
                                class="px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/25">
                     </div>
-                    <button type="button" @click="saveNewClient()" class="btn-primary text-white px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest">
-                        Save Client
+                    <button type="button" @click="saveNewClient()" class="btn-primary text-white px-4 py-2 rounded-lg text-sm font-semibold">
+                        Save client
                     </button>
-                    <p x-show="clientError" x-text="clientError" class="text-[10px] text-red-600 font-medium"></p>
+                    <p x-show="clientError" x-text="clientError" class="text-xs text-red-600 font-medium"></p>
                 </div>
             </div>
 
             <!-- ===== LINE ITEMS ===== -->
             <div class="bg-brand-white border border-brand-sand rounded-xl shadow-sm overflow-hidden">
                 <div class="px-6 py-4 border-b border-brand-sand flex items-center justify-between">
-                    <h2 class="font-heading font-bold text-xs text-brand-plum uppercase tracking-widest">Line Items</h2>
-                    <button type="button" @click="addItem()" class="text-[10px] font-bold text-accent-text uppercase tracking-widest hover:text-accent-text flex items-center gap-1">
+                    <h2 class="font-heading font-semibold text-base text-brand-plum">Line items</h2>
+                    <button type="button" @click="addItem()" class="text-sm font-semibold text-accent-text hover:text-accent-text flex items-center gap-1">
                         <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
-                        Add Line
+                        Add line
                     </button>
                 </div>
 
                 <!-- Header Row (Desktop) -->
-                <div class="hidden sm:grid grid-cols-12 gap-2 px-6 py-2 bg-brand-cream/50 border-b border-brand-sand text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest">
+                <div class="hidden sm:grid grid-cols-12 gap-2 px-6 py-2 bg-brand-cream/50 border-b border-brand-sand text-xs font-semibold text-brand-plum/70">
                     <div class="col-span-5">Description</div>
                     <div class="col-span-2 text-center">Qty</div>
-                    <div class="col-span-2 text-center">Unit Price</div>
+                    <div class="col-span-2 text-center">Unit price</div>
                     <div class="col-span-1 text-center">Disc %</div>
                     <div class="col-span-1 text-right">Subtotal</div>
                     <div class="col-span-1"></div>
@@ -155,7 +155,7 @@ if (empty($items_json)) {
                                         <button type="button" @click="selectProduct(idx, prod)"
                                                 class="w-full text-left px-3 py-2 hover:bg-brand-cream transition-colors border-b border-brand-sand/30 last:border-0">
                                             <div class="text-xs font-semibold text-brand-plum" x-text="prod.name"></div>
-                                            <div class="data-text text-[9px] text-brand-plum/40">
+                                            <div class="data-text text-xs text-brand-plum/40">
                                                 <span x-text="prod.sku"></span> ·
                                                 <span x-text="'<?= $currency ?>' + Number(prod.sell_price).toLocaleString()"></span>
                                                 <span x-show="!prod.is_service" x-text="' · ' + prod.stock_qty + ' ' + prod.unit"></span>
@@ -167,28 +167,28 @@ if (empty($items_json)) {
 
                             <!-- Quantity -->
                             <div class="col-span-2">
-                                <label class="sm:hidden text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1 block">Qty</label>
+                                <label class="sm:hidden text-sm font-semibold text-brand-plum/60 mb-1 block">Qty</label>
                                 <input type="number" x-model.number="item.quantity" step="0.01" min="0.01"
                                        class="w-full px-3 py-2.5 text-xs font-mono font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum text-center">
                             </div>
 
                             <!-- Unit Price -->
                             <div class="col-span-2">
-                                <label class="sm:hidden text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1 block">Price</label>
+                                <label class="sm:hidden text-sm font-semibold text-brand-plum/60 mb-1 block">Price</label>
                                 <input type="number" x-model.number="item.unit_price" step="0.01" min="0"
                                        class="w-full px-3 py-2.5 text-xs font-mono font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum text-center">
                             </div>
 
                             <!-- Discount % -->
                             <div class="col-span-1">
-                                <label class="sm:hidden text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1 block">Disc%</label>
+                                <label class="sm:hidden text-sm font-semibold text-brand-plum/60 mb-1 block">Disc%</label>
                                 <input type="number" x-model.number="item.discount" step="0.1" min="0" max="100"
                                        class="w-full px-2 py-2.5 text-xs font-mono font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum text-center">
                             </div>
 
                             <!-- Line subtotal -->
                             <div class="col-span-1 text-right">
-                                <label class="sm:hidden text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1 block">Subtotal</label>
+                                <label class="sm:hidden text-sm font-semibold text-brand-plum/60 mb-1 block">Subtotal</label>
                                 <span class="data-text text-xs font-bold text-brand-plum" x-text="formatMoney(lineSubtotal(idx))"></span>
                             </div>
 
@@ -205,15 +205,15 @@ if (empty($items_json)) {
 
                 <!-- Add row button (bottom) -->
                 <div class="px-6 py-3">
-                    <button type="button" @click="addItem()" class="w-full py-3 border-2 border-dashed border-brand-sand hover:border-accent rounded-lg text-[10px] font-bold text-brand-plum/30 uppercase tracking-widest hover:text-accent-text transition-all">
-                        + Add Another Item
+                    <button type="button" @click="addItem()" class="w-full py-3 border-2 border-dashed border-brand-sand hover:border-accent rounded-lg text-sm font-semibold text-brand-plum/60 hover:text-accent-text transition-all">
+                        + Add another item
                     </button>
                 </div>
             </div>
 
             <!-- Notes / Terms -->
             <div class="bg-brand-white border border-brand-sand rounded-xl p-6 shadow-sm">
-                <h2 class="font-heading font-bold text-xs text-brand-plum uppercase tracking-widest mb-4">Notes & Terms</h2>
+                <h2 class="font-heading font-semibold text-base text-brand-plum mb-4">Notes and terms</h2>
                 <textarea name="notes" rows="3" placeholder="Payment terms, special conditions, delivery notes..."
                           class="w-full px-4 py-3 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/25 resize-none"><?= e($q_notes) ?></textarea>
             </div>
@@ -224,15 +224,15 @@ if (empty($items_json)) {
 
             <!-- Dates -->
             <div class="bg-brand-white border border-brand-sand rounded-xl p-6 shadow-sm">
-                <h2 class="font-heading font-bold text-xs text-brand-plum uppercase tracking-widest mb-4">Dates</h2>
+                <h2 class="font-heading font-semibold text-base text-brand-plum mb-4">Dates</h2>
                 <div class="space-y-4">
                     <div>
-                        <label class="block text-[10px] font-bold text-brand-plum/70 uppercase tracking-widest mb-1.5">Issue Date</label>
+                        <label class="block text-sm font-semibold text-brand-plum/70 mb-1.5">Issue date</label>
                         <input type="date" name="issue_date" value="<?= e($q_issue) ?>"
                                class="w-full px-3 py-2.5 text-xs font-mono font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
                     </div>
                     <div>
-                        <label class="block text-[10px] font-bold text-brand-plum/70 uppercase tracking-widest mb-1.5">Valid Until</label>
+                        <label class="block text-sm font-semibold text-brand-plum/70 mb-1.5">Valid until</label>
                         <input type="date" name="expiry_date" value="<?= e($q_expiry) ?>"
                                class="w-full px-3 py-2.5 text-xs font-mono font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
                     </div>
@@ -242,7 +242,7 @@ if (empty($items_json)) {
             <!-- Bank Account -->
             <?php if (!empty($banks)): ?>
             <div class="bg-brand-white border border-brand-sand rounded-xl p-6 shadow-sm">
-                <h2 class="font-heading font-bold text-xs text-brand-plum uppercase tracking-widest mb-4">Payment Account</h2>
+                <h2 class="font-heading font-semibold text-base text-brand-plum mb-4">Payment account</h2>
                 <select name="bank_account_id" class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
                     <option value="">None</option>
                     <?php foreach ($banks as $b): ?>
@@ -256,19 +256,19 @@ if (empty($items_json)) {
 
             <!-- Totals Card -->
             <div class="bg-brand-white border border-brand-sand rounded-xl p-6 shadow-sm">
-                <h2 class="font-heading font-bold text-xs text-brand-plum uppercase tracking-widest mb-4">Totals</h2>
+                <h2 class="font-heading font-semibold text-base text-brand-plum mb-4">Totals</h2>
 
                 <div class="space-y-3">
                     <div class="flex items-center justify-between">
-                        <span class="text-[10px] font-bold text-brand-plum/50 uppercase tracking-widest">Subtotal</span>
+                        <span class="text-xs font-semibold text-brand-plum/70">Subtotal</span>
                         <span class="data-text text-sm font-bold text-brand-plum" x-text="formatMoney(subtotal())"></span>
                     </div>
 
                     <!-- Discount -->
                     <div class="flex items-center justify-between gap-2">
-                        <span class="text-[10px] font-bold text-brand-plum/50 uppercase tracking-widest">Discount</span>
+                        <span class="text-xs font-semibold text-brand-plum/70">Discount</span>
                         <div class="flex items-center gap-2">
-                            <span class="text-[9px] text-brand-plum/30"><?= e($currency) ?></span>
+                            <span class="text-xs text-brand-plum/30"><?= e($currency) ?></span>
                             <input type="number" name="discount_amount" x-model.number="discountAmount" step="0.01" min="0"
                                    class="w-24 px-2 py-1.5 text-xs font-mono font-medium bg-brand-cream border border-brand-sand rounded text-right focus:outline-none focus:border-accent-text text-brand-plum">
                         </div>
@@ -276,17 +276,17 @@ if (empty($items_json)) {
 
                     <!-- Tax -->
                     <div class="flex items-center justify-between gap-2">
-                        <span class="text-[10px] font-bold text-brand-plum/50 uppercase tracking-widest">Tax</span>
+                        <span class="text-xs font-semibold text-brand-plum/70">Tax</span>
                         <div class="flex items-center gap-2">
                             <input type="number" name="tax_rate" x-model.number="taxRate" step="0.01" min="0" max="100"
                                    class="w-16 px-2 py-1.5 text-xs font-mono font-medium bg-brand-cream border border-brand-sand rounded text-right focus:outline-none focus:border-accent-text text-brand-plum">
-                            <span class="text-[9px] text-brand-plum/30">%</span>
+                            <span class="text-xs text-brand-plum/30">%</span>
                             <span class="data-text text-xs text-brand-plum/50" x-text="formatMoney(taxAmount())"></span>
                         </div>
                     </div>
 
                     <div class="border-t border-brand-sand pt-3 flex items-center justify-between">
-                        <span class="font-heading font-bold text-xs text-brand-plum uppercase tracking-widest">Grand Total</span>
+                        <span class="font-heading font-semibold text-sm text-brand-plum">Grand total</span>
                         <span class="font-heading font-extrabold text-xl text-brand-plum" x-text="formatMoney(grandTotal())"></span>
                     </div>
                 </div>
@@ -300,18 +300,18 @@ if (empty($items_json)) {
                 <input type="checkbox" name="sign_on" value="1" <?= $q_sign ? 'checked' : '' ?> class="mt-0.5 w-4 h-4 shrink-0">
                 <span>
                     <span class="block text-xs font-bold text-brand-plum">Signed quote</span>
-                    <span class="block text-[10px] text-brand-plum/50 leading-snug">Signed for your business, and your client signs to accept it. Leave it off and they accept with one tap.</span>
+                    <span class="block text-xs text-brand-plum/50 leading-snug">Signed for your business, and your client signs to accept it. Leave it off and they accept with one tap.</span>
                 </span>
             </label>
             <?php endif; ?>
 
             <!-- Action Buttons -->
             <div class="space-y-3">
-                <button type="submit" class="w-full btn-primary text-white py-3.5 rounded-xl text-[11px] font-bold uppercase tracking-widest shadow-sm hover:shadow-md transition-all">
-                    <?= $editing ? 'Save changes' : 'Save as Draft' ?>
+                <button type="submit" class="w-full btn-primary text-white py-3.5 rounded-xl text-sm font-semibold shadow-sm hover:shadow-md transition-all">
+                    <?= $editing ? 'Save changes' : 'Save as draft' ?>
                 </button>
                 <a href="<?= APP_URL ?>/quotations<?= $editing ? '/view/' . (int)$quotation['id'] : '' ?>"
-                   class="block w-full text-center bg-brand-cream border border-brand-sand text-brand-plum py-3.5 rounded-xl text-[11px] font-bold uppercase tracking-widest hover:border-accent transition-all">Cancel</a>
+                   class="block w-full text-center bg-brand-cream border border-brand-sand text-brand-plum py-3.5 rounded-xl text-sm font-semibold hover:border-accent transition-all">Cancel</a>
             </div>
         </div>
     </div>

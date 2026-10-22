@@ -47,7 +47,7 @@ if (empty($initial_items)) {
     </a>
     <div>
         <h1 class="font-heading font-extrabold text-2xl sm:text-3xl text-brand-plum tracking-tight">
-            <?= $editing ? 'Edit ' . e($delivery['doc_number']) : 'New Delivery' ?>
+            <?= $editing ? 'Edit ' . e($delivery['doc_number']) : 'New delivery' ?>
         </h1>
         <p class="text-xs text-brand-plum/50 font-medium mt-1"><?= $editing ? 'Update dispatch details' : 'Create a delivery note for dispatch' ?></p>
     </div>
@@ -59,7 +59,7 @@ if (empty($initial_items)) {
 
     <!-- Section: Link to Invoice (optional) -->
     <div class="bg-brand-white border border-brand-sand rounded-xl p-5 shadow-sm">
-        <h2 class="font-heading font-bold text-sm text-brand-plum mb-4 uppercase tracking-wider">Link to Invoice (Optional)</h2>
+        <h2 class="font-heading font-semibold text-base text-brand-plum mb-4">Link to an invoice (optional)</h2>
 
         <div class="relative">
             <input type="hidden" name="invoice_id" :value="invoiceId">
@@ -69,9 +69,9 @@ if (empty($initial_items)) {
                 <div class="flex items-center justify-between bg-brand-cream border border-brand-sand rounded-lg px-4 py-3">
                     <div>
                         <span class="data-text text-xs font-bold text-brand-plum" x-text="invoiceNumber"></span>
-                        <span class="text-[10px] text-brand-plum/50 ml-2" x-text="invoiceCustomer"></span>
+                        <span class="text-xs text-brand-plum/50 ml-2" x-text="invoiceCustomer"></span>
                     </div>
-                    <button type="button" @click="clearInvoice()" class="text-[10px] font-bold text-red-500 uppercase tracking-widest hover:text-red-700">Remove</button>
+                    <button type="button" @click="clearInvoice()" class="text-sm font-semibold text-red-500 hover:text-red-700">Remove</button>
                 </div>
             </template>
 
@@ -90,9 +90,9 @@ if (empty($initial_items)) {
                                     class="w-full text-left px-4 py-3 hover:bg-brand-cream/50 border-b border-brand-sand/50 last:border-0">
                                 <div class="flex justify-between">
                                     <span class="data-text text-xs font-bold text-brand-plum" x-text="inv.doc_number"></span>
-                                    <span class="data-text text-[10px] font-bold text-green-600" x-text="'<?= $currency ?>' + Number(inv.total).toLocaleString()"></span>
+                                    <span class="data-text text-xs font-bold text-green-600" x-text="'<?= $currency ?>' + Number(inv.total).toLocaleString()"></span>
                                 </div>
-                                <div class="text-[10px] text-brand-plum/50" x-text="inv.customer_name || 'Walk-in'"></div>
+                                <div class="text-xs text-brand-plum/50" x-text="inv.customer_name || 'Walk-in'"></div>
                             </button>
                         </template>
                     </div>
@@ -103,22 +103,22 @@ if (empty($initial_items)) {
 
     <!-- Section: Recipient -->
     <div class="bg-brand-white border border-brand-sand rounded-xl p-5 shadow-sm">
-        <h2 class="font-heading font-bold text-sm text-brand-plum mb-4 uppercase tracking-wider">Recipient Details</h2>
+        <h2 class="font-heading font-semibold text-base text-brand-plum mb-4">Recipient details</h2>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-                <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Recipient Name *</label>
+                <label class="block text-sm font-semibold text-brand-plum/60 mb-1">Recipient name *</label>
                 <input type="text" name="recipient_name" x-model="recipientName" required
                        class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/30"
                        placeholder="Full name of person receiving">
             </div>
             <div>
-                <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Phone Number</label>
+                <label class="block text-sm font-semibold text-brand-plum/60 mb-1">Phone number</label>
                 <input type="tel" maxlength="50" name="recipient_phone" x-model="recipientPhone"
                        class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/30"
                        placeholder="e.g. 08012345678">
             </div>
             <div class="sm:col-span-2">
-                <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Delivery Address *</label>
+                <label class="block text-sm font-semibold text-brand-plum/60 mb-1">Delivery address *</label>
                 <textarea name="delivery_address" x-model="deliveryAddress" required rows="2"
                           class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/30 resize-none"
                           placeholder="Full delivery address"></textarea>
@@ -129,11 +129,11 @@ if (empty($initial_items)) {
     <!-- Section: Items -->
     <div class="bg-brand-white border border-brand-sand rounded-xl p-5 shadow-sm">
         <div class="flex items-center justify-between mb-4">
-            <h2 class="font-heading font-bold text-sm text-brand-plum uppercase tracking-wider">Items Being Dispatched</h2>
+            <h2 class="font-heading font-semibold text-base text-brand-plum">Items being dispatched</h2>
             <button type="button" @click="addItem()"
-                    class="text-[10px] font-bold text-accent-text uppercase tracking-widest hover:text-accent-text flex items-center gap-1">
+                    class="text-sm font-semibold text-accent-text hover:text-accent-text flex items-center gap-1">
                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
-                Add Item
+                Add item
             </button>
         </div>
 
@@ -142,24 +142,24 @@ if (empty($initial_items)) {
                 <input type="hidden" :name="'item_product_id[' + idx + ']'" :value="item.product_id">
 
                 <div class="flex-1 min-w-0">
-                    <label class="block text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">Description *</label>
+                    <label class="block text-sm font-semibold text-brand-plum/60 mb-1">Description *</label>
                     <input type="text" :name="'item_description[' + idx + ']'" x-model="item.description"
                            class="w-full px-3 py-2 text-xs font-medium bg-brand-white border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum"
                            placeholder="Item description">
                 </div>
                 <div class="w-20">
-                    <label class="block text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">Qty *</label>
+                    <label class="block text-sm font-semibold text-brand-plum/60 mb-1">Qty *</label>
                     <input type="number" :name="'item_quantity[' + idx + ']'" x-model="item.quantity" min="0.01" step="0.01"
                            class="w-full px-3 py-2 text-xs font-medium bg-brand-white border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum text-center">
                 </div>
                 <div class="w-24">
-                    <label class="block text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">Unit</label>
+                    <label class="block text-sm font-semibold text-brand-plum/60 mb-1">Unit</label>
                     <input type="text" :name="'item_unit[' + idx + ']'" x-model="item.unit"
                            class="w-full px-3 py-2 text-xs font-medium bg-brand-white border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum"
                            placeholder="pcs, kg...">
                 </div>
                 <div class="flex-1 min-w-0 hidden sm:block">
-                    <label class="block text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">Notes</label>
+                    <label class="block text-sm font-semibold text-brand-plum/60 mb-1">Notes</label>
                     <input type="text" :name="'item_notes[' + idx + ']'" x-model="item.notes"
                            class="w-full px-3 py-2 text-xs font-medium bg-brand-white border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum"
                            placeholder="Optional">
@@ -176,25 +176,25 @@ if (empty($initial_items)) {
 
     <!-- Section: Pickup & Provider -->
     <div class="bg-brand-white border border-brand-sand rounded-xl p-5 shadow-sm">
-        <h2 class="font-heading font-bold text-sm text-brand-plum mb-4 uppercase tracking-wider">Dispatch Details</h2>
+        <h2 class="font-heading font-semibold text-base text-brand-plum mb-4">Dispatch details</h2>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="sm:col-span-2">
-                <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Pickup Address</label>
+                <label class="block text-sm font-semibold text-brand-plum/60 mb-1">Pickup address</label>
                 <textarea name="pickup_address" rows="2"
                           class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/30 resize-none"
                           placeholder="Defaults to your business address"><?= e($editing ? $delivery['pickup_address'] : ($delivery['pickup_address'] ?? ($business['address'] ?? ''))) ?></textarea>
             </div>
             <div>
-                <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Provider / Courier</label>
+                <label class="block text-sm font-semibold text-brand-plum/60 mb-1">Provider or courier</label>
                 <select name="provider" class="w-full px-3 py-2.5 text-xs font-semibold bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
-                    <option value="">— Select Provider —</option>
+                    <option value="">— Select a provider —</option>
                     <?php foreach ($providers as $k => $v): ?>
                         <option value="<?= $k ?>" <?= ($delivery['provider'] ?? '') === $k ? 'selected' : '' ?>><?= $v ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
             <div>
-                <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Estimated Delivery</label>
+                <label class="block text-sm font-semibold text-brand-plum/60 mb-1">Estimated delivery</label>
                 <input type="datetime-local" name="estimated_delivery"
                        value="<?= e(!empty($delivery['estimated_delivery']) ? date('Y-m-d\TH:i', strtotime($delivery['estimated_delivery'])) : '') ?>"
                        class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
@@ -205,25 +205,25 @@ if (empty($initial_items)) {
     <!-- Section: Rider Details (collapsible) -->
     <div class="bg-brand-white border border-brand-sand rounded-xl shadow-sm overflow-hidden" x-data="{ open: <?= !empty($delivery['rider_name']) || !empty($delivery['rider_phone']) ? 'true' : 'false' ?> }">
         <button type="button" @click="open = !open" class="w-full flex items-center justify-between p-5">
-            <h2 class="font-heading font-bold text-sm text-brand-plum uppercase tracking-wider">Rider / Driver Details</h2>
+            <h2 class="font-heading font-semibold text-base text-brand-plum">Rider or driver</h2>
             <svg :class="open ? 'rotate-180' : ''" class="w-4 h-4 text-brand-plum/40 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
         </button>
         <div x-show="open" x-collapse class="px-5 pb-5">
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                    <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Rider Name</label>
+                    <label class="block text-sm font-semibold text-brand-plum/60 mb-1">Rider name</label>
                     <input type="text" name="rider_name" value="<?= e($delivery['rider_name'] ?? '') ?>"
                            class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/30"
                            placeholder="Name of rider / driver">
                 </div>
                 <div>
-                    <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Rider Phone</label>
+                    <label class="block text-sm font-semibold text-brand-plum/60 mb-1">Rider phone</label>
                     <input type="tel" maxlength="50" name="rider_phone" value="<?= e($delivery['rider_phone'] ?? '') ?>"
                            class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/30"
                            placeholder="e.g. 08012345678">
                 </div>
                 <div>
-                    <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Booking Reference</label>
+                    <label class="block text-sm font-semibold text-brand-plum/60 mb-1">Booking reference</label>
                     <input type="text" name="booking_reference" value="<?= e($delivery['booking_reference'] ?? '') ?>"
                            class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/30"
                            placeholder="3PL booking/order ID">
@@ -235,19 +235,19 @@ if (empty($initial_items)) {
     <!-- Section: Tracking (collapsible) -->
     <div class="bg-brand-white border border-brand-sand rounded-xl shadow-sm overflow-hidden" x-data="{ open: <?= !empty($delivery['tracking_number']) || !empty($delivery['tracking_url']) ? 'true' : 'false' ?> }">
         <button type="button" @click="open = !open" class="w-full flex items-center justify-between p-5">
-            <h2 class="font-heading font-bold text-sm text-brand-plum uppercase tracking-wider">Tracking Info</h2>
+            <h2 class="font-heading font-semibold text-base text-brand-plum">Tracking</h2>
             <svg :class="open ? 'rotate-180' : ''" class="w-4 h-4 text-brand-plum/40 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
         </button>
         <div x-show="open" x-collapse class="px-5 pb-5">
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Tracking Number</label>
+                    <label class="block text-sm font-semibold text-brand-plum/60 mb-1">Tracking number</label>
                     <input type="text" name="tracking_number" value="<?= e($delivery['tracking_number'] ?? '') ?>"
                            class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/30"
                            placeholder="Courier tracking ID">
                 </div>
                 <div>
-                    <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Tracking URL</label>
+                    <label class="block text-sm font-semibold text-brand-plum/60 mb-1">Tracking link</label>
                     <input type="url" name="tracking_url" value="<?= e($delivery['tracking_url'] ?? '') ?>"
                            class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/30"
                            placeholder="https://...">
@@ -258,16 +258,16 @@ if (empty($initial_items)) {
 
     <!-- Section: Notes -->
     <div class="bg-brand-white border border-brand-sand rounded-xl p-5 shadow-sm">
-        <h2 class="font-heading font-bold text-sm text-brand-plum mb-4 uppercase tracking-wider">Additional Notes</h2>
+        <h2 class="font-heading font-semibold text-base text-brand-plum mb-4">Additional notes</h2>
         <div class="grid grid-cols-1 gap-4">
             <div>
-                <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Special Instructions</label>
+                <label class="block text-sm font-semibold text-brand-plum/60 mb-1">Special instructions</label>
                 <textarea name="special_instructions" rows="2"
                           class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/30 resize-none"
                           placeholder="Fragile, call before delivery, etc."><?= e($delivery['special_instructions'] ?? '') ?></textarea>
             </div>
             <div>
-                <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Internal Notes</label>
+                <label class="block text-sm font-semibold text-brand-plum/60 mb-1">Internal notes</label>
                 <textarea name="notes" rows="2"
                           class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/30 resize-none"
                           placeholder="Private notes (not shown to recipient)"><?= e($delivery['notes'] ?? '') ?></textarea>
@@ -283,16 +283,16 @@ if (empty($initial_items)) {
         <input type="checkbox" name="sign_on" value="1" <?= $d_sign ? 'checked' : '' ?> class="mt-0.5 w-4 h-4 shrink-0">
         <span>
             <span class="block text-xs font-bold text-brand-plum">Signed delivery note</span>
-            <span class="block text-[10px] text-brand-plum/50 leading-snug">Signed for your business, and the receiver signs when it arrives. Leave it off and they confirm with one tap.</span>
+            <span class="block text-xs text-brand-plum/50 leading-snug">Signed for your business, and the receiver signs when it arrives. Leave it off and they confirm with one tap.</span>
         </span>
     </label>
     <?php endif; ?>
 
     <!-- Actions -->
     <div class="flex items-center justify-between">
-        <a href="<?= APP_URL ?>/deliveries" class="text-[10px] font-bold text-brand-plum/40 uppercase tracking-widest hover:text-accent-text">Cancel</a>
-        <button type="submit" class="btn-primary text-white px-8 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-sm hover:shadow-md transition-all">
-            <?= $editing ? 'Update Delivery' : 'Create Delivery' ?>
+        <a href="<?= APP_URL ?>/deliveries" class="text-sm font-semibold text-brand-plum/60 hover:text-accent-text">Cancel</a>
+        <button type="submit" class="btn-primary text-white px-8 py-3 rounded-xl text-sm font-semibold shadow-sm hover:shadow-md transition-all">
+            <?= $editing ? 'Save changes' : 'Create delivery' ?>
         </button>
     </div>
 </form>

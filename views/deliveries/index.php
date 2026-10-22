@@ -8,6 +8,8 @@
  *   $search, $status (filter), $sort, $page, $total_pages, $total_items
  */
 $currency = $business['currency_symbol'] ?? '₦';
+// The status names in sentence case ("Pending dispatch"), as the rest of the app writes them
+foreach ($statuses as $k => $s) { $statuses[$k]['label'] = ucfirst(strtolower($s['label'])); }
 ?>
 
 <!-- Page Header -->
@@ -18,30 +20,30 @@ $currency = $business['currency_symbol'] ?? '₦';
     </div>
     <a href="<?= APP_URL ?>/deliveries/create" class="flex items-center gap-2 btn-primary text-white px-5 py-2.5 rounded-xl shadow-sm hover:shadow-md transition-all">
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
-        <span class="text-[10px] font-bold uppercase tracking-widest">New Delivery</span>
+        <span class="text-sm font-semibold">New delivery</span>
     </a>
 </div>
 
 <!-- Summary Cards -->
 <div class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
     <div class="bg-brand-white p-4 rounded-xl border border-brand-sand shadow-sm">
-        <div class="data-text text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">Pending</div>
+        <div class="data-text text-xs font-semibold text-brand-plum/60 mb-1">Pending</div>
         <div class="font-heading font-extrabold text-xl text-gray-600"><?= (int)($summary['pending_count'] ?? 0) ?></div>
     </div>
     <div class="bg-brand-white p-4 rounded-xl border border-brand-sand shadow-sm">
-        <div class="data-text text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">In Progress</div>
+        <div class="data-text text-xs font-semibold text-brand-plum/60 mb-1">In progress</div>
         <div class="font-heading font-extrabold text-xl text-amber-600"><?= (int)($summary['active_count'] ?? 0) ?></div>
     </div>
     <div class="bg-brand-white p-4 rounded-xl border border-brand-sand shadow-sm">
-        <div class="data-text text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">Completed</div>
+        <div class="data-text text-xs font-semibold text-brand-plum/60 mb-1">Completed</div>
         <div class="font-heading font-extrabold text-xl text-green-600"><?= (int)($summary['completed_count'] ?? 0) ?></div>
     </div>
     <div class="bg-brand-white p-4 rounded-xl border border-brand-sand shadow-sm">
-        <div class="data-text text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">Received</div>
+        <div class="data-text text-xs font-semibold text-brand-plum/60 mb-1">Received</div>
         <div class="font-heading font-extrabold text-xl text-purple-600"><?= (int)($summary['signed_count'] ?? 0) ?></div>
     </div>
     <div class="bg-brand-white p-4 rounded-xl border border-brand-sand shadow-sm">
-        <div class="data-text text-[9px] font-bold text-brand-plum/40 uppercase tracking-widest mb-1">Failed</div>
+        <div class="data-text text-xs font-semibold text-brand-plum/60 mb-1">Failed</div>
         <div class="font-heading font-extrabold text-xl text-red-600"><?= (int)($summary['failed_count'] ?? 0) ?></div>
     </div>
 </div>
@@ -54,20 +56,20 @@ $currency = $business['currency_symbol'] ?? '₦';
             <input type="text" name="q" value="<?= e($search) ?>" placeholder="Search by number, recipient, tracking..."
                    class="w-full pl-10 pr-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum placeholder-brand-plum/30">
         </div>
-        <select name="status" class="text-xs font-semibold text-brand-plum bg-brand-cream border border-brand-sand rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent-text uppercase tracking-wider">
-            <option value="">All Status</option>
+        <select name="status" class="text-xs font-semibold text-brand-plum bg-brand-cream border border-brand-sand rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent-text">
+            <option value="">All statuses</option>
             <?php foreach ($statuses as $k => $v): ?>
                 <option value="<?= $k ?>" <?= $status === $k ? 'selected' : '' ?>><?= $v['label'] ?></option>
             <?php endforeach; ?>
         </select>
-        <select name="sort" class="text-xs font-semibold text-brand-plum bg-brand-cream border border-brand-sand rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent-text uppercase tracking-wider">
+        <select name="sort" class="text-xs font-semibold text-brand-plum bg-brand-cream border border-brand-sand rounded-lg px-3 py-2.5 focus:outline-none focus:border-accent-text">
             <option value="newest" <?= $sort === 'newest' ? 'selected' : '' ?>>Newest</option>
             <option value="oldest" <?= $sort === 'oldest' ? 'selected' : '' ?>>Oldest</option>
-            <option value="updated" <?= $sort === 'updated' ? 'selected' : '' ?>>Last Updated</option>
+            <option value="updated" <?= $sort === 'updated' ? 'selected' : '' ?>>Last updated</option>
         </select>
-        <button type="submit" class="btn-primary text-white px-4 py-2.5 rounded-lg text-[10px] font-bold uppercase tracking-widest">Filter</button>
+        <button type="submit" class="btn-primary text-white px-4 py-2.5 rounded-lg text-sm font-semibold">Filter</button>
         <?php if ($search || $status || $sort !== 'newest'): ?>
-            <a href="<?= APP_URL ?>/deliveries" class="text-[10px] font-bold text-brand-plum/40 uppercase tracking-widest hover:text-accent-text">Clear</a>
+            <a href="<?= APP_URL ?>/deliveries" class="text-sm font-semibold text-brand-plum/60 hover:text-accent-text">Clear</a>
         <?php endif; ?>
     </div>
 </form>
@@ -79,12 +81,12 @@ $currency = $business['currency_symbol'] ?? '₦';
             <table class="w-full text-left">
                 <thead>
                     <tr class="border-b border-brand-sand bg-brand-cream/50">
-                        <th class="px-5 py-3 text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest">Number</th>
-                        <th class="px-5 py-3 text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest">Recipient</th>
-                        <th class="px-5 py-3 text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest">Invoice</th>
-                        <th class="px-5 py-3 text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest">Provider</th>
-                        <th class="px-5 py-3 text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest">ETA</th>
-                        <th class="px-5 py-3 text-[9px] font-bold text-brand-plum/50 uppercase tracking-widest text-center">Status</th>
+                        <th class="px-5 py-3 text-xs font-semibold text-brand-plum/70">Number</th>
+                        <th class="px-5 py-3 text-xs font-semibold text-brand-plum/70">Recipient</th>
+                        <th class="px-5 py-3 text-xs font-semibold text-brand-plum/70">Invoice</th>
+                        <th class="px-5 py-3 text-xs font-semibold text-brand-plum/70">Provider</th>
+                        <th class="px-5 py-3 text-xs font-semibold text-brand-plum/70">ETA</th>
+                        <th class="px-5 py-3 text-xs font-semibold text-brand-plum/70 text-center">Status</th>
                         <th class="px-5 py-3"></th>
                     </tr>
                 </thead>
@@ -97,25 +99,25 @@ $currency = $business['currency_symbol'] ?? '₦';
                             <td class="px-5 py-4">
                                 <div class="text-xs font-semibold text-brand-plum"><?= e($d['recipient_name']) ?></div>
                                 <?php if ($d['recipient_phone']): ?>
-                                    <div class="text-[10px] text-brand-plum/40"><?= e($d['recipient_phone']) ?></div>
+                                    <div class="text-xs text-brand-plum/40"><?= e($d['recipient_phone']) ?></div>
                                 <?php endif; ?>
                             </td>
                             <td class="px-5 py-4">
                                 <?php if ($d['invoice_number']): ?>
-                                    <a href="<?= APP_URL ?>/invoices/view/<?= $d['invoice_id'] ?>" class="data-text text-[10px] font-bold text-blue-500 hover:text-blue-700"><?= e($d['invoice_number']) ?></a>
+                                    <a href="<?= APP_URL ?>/invoices/view/<?= $d['invoice_id'] ?>" class="data-text text-xs font-bold text-blue-500 hover:text-blue-700"><?= e($d['invoice_number']) ?></a>
                                 <?php else: ?>
-                                    <span class="text-[10px] text-brand-plum/30">Standalone</span>
+                                    <span class="text-xs text-brand-plum/60">Standalone</span>
                                 <?php endif; ?>
                             </td>
-                            <td class="px-5 py-4 text-[10px] text-brand-plum/60"><?= $d['provider'] ? ($providers[$d['provider']] ?? e(ucfirst($d['provider']))) : '—' ?></td>
-                            <td class="px-5 py-4 data-text text-[10px] text-brand-plum/60"><?= $d['estimated_delivery'] ? fmt_date($d['estimated_delivery'], 'd M, H:i') : '—' ?></td>
+                            <td class="px-5 py-4 text-xs text-brand-plum/60"><?= $d['provider'] ? ($providers[$d['provider']] ?? e(ucfirst($d['provider']))) : '—' ?></td>
+                            <td class="px-5 py-4 data-text text-xs text-brand-plum/60"><?= $d['estimated_delivery'] ? fmt_date($d['estimated_delivery'], 'd M, H:i') : '—' ?></td>
                             <td class="px-5 py-4 text-center">
-                                <span class="data-text text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded <?= $statuses[$d['status']]['color'] ?? 'bg-gray-100 text-gray-700' ?>">
+                                <span class="data-text text-xs font-semibold px-2 py-0.5 rounded <?= $statuses[$d['status']]['color'] ?? 'bg-gray-100 text-gray-700' ?>">
                                     <?= $statuses[$d['status']]['label'] ?? ucfirst($d['status']) ?>
                                 </span>
                             </td>
                             <td class="px-5 py-4 text-right">
-                                <a href="<?= APP_URL ?>/deliveries/view/<?= $d['id'] ?>" class="text-[10px] font-bold text-accent-text uppercase tracking-widest hover:text-accent-text">View</a>
+                                <a href="<?= APP_URL ?>/deliveries/view/<?= $d['id'] ?>" class="text-sm font-semibold text-accent-text hover:text-accent-text">View</a>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -129,13 +131,13 @@ $currency = $business['currency_symbol'] ?? '₦';
         <nav class="flex items-center justify-center gap-2 mb-8">
             <?php $qp = $_GET; unset($qp['page']); $base = APP_URL . '/deliveries?' . http_build_query($qp); ?>
             <?php if ($page > 1): ?>
-                <a href="<?= $base ?>&page=<?= $page - 1 ?>" class="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-brand-plum/60 bg-brand-white border border-brand-sand rounded-lg hover:border-accent">Prev</a>
+                <a href="<?= $base ?>&page=<?= $page - 1 ?>" class="px-3 py-2 text-sm font-semibold text-brand-plum/60 bg-brand-white border border-brand-sand rounded-lg hover:border-accent">Prev</a>
             <?php endif; ?>
             <?php for ($i = max(1, $page - 2); $i <= min($total_pages, $page + 2); $i++): ?>
-                <a href="<?= $base ?>&page=<?= $i ?>" class="w-9 h-9 flex items-center justify-center text-[10px] font-bold rounded-lg <?= $i === $page ? 'btn-primary text-white' : 'text-brand-plum/60 bg-brand-white border border-brand-sand hover:border-accent' ?>"><?= $i ?></a>
+                <a href="<?= $base ?>&page=<?= $i ?>" class="w-9 h-9 flex items-center justify-center text-xs font-bold rounded-lg <?= $i === $page ? 'btn-primary text-white' : 'text-brand-plum/60 bg-brand-white border border-brand-sand hover:border-accent' ?>"><?= $i ?></a>
             <?php endfor; ?>
             <?php if ($page < $total_pages): ?>
-                <a href="<?= $base ?>&page=<?= $page + 1 ?>" class="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-brand-plum/60 bg-brand-white border border-brand-sand rounded-lg hover:border-accent">Next</a>
+                <a href="<?= $base ?>&page=<?= $page + 1 ?>" class="px-3 py-2 text-sm font-semibold text-brand-plum/60 bg-brand-white border border-brand-sand rounded-lg hover:border-accent">Next</a>
             <?php endif; ?>
         </nav>
     <?php endif; ?>
@@ -147,11 +149,11 @@ $currency = $business['currency_symbol'] ?? '₦';
         </div>
         <?php if ($search || $status): ?>
             <h3 class="font-heading font-bold text-lg text-brand-plum mb-2">No deliveries match your filters</h3>
-            <a href="<?= APP_URL ?>/deliveries" class="text-[10px] font-bold text-accent-text uppercase tracking-widest">Clear Filters</a>
+            <a href="<?= APP_URL ?>/deliveries" class="text-sm font-semibold text-accent-text">Clear filters</a>
         <?php else: ?>
             <h3 class="font-heading font-bold text-lg text-brand-plum mb-2">No deliveries yet</h3>
             <p class="text-xs text-brand-plum/50 font-medium mb-6">Create a delivery note to track dispatches and get recipient sign-off confirmation.</p>
-            <a href="<?= APP_URL ?>/deliveries/create" class="btn-primary text-white px-6 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-sm">Create First Delivery</a>
+            <a href="<?= APP_URL ?>/deliveries/create" class="btn-primary text-white px-6 py-3 rounded-xl text-sm font-semibold shadow-sm">Create your first delivery</a>
         <?php endif; ?>
     </div>
 <?php endif; ?>

@@ -77,7 +77,7 @@ if (!empty($activities)) {
                     </span>
                     
                     <a href="<?= APP_URL ?>/doc/<?= e($quotation['token']) ?>?format=pdf" target="_blank" 
-                       class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-700 rounded text-[10px] font-bold uppercase tracking-widest border border-slate-200 hover:bg-slate-200 hover:text-slate-900 transition-colors shadow-sm">
+                       class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-700 rounded text-sm font-semibold border border-slate-200 hover:bg-slate-200 hover:text-slate-900 transition-colors shadow-sm">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                         Download PDF
                     </a>
@@ -86,7 +86,7 @@ if (!empty($activities)) {
 
             <?php if ($customer): ?>
                 <div class="bg-slate-50 p-4 border border-slate-200 rounded-lg">
-                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Prepared For</p>
+                    <p class="text-xs font-semibold text-slate-500 mb-1">Prepared for</p>
                     <p class="font-bold text-slate-900"><?= e($customer['full_name']) ?></p>
                     <?php if ($customer['business_name']): ?><p class="text-sm text-slate-600"><?= e($customer['business_name']) ?></p><?php endif; ?>
                 </div>
@@ -96,13 +96,13 @@ if (!empty($activities)) {
         <nav class="flex border-b border-slate-200 sticky top-0 bg-white/90 backdrop-blur z-20">
             <template x-for="t in ['offer', 'terms', 'discuss']" :key="t">
                 <button @click="switchTab(t)" 
-                        class="flex-1 py-4 text-xs font-bold uppercase tracking-widest border-b-2 transition-colors flex items-center justify-center gap-2"
+                        class="flex-1 py-4 text-sm font-semibold border-b-2 transition-colors flex items-center justify-center gap-2"
                         :class="tab === t ? 'border-brand text-brand-text' : 'border-transparent text-slate-400 hover:text-slate-600'">
-                    <span x-text="t === 'discuss' ? 'Discussion' : t"></span>
+                    <span x-text="({ offer: 'Offer', terms: 'Terms', discuss: 'Discussion' })[t]"></span>
                     
                     <!-- Notification Badge -->
                     <template x-if="t === 'discuss' && unreadCount > 0">
-                        <span class="flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-white text-[9px] font-bold animate-pulse" 
+                        <span class="flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-white text-xs font-bold animate-pulse" 
                               x-text="unreadCount"></span>
                     </template>
                 </button>
@@ -153,7 +153,7 @@ if (!empty($activities)) {
                         </div>
                     <?php endif; ?>
                     <div class="pt-4 mt-2 border-t-2 border-slate-200 flex justify-between items-center">
-                        <span class="font-heading font-extrabold uppercase tracking-widest text-slate-900">Total</span>
+                        <span class="font-heading font-extrabold text-slate-900">Total</span>
                         <span class="font-mono font-bold text-2xl text-brand-text"><?= money((float)$quotation['total'], $currency) ?></span>
                     </div>
                 </div>
@@ -165,7 +165,7 @@ if (!empty($activities)) {
             <div x-show="tab === 'terms'" x-cloak x-transition.opacity class="space-y-8">
                 <?php if ($quotation['notes']): ?>
                     <div>
-                        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Terms & Conditions</h3>
+                        <h3 class="text-base font-semibold text-slate-500 mb-3">Terms and conditions</h3>
                         <div class="p-5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 whitespace-pre-line leading-relaxed">
                             <?= e($quotation['notes']) ?>
                         </div>
@@ -174,7 +174,7 @@ if (!empty($activities)) {
 
                 <?php if ($bank): ?>
                     <div>
-                        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Payment Details</h3>
+                        <h3 class="text-base font-semibold text-slate-500 mb-3">Payment details</h3>
                         <div class="p-5 border-2 border-slate-900 rounded-lg bg-white">
                             <p class="text-sm font-medium text-slate-500 mb-1">Bank: <span class="font-bold text-slate-900"><?= e($bank['bank_name']) ?></span></p>
                             <p class="text-sm font-medium text-slate-500 mb-1">Name: <span class="font-bold text-slate-900"><?= e($bank['account_name']) ?></span></p>
@@ -185,7 +185,7 @@ if (!empty($activities)) {
                 
                 <?php if ($quotation['expiry_date']): ?>
                     <div class="text-center p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                        <p class="text-xs font-bold text-amber-800 uppercase tracking-widest">Valid Until</p>
+                        <p class="text-xs font-semibold text-amber-800">Valid until</p>
                         <p class="font-mono font-bold text-amber-900 mt-1"><?= fmt_date($quotation['expiry_date'], 'd M Y') ?></p>
                     </div>
                 <?php endif; ?>
@@ -199,7 +199,7 @@ if (!empty($activities)) {
                         <?php foreach ($activities as $act): ?>
                             <?php $is_client = $act['actor_type'] === 'client'; ?>
                             <div class="flex flex-col <?= $is_client ? 'items-end' : 'items-start' ?>">
-                                <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 mx-1">
+                                <span class="text-xs font-semibold text-slate-500 mb-1 mx-1">
                                     <?= $is_client ? e($customer['full_name'] ?? 'You') : e($business['name']) ?> • <?= date('M d, H:i', strtotime($act['created_at'])) ?>
                                 </span>
                                 <?php if ($act['action'] === 'comment_added'): ?>
@@ -220,8 +220,8 @@ if (!empty($activities)) {
                     <div class="mt-auto pt-4 border-t border-slate-200">
                         <textarea x-model="commentText" rows="2" class="w-full p-3 border-2 border-slate-200 rounded-lg focus:border-brand-text focus:ring-0 text-sm resize-none mb-2 font-medium" placeholder="Ask a question or request a revision..."></textarea>
                         <button @click="submitAction('comment')" :disabled="!commentText.trim() || isSubmitting" 
-                                class="w-full py-3 bg-slate-900 text-white text-xs font-bold uppercase tracking-widest rounded-lg disabled:opacity-50 transition-opacity">
-                            Send Message
+                                class="w-full py-3 bg-slate-900 text-white text-sm font-semibold rounded-lg disabled:opacity-50 transition-opacity">
+                            Send message
                         </button>
                     </div>
                 <?php endif; ?>
@@ -230,19 +230,19 @@ if (!empty($activities)) {
 
         <?php if ($is_active): ?>
             <div class="fixed bottom-0 left-0 right-0 z-30 max-w-2xl mx-auto bg-white border-t border-slate-200 p-4 flex gap-3 shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.1)]">
-                <button @click="modals.decline = true" class="flex-1 py-3.5 border-2 border-slate-200 text-slate-600 text-xs font-bold uppercase tracking-widest rounded-lg hover:bg-slate-50 transition-colors">
+                <button @click="modals.decline = true" class="flex-1 py-3.5 border-2 border-slate-200 text-slate-600 text-sm font-semibold rounded-lg hover:bg-slate-50 transition-colors">
                     Decline
                 </button>
                 <?php if ($past_date): ?>
-                <button @click="switchTab('discuss')" class="flex-[2] py-3.5 bg-brand text-on-brand text-xs font-bold uppercase tracking-widest rounded-lg shadow-lg hover:shadow-xl transition-all">
+                <button @click="switchTab('discuss')" class="flex-[2] py-3.5 bg-brand text-on-brand text-sm font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all">
                     Ask for a fresh quote
                 </button>
                 <?php elseif ($sign_to_accept): ?>
-                <button @click="openSignatureModal()" class="flex-[2] py-3.5 bg-brand text-on-brand text-xs font-bold uppercase tracking-widest rounded-lg shadow-lg hover:shadow-xl transition-all">
-                    Sign & Accept
+                <button @click="openSignatureModal()" class="flex-[2] py-3.5 bg-brand text-on-brand text-sm font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all">
+                    Sign & accept
                 </button>
                 <?php else: ?>
-                <button @click="acceptQuote()" :disabled="isSubmitting" class="flex-[2] py-3.5 bg-brand text-on-brand text-xs font-bold uppercase tracking-widest rounded-lg shadow-lg hover:shadow-xl transition-all disabled:opacity-50">
+                <button @click="acceptQuote()" :disabled="isSubmitting" class="flex-[2] py-3.5 bg-brand text-on-brand text-sm font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all disabled:opacity-50">
                     Accept quote
                 </button>
                 <?php endif; ?>
@@ -255,8 +255,8 @@ if (!empty($activities)) {
                 <p class="text-xs text-slate-500 mb-4">Please let us know why so we can improve.</p>
                 <textarea x-model="declineReason" rows="3" class="w-full p-3 border-2 border-slate-200 rounded-lg mb-4 text-sm focus:border-brand-text outline-none resize-none"></textarea>
                 <div class="flex gap-3">
-                    <button @click="modals.decline = false" class="flex-1 py-3 text-xs font-bold text-slate-600 bg-slate-100 rounded-lg uppercase tracking-widest">Cancel</button>
-                    <button @click="submitAction('decline')" :disabled="isSubmitting" class="flex-1 py-3 text-xs font-bold text-white bg-red-600 rounded-lg uppercase tracking-widest disabled:opacity-50">Confirm</button>
+                    <button @click="modals.decline = false" class="flex-1 py-3 text-sm font-semibold text-slate-600 bg-slate-100 rounded-lg">Cancel</button>
+                    <button @click="submitAction('decline')" :disabled="isSubmitting" class="flex-1 py-3 text-sm font-semibold text-white bg-red-600 rounded-lg disabled:opacity-50">Decline quote</button>
                 </div>
             </div>
         </div>
@@ -266,17 +266,17 @@ if (!empty($activities)) {
             <div @click.away="modals.sign = false" x-transition.scale class="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
                 
                 <div class="p-5 border-b border-slate-100 bg-slate-50">
-                    <h3 class="font-heading font-bold text-lg text-slate-900">Sign & Accept</h3>
-                    <p class="text-xs text-slate-500">By signing, you agree to the Terms & Conditions.</p>
+                    <h3 class="font-heading font-bold text-lg text-slate-900">Sign & accept</h3>
+                    <p class="text-xs text-slate-500">By signing, you agree to the terms and conditions.</p>
                 </div>
                 
                 <div class="p-5 overflow-y-auto">
-                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Your Full Name</label>
+                    <label class="block text-sm font-semibold text-slate-500 mb-2">Your full name</label>
                     <input type="text" x-model="signName" class="w-full p-3 border-2 border-slate-200 rounded-lg mb-5 text-sm font-bold text-slate-900 focus:border-brand-text outline-none" placeholder="John Doe">
                     
                     <div class="flex justify-between items-end mb-2">
-                        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">Draw Signature</label>
-                        <button @click="clearSignature()" type="button" class="text-[10px] font-bold text-brand-text uppercase tracking-widest hover:underline">Clear</button>
+                        <label class="block text-sm font-semibold text-slate-500">Draw your signature</label>
+                        <button @click="clearSignature()" type="button" class="text-sm font-semibold text-brand-text hover:underline">Clear</button>
                     </div>
                     <div class="border-2 border-slate-900 rounded-xl bg-slate-50 overflow-hidden relative" style="height: 200px;">
                         <canvas id="sig-canvas" width="600" height="200" class="w-full h-full absolute inset-0"></canvas>
@@ -284,8 +284,8 @@ if (!empty($activities)) {
                 </div>
 
                 <div class="p-5 border-t border-slate-100 flex gap-3 bg-white">
-                    <button @click="modals.sign = false" class="py-3.5 px-6 text-xs font-bold text-slate-600 border-2 border-slate-200 rounded-lg uppercase tracking-widest hover:bg-slate-50">Cancel</button>
-                    <button @click="submitSignature()" :disabled="!signName.trim() || isSubmitting" class="flex-1 py-3.5 text-xs font-bold text-on-brand bg-brand rounded-lg uppercase tracking-widest shadow-md disabled:opacity-50">
+                    <button @click="modals.sign = false" class="py-3.5 px-6 text-sm font-semibold text-slate-600 border-2 border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
+                    <button @click="submitSignature()" :disabled="!signName.trim() || isSubmitting" class="flex-1 py-3.5 text-sm font-semibold text-on-brand bg-brand rounded-lg shadow-md disabled:opacity-50">
                         <span x-text="isSubmitting ? 'Processing...' : 'Accept quote'"></span>
                     </button>
                 </div>
