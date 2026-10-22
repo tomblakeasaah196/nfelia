@@ -1,0 +1,831 @@
+<title>Yetunde Brand Guidelines</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,400..700,0..100;1,9..144,400..700,0..100&family=DM+Sans:ital,opsz,wght@0,9..40,400..700;1,9..40,400..700&display=swap">
+<style>
+/* Layout: four A4 sheets on a desk. On paper and wide screens each sheet is a fixed page; on phones it becomes a flowing card. */
+:root {
+  /* the desk around the sheets follows the viewer's theme */
+  --desk: #E7DFCF;
+  --desk-ink: #2B1E17;
+  --bar: #F7F1E6;
+  --bar-line: #D8CCB4;
+  --bar-on: #1F4D3A;
+  --bar-on-ink: #F7F1E6;
+  /* the brand (the sheets are paper, so these never change with the theme) */
+  --forest: #1F4D3A;
+  --forest-deep: #163A2B;
+  --night: #0F241B;
+  --pale: #E3ECE5;
+  --gold: #C9A24B;
+  --gold-light: #DDBE72;
+  --gold-deep: #7E6020;
+  --gold-tint: #F3E9CF;
+  --palm: #B23A21;
+  --palm-tint: #F6E3DC;
+  --cream: #F7F1E6;
+  --sand: #E6DCC9;
+  --cocoa: #2B1E17;
+  --cocoa-soft: #6A5647;
+  --white: #FFFFFF;
+  --serif: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --sans: 'DM Sans', 'Helvetica Neue', Arial, sans-serif;
+  --mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  --pad: 13mm;
+  --band-green: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='28' viewBox='0 0 40 28'%3E%3Crect width='40' height='28' fill='%23163A2B'/%3E%3Crect y='3' width='40' height='1.6' fill='%23C9A24B'/%3E%3Crect y='23.4' width='40' height='1.6' fill='%23C9A24B'/%3E%3Cpath d='M5 19V15.6L7.6 9.4L11.4 14L14 7.4L16.6 14L20.4 9.4L23 15.6V19Z' fill='%23C9A24B'/%3E%3Cpath d='M31.5 9.6L35.4 14L31.5 18.4L27.6 14Z' fill='%23F7F1E6'/%3E%3C/svg%3E");
+  --band-cream: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='28' viewBox='0 0 40 28'%3E%3Crect width='40' height='28' fill='%23F7F1E6'/%3E%3Crect y='3' width='40' height='1.2' fill='%231F4D3A'/%3E%3Crect y='23.8' width='40' height='1.2' fill='%231F4D3A'/%3E%3Cpath d='M5 19V15.6L7.6 9.4L11.4 14L14 7.4L16.6 14L20.4 9.4L23 15.6V19Z' fill='%231F4D3A'/%3E%3Cpath d='M31.5 9.6L35.4 14L31.5 18.4L27.6 14Z' fill='%23B23A21'/%3E%3C/svg%3E");
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --desk: #0B1A13; --desk-ink: #F2EBDD; --bar: #10261C; --bar-line: #24412F; --bar-on: #DDBE72; --bar-on-ink: #0F241B; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --desk: #0B1A13; --desk-ink: #F2EBDD; --bar: #10261C; --bar-line: #24412F; --bar-on: #DDBE72; --bar-on-ink: #0F241B; color-scheme: dark; }
+
+body {
+  margin: 0;
+  background: var(--desk);
+  color: var(--desk-ink);
+  font-family: var(--sans);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 40px;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bar); }
+
+#doc[data-lang="fr"] [lang="en"]:not(.keep),
+#doc[data-lang="en"] [lang="fr"]:not(.keep) { display: none !important; }
+
+/* language bar */
+.toolbar {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  max-width: 210mm; margin: 0 auto; padding-block: 12px;
+  background: var(--desk);
+  border-bottom: 1px solid var(--bar-line);
+}
+.tb-title { font-family: var(--serif); font-weight: 600; font-size: 15px; font-variation-settings: 'SOFT' 100; }
+.tb-title small { font-family: var(--sans); font-weight: 400; font-size: 13px; opacity: .8; margin-left: 6px; }
+.seg { display: inline-flex; border: 1px solid var(--bar-line); border-radius: 999px; padding: 3px; background: var(--bar); }
+.seg button {
+  font: 600 13px/1 var(--sans); color: var(--desk-ink); background: transparent; border: 0;
+  padding: 9px 14px; border-radius: 999px; cursor: pointer; min-height: 36px;
+}
+.seg button[aria-pressed="true"] { background: var(--bar-on); color: var(--bar-on-ink); }
+.seg button:focus-visible, .copy:focus-visible, a:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+/* sheets */
+.sheet {
+  width: 210mm; height: 297mm; margin: 24px auto 0; overflow: hidden; position: relative;
+  padding: var(--pad); box-sizing: border-box;
+  background: var(--cream); color: var(--cocoa);
+  box-shadow: 0 1px 2px rgba(15, 36, 27, .08), 0 8px 28px rgba(15, 36, 27, .12);
+  display: flex; flex-direction: column; gap: 4.2mm;
+  font-size: 12px; line-height: 1.5;
+}
+.sheet p, .sheet h2, .sheet h3, .sheet ul, .sheet dl, .sheet dd, .sheet figure { margin: 0; }
+.sheet ul { padding: 0; list-style: none; }
+.sheet h2 { font-family: var(--serif); font-weight: 600; font-variation-settings: 'SOFT' 100; font-size: 2.35em; line-height: 1.05; color: var(--forest); text-wrap: balance; letter-spacing: -.01em; }
+.sheet h3 { font-family: var(--serif); font-weight: 600; font-variation-settings: 'SOFT' 100; font-size: 1.36em; line-height: 1.2; color: var(--forest); margin-bottom: .45em; }
+.sheet h4 { font: 600 1em/1.3 var(--sans); color: var(--cocoa); margin: 0 0 .2em; }
+.muted { color: var(--cocoa-soft); }
+.small { font-size: .875em; }
+.run { display: flex; justify-content: space-between; align-items: center; padding-bottom: 2.6mm; border-bottom: 1px solid var(--gold); font-size: .9em; color: var(--cocoa-soft); }
+.run-brand { display: inline-flex; align-items: center; gap: 7px; font-family: var(--serif); font-weight: 600; font-variation-settings: 'SOFT' 100; color: var(--forest); font-size: 1.1em; }
+.foot { margin-top: auto; display: flex; justify-content: space-between; gap: 12px; padding-top: 2.4mm; border-top: 1px solid var(--sand); font-size: .85em; color: var(--cocoa-soft); }
+.foot b { font-weight: 600; color: var(--forest); }
+
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm 7mm; align-items: start; }
+.cols > * { min-width: 0; }
+.stack { display: flex; flex-direction: column; gap: 4mm; }
+.rule-list { display: grid; gap: .5em; }
+.rule-list li { padding-left: 1.05em; position: relative; }
+.rule-list li::before { content: ""; position: absolute; left: 0; top: .58em; width: .42em; height: .42em; background: var(--gold); transform: rotate(45deg); }
+.rule-list b { color: var(--forest); font-weight: 600; }
+
+/* the mark */
+.mark { display: block; flex: none; --m-pot: var(--forest); --m-crown: var(--gold); --m-band: var(--cream); }
+.mark.rev { --m-pot: var(--cream); --m-crown: var(--gold-light); --m-band: var(--forest); }
+.mark.ink { --m-pot: var(--forest); --m-crown: var(--forest); --m-band: var(--white); }
+.run .mark { width: 22px; height: 22px; }
+
+.lockup { display: flex; align-items: center; gap: .55em; color: var(--forest); }
+.lockup .mark { width: 2.6em; height: 2.6em; }
+.lk-words { display: flex; flex-direction: column; line-height: 1; }
+.lk-name { font-family: var(--serif); font-weight: 600; font-variation-settings: 'SOFT' 100; font-size: 1.62em; letter-spacing: -.01em; }
+.lk-sub { font: 500 .44em/1 var(--sans); letter-spacing: .34em; margin-top: .55em; padding-left: .1em; }
+.lockup.on-green { color: var(--cream); }
+.lockup.on-green .lk-sub { color: var(--gold-light); }
+.lockup.stacked { flex-direction: column; text-align: center; gap: .35em; }
+.lockup.stacked .lk-words { align-items: center; }
+
+/* page 1 cover */
+.cover {
+  margin: calc(-1 * var(--pad)) calc(-1 * var(--pad)) 0;
+  background: var(--forest); color: var(--cream);
+  display: flex; flex-direction: column;
+}
+.cover-in { padding: 11mm var(--pad) 8mm; display: grid; gap: 6mm; }
+.cover .lockup { font-size: 34px; }
+.tagline { font-family: var(--serif); font-style: italic; font-weight: 400; font-variation-settings: 'SOFT' 100; font-size: 25px; line-height: 1.2; color: var(--cream); text-wrap: balance; }
+.cover-meta { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 11px; color: var(--gold-light); letter-spacing: .02em; }
+.band { height: 28px; background-image: var(--band-green); background-repeat: repeat-x; background-size: auto 100%; }
+.band.cream { background-image: var(--band-cream); }
+
+.name-table { display: grid; grid-template-columns: 7.2em 1fr; border-top: 1px solid var(--sand); }
+.name-table > * { padding: .5em 0; border-bottom: 1px solid var(--sand); }
+.name-table dt { font-weight: 600; color: var(--forest); padding-right: .6em; }
+.name-table dd b { font-family: var(--serif); font-weight: 600; font-variation-settings: 'SOFT' 100; font-size: 1.12em; color: var(--forest); }
+
+.who { display: grid; grid-template-columns: 1fr 1fr; gap: 3mm; }
+.who > div { background: var(--white); border: 1px solid var(--sand); padding: .8em .9em; }
+.promise { display: grid; grid-template-columns: auto 1fr; gap: .15em .7em; align-items: baseline; }
+.promise svg { width: 14px; height: 14px; grid-row: span 2; align-self: start; margin-top: .2em; }
+.promise + .promise { margin-top: .6em; }
+
+.say { display: grid; gap: .45em; margin-top: .7em; }
+.say > div { display: grid; grid-template-columns: 2.6em 1fr; gap: .4em; align-items: baseline; }
+.tag { font: 600 .78em/1.6 var(--sans); text-align: center; border-radius: 3px; padding: 0 .3em; }
+.tag.yes { background: var(--pale); color: var(--forest); }
+.tag.no { background: var(--palm-tint); color: var(--palm); }
+
+/* page 2 logo */
+.logo-hero { display: grid; grid-template-columns: 1.25fr 1fr; gap: 6mm; align-items: center; }
+.logo-hero > * { min-width: 0; }
+.plate { background: var(--white); border: 1px solid var(--sand); display: grid; place-items: center; padding: 8mm 6mm; }
+.plate .lockup { font-size: 26px; }
+.note { margin-top: .7em; display: inline-block; font-size: .85em; background: var(--gold-tint); color: var(--gold-deep); padding: .25em .6em; border-radius: 3px; font-weight: 600; }
+.versions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3mm; }
+.versions figure { display: grid; gap: .45em; min-width: 0; }
+.v-tile { height: 27mm; display: grid; place-items: center; border: 1px solid var(--sand); background: var(--white); overflow: hidden; }
+.v-tile.green { background: var(--forest); border-color: var(--forest); }
+.v-tile .lockup { font-size: 14px; }
+.v-tile .lockup.stacked { font-size: 11.5px; }
+.v-tile .app { width: 15mm; height: 15mm; border-radius: 22%; background: var(--forest); display: grid; place-items: center; }
+.v-tile .app .mark { width: 11mm; height: 11mm; }
+.v-tile .seal { width: 21mm; height: 21mm; }
+figcaption { font-size: .88em; line-height: 1.35; }
+figcaption b { color: var(--forest); font-weight: 600; display: block; }
+.dont { display: grid; grid-template-columns: 1fr 1fr; gap: .3em 1.2em; }
+.dont li { padding-left: 1.2em; position: relative; }
+.dont li::before { content: "×"; position: absolute; left: 0; top: -.05em; color: var(--palm); font-weight: 700; }
+
+.swatches { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2.5mm; }
+.sw { border: 1px solid var(--sand); background: var(--white); min-width: 0; }
+.sw-c { height: 17mm; padding: .5em .6em; display: flex; align-items: flex-end; font: 600 .95em/1.2 var(--serif); font-variation-settings: 'SOFT' 100; }
+.sw-i { padding: .5em .6em; font-size: .82em; line-height: 1.45; }
+.sw-i code { font: 600 1em/1 var(--mono); color: var(--cocoa); }
+.support { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2mm; }
+.chip { display: grid; gap: .25em; font-size: .78em; line-height: 1.3; min-width: 0; }
+.chip i { display: block; height: 7mm; border: 1px solid rgba(43, 30, 23, .12); }
+.chip code { font: 500 .95em/1 var(--mono); color: var(--cocoa-soft); }
+.ratio { display: flex; height: 7mm; border: 1px solid var(--sand); font-size: .8em; font-weight: 600; }
+.ratio span { display: grid; place-items: center; white-space: nowrap; overflow: hidden; }
+
+/* page 3 type */
+.spec { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; }
+.spec > div { background: var(--white); border: 1px solid var(--sand); padding: 4mm; min-width: 0; display: grid; gap: .35em; align-content: start; }
+.spec .aa { font-size: 40px; line-height: 1; color: var(--forest); }
+.spec .f-serif { font-family: var(--serif); font-weight: 600; font-variation-settings: 'SOFT' 100; }
+.spec .f-sans { font-family: var(--sans); font-weight: 500; }
+.spec .sample { font-size: 15px; line-height: 1.3; color: var(--cocoa); }
+.scale { display: flex; flex-wrap: wrap; align-items: baseline; gap: .4em 1.4em; padding: .6em .8em; background: var(--pale); }
+.scale span { white-space: nowrap; }
+.scale b { color: var(--forest); }
+.pattern-row { display: grid; grid-template-columns: 1fr 1.2fr; gap: 6mm; align-items: center; }
+.pattern-row > * { min-width: 0; }
+.bands { display: grid; gap: 2.5mm; }
+.lang-rules { display: grid; grid-template-columns: 1fr 1fr; gap: 3mm 6mm; }
+.lang-rules > div { min-width: 0; }
+.lang-rules h4 { color: var(--forest); }
+.gloss { display: grid; grid-template-columns: 1fr 1fr; gap: 0 6mm; }
+.gloss table { width: 100%; border-collapse: collapse; font-size: .92em; }
+.gloss th { text-align: left; font-weight: 600; color: var(--cocoa-soft); font-size: .9em; padding: .25em 0; border-bottom: 1px solid var(--gold); }
+.gloss td { padding: .28em 0; border-bottom: 1px solid var(--sand); }
+.gloss td:first-child { font-weight: 600; color: var(--forest); width: 50%; }
+
+/* page 4 photos and applications */
+.photo { display: grid; grid-template-columns: 1.15fr 1fr; gap: 6mm; align-items: start; }
+.photo > * { min-width: 0; }
+.recipe { display: flex; flex-wrap: wrap; gap: .4em; margin-top: .6em; }
+.recipe span { background: var(--white); border: 1px solid var(--sand); padding: .2em .55em; border-radius: 3px; font-size: .9em; }
+.recipe .dot { display: inline-block; width: .7em; height: .7em; border-radius: 50%; margin-right: .35em; vertical-align: -.05em; border: 1px solid rgba(43, 30, 23, .15); }
+.prompt { position: relative; margin-top: 3mm; background: var(--night); color: #E9E2D3; padding: 3.2mm 3.6mm; font: .82em/1.5 var(--mono); }
+.prompt p { white-space: pre-wrap; }
+.prompt em { color: var(--gold-light); font-style: normal; }
+.prompt-label { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 3mm; }
+.copy { font: 600 11px/1 var(--sans); background: var(--forest); color: var(--cream); border: 0; border-radius: 999px; padding: 7px 12px; cursor: pointer; }
+.fill { display: grid; gap: .5em; }
+.fill div { background: var(--white); border: 1px solid var(--sand); padding: .45em .6em; font-size: .9em; }
+.fill b { color: var(--forest); }
+.apps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3mm; }
+.apps figure { display: grid; gap: .4em; align-content: start; min-width: 0; }
+.apps .wide { grid-column: span 2; }
+.a-tile { height: 34mm; border: 1px solid var(--sand); background: var(--white); display: grid; place-items: center; overflow: hidden; position: relative; }
+.a-icon { display: grid; justify-items: center; gap: 5px; font-size: 11px; }
+.a-icon i { width: 16mm; height: 16mm; border-radius: 22%; background: var(--forest); display: grid; place-items: center; box-shadow: 0 2px 6px rgba(15, 36, 27, .25); }
+.a-icon i .mark { width: 11.5mm; height: 11.5mm; }
+.wa { width: 88%; display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; background: #F0F2F0; border-radius: 8px; padding: 8px; }
+.wa i { width: 11mm; height: 11mm; border-radius: 50%; background: var(--forest); display: grid; place-items: center; }
+.wa i .mark { width: 8mm; height: 8mm; }
+.wa b { display: block; font-size: 11px; line-height: 1.2; }
+.wa span { font-size: 9.5px; color: #54656F; }
+.a-stamp svg { width: 29mm; height: 29mm; }
+.box { width: 80%; height: 24mm; background: var(--cream); border: 1px solid #D8CCB4; position: relative; display: grid; place-items: center; }
+.box::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 7mm; transform: translateY(-50%); background-image: var(--band-green); background-size: auto 100%; }
+.box svg { position: relative; width: 17mm; height: 17mm; }
+.sign { width: 92%; background: var(--forest); color: var(--cream); padding: 3.2mm 4mm 0; display: grid; gap: 2mm; border: 2px solid var(--forest-deep); outline: 1px solid var(--gold); outline-offset: -5px; }
+.sign .lockup { font-size: 17px; }
+.sign-lines { display: grid; gap: 1px; font-size: 10px; color: var(--gold-light); letter-spacing: .02em; }
+.sign .band { height: 12px; margin: 0 -4mm; }
+.quote { width: 92%; background: var(--white); border: 1px solid var(--sand); box-shadow: 0 1px 4px rgba(43, 30, 23, .1); padding: 2.4mm 3mm; font-size: 8.5px; line-height: 1.35; display: grid; gap: 1.4mm; }
+.quote .lockup { font-size: 10px; }
+.q-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 6px; }
+.q-head strong { font-family: var(--serif); font-weight: 600; font-variation-settings: 'SOFT' 100; font-size: 11px; color: var(--forest); display: block; text-align: right; }
+.q-legal { color: var(--cocoa-soft); border-bottom: 1px solid var(--gold); padding-bottom: 1mm; }
+.q-row { display: flex; justify-content: space-between; gap: 6px; font-variant-numeric: tabular-nums; }
+.q-row.total { font-weight: 700; color: var(--forest); border-top: 1px solid var(--sand); padding-top: .8mm; }
+
+/* phones: the sheets become flowing cards */
+@media screen and (max-width: 860px) {
+  :root { --pad: 18px; }
+  .toolbar { padding-block: 10px; }
+  .sheet { width: auto; height: auto; overflow: visible; margin-top: 14px; font-size: 15px; gap: 18px; }
+  .cols, .logo-hero, .spec, .pattern-row, .lang-rules, .gloss, .photo, .who { grid-template-columns: 1fr; }
+  .versions, .apps { grid-template-columns: 1fr 1fr; }
+  .apps .wide { grid-column: span 2; }
+  .swatches { grid-template-columns: repeat(2, 1fr); }
+  .support { grid-template-columns: repeat(3, 1fr); }
+  .dont { grid-template-columns: 1fr; }
+  .cover .lockup { font-size: 28px; }
+  .tagline { font-size: 22px; }
+  .ratio { height: auto; flex-wrap: wrap; }
+  .ratio span { padding: 6px; white-space: normal; text-align: center; }
+  .quote { font-size: 10px; }
+}
+@media screen and (max-width: 420px) {
+  .versions { grid-template-columns: 1fr; }
+  .apps { grid-template-columns: 1fr; }
+  .apps .wide { grid-column: auto; }
+}
+
+@page { size: A4; margin: 0; }
+@media print {
+  body { background: none; padding: 0; }
+  body::before, .toolbar, .copy { display: none !important; }
+  html, body { margin: 0; padding: 0; }
+  .sheet { margin: 0; height: 296.8mm; box-shadow: none; break-after: page; }
+  .sheet:last-of-type { break-after: auto; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="pot" viewBox="0 0 100 100">
+    <path style="fill:var(--m-crown)" d="M31 41.5 L31 37.5 C31 32 28.5 27.5 26.5 23 C25 19.5 25.8 16.5 24.5 13.5 C31.5 16.5 37 22.5 40.5 30.5 C43 24 45.5 19 46.6 14 C47.4 10.5 48.2 8 50 4.5 C52.2 8.5 53.4 11.5 53.4 15 C53.4 19.5 56.5 25 59.5 30.5 C63 22.5 68.5 16.5 75.5 13.5 C74.2 16.5 75 19.5 73.5 23 C71.5 27.5 69 32 69 37.5 L69 41.5 Z"/>
+    <path style="fill:var(--m-pot)" d="M27 45.5 Q27 44 28.5 44 L71.5 44 Q73 44 73 45.5 L71.2 51 Q70.8 52 69.6 52 L30.4 52 Q29.2 52 28.8 51 Z"/>
+    <path style="fill:var(--m-pot)" d="M17.5 59.5 C11 59.5 8.5 62.6 8.5 65 C8.5 67.4 11 70.5 17.5 70.5 L17.5 66.9 C13.6 66.9 12.4 65.9 12.4 65 C12.4 64.1 13.6 63.1 17.5 63.1 Z M82.5 59.5 C89 59.5 91.5 62.6 91.5 65 C91.5 67.4 89 70.5 82.5 70.5 L82.5 66.9 C86.4 66.9 87.6 65.9 87.6 65 C87.6 64.1 86.4 63.1 82.5 63.1 Z"/>
+    <path style="fill:var(--m-pot)" d="M32 53.5 C20 57.5 14.5 66.5 15 75.5 C15.6 86 25.5 94 39 95 L61 95 C74.5 94 84.4 86 85 75.5 C85.5 66.5 80 57.5 68 53.5 Z"/>
+    <path style="fill:var(--m-band)" d="M16.2 68.5 L83.8 68.5 L84.6 72.6 L15.4 72.6 Z"/>
+  </symbol>
+  <symbol id="seal" viewBox="0 0 200 200">
+    <path id="seal-top" d="M38 100 A62 62 0 0 1 162 100" fill="none"/>
+    <path id="seal-bot" d="M27 100 A73 73 0 0 0 173 100" fill="none"/>
+    <circle cx="100" cy="100" r="98" fill="#1F4D3A"/>
+    <circle cx="100" cy="100" r="90" fill="none" stroke="#C9A24B" stroke-width="2"/>
+    <text font-family="DM Sans, Helvetica Neue, Arial, sans-serif" font-weight="600" font-size="17" letter-spacing="5" fill="#F7F1E6"><textPath href="#seal-top" startOffset="50%" text-anchor="middle">YETUNDE</textPath></text>
+    <text font-family="DM Sans, Helvetica Neue, Arial, sans-serif" font-weight="600" font-size="12" letter-spacing="2.6" fill="#DDBE72"><textPath href="#seal-bot" startOffset="50%" text-anchor="middle">AFRICAN PALACE</textPath></text>
+    <circle cx="29" cy="100" r="2.6" fill="#C9A24B"/>
+    <circle cx="171" cy="100" r="2.6" fill="#C9A24B"/>
+    <svg x="61" y="56" width="78" height="78" viewBox="0 0 100 100" style="--m-pot:#F7F1E6;--m-crown:#DDBE72;--m-band:#1F4D3A"><use href="#pot"/></svg>
+  </symbol>
+  <symbol id="stamp" viewBox="0 0 200 200">
+    <path id="stamp-top" d="M32 100 A68 68 0 0 1 168 100" fill="none"/>
+    <path id="stamp-bot" d="M21 100 A79 79 0 0 0 179 100" fill="none"/>
+    <circle cx="100" cy="100" r="95" fill="none" stroke="#1F4D3A" stroke-width="3.2"/>
+    <circle cx="100" cy="100" r="89.5" fill="none" stroke="#1F4D3A" stroke-width="1"/>
+    <circle cx="100" cy="100" r="61" fill="none" stroke="#1F4D3A" stroke-width="1.6"/>
+    <text font-family="DM Sans, Helvetica Neue, Arial, sans-serif" font-weight="700" font-size="11.5" letter-spacing="1.1" fill="#1F4D3A"><textPath href="#stamp-top" startOffset="50%" text-anchor="middle">YETUNDE AFRICAN PALACE</textPath></text>
+    <text font-family="DM Sans, Helvetica Neue, Arial, sans-serif" font-weight="700" font-size="11.5" letter-spacing="1.8" fill="#1F4D3A"><textPath href="#stamp-bot" startOffset="50%" text-anchor="middle">ETS TANKET · BERTOUA</textPath></text>
+    <svg x="59" y="55" width="82" height="82" viewBox="0 0 100 100" style="--m-pot:#1F4D3A;--m-crown:#1F4D3A;--m-band:#FFFFFF"><use href="#pot"/></svg>
+  </symbol>
+  <symbol id="diamond" viewBox="0 0 10 10"><path d="M5 0 L10 5 L5 10 L0 5 Z" fill="#C9A24B"/></symbol>
+</svg>
+
+<div class="toolbar">
+  <span class="tb-title">Yetunde African Palace<small><span lang="fr">Charte de marque · 4 pages</span><span lang="en">Brand guidelines · 4 pages</span></small></span>
+  <div class="seg" role="group" aria-label="Langue · Language">
+    <button type="button" id="lang-fr" data-set-lang="fr" lang="fr" class="keep" aria-pressed="true">Français</button>
+    <button type="button" id="lang-en" data-set-lang="en" lang="en" class="keep" aria-pressed="false">English</button>
+  </div>
+</div>
+
+<main id="doc" data-lang="fr">
+
+<!-- PAGE 1 · THE BRAND -->
+<section class="sheet" aria-label="1">
+  <div class="cover">
+    <div class="cover-in">
+      <div class="lockup on-green">
+        <svg class="mark rev" viewBox="0 0 100 100" aria-hidden="true"><use href="#pot"/></svg>
+        <span class="lk-words"><span class="lk-name">Yetunde</span><span class="lk-sub">AFRICAN PALACE</span></span>
+      </div>
+      <p class="tagline" lang="fr">Ici, chaque invité est&nbsp;roi.</p>
+      <p class="tagline" lang="en">Here, every guest is royalty.</p>
+      <div class="cover-meta">
+        <span lang="fr">Charte de marque · version 1 · octobre 2026</span>
+        <span lang="en">Brand guidelines · version 1 · October 2026</span>
+        <span>ETS TANKET · Bertoua</span>
+      </div>
+    </div>
+    <div class="band" role="img" aria-label="La bande royale · The royal band"></div>
+  </div>
+
+  <div class="cols">
+    <div class="stack">
+      <div>
+        <h3 lang="fr">L’idée</h3>
+        <h3 lang="en">The idea</h3>
+        <p lang="fr">Yetunde African Palace sert la cuisine africaine de tradition avec l’accueil d’un palais. Pour un déjeuner comme pour un séminaire de deux cents personnes, chaque invité est reçu comme un roi&nbsp;: servi avec générosité, à l’heure, avec une facture en règle.</p>
+        <p lang="en">Yetunde African Palace serves traditional African food with the welcome of a palace. At lunch or at a seminar for two hundred, every guest is received like royalty: served generously, on time, with a proper invoice.</p>
+        <p class="muted" style="margin-top:.5em" lang="fr">Personnalité&nbsp;: l’hospitalité royale. Fière, généreuse, chaleureuse. Jamais guindée.</p>
+        <p class="muted" style="margin-top:.5em" lang="en">Personality: royal hospitality. Proud, generous, warm. Never stiff.</p>
+      </div>
+      <div>
+        <h3 lang="fr">Nos deux clients</h3>
+        <h3 lang="en">Our two customers</h3>
+        <div class="who">
+          <div>
+            <h4 lang="fr">Au quotidien</h4>
+            <h4 lang="en">Every day</h4>
+            <p lang="fr">Familles, travailleurs et étudiants de Bertoua. Sur place, à emporter ou livré dans Bertoua, payé d’avance par MTN MoMo ou Orange Money.</p>
+            <p lang="en">Families, workers and students in Bertoua. Eat in, takeaway or delivered within Bertoua, paid upfront by MTN MoMo or Orange Money.</p>
+          </div>
+          <div>
+            <h4 lang="fr">Traiteur</h4>
+            <h4 lang="en">Catering</h4>
+            <p lang="fr">Bureaux, ONG, administrations et organisateurs d’événements, d’où qu’ils viennent. Sur devis, payé d’avance, facture propre.</p>
+            <p lang="en">Offices, NGOs, administrations and event organisers, wherever they are. On quotation, paid upfront, properly invoiced.</p>
+          </div>
+        </div>
+      </div>
+      <div>
+        <h3 lang="fr">Nos trois promesses</h3>
+        <h3 lang="en">Our three promises</h3>
+        <div class="promise">
+          <svg viewBox="0 0 10 10" aria-hidden="true"><use href="#diamond"/></svg>
+          <h4 lang="fr">Un accueil royal</h4>
+          <h4 lang="en">A royal welcome</h4>
+          <p lang="fr">Un plat ou cent&nbsp;: chaque invité compte.</p>
+          <p lang="en">One plate or a hundred: every guest matters.</p>
+        </div>
+        <div class="promise">
+          <svg viewBox="0 0 10 10" aria-hidden="true"><use href="#diamond"/></svg>
+          <h4 lang="fr">Le vrai goût</h4>
+          <h4 lang="en">The real taste</h4>
+          <p lang="fr">Recettes de chez nous, vrais ingrédients, cuisson comme il faut.</p>
+          <p lang="en">Home recipes, real ingredients, cooked properly.</p>
+        </div>
+        <div class="promise">
+          <svg viewBox="0 0 10 10" aria-hidden="true"><use href="#diamond"/></svg>
+          <h4 lang="fr">Parole tenue</h4>
+          <h4 lang="en">Promises kept</h4>
+          <p lang="fr">À l’heure, comme commandé, facture prête.</p>
+          <p lang="en">On time, as ordered, invoice ready.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="stack">
+      <div>
+        <h3 lang="fr">Le nom</h3>
+        <h3 lang="en">The name</h3>
+        <dl class="name-table">
+          <dt lang="fr">Nom de marque</dt>
+          <dt lang="en">Brand name</dt>
+          <dd><b>Yetunde African Palace</b><br><span lang="fr">Le même en français et en anglais. Jamais traduit.</span><span lang="en">The same in French and English. Never translated.</span></dd>
+          <dt lang="fr">Forme courte</dt>
+          <dt lang="en">Short form</dt>
+          <dd><b>Yetunde</b><br><span lang="fr">Sous l’icône de l’app, sur WhatsApp, à l’oral.</span><span lang="en">Under the app icon, on WhatsApp, in conversation.</span></dd>
+          <dt lang="fr">Nom légal</dt>
+          <dt lang="en">Legal name</dt>
+          <dd><b>ETS TANKET</b><br><span lang="fr">Sur les devis, factures, reçus et le cachet, avec le NIU P098211797339W.</span><span lang="en">On quotations, invoices, receipts and the stamp, with taxpayer number (NIU) P098211797339W.</span></dd>
+          <dt lang="fr">Orthographe</dt>
+          <dt lang="en">Spelling</dt>
+          <dd lang="fr">«&nbsp;Yetunde&nbsp;», sans accent. Jamais «&nbsp;Yétundé&nbsp;», jamais «&nbsp;Palais Africain Yetunde&nbsp;».</dd>
+          <dd lang="en">“Yetunde”, with no accents. Never “Yétundé”, never “Palais Africain Yetunde”.</dd>
+          <dt lang="fr">Mention légale</dt>
+          <dt lang="en">Legal line</dt>
+          <dd lang="fr">Yetunde African Palace est une marque d’ETS&nbsp;TANKET.</dd>
+          <dd lang="en">Yetunde African Palace is a brand of ETS&nbsp;TANKET.</dd>
+        </dl>
+      </div>
+      <div>
+        <h3 lang="fr">La voix&nbsp;: l’hôte chaleureux</h3>
+        <h3 lang="en">The voice: the warm host</h3>
+        <ul class="rule-list">
+          <li lang="fr"><b>On tutoie.</b> «&nbsp;Tu&nbsp;», «&nbsp;ton&nbsp;», «&nbsp;ta&nbsp;», jamais «&nbsp;vous&nbsp;».</li>
+          <li lang="en"><b>Warm and direct.</b> French copy uses «&nbsp;tu&nbsp;», never «&nbsp;vous&nbsp;». English uses a plain, friendly “you”.</li>
+          <li lang="fr"><b>Court et simple.</b> Des phrases courtes, des mots de tous les jours.</li>
+          <li lang="en"><b>Short and simple.</b> Short sentences, everyday words.</li>
+          <li lang="fr"><b>D’ici.</b> Les expressions locales sont bienvenues si elles marchent dans les deux langues. Pidgin et camfranglais&nbsp;: sur les réseaux seulement.</li>
+          <li lang="en"><b>From here.</b> Local expressions are welcome when they work in both languages. Pidgin and Camfranglais: social media only.</li>
+          <li lang="fr"><b>Documents neutres.</b> Sur les devis et factures, des intitulés et des phrases sans «&nbsp;tu&nbsp;» ni «&nbsp;vous&nbsp;».</li>
+          <li lang="en"><b>Neutral documents.</b> Quotations and invoices keep to labels and neutral sentences.</li>
+        </ul>
+        <div class="say">
+          <div><span class="tag yes" lang="fr">Oui</span><span class="tag yes" lang="en">Yes</span><span lang="fr">«&nbsp;Ta commande est confirmée. On s’y met&#8239;!&nbsp;»</span><span lang="en">“Your order is confirmed. We’re on it!”</span></div>
+          <div><span class="tag no" lang="fr">Non</span><span class="tag no" lang="en">No</span><span lang="fr">«&nbsp;Votre commande a été validée par le système.&nbsp;»</span><span lang="en">“Your order has been validated by the system.”</span></div>
+          <div><span class="tag yes" lang="fr">Oui</span><span class="tag yes" lang="en">Yes</span><span lang="fr">«&nbsp;On ne livre pas encore hors de Bertoua. Pour un événement, demande un devis traiteur.&nbsp;»</span><span lang="en">“We don’t deliver outside Bertoua yet. For an event, ask for a catering quotation.”</span></div>
+          <div><span class="tag no" lang="fr">Non</span><span class="tag no" lang="en">No</span><span lang="fr">«&nbsp;Zone non desservie.&nbsp;»</span><span lang="en">“Area not served.”</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="foot"><span lang="fr">La marque</span><span lang="en">The brand</span><b>1 / 4</b></footer>
+</section>
+
+<!-- PAGE 2 · LOGO AND COLOURS -->
+<section class="sheet" aria-label="2">
+  <header class="run">
+    <span class="run-brand"><svg class="mark" viewBox="0 0 100 100" aria-hidden="true"><use href="#pot"/></svg>Yetunde African Palace</span>
+    <span lang="fr">Charte de marque</span><span lang="en">Brand guidelines</span>
+  </header>
+  <h2 lang="fr">Logo et couleurs</h2>
+  <h2 lang="en">Logo and colours</h2>
+
+  <div class="logo-hero">
+    <div class="plate">
+      <div class="lockup">
+        <svg class="mark" viewBox="0 0 100 100" aria-hidden="true"><use href="#pot"/></svg>
+        <span class="lk-words"><span class="lk-name">Yetunde</span><span class="lk-sub">AFRICAN PALACE</span></span>
+      </div>
+    </div>
+    <div>
+      <h3 lang="fr">La marmite couronnée</h3>
+      <h3 lang="en">The crowned pot</h3>
+      <p lang="fr">Une marmite dont la vapeur monte en couronne&nbsp;: la cuisine et le palais en un seul signe. La marmite, c’est la maison&nbsp;; la couronne, c’est l’accueil.</p>
+      <p lang="en">A cooking pot whose steam rises into a crown: the kitchen and the palace in one sign. The pot is home; the crown is the welcome.</p>
+      <span class="note" lang="fr">Dessin de travail&nbsp;: le logo final le remplace, mêmes règles.</span>
+      <span class="note" lang="en">Working drawing: the final logo replaces it, same rules.</span>
+    </div>
+  </div>
+
+  <div class="versions">
+    <figure>
+      <div class="v-tile"><div class="lockup"><svg class="mark" viewBox="0 0 100 100" aria-hidden="true"><use href="#pot"/></svg><span class="lk-words"><span class="lk-name">Yetunde</span><span class="lk-sub">AFRICAN PALACE</span></span></div></div>
+      <figcaption><b lang="fr">Horizontal</b><b lang="en">Horizontal</b><span lang="fr">Site, documents, enseigne.</span><span lang="en">Website, documents, signboard.</span></figcaption>
+    </figure>
+    <figure>
+      <div class="v-tile green"><div class="lockup stacked on-green"><svg class="mark rev" viewBox="0 0 100 100" aria-hidden="true"><use href="#pot"/></svg><span class="lk-words"><span class="lk-name">Yetunde</span><span class="lk-sub">AFRICAN PALACE</span></span></div></div>
+      <figcaption><b lang="fr">Empilé</b><b lang="en">Stacked</b><span lang="fr">Menu, réseaux, emballages.</span><span lang="en">Menu, social media, packaging.</span></figcaption>
+    </figure>
+    <figure>
+      <div class="v-tile"><div class="app"><svg class="mark rev" viewBox="0 0 100 100" aria-hidden="true"><use href="#pot"/></svg></div></div>
+      <figcaption><b lang="fr">Symbole</b><b lang="en">Symbol</b><span lang="fr">Icône de l’app, favicon, petits espaces.</span><span lang="en">App icon, favicon, small spaces.</span></figcaption>
+    </figure>
+    <figure>
+      <div class="v-tile"><svg class="seal" viewBox="0 0 200 200" aria-hidden="true"><use href="#seal"/></svg></div>
+      <figcaption><b lang="fr">Sceau</b><b lang="en">Seal</b><span lang="fr">Autocollants, emballages, cadeaux.</span><span lang="en">Stickers, packaging, gifts.</span></figcaption>
+    </figure>
+  </div>
+
+  <div class="cols">
+    <ul class="rule-list">
+      <li lang="fr"><b>Espace libre&nbsp;:</b> la hauteur de la couronne, tout autour du logo.</li>
+      <li lang="en"><b>Clear space:</b> the height of the crown, all around the logo.</li>
+      <li lang="fr"><b>Taille minimum&nbsp;:</b> symbole 16&nbsp;px ou 8&nbsp;mm&nbsp;; logo horizontal 120&nbsp;px ou 30&nbsp;mm.</li>
+      <li lang="en"><b>Minimum size:</b> symbol 16&nbsp;px or 8&nbsp;mm; horizontal logo 120&nbsp;px or 30&nbsp;mm.</li>
+      <li lang="fr"><b>Fonds&nbsp;:</b> crème ou blanc (logo vert et or), vert forêt (logo crème et or clair). Pour une photocopie&nbsp;: tout en vert ou tout en noir.</li>
+      <li lang="en"><b>Backgrounds:</b> cream or white (green and gold logo), forest green (cream and light gold logo). For photocopies: all green or all black.</li>
+    </ul>
+    <div>
+      <h4 lang="fr">À ne pas faire</h4>
+      <h4 lang="en">Don’t</h4>
+      <ul class="dont">
+        <li lang="fr">Traduire le nom</li><li lang="en">Translate the name</li>
+        <li lang="fr">Étirer, pencher, tourner</li><li lang="en">Stretch, slant or rotate it</li>
+        <li lang="fr">Changer les couleurs</li><li lang="en">Change the colours</li>
+        <li lang="fr">Ajouter ombre, dégradé, contour</li><li lang="en">Add shadows, gradients, outlines</li>
+        <li lang="fr">Poser sur une photo chargée</li><li lang="en">Place it on a busy photo</li>
+        <li lang="fr">Déplacer ou retirer un élément</li><li lang="en">Move or remove a part</li>
+      </ul>
+    </div>
+  </div>
+
+  <div>
+    <h3 lang="fr">Les couleurs</h3>
+    <h3 lang="en">Colours</h3>
+    <div class="swatches">
+      <div class="sw"><div class="sw-c" style="background:#1F4D3A;color:#F7F1E6"><span lang="fr">Vert forêt</span><span lang="en">Forest green</span></div><div class="sw-i"><code>#1F4D3A</code><br>RGB 31 77 58<br><span lang="fr">Principale&nbsp;: boutons, icône, titres.</span><span lang="en">Primary: buttons, icon, headings.</span></div></div>
+      <div class="sw"><div class="sw-c" style="background:#C9A24B;color:#2B1E17"><span lang="fr">Or</span><span lang="en">Gold</span></div><div class="sw-i"><code>#C9A24B</code><br>RGB 201 162 75<br><span lang="fr">La couronne, les filets, les détails.</span><span lang="en">The crown, fine lines, details.</span></div></div>
+      <div class="sw"><div class="sw-c" style="background:#B23A21;color:#F7F1E6"><span lang="fr">Rouge palme</span><span lang="en">Palm red</span></div><div class="sw-i"><code>#B23A21</code><br>RGB 178 58 33<br><span lang="fr">L’appétit, sur imprimés et réseaux.</span><span lang="en">Appetite, on print and social.</span></div></div>
+      <div class="sw"><div class="sw-c" style="background:#F7F1E6;color:#1F4D3A;border-bottom:1px solid #E6DCC9"><span lang="fr">Crème</span><span lang="en">Cream</span></div><div class="sw-i"><code>#F7F1E6</code><br>RGB 247 241 230<br><span lang="fr">Le fond des pages et du menu.</span><span lang="en">Page and menu background.</span></div></div>
+      <div class="sw"><div class="sw-c" style="background:#2B1E17;color:#F7F1E6"><span lang="fr">Cacao</span><span lang="en">Cocoa</span></div><div class="sw-i"><code>#2B1E17</code><br>RGB 43 30 23<br><span lang="fr">Le texte.</span><span lang="en">Text.</span></div></div>
+    </div>
+  </div>
+
+  <div class="support">
+    <div class="chip"><i style="background:#163A2B"></i><span lang="fr">Forêt profonde</span><span lang="en">Deep forest</span><code>#163A2B</code></div>
+    <div class="chip"><i style="background:#0F241B"></i><span lang="fr">Forêt de nuit</span><span lang="en">Forest night</span><code>#0F241B</code></div>
+    <div class="chip"><i style="background:#E3ECE5"></i><span lang="fr">Vert pâle</span><span lang="en">Pale green</span><code>#E3ECE5</code></div>
+    <div class="chip"><i style="background:#DDBE72"></i><span lang="fr">Or clair</span><span lang="en">Light gold</span><code>#DDBE72</code></div>
+    <div class="chip"><i style="background:#7E6020"></i><span lang="fr">Or profond</span><span lang="en">Deep gold</span><code>#7E6020</code></div>
+    <div class="chip"><i style="background:#E6DCC9"></i><span lang="fr">Sable</span><span lang="en">Sand</span><code>#E6DCC9</code></div>
+    <div class="chip"><i style="background:#6A5647"></i><span lang="fr">Cacao doux</span><span lang="en">Soft cocoa</span><code>#6A5647</code></div>
+  </div>
+
+  <div class="ratio">
+    <span style="flex:60;background:#F7F1E6;color:#2B1E17"><span lang="fr">Dosage&nbsp;: 60&nbsp;% crème et blanc · 30&nbsp;% vert · 7&nbsp;% or · 3&nbsp;% rouge palme</span><span lang="en">Balance: 60% cream and white · 30% green · 7% gold · 3% palm red</span></span>
+    <span style="flex:30;background:#1F4D3A"></span>
+    <span style="flex:7;background:#C9A24B"></span>
+    <span style="flex:3;background:#B23A21"></span>
+  </div>
+
+  <ul class="rule-list">
+    <li lang="fr"><b>Boutons et liens en vert forêt,</b> «&nbsp;Commander&nbsp;» compris.</li>
+    <li lang="en"><b>Buttons and links are forest green,</b> including Order.</li>
+    <li lang="fr"><b>L’or n’écrit jamais en petit sur fond clair</b> (2,1&nbsp;:&nbsp;1). Sur vert, l’or clair (5,4&nbsp;:&nbsp;1)&nbsp;; sur crème, l’or profond (5,2&nbsp;:&nbsp;1).</li>
+    <li lang="en"><b>Gold never sets small text on light backgrounds</b> (2.1:1). On green use light gold (5.4:1); on cream use deep gold (5.2:1).</li>
+    <li lang="fr"><b>Le rouge palme donne faim</b> sur les imprimés, emballages et réseaux. Dans l’app, il ne signale que les erreurs.</li>
+    <li lang="en"><b>Palm red is for appetite</b> on print, packaging and social media. In the app it only marks errors.</li>
+    <li lang="fr"><b>États dans l’app&nbsp;:</b> payé ou livré en vert, en attente en or profond, annulé en rouge palme.</li>
+    <li lang="en"><b>App statuses:</b> paid or delivered in green, pending in deep gold, cancelled in palm red.</li>
+    <li lang="fr"><b>Pas de dégradés.</b> On s’éloigne du jaune MTN et de l’orange d’Orange. Pour l’impression, faire tirer une épreuve et la comparer à ces nuanciers.</li>
+    <li lang="en"><b>No gradients.</b> Stay clear of MTN yellow and Orange’s orange. For print, ask for a colour proof and match it to these swatches.</li>
+  </ul>
+
+  <footer class="foot"><span lang="fr">Logo et couleurs</span><span lang="en">Logo and colours</span><b>2 / 4</b></footer>
+</section>
+
+<!-- PAGE 3 · TYPE, PATTERN, TWO LANGUAGES -->
+<section class="sheet" aria-label="3">
+  <header class="run">
+    <span class="run-brand"><svg class="mark" viewBox="0 0 100 100" aria-hidden="true"><use href="#pot"/></svg>Yetunde African Palace</span>
+    <span lang="fr">Charte de marque</span><span lang="en">Brand guidelines</span>
+  </header>
+  <h2 lang="fr">Lettres, motif et langues</h2>
+  <h2 lang="en">Type, pattern and languages</h2>
+
+  <div class="spec">
+    <div>
+      <span class="aa f-serif">Aa</span>
+      <h4>Fraunces SemiBold</h4>
+      <span class="sample f-serif" lang="fr">Ndolé aux crevettes</span>
+      <span class="sample f-serif" lang="en">Ndolé with shrimp</span>
+      <p class="muted small" lang="fr">Le nom, les titres, les accroches. Italique pour la signature. Gratuite sur Google Fonts.</p>
+      <p class="muted small" lang="en">The name, headings and headlines. Italic for the tagline. Free on Google Fonts.</p>
+    </div>
+    <div>
+      <span class="aa f-sans">Aa</span>
+      <h4>DM Sans 400 · 500 · 600</h4>
+      <span class="sample f-sans" lang="fr">Feuilles amères, arachides, plantain mûr · 2&#8239;500&nbsp;FCFA</span>
+      <span class="sample f-sans" lang="en">Bitter leaves, groundnuts, ripe plantain · 2&#8239;500&nbsp;FCFA</span>
+      <p class="muted small" lang="fr">Les menus, les prix, les formulaires, les documents. Gratuite sur Google Fonts.</p>
+      <p class="muted small" lang="en">Menus, prices, forms and documents. Free on Google Fonts.</p>
+    </div>
+  </div>
+
+  <div class="scale">
+    <span><b lang="fr">Sur téléphone&nbsp;:</b><b lang="en">On a phone:</b></span>
+    <span lang="fr">Titre 28&nbsp;px</span><span lang="en">Title 28&nbsp;px</span>
+    <span lang="fr">Sous-titre 20&nbsp;px</span><span lang="en">Subtitle 20&nbsp;px</span>
+    <span lang="fr">Texte 16&nbsp;px</span><span lang="en">Body 16&nbsp;px</span>
+    <span lang="fr">Petit 13&nbsp;px</span><span lang="en">Small 13&nbsp;px</span>
+  </div>
+
+  <ul class="rule-list">
+    <li lang="fr"><b>Majuscule au premier mot seulement,</b> partout. Les mots tout en capitales restent dans le logo, le sceau et le cachet.</li>
+    <li lang="en"><b>Sentence case everywhere.</b> All-capital words stay in the logo, the seal and the stamp.</li>
+    <li lang="fr"><b>Prix en chiffres tabulaires,</b> alignés à droite, pour que les colonnes tombent juste.</li>
+    <li lang="en"><b>Prices in tabular figures,</b> aligned right, so columns line up.</li>
+    <li lang="fr"><b>En français,</b> une espace insécable avant&nbsp;: ; ! ? et à l’intérieur des «&nbsp;guillemets&nbsp;».</li>
+    <li lang="en"><b>In French copy,</b> a non-breaking space goes before : ; ! ? and inside «&nbsp;guillemets&nbsp;».</li>
+  </ul>
+
+  <div class="pattern-row">
+    <div class="bands" aria-hidden="true">
+      <div class="band"></div>
+      <div class="band cream" style="border:1px solid #E6DCC9"></div>
+    </div>
+    <div>
+      <h3 lang="fr">La bande royale</h3>
+      <h3 lang="en">The royal band</h3>
+      <p lang="fr">Une frise de petites couronnes et de losanges, dans l’esprit des tissus teints à la réserve (adire, ndop). Sur les emballages, le bord du menu, l’écran d’ouverture de l’app, les cadres des publications. Une seule bande par support, jamais derrière du texte.</p>
+      <p lang="en">A strip of small crowns and diamonds, in the spirit of resist-dyed cloth (adire, ndop). On packaging, the edge of the menu, the app’s opening screen and social post frames. One band per item, never behind text.</p>
+    </div>
+  </div>
+
+  <div>
+    <h3 lang="fr">Les deux langues</h3>
+    <h3 lang="en">Two languages</h3>
+    <div class="lang-rules">
+      <div><h4 lang="fr">Toujours les deux</h4><h4 lang="en">Always both</h4>
+        <p lang="fr">Rien ne sort sans sa version française et anglaise&nbsp;: pages, boutons, messages, e-mails, WhatsApp, PDF, menu, notifications.</p>
+        <p lang="en">Nothing goes out without its French and English version: pages, buttons, messages, emails, WhatsApp, PDFs, menu, notifications.</p></div>
+      <div><h4 lang="fr">Un document, une langue</h4><h4 lang="en">One document, one language</h4>
+        <p lang="fr">Devis, factures, reçus et bons de livraison sont en français ou en anglais, jamais les deux. La langue se choisit sur le document&nbsp;; par défaut, celle du client.</p>
+        <p lang="en">Quotations, invoices, receipts and delivery notes are in French or English, never both. The language is picked on the document; by default, the client’s.</p></div>
+      <div><h4 lang="fr">Ailleurs, le français d’abord</h4><h4 lang="en">Elsewhere, French first</h4>
+        <p lang="fr">Enseigne, menu, emballages, affiches&nbsp;: le français en premier, l’anglais ensuite, à la même taille.</p>
+        <p lang="en">Signboard, menu, packaging, posters: French first, then English, at the same size.</p></div>
+      <div><h4 lang="fr">Écrire, pas traduire</h4><h4 lang="en">Write, don’t translate</h4>
+        <p lang="fr">Chaque langue est écrite pour elle-même, jamais mot à mot. L’anglais suit l’orthographe britannique (colour, favourite).</p>
+        <p lang="en">Each language is written for itself, never word for word. English uses British spelling (colour, favourite).</p></div>
+      <div><h4 lang="fr">Les plats gardent leur nom</h4><h4 lang="en">Dishes keep their names</h4>
+        <p lang="fr">Ndolé, eru, koki, poulet DG ne se traduisent pas&nbsp;; leur description, si.</p>
+        <p lang="en">Ndolé, eru, koki and poulet DG are never translated; their descriptions are.</p></div>
+      <div><h4 lang="fr">Les prix s’écrivent pareil</h4><h4 lang="en">Prices look the same</h4>
+        <p lang="fr">«&nbsp;2&#8239;500&nbsp;FCFA&nbsp;» dans les deux langues, avec une espace pour les milliers.</p>
+        <p lang="en">“2&#8239;500&nbsp;FCFA” in both languages, with a space for thousands.</p></div>
+    </div>
+  </div>
+
+  <div class="gloss">
+    <table>
+      <thead><tr><th lang="fr">Français</th><th lang="en">French</th><th lang="fr">Anglais</th><th lang="en">English</th></tr></thead>
+      <tbody>
+        <tr><td>Commander</td><td>Order</td></tr>
+        <tr><td>Panier</td><td>Basket</td></tr>
+        <tr><td>Livraison</td><td>Delivery</td></tr>
+        <tr><td>À emporter</td><td>Takeaway</td></tr>
+        <tr><td>Sur place</td><td>Eat in</td></tr>
+        <tr><td>Traiteur</td><td>Catering</td></tr>
+        <tr><td>Formule</td><td>Package</td></tr>
+      </tbody>
+    </table>
+    <table>
+      <thead><tr><th lang="fr">Français</th><th lang="en">French</th><th lang="fr">Anglais</th><th lang="en">English</th></tr></thead>
+      <tbody>
+        <tr><td>Devis</td><td>Quotation</td></tr>
+        <tr><td>Facture</td><td>Invoice</td></tr>
+        <tr><td>Reçu</td><td>Receipt</td></tr>
+        <tr><td>Repère</td><td>Landmark</td></tr>
+        <tr><td>Capture d’écran</td><td>Screenshot</td></tr>
+        <tr><td>Arachides</td><td>Groundnuts</td></tr>
+        <tr><td>Plantain mûr</td><td>Ripe plantain</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <footer class="foot"><span lang="fr">Lettres, motif et langues</span><span lang="en">Type, pattern and languages</span><b>3 / 4</b></footer>
+</section>
+
+<!-- PAGE 4 · PHOTOS AND APPLICATIONS -->
+<section class="sheet" aria-label="4">
+  <header class="run">
+    <span class="run-brand"><svg class="mark" viewBox="0 0 100 100" aria-hidden="true"><use href="#pot"/></svg>Yetunde African Palace</span>
+    <span lang="fr">Charte de marque</span><span lang="en">Brand guidelines</span>
+  </header>
+  <h2 lang="fr">Photos et applications</h2>
+  <h2 lang="en">Photos and applications</h2>
+
+  <div class="photo">
+    <div>
+      <h3 lang="fr">Les photos des plats</h3>
+      <h3 lang="en">Dish photos</h3>
+      <p lang="fr">Elles sont créées par IA, toutes dans le style du koki de référence, pour qu’on croie à une seule séance photo.</p>
+      <p lang="en">They are made with AI, all in the style of the koki reference, so they look like one photo shoot.</p>
+      <div class="recipe">
+        <span lang="fr"><i class="dot" style="background:#5A3A24"></i>Table en bois sombre</span><span lang="en"><i class="dot" style="background:#5A3A24"></i>Dark wood table</span>
+        <span lang="fr"><i class="dot" style="background:#C8AE7E"></i>Set en raphia tressé</span><span lang="en"><i class="dot" style="background:#C8AE7E"></i>Woven raffia mat</span>
+        <span lang="fr"><i class="dot" style="background:#E2D6BF"></i>Assiette en grès crème</span><span lang="en"><i class="dot" style="background:#E2D6BF"></i>Cream stoneware plate</span>
+        <span lang="fr"><i class="dot" style="background:#3F5A2E"></i>Feuille de bananier</span><span lang="en"><i class="dot" style="background:#3F5A2E"></i>Banana leaf</span>
+        <span lang="fr"><i class="dot" style="background:#1F4D3A"></i>Serviette vert forêt</span><span lang="en"><i class="dot" style="background:#1F4D3A"></i>Forest-green napkin</span>
+        <span lang="fr">Marmite et paniers flous derrière</span><span lang="en">Clay pot and baskets blurred behind</span>
+        <span lang="fr">Lumière du jour, de la gauche</span><span lang="en">Daylight from the left</span>
+        <span lang="fr">Vue à 45°, un filet de vapeur</span><span lang="en">45° view, a wisp of steam</span>
+      </div>
+      <div class="prompt-label">
+        <h4 lang="fr">Le prompt maison (en anglais, mieux suivi par les modèles)</h4>
+        <h4 lang="en">The house prompt (in English, which image models follow best)</h4>
+        <button type="button" class="copy" id="copy-prompt"><span lang="fr">Copier</span><span lang="en">Copy</span></button>
+      </div>
+      <div class="prompt" id="prompt-text"><p>Professional food photograph of <em>[DISH]</em>, a traditional Cameroonian dish, exactly as served at a family restaurant in Bertoua: <em>[WHAT IS ON THE PLATE]</em>. On a speckled cream stoneware plate on a round woven raffia mat, on a warm dark wooden table. A forest-green linen napkin at the edge of the frame; a clay pot and woven baskets softly blurred behind. Soft natural daylight from the left, gentle shadows, a light wisp of steam. Three-quarter view at 45 degrees, shallow depth of field, realistic portion, true colours. No people, no hands, no text, no logos. Square 1:1.</p></div>
+    </div>
+    <div class="stack">
+      <div>
+        <h4 lang="fr">À mettre à la place de [WHAT IS ON THE PLATE]</h4>
+        <h4 lang="en">To put in place of [WHAT IS ON THE PLATE]</h4>
+        <div class="fill">
+          <div><b>Ndolé</b> · dark green stew of bitter leaves and ground groundnuts with beef and shrimp, a few whole shrimp on top, fried ripe plantain on the side</div>
+          <div><b>Eru</b> · finely shredded dark green eru leaves cooked with waterleaf, red palm oil, smoked fish, cow skin and crayfish, glossy, with a smooth white ball of water fufu</div>
+          <div><b>Koki</b> · golden-orange steamed black-eyed-pea cake with red palm oil and leaves, half unwrapped from its banana leaf, with boiled plantain</div>
+        </div>
+      </div>
+      <div>
+        <h4 lang="fr">Les règles de vérité</h4>
+        <h4 lang="en">Rules for honest photos</h4>
+        <ul class="rule-list">
+          <li lang="fr">Le plat ressemble à celui que sert la cuisine&nbsp;: portion, accompagnement, contenant.</li>
+          <li lang="en">The dish looks like what the kitchen serves: portion, sides, dish.</li>
+          <li lang="fr">Elle valide chaque image avant publication.</li>
+          <li lang="en">She approves every image before it goes out.</li>
+          <li lang="fr">L’IA sert aux plats seulement&nbsp;: jamais le restaurant, l’équipe ou des clients.</li>
+          <li lang="en">AI is for dishes only: never the restaurant, the staff or customers.</li>
+          <li lang="fr">Pas de texte ni de logo dans les images générées.</li>
+          <li lang="en">No text or logos inside generated images.</li>
+          <li lang="fr">Sous le menu&nbsp;: «&nbsp;Photos non contractuelles&nbsp;». Les vraies photos remplacent celles de l’IA au fil du temps.</li>
+          <li lang="en">Under the menu: “Serving suggestions”. Real photos replace the AI ones over time.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <h3 lang="fr">La marque au quotidien</h3>
+    <h3 lang="en">The brand in use</h3>
+    <div class="apps">
+      <figure>
+        <div class="a-tile"><div class="a-icon"><i><svg class="mark rev" viewBox="0 0 100 100" aria-hidden="true"><use href="#pot"/></svg></i><span>Yetunde</span></div></div>
+        <figcaption><b lang="fr">Icône de l’app</b><b lang="en">App icon</b><span lang="fr">Vert forêt, marmite crème, couronne or clair.</span><span lang="en">Forest green, cream pot, light gold crown.</span></figcaption>
+      </figure>
+      <figure>
+        <div class="a-tile"><div class="wa"><i><svg class="mark rev" viewBox="0 0 100 100" aria-hidden="true"><use href="#pot"/></svg></i><div><b>Yetunde African Palace</b><span>Restaurant · Traiteur · Catering</span></div></div></div>
+        <figcaption><b lang="fr">Profil WhatsApp</b><b lang="en">WhatsApp profile</b><span lang="fr">Le symbole sur rond vert.</span><span lang="en">The symbol on a green circle.</span></figcaption>
+      </figure>
+      <figure>
+        <div class="a-tile a-stamp"><svg viewBox="0 0 200 200" aria-hidden="true"><use href="#stamp"/></svg></div>
+        <figcaption><b lang="fr">Cachet</b><b lang="en">Company stamp</b><span lang="fr">Encre verte, sur devis et factures.</span><span lang="en">Green ink, on quotations and invoices.</span></figcaption>
+      </figure>
+      <figure>
+        <div class="a-tile"><div class="box"><svg viewBox="0 0 200 200" aria-hidden="true"><use href="#seal"/></svg></div></div>
+        <figcaption><b lang="fr">Emballage à emporter</b><b lang="en">Takeaway packaging</b><span lang="fr">La bande royale et le sceau.</span><span lang="en">The royal band and the seal.</span></figcaption>
+      </figure>
+      <figure class="wide">
+        <div class="a-tile">
+          <div class="sign">
+            <div class="lockup on-green"><svg class="mark rev" viewBox="0 0 100 100" aria-hidden="true"><use href="#pot"/></svg><span class="lk-words"><span class="lk-name">Yetunde</span><span class="lk-sub">AFRICAN PALACE</span></span></div>
+            <div class="sign-lines"><span>Restaurant · Traiteur · Livraison</span><span>Restaurant · Catering · Delivery</span></div>
+            <div class="band"></div>
+          </div>
+        </div>
+        <figcaption><b lang="fr">Enseigne</b><b lang="en">Signboard</b><span lang="fr">Le français d’abord, l’anglais ensuite, à la même taille.</span><span lang="en">French first, then English, at the same size.</span></figcaption>
+      </figure>
+      <figure class="wide">
+        <div class="a-tile">
+          <div class="quote" lang="fr">
+            <div class="q-head"><div class="lockup"><svg class="mark" viewBox="0 0 100 100" aria-hidden="true"><use href="#pot"/></svg><span class="lk-words"><span class="lk-name">Yetunde</span><span class="lk-sub">AFRICAN PALACE</span></span></div><div><strong>Devis n° 014</strong>22 octobre 2026</div></div>
+            <div class="q-legal">ETS TANKET · NIU P098211797339W · Bertoua</div>
+            <div class="q-row"><span>Formule pause-café × 40</span><span>80&#8239;000 FCFA</span></div>
+            <div class="q-row"><span>Livraison sur site</span><span>5&#8239;000 FCFA</span></div>
+            <div class="q-row total"><span>Total</span><span>85&#8239;000 FCFA</span></div>
+          </div>
+          <div class="quote" lang="en">
+            <div class="q-head"><div class="lockup"><svg class="mark" viewBox="0 0 100 100" aria-hidden="true"><use href="#pot"/></svg><span class="lk-words"><span class="lk-name">Yetunde</span><span class="lk-sub">AFRICAN PALACE</span></span></div><div><strong>Quotation no. 014</strong>22 October 2026</div></div>
+            <div class="q-legal">ETS TANKET · NIU P098211797339W · Bertoua</div>
+            <div class="q-row"><span>Coffee-break package × 40</span><span>80&#8239;000 FCFA</span></div>
+            <div class="q-row"><span>On-site delivery</span><span>5&#8239;000 FCFA</span></div>
+            <div class="q-row total"><span>Total</span><span>85&#8239;000 FCFA</span></div>
+          </div>
+        </div>
+        <figcaption><b lang="fr">Devis</b><b lang="en">Quotation</b><span lang="fr">Une seule langue par document, le nom légal en tête.</span><span lang="en">One language per document, the legal name at the top.</span></figcaption>
+      </figure>
+    </div>
+  </div>
+
+  <footer class="foot"><span lang="fr">Préparé par JBS Praxis pour ETS TANKET, Bertoua · octobre 2026</span><span lang="en">Prepared by JBS Praxis for ETS TANKET, Bertoua · October 2026</span><b>4 / 4</b></footer>
+</section>
+
+</main>
+
+<script>
+(function () {
+  var doc = document.getElementById('doc');
+  var buttons = document.querySelectorAll('[data-set-lang]');
+  var titles = { fr: 'Charte de marque Yetunde', en: 'Yetunde Brand Guidelines' };
+  function setLang(lang, remember) {
+    doc.setAttribute('data-lang', lang);
+    document.documentElement.lang = lang;
+    document.title = titles[lang];
+    buttons.forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-set-lang') === lang)); });
+    if (remember) { try { localStorage.setItem('yap-lang', lang); } catch (e) {} }
+  }
+  var fromHash = (location.hash || '').slice(1);
+  var saved = null;
+  try { saved = localStorage.getItem('yap-lang'); } catch (e) {}
+  setLang(fromHash === 'en' || fromHash === 'fr' ? fromHash : (saved === 'en' ? 'en' : 'fr'), false);
+  buttons.forEach(function (b) {
+    b.addEventListener('click', function () { setLang(b.getAttribute('data-set-lang'), true); });
+  });
+
+  var copy = document.getElementById('copy-prompt');
+  var text = document.getElementById('prompt-text');
+  copy.addEventListener('click', function () {
+    var lang = doc.getAttribute('data-lang');
+    var done = lang === 'fr' ? 'Copié' : 'Copied';
+    var label = copy.querySelector('[lang="' + lang + '"]');
+    var original = label.textContent;
+    function confirm() { label.textContent = done; setTimeout(function () { label.textContent = original; }, 1600); }
+    function select() {
+      var range = document.createRange(); range.selectNodeContents(text);
+      var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text.innerText.trim()).then(confirm, select);
+    } else { select(); }
+  });
+})();
+</script>
