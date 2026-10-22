@@ -64,3 +64,4 @@ scratch_*.php
 
 # Claude Code worktrees for helper agents (local only)
 /.claude/worktrees/
+__pycache__/
