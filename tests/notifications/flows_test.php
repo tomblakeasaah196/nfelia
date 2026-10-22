@@ -363,6 +363,23 @@ $a->post("settings/remove_staff/{$efe}", []);
 expect('team.removed', [BISI], 'settings?tab=staff');
 eq((int)q("SELECT COUNT(*) FROM push_subscriptions WHERE user_id = ?", [$efe]), 0, 'her phones stop getting the business\'s alerts');
 
+section('A free trial includes one staff member; after it, the paid seats apply (billing_seats)');
+clean_slate();
+$k = as_(KOLA);   // Kola Prints: on its free trial, one seat on the plan
+$k->get('settings?tab=staff');
+ok(str_contains($k->body, '1 of 2 seats used') && str_contains($k->body, 'Your free trial includes 1 staff member'), 'Kola\'s Team tab shows a seat for one staff member');
+$k->post('settings/add_staff', ['staff_name' => 'Funmi Trial', 'staff_email' => 'funmi@kolaprints.test', 'staff_password' => 'Welcome#123', 'staff_role' => 'staff']);
+$funmi = (int)q("SELECT id FROM users WHERE email = 'funmi@kolaprints.test' AND business_id = 3 AND is_active = 1");
+ok($funmi > 0, 'Kola adds Funmi during the trial');
+$k->post('settings/add_staff', ['staff_name' => 'Gbenga Two', 'staff_email' => 'gbenga@kolaprints.test', 'staff_password' => 'Welcome#123', 'staff_role' => 'staff'])->follow();
+eq((int)q("SELECT COUNT(*) FROM users WHERE email = 'gbenga@kolaprints.test'"), 0, 'a second staff member waits for a paid month');
+ok(str_contains($k->body, 'To add more, pay for a month with more seats under Billing.'), 'and the page says why');
+exec_sql("UPDATE subscriptions SET trial_ends_at = CURDATE() - INTERVAL 1 DAY WHERE business_id = 3");
+eq(billing_seats(rows("SELECT * FROM subscriptions WHERE business_id = 3")[0]), 1, 'with the trial over, the plan\'s one seat applies again');
+eq((int)q("SELECT is_active FROM users WHERE id = ?", [$funmi]), 1, 'and Funmi keeps her account');
+exec_sql("UPDATE subscriptions SET trial_ends_at = CURDATE() + INTERVAL 10 DAY WHERE business_id = 3");
+exec_sql("UPDATE users SET is_active = 0 WHERE id = ?", [$funmi]);
+
 section('Security: new device, password, email');
 clean_slate();
 exec_sql("DELETE FROM user_devices");

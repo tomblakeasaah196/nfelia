@@ -241,6 +241,49 @@ $phone->post('settings/update_business', $sent)->follow();
 ok($type() === 'mixed', 'something else, or nothing sent, leaves it as it was');
 exec_sql("UPDATE businesses SET business_type = ? WHERE id = 2", [$was]);
 
+section('The category can change in Settings, and the shop keeps its look');
+$cat  = fn() => (string)q("SELECT category FROM businesses WHERE id = 2");
+$look = fn() => storefront_default_look(rows("SELECT category, storefront_look FROM businesses WHERE id = 2")[0]);
+exec_sql("UPDATE businesses SET category = 'fashion', storefront_look = NULL WHERE id = 2");   // a shop still on the look its category suggests
+$phone->get('settings?tab=business');
+ok(str_contains($phone->body, 'name="category"') && str_contains($phone->body, 'value="fashion" selected'), 'Settings shows the category chosen at onboarding');
+eq($look(), 'atelier', 'a fashion shop that never chose a look shows Atelier');
+$phone->post('settings/update_business', $sent + ['category' => 'beauty'])->follow();
+eq($cat(), 'beauty', 'Ada makes it Hair & Beauty');
+eq($look(), 'atelier', 'and her shop keeps Atelier: Shop Studio decides the look');
+$phone->post('settings/update_business', $sent + ['category' => 'spaceships'])->follow();
+$phone->post('settings/update_business', $sent)->follow();
+eq($cat(), 'beauty', 'something else, or nothing sent, leaves it as it was');
+exec_sql("UPDATE businesses SET category = 'other', storefront_look = 'glow' WHERE id = 2");
+
+section('The currency follows the country: Settings shows it and never takes one from the form');
+$sym = fn() => (string)q("SELECT currency_symbol FROM businesses WHERE id = 2");
+$phone->get('settings?tab=business');
+ok(!str_contains($phone->body, 'name="currency_symbol"') && str_contains($phone->body, 'From your country, Nigeria.'), 'Settings shows the naira, from Nigeria, with nothing to pick');
+$phone->post('settings/update_business', ['currency_symbol' => 'FCFA'] + $sent)->follow();
+eq($sym(), '₦', 'a currency sent with the form is ignored');
+exec_sql("UPDATE businesses SET currency_symbol = 'GH₵' WHERE id = 2");   // set apart from its country, as the old currency list allowed
+$phone->post('settings/update_business', $sent)->follow();
+eq($sym(), '₦', 'and one that had drifted from the country comes back to it at the next save');
+
+section('A form too big for the server says so, not "Security session expired" (csrf_verify)');
+// The server empties a form over post_max_size, token and all: csrf_verify is
+// run in its own PHP with a 1 MB limit, as it would see such a form
+$probe = sys_get_temp_dir() . '/nfelia_csrf_probe_' . getmypid() . '.php';
+file_put_contents($probe, '<?php require ' . var_export(BASE_PATH . '/tests/bootstrap.php', true) . ';
+$_SESSION = ["csrf_token" => "t"];
+$_POST = [];
+$_SERVER = ["REQUEST_METHOD" => "POST", "CONTENT_LENGTH" => $argv[1], "HTTP_ACCEPT" => $argv[2]] + $_SERVER;
+register_shutdown_function(function () { echo "|", $_SESSION["flash"]["message"] ?? ""; });
+csrf_verify();');
+$verify = fn(int $bytes, string $accept = 'text/html') => (string)shell_exec(implode(' ', array_map('escapeshellarg',
+    [PHP_BINARY, '-d', 'post_max_size=1M', '-d', 'upload_max_filesize=1M', $probe, (string)$bytes, $accept])) . ' 2>&1');
+$too_big = 'Nothing was saved: that file is too big (the most is 1 MB). Pick a smaller one and try again.';
+eq($verify(2 * 1048576), '|' . $too_big, 'a page is told the file was too big (and goes back to it: back_path)');
+eq($verify(2 * 1048576, 'application/json'), json_encode(['error' => $too_big]) . '|', 'a script is told the same');
+eq($verify(300), '|Security session expired. Please try again.', 'a small form without its token is still refused as before');
+@unlink($probe);
+
 section('A redrawn auto-logo gets a name of its own, so no browser keeps showing the old one');
 $logo = fn() => (string)q("SELECT logo_path FROM businesses WHERE id = 2");
 $drawn = fn(string $rel) => (string)@file_get_contents(BASE_PATH . '/' . $rel);

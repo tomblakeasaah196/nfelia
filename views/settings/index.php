@@ -5,7 +5,7 @@
  *
  * Available from controller:
  *   $user, $business, $tab, $subscription, $staff, $payment_history,
- *   $currency_options, $country_pricing
+ *   $country (the business's own, business tab only), $country_pricing
  */
 $currency   = $business['currency_symbol'] ?? '₦';
 $is_owner   = ($user['role'] ?? 'staff') === 'owner';
@@ -32,7 +32,9 @@ $pay_by     = $sub_status === 'past_due' && !empty($subscription['grace_ends_at'
     $sub_status === 'suspended'                        => ['Suspended', 'red'],
     default                                            => ['Locked', 'red'],
 };
-$max_seats = ($subscription['user_seats'] ?? 1) + ($subscription['extra_seats'] ?? 0);
+// People the business may have, the owner included; a free trial includes a staff member (billing_seats)
+$max_seats   = billing_seats($subscription);
+$trial_staff = TRIAL_STAFF_SEATS . ' staff member' . (TRIAL_STAFF_SEATS === 1 ? '' : 's');
 $current_staff_count = count($staff);
 ?>
 
@@ -163,12 +165,13 @@ $current_staff_count = count($staff);
                 <textarea name="address" rows="2" class="w-full px-3 py-2.5 text-xs font-medium bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum resize-none"><?= e($business['address'] ?? '') ?></textarea>
             </div>
             <div>
-                <label class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Currency</label>
-                <select name="currency_symbol" class="w-full px-3 py-2.5 text-xs font-semibold bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
-                    <?php foreach ($currency_options as $sym => $label): ?>
-                        <option value="<?= e($sym) ?>" <?= ($business['currency_symbol'] ?? '₦') === $sym ? 'selected' : '' ?>><?= e($label) ?></option>
+                <label for="biz_category" class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Category</label>
+                <select name="category" id="biz_category" aria-describedby="biz_category_hint" class="w-full px-3 py-2.5 text-xs font-semibold bg-brand-cream border border-brand-sand rounded-lg focus:outline-none focus:border-accent-text text-brand-plum">
+                    <?php foreach (BUSINESS_CATEGORIES as $val => $label): ?>
+                        <option value="<?= e($val) ?>" <?= ($business['category'] ?? 'other') === $val ? 'selected' : '' ?>><?= e($label) ?></option>
                     <?php endforeach; ?>
                 </select>
+                <p id="biz_category_hint" class="mt-1 text-[10px] text-brand-plum/50">Where the Nfelia directory lists your shop. Your shop's look stays as it is; change it in Shop Studio.</p>
             </div>
             <div>
                 <label for="business_type" class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">What you sell</label>
@@ -178,6 +181,22 @@ $current_staff_count = count($staff);
                     <?php endforeach; ?>
                 </select>
                 <p id="business_type_hint" class="mt-1 text-[10px] text-brand-plum/50">Services issue a Certificate of Completion; products issue a Deed of Acquisition.</p>
+            </div>
+            <!-- The currency follows the country (onboarding, or More › Country and currency,
+                 api/ajax/set_country.php): shown here, never sent -->
+            <div class="sm:col-span-2">
+                <span class="block text-[10px] font-bold text-brand-plum/60 uppercase tracking-widest mb-1">Currency</span>
+                <p class="w-full px-3 py-2.5 text-xs font-semibold bg-brand-cream/50 border border-brand-sand rounded-lg text-brand-plum">
+                    <?= $country ? e(trim(($country['flag_emoji'] ?? '') . ' ' . $country['currency_symbol'] . ' — ' . ($country['currency_name'] ?: $country['currency_code']))) : e($currency) ?>
+                </p>
+                <p id="biz_currency_hint" class="mt-1 text-[10px] text-brand-plum/50">
+                    <?= $country ? 'From your country, ' . e($country['name']) . '.' : 'Set when you joined.' ?>
+                    <?php if ($is_owner): ?>
+                        To change it, change your country under <a href="<?= APP_URL ?>/more#sheet:nf-country" class="underline">Country and currency</a>.
+                    <?php else: ?>
+                        Only the owner can change it.
+                    <?php endif; ?>
+                </p>
             </div>
         </div>
     </div>
@@ -554,6 +573,9 @@ foreach (['ORD' => 'Order', 'INV' => 'Invoice', 'REC' => 'Receipt', 'DEL' => 'De
             <div>
                 <h2 class="font-heading font-bold text-sm text-brand-plum uppercase tracking-wider">Team Seats</h2>
                 <p class="text-[10px] text-brand-plum/40 mt-0.5"><?= $current_staff_count ?> of <?= $max_seats ?> seats used</p>
+                <?php if ($access === 'trial'): ?>
+                    <p class="text-[10px] text-brand-plum/60 mt-1">Your free trial includes <?= $trial_staff ?>. To add more, pay for a month with more seats.</p>
+                <?php endif; ?>
             </div>
             <div class="flex items-center gap-2">
                 <div class="w-24 h-2 bg-brand-cream rounded-full overflow-hidden">
@@ -719,7 +741,7 @@ async function updateRole(memberId, newRole, selectEl) {
 
         <?php if ($access === 'trial'): ?>
             <div class="text-xs text-blue-700 bg-blue-100 rounded-lg px-4 py-3">
-                Full access to everything. Pay for a month whenever you are ready.
+                Everything is open, and your free trial includes <?= $trial_staff ?>. Pay for a month whenever you are ready.
             </div>
         <?php elseif ($access === 'paid' && $sub_status === 'cancelled'): ?>
             <div class="text-xs text-amber-700 bg-amber-100 rounded-lg px-4 py-3">

@@ -265,6 +265,12 @@ function redirect(string $path): never {
     exit;
 }
 
+/** The page this request came from, as a path inside the app; $fallback when it came from elsewhere. */
+function back_path(string $fallback = 'dashboard'): string {
+    $back = (string)($_SERVER['HTTP_REFERER'] ?? '');
+    return str_starts_with($back, APP_URL . '/') ? substr($back, strlen(APP_URL) + 1) : $fallback;
+}
+
 /**
  * Flash message — set
  */
@@ -327,6 +333,21 @@ if (!function_exists('mime_content_type')) {
         $mime = nf_mime_from_header($filename);
         return $mime !== '' ? $mime : 'application/octet-stream';
     }
+}
+
+/** A php.ini size ("10M", "512K", "1G") in bytes; 0 when it sets no limit. */
+function ini_bytes(string $key): int {
+    $ini = trim((string)ini_get($key));
+    return max(0, (int)$ini * match (strtoupper(substr($ini, -1))) { 'G' => 1073741824, 'M' => 1048576, 'K' => 1024, default => 1 });
+}
+
+/**
+ * The biggest file a form can send, in whole MB: the smaller of
+ * upload_max_filesize and post_max_size. 0 when neither sets a limit.
+ */
+function upload_limit_mb(): int {
+    $limits = array_filter([ini_bytes('upload_max_filesize'), ini_bytes('post_max_size')]);
+    return $limits ? max(1, intdiv(min($limits), 1048576)) : 0;
 }
 
 /**
