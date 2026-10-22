@@ -14,7 +14,7 @@ $pk_row_html = '<span class="nf-tile-ic">' . nav_icon('fingerprint') . '</span><
     . '<button type="button" class="nf-pk-remove" data-pk-remove="" data-pk-name="">Remove</button>';
 ?>
 <section id="passkeys" class="bg-brand-white border border-brand-sand rounded-xl p-5 shadow-sm" data-passkeys>
-    <h2 class="font-heading font-bold text-sm text-brand-plum mb-2 uppercase tracking-wider">Passkeys</h2>
+    <h2 class="nf-card-title mb-2">Passkeys</h2>
     <p class="nf-help" style="margin-bottom:14px">Sign in and unlock with your fingerprint, face or phone PIN instead of your password. Add one on each phone or computer you use.</p>
     <ul class="nf-pk-list" data-pk-list data-pk-template="<?= e($pk_row_html) ?>">
         <?php foreach ($pk_rows as $row): ?>
