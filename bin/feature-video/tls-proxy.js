@@ -26,7 +26,8 @@ https.createServer({ key, cert }, (req, res) => {
   // (name.domain) from the main site by it
   const up = http.request({ host: to.hostname, port: to.port || 80, method: req.method, path: req.url,
     headers: { ...req.headers, 'x-forwarded-proto': 'https' } }, (r) => {
-    res.writeHead(r.statusCode, r.headers);
+    // The mark record.js looks for before filming: proof this is the local app
+    res.writeHead(r.statusCode, { ...r.headers, 'x-nf-video-local': '1' });
     r.pipe(res);
   });
   up.on('error', (e) => { res.writeHead(502); res.end(String(e)); });

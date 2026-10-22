@@ -49,7 +49,7 @@
 
     {"chapter": "Step 1 · Your business",
      "steps": [["tap", "select[name=country_id]"], ["select", "select[name=country_id]", "1"], ["wait", 700],
-               ["tap", "label:has(#btype_product), label[for=btype_product]"], ["wait", 900]],
+               ["tap", "label.setup-type[for=btype_product]"], ["wait", 900]],
      "caption": "Country and what you sell", "sub": "Your country sets your money.",
      "say": "Choose your country, because it sets your money. Then choose what you sell. We sell hair, so we choose Products."},
 
@@ -72,8 +72,8 @@
      "say": "Tap Save and continue. Step two is about your money."},
 
     {"chapter": "Step 2 · Money",
-     "steps": [["spot", "select[name=currency_symbol], [data-currency], label:has-text('Currency') >> nth=0", 8], ["wait", 1600], ["unspot"],
-               ["spot", "input[name=default_tax_rate]", 8], ["wait", 1800], ["unspot"]],
+     "steps": [["spot", ".field:has(.setup-fixed)", 8], ["wait", 1600], ["unspot"],
+               ["spot", ".field:has(#default_tax_rate)", 8], ["wait", 1800], ["unspot"]],
      "caption": "Currency and tax", "sub": "No VAT? Leave the tax at 0.",
      "say": "Your currency comes from your country. If you do not charge VAT, leave the tax at zero."},
 
@@ -93,7 +93,7 @@
 
     {"chapter": "Step 3 · Your look",
      "steps": [["tap", "select[name=font_pairing]"], ["select", "select[name=font_pairing]", "corporate_serif"], ["wait", 700],
-               ["tap", "input[name=logo] >> xpath=ancestor::label[1]"], ["upload", "input[name=logo]", "../assets/logo.jpg"], ["wait", 1200]],
+               ["spot", ".setup-file", 6], ["wait", 900], ["upload", "input[name=logo]", "../assets/logo.jpg"], ["wait", 1200], ["unspot"]],
      "caption": "Lettering and logo", "sub": "Add your logo from your phone.",
      "say": "Choose the lettering you like, then tap the box to add your logo from your phone."},
 
@@ -155,7 +155,7 @@
      "say": "More holds everything else, like your catalogue, your clients, your debts, and your shop studio."},
 
     {"chapter": "Your Home",
-     "steps": [["tap", "a:has-text('Settings')", {"nav": true}], ["wait", 1800]],
+     "steps": [["tap", "a:has-text('Settings'):visible", {"nav": true}], ["wait", 1800]],
      "caption": "Settings", "sub": "Change your details any time.",
      "say": "And in Settings, you can change your business details at any time."},
 

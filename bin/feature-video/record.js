@@ -25,7 +25,8 @@
 //   the next page) · ["click", sel] (no circle) · ["fill", sel, value]
 //   · ["type", sel, text, ms between keys] · ["press", key] · ["select", sel, value]
 //   · ["check", sel] · ["uncheck", sel] · ["upload", sel, file or [files]] (beside
-//   scenes.json) · ["change", sel] · ["spot", sel, padding] · ["unspot"]
+//   scenes.json) · ["choose", sel, file or [files]] (taps a button that opens the
+//   phone's file picker, and picks) · ["change", sel] · ["spot", sel, padding] · ["unspot"]
 //   · ["scroll", sel, px from the top] · ["scrollBy", px, ms] · ["goto", path]
 //   · ["waitFor", sel] · ["mail", text in the subject] (shows the newest such
 //   email, as sent) · ["eval", "js"] · ["run", "php add-more.php"] (a command,
@@ -111,7 +112,14 @@ function decodeHeader(h) {
   // NF_VIDEO_DOMAIN (make.sh's HTTPS stand-in) the domain itself and its shops
   const dom = process.env.NF_VIDEO_DOMAIN;
   const rules = ['MAP *.localhost 127.0.0.1'].concat(dom ? [`MAP ${dom} 127.0.0.1`, `MAP *.${dom} 127.0.0.1`] : []);
-  const browser = await chromium.launch({ args: [`--host-resolver-rules=${rules.join(', ')}`] });
+  // A machine whose web traffic goes through a proxy would send the domain to
+  // the proxy, which finds the real site: the domain and the local names skip it
+  // (given to Chromium itself: Playwright's own proxy option sends localhost
+  // through the proxy too)
+  const out = process.env.HTTPS_PROXY || process.env.https_proxy;
+  const skip = ['localhost', '*.localhost', '127.0.0.1'].concat(dom ? [dom, '*.' + dom] : []).join(';');
+  const via = out ? [`--proxy-server=${out}`, `--proxy-bypass-list=${skip}`] : [];
+  const browser = await chromium.launch({ args: [`--host-resolver-rules=${rules.join(', ')}`, ...via] });
   const device = {
     ignoreHTTPSErrors: !!dom,
     viewport: { width: phone.width, height: phone.height }, deviceScaleFactor: phone.scale, isMobile: true, hasTouch: true,
@@ -131,6 +139,14 @@ function decodeHeader(h) {
   };
 
   const owner = await phoneFor('owner');
+  // Never film the real site: with NF_VIDEO_DOMAIN, the domain must answer
+  // from tls-proxy.js on this machine, which marks every answer
+  if (dom) {
+    const r = await owner.page.goto(BASE + '/login');
+    if (!r || r.headers()['x-nf-video-local'] !== '1') {
+      throw new Error(`Refusing to film: ${BASE} is not answering from this machine (the real site would get the video's sign-ups and orders).`);
+    }
+  }
   if (spec.login !== false) {
     await owner.page.goto(BASE + '/login');
     await owner.page.fill('#email', spec.login?.email || 'ada@adashair.test');
@@ -165,7 +181,13 @@ function decodeHeader(h) {
     if (!(k in ids)) throw new Error(`the seed gave no "${k}" for ${s}`);
     return ids[k];
   });
-  const url = (p) => /^https?:/.test(p) ? fill(p) : BASE + fill(p);
+  const url = (p) => {
+    p = fill(p);
+    if (/^https?:/.test(p)) return p;
+    const shop = p.match(/^shop:([a-z0-9-]+)(\/.*)?$/);
+    if (shop) { const b = new URL(BASE); return `${b.protocol}//${shop[1]}.${b.host}${shop[2] || '/'}`; }
+    return BASE + p;
+  };
 
   for (const [i, scene] of spec.scenes.entries()) {
     if (scene.card) continue;   // drawn by stage.js, nothing to film
@@ -202,6 +224,14 @@ function decodeHeader(h) {
       check: (sel) => page.locator(sel).first().check(),
       uncheck: (sel) => page.locator(sel).first().uncheck(),
       upload: (sel, files) => page.setInputFiles(sel, [].concat(files).map(f => path.resolve(DIR, f))),
+      choose: async (sel, files) => {
+        const b = await box(sel);
+        await fx('ring', b.x + b.width / 2, b.y + b.height / 2); await wait(420);
+        await fx('press'); await wait(140);
+        const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.locator(sel).first().tap()]);
+        await chooser.setFiles([].concat(files).map(f => path.resolve(DIR, f)));
+        await wait(120); await fx('unring');
+      },
       change: (sel) => page.dispatchEvent(sel, 'change'),
       spot: async (sel, pad) => {
         const b = await box(sel), p = pad ?? 6;
