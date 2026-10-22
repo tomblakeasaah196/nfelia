@@ -33,7 +33,7 @@ This note covers what is built, how to change it safely, and what comes next. Re
 | Icons, maskable and monochrome icons, Android shortcuts, iPhone/iPad launch screens | `docs/brand/icons/make_icons.js` writes them from `assets/img/brand/nfelia-mark-parts.svg` |
 | The opening (film, then thread) | `views/partials/nf_splash.php`, `assets/js/splash.js`; plays when the start URL carries `?source=pwa`, also on sign-in when the app starts signed out. iPhone and iPad launch on wine (the launch screens); Android launches on white, the manifest's `background_color`, which also colours its bottom bar, and there the opening fades in from white (`views/partials/nf_splash_head.php`) |
 | Install details on every page someone may install from | `views/partials/pwa_head.php` (app, landing, sign-in, sign-up), `site.webmanifest` |
-| Offline reading, cached files, push | `sw.js`, `offline.html` (in the business's colours, which `assets/js/shell.js` saves on the phone as `nf.colours`) |
+| Offline reading, cached files, push | `sw.js`, `offline.html` (in the business's colours, which `assets/js/shell.js` saves on the phone as `nf.colours`). When the server is up but too busy to answer (502, 503, 504, Cloudflare's 520 to 524), an app page shows its kept copy with "Nfelia is busy", or `offline.html` says so and tries again by itself, never the host's own error page |
 | "Get the app" on the website | `views/home/index.php` (header and footer), `assets/js/home.js` |
 
 ## 3. Changing it safely

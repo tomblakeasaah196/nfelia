@@ -175,7 +175,7 @@
     function showNet(kind, text, detail, action) {
         if (net) net.remove();
         net = document.createElement('div');
-        net.className = 'nf-net' + (kind === 'unstable' ? ' is-unstable' : '');
+        net.className = 'nf-net' + (kind === 'unstable' || kind === 'busy' ? ' is-unstable' : '');
         net.setAttribute('role', 'status');
         var icon = kind === 'online'
             ? '<path d="M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0M12 19.5h.01"/>'
@@ -183,6 +183,7 @@
                 ? '<path d="M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0M12 19.5h.01"/><path d="M2 8.8a15 15 0 0 1 8-3.6" opacity=".35"/>'
                 : '<path d="m3 3 18 18M8.5 16a5 5 0 0 1 7 0M12 19.5h.01M5 12.5a10 10 0 0 1 4.2-2.4M16.4 10.6a10 10 0 0 1 2.6 1.9M2 8.8a15 15 0 0 1 5.1-2.9M12.8 5.2A15 15 0 0 1 22 8.8"/>';
         if (kind === 'fresh') icon = '<path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/>';
+        if (kind === 'busy') icon = '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>';
         net.innerHTML = svg(icon) + '<span></span><button type="button" class="x" aria-label="Dismiss">' + X + '</button>';
         net.querySelector('span').textContent = text;
         if (detail) { var s = document.createElement('small'); s.textContent = detail; net.querySelector('span').appendChild(s); }
@@ -210,7 +211,10 @@
         if (isNaN(d)) return '';
         return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
     }
-    if (kept) {
+    if (kept && kept.getAttribute('data-why') === 'busy') {
+        // The server answered, but too busy to send the page (sw.js)
+        showNet('busy', 'Nfelia is busy', 'Showing this page as it was at ' + clock(kept.content), { label: 'Try again', run: function () { location.reload(); } });
+    } else if (kept) {
         showNet(navigator.onLine ? 'unstable' : 'offline', navigator.onLine ? 'Unstable network' : 'You’re offline', 'Showing this page as it was at ' + clock(kept.content));
     } else if (!navigator.onLine) {
         showNet('offline', 'You’re offline');

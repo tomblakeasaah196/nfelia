@@ -1,6 +1,7 @@
 // The service worker's notification side (sw.js), run in a sandbox with a
 // stand-in browser: what a push shows, where a tap goes, the app-icon
-// number, and renewing a replaced subscription.   node tests/notifications/sw_test.js
+// number, and renewing a replaced subscription. And what a page shows when
+// the server is up but too busy to answer.   node tests/notifications/sw_test.js
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -15,7 +16,7 @@ const SCOPE = 'https://nfelia.test/';
 const source = fs.readFileSync(path.join(__dirname, '..', '..', 'sw.js'), 'utf8');
 
 /** A fresh worker with a stand-in browser around it, and a record of what it did. */
-function worker({ windows = [], navigateFails = false } = {}) {
+function worker({ windows = [], navigateFails = false, net = null } = {}) {
   const did = { shown: [], opened: [], focused: [], navigated: [], badge: [], messages: [], fetched: [], subscribed: [] };
   const handlers = {};
   const clientsList = windows.map((url) => ({
@@ -50,6 +51,7 @@ function worker({ windows = [], navigateFails = false } = {}) {
     fetch: (url, opts) => { did.fetched.push({ url, opts }); return Promise.resolve({ ok: true }); },
     Request: function (u) { this.url = u; }, Response: function () {}, Headers: function () {},
   };
+  if (net) Object.assign(context, net);
   vm.createContext(context);
   vm.runInContext(source, context);
   const fire = async (type, event) => {
@@ -61,6 +63,44 @@ function worker({ windows = [], navigateFails = false } = {}) {
   return { did, fire };
 }
 const pushEvent = (payload) => ({ data: { json: () => (typeof payload === 'string' ? JSON.parse(payload) : payload), text: () => String(payload) } });
+
+/**
+ * A stand-in network and caches for opening pages: the server answers
+ * $answer (a Response, or 'fail' for no network), offline.html is kept as
+ * the worker keeps it, and $kept is the kept copy of /dashboard, if any.
+ */
+function pages({ answer, kept = null }) {
+  const files = new Map([[SCOPE + 'offline.html', fs.readFileSync(path.join(__dirname, '..', '..', 'offline.html'), 'utf8')]]);
+  const kept_pages = new Map(kept ? [[SCOPE + 'dashboard', kept]] : []);
+  const key = (k) => (typeof k === 'string' ? k : k.url);
+  const cache = (m) => ({
+    match: (k) => Promise.resolve(m.has(key(k)) ? new Response(m.get(key(k)), { headers: { 'Content-Type': 'text/html; charset=utf-8' } }) : undefined),
+    put: (k, res) => res.text().then((t) => { m.set(key(k), t); }),
+    delete: (k) => Promise.resolve(m.delete(key(k))),
+    keys: () => Promise.resolve([...m.keys()].map((url) => ({ url }))),
+    add: () => Promise.resolve(),
+  });
+  return {
+    caches: {
+      open: (name) => Promise.resolve(cache(name === 'nf-pages' ? kept_pages : files)),
+      match: (k) => cache(files).match(k),
+      keys: () => Promise.resolve([]),
+      delete: () => Promise.resolve(true),
+    },
+    fetch: () => (answer === 'fail' ? Promise.reject(new TypeError('Failed to fetch')) : Promise.resolve(answer)),
+    Response, Headers, Request,
+    setTimeout: (fn, ms) => { const t = setTimeout(fn, ms); t.unref(); return t; },
+  };
+}
+/** Open $url in the app, as a tap on a link would, and what the worker answers. */
+async function open(w, url) {
+  let answer;
+  await w.fire('fetch', { request: { url, method: 'GET', mode: 'navigate', headers: new Headers() }, preloadResponse: Promise.resolve(undefined),
+                          resultingClientId: 'tab', respondWith: (p) => { answer = p; } });
+  const res = await answer;
+  return { status: res.status, html: await res.text() };
+}
+const BUSY = () => new Response('<h1>503 Service Unavailable</h1>The server is temporarily busy, try again later!', { status: 503 });
 
 (async () => {
   console.log('\nA push arrives');
@@ -127,6 +167,45 @@ const pushEvent = (payload) => ({ data: { json: () => (typeof payload === 'strin
     const fresh = { endpoint: 'https://push.test/given', toJSON: () => ({ endpoint: 'https://push.test/given', keys: {} }) };
     await w.fire('pushsubscriptionchange', { oldSubscription: { endpoint: 'https://push.test/old' }, newSubscription: fresh });
     eq([w.did.subscribed.length, JSON.parse(w.did.fetched[0].opts.body).subscription.endpoint], [0, 'https://push.test/given'], 'uses the new one the browser hands over');
+  }
+
+  console.log('\nThe server is up but too busy to answer');
+  {
+    const r = await open(worker({ net: pages({ answer: BUSY() }) }), SCOPE + 'dashboard?source=pwa');
+    ok(r.status === 503 && r.html.includes('<html lang="en" data-reason="busy">') && r.html.includes('Nfelia is busy') && !r.html.includes('temporarily busy'),
+       'nothing kept: "Nfelia is busy", which tries again by itself, not the host\'s own error page');
+  }
+  {
+    const kept = '<!DOCTYPE html><html><head><meta name="nf-cached" content="2026-10-22T02:40:00.000Z"><title>Home</title></head><body>Today, as it was</body></html>';
+    const r = await open(worker({ net: pages({ answer: BUSY(), kept }) }), SCOPE + 'dashboard?source=pwa');
+    ok(r.status === 200 && r.html.includes('Today, as it was') && r.html.includes('<meta name="nf-cached" data-why="busy" content="2026-10-22T02:40:00.000Z">'),
+       'kept: the page as it was, marked so its banner says Nfelia is busy');
+  }
+  {
+    const kept = '<!DOCTYPE html><html><head><meta name="nf-cached" content="2026-10-22T02:40:00.000Z"></head><body>Orders, before the new one</body></html>';
+    const w = worker({ net: pages({ answer: BUSY(), kept }) });
+    await w.fire('fetch', { request: { url: SCOPE + 'orders/create', method: 'POST', mode: 'navigate', headers: new Headers() }, respondWith: () => {} });
+    const r = await open(w, SCOPE + 'dashboard');
+    ok(r.html.includes('<html lang="en" data-reason="busy">') && !r.html.includes('Orders, before the new one'),
+       'just after a form: "Nfelia is busy", never the old copy, which would hide what the form did');
+  }
+  for (const status of [502, 504, 522]) {
+    const r = await open(worker({ net: pages({ answer: new Response('gateway', { status }) }) }), SCOPE + 'orders');
+    ok(r.html.includes('data-reason="busy"'), `${status} from the way to the server: the same`);
+  }
+  {
+    const r = await open(worker({ net: pages({ answer: new Response('<p>Something went wrong. Error code EAB12CD3</p>', { status: 500 }) }) }), SCOPE + 'orders');
+    eq([r.status, r.html], [500, '<p>Something went wrong. Error code EAB12CD3</p>'], 'the app\'s own error page shows as it is, with the code support asks for');
+  }
+  {
+    const r = await open(worker({ net: pages({ answer: 'fail' }) }), SCOPE + 'orders');
+    ok(r.html.includes('<html lang="en">') && !r.html.includes('<html lang="en" data-reason="busy">'), 'no network at all: "No connection", as before');
+  }
+  {
+    const r = await open(worker({ net: pages({ answer: BUSY() }) }), SCOPE + 'login?source=pwa');
+    ok(r.html.includes('data-reason="busy"'), 'the sign-in page the app starts on when signed out says so too');
+    const once = await open(worker({ net: pages({ answer: BUSY() }) }), SCOPE + 'login-link/0123456789abcdef');
+    ok(once.status === 503 && once.html.includes('temporarily busy'), 'a one-time sign-in link is never tried again by itself: the host\'s answer, as it is');
   }
 
   console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
