@@ -158,7 +158,7 @@ if (empty($items_json)) {
                                             <div class="data-text text-xs text-brand-plum/40">
                                                 <span x-text="prod.sku"></span> ·
                                                 <span x-text="'<?= $currency ?>' + Number(prod.sell_price).toLocaleString()"></span>
-                                                <span x-show="!prod.is_service" x-text="' · ' + prod.stock_qty + ' ' + prod.unit"></span>
+                                                <span x-show="!prod.is_service" x-text="' · ' + prod.stock_text + ' in stock'"></span>
                                             </div>
                                         </button>
                                     </template>

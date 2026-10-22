@@ -149,3 +149,19 @@ function adanna_customer(PDO $db, string $key): int
        ->execute([$name, $phone, '234' . substr($phone, 1), $address]);
     return (int)$db->lastInsertId();
 }
+
+/**
+ * What video 3 left: Chiamaka's and Funke's orders, paid and done, and a
+ * walk-in sale, dated over the last few days. Returns the customers' ids.
+ */
+function adanna_sales(PDO $db, array $products): array
+{
+    $day  = fn(int $n) => planner_add_days(planner_today(), $n);
+    $line = fn(string $key, int $qty = 1) => ['product_id' => $products[$key], 'name' => '', 'quantity' => $qty, 'unit_price' => ADANNA_PRODUCTS[$key][2]];
+    $sell = fn(array $in) => order_create($db, 2, $in + ['channel' => 'manual', 'fulfillment' => 'now', 'method' => 'bank_transfer'], 20);
+    $c = ['chiamaka' => adanna_customer($db, 'chiamaka'), 'funke' => adanna_customer($db, 'funke')];
+    $sell(['customer_id' => $c['chiamaka'], 'items' => [$line('body')], 'paid_now' => 120000, 'date' => $day(-3)]);
+    $sell(['items' => [$line('glue')], 'paid_now' => 18000, 'method' => 'cash', 'date' => $day(-3)]);
+    $sell(['customer_id' => $c['funke'], 'items' => [$line('bob')], 'paid_now' => 95000, 'date' => $day(-2)]);
+    return $c;
+}

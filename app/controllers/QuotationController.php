@@ -537,6 +537,7 @@ public function update_status($id = null) {
                 'sell_price' => (float)$p['sell_price'],
                 'stock_qty'  => (float)$p['stock_qty'],
                 'unit'       => $p['unit'],
+                'stock_text' => stock_count((float)$p['stock_qty'], $p['unit']),   // "12 bundles"
                 'is_service' => (int)$p['is_service'],
             ];
         }

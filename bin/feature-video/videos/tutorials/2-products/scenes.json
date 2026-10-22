@@ -8,7 +8,10 @@
   "engine": "yarngpt",
   "name": "chinenye",
   "tempo": 0.9,
-  "pause": 0.45
+  "pause": 0.45,
+  "say_as": {
+   "Nfelia": "En-feh-lee-ya"
+  }
  },
  "speed_limit": 1.8,
  "scenes": [

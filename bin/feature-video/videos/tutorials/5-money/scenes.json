@@ -1,0 +1,694 @@
+{
+ "title": "Money, team and records",
+ "login": {
+  "email": "adanna@adannaluxehair.com",
+  "password": "TestPass1"
+ },
+ "voice": {
+  "engine": "yarngpt",
+  "name": "chinenye",
+  "tempo": 0.9,
+  "pause": 0.45,
+  "say_as": {
+   "Nfelia": "En-feh-lee-ya"
+  }
+ },
+ "speed_limit": 1.8,
+ "scenes": [
+  {
+   "card": {
+    "kicker": "Nfelia tutorials · 5 of 5",
+    "title": "Your money, your team and your records",
+    "sub": "Expenses, debts, reports, your Records Book, and your staff."
+   },
+   "min": 4,
+   "say": "Welcome to the last video. Today we look after our money, our team, and our records."
+  },
+  {
+   "open": "/dashboard",
+   "chapter": "What you spend",
+   "steps": [
+    [
+     "wait",
+     600
+    ],
+    [
+     "tap",
+     ".nf-tab-create"
+    ],
+    [
+     "wait",
+     900
+    ],
+    [
+     "tap",
+     "#nf-create a:has-text('Add expense')",
+     {
+      "nav": true
+     }
+    ],
+    [
+     "wait",
+     900
+    ],
+    [
+     "tap",
+     "select[name=category]"
+    ],
+    [
+     "select",
+     "select[name=category]",
+     "stock_purchase"
+    ],
+    [
+     "wait",
+     800
+    ]
+   ],
+   "caption": "Add an expense",
+   "sub": "Here, new stock from a supplier.",
+   "say": "Our supplier delivered ten bundles of deep wave. To record it, tap plus, then Add expense, and choose Stock purchase."
+  },
+  {
+   "chapter": "What you spend",
+   "steps": [
+    [
+     "tap",
+     "input[x-model=supplierSearch]"
+    ],
+    [
+     "type",
+     "input[x-model=supplierSearch]",
+     "Balogun",
+     120
+    ],
+    [
+     "wait",
+     900
+    ],
+    [
+     "tap",
+     "button:has-text('Add a new supplier')"
+    ],
+    [
+     "wait",
+     600
+    ],
+    [
+     "tap",
+     "input[x-model=newSupplierName]"
+    ],
+    [
+     "fill",
+     "input[x-model=newSupplierName]",
+     ""
+    ],
+    [
+     "type",
+     "input[x-model=newSupplierName]",
+     "Balogun Hair Imports",
+     65
+    ],
+    [
+     "tap",
+     "input[x-model=newSupplierPhone]"
+    ],
+    [
+     "type",
+     "input[x-model=newSupplierPhone]",
+     "0802 555 7788",
+     80
+    ],
+    [
+     "wait",
+     300
+    ],
+    [
+     "tap",
+     "button:has-text('Save supplier')"
+    ],
+    [
+     "wait",
+     1200
+    ]
+   ],
+   "caption": "A new supplier",
+   "sub": "Saved for next time.",
+   "say": "Add the supplier once, with a phone number. Next time, just pick them."
+  },
+  {
+   "chapter": "What you spend",
+   "steps": [
+    [
+     "tap",
+     "input[name=description]"
+    ],
+    [
+     "type",
+     "input[name=description]",
+     "Ten bundles of deep wave, twenty inches",
+     50
+    ],
+    [
+     "scroll",
+     "input[name^='item_description']",
+     320
+    ],
+    [
+     "tap",
+     "input[name^='item_description'] >> nth=0"
+    ],
+    [
+     "type",
+     "input[name^='item_description'] >> nth=0",
+     "deep",
+     140
+    ],
+    [
+     "wait",
+     900
+    ],
+    [
+     "tap",
+     "button:has-text('Deep Wave') >> nth=0"
+    ],
+    [
+     "wait",
+     500
+    ],
+    [
+     "tap",
+     "input[name^='item_quantity'] >> nth=0"
+    ],
+    [
+     "fill",
+     "input[name^='item_quantity'] >> nth=0",
+     ""
+    ],
+    [
+     "type",
+     "input[name^='item_quantity'] >> nth=0",
+     "10",
+     150
+    ],
+    [
+     "tap",
+     "input[name^='item_unit_cost'] >> nth=0"
+    ],
+    [
+     "fill",
+     "input[name^='item_unit_cost'] >> nth=0",
+     ""
+    ],
+    [
+     "type",
+     "input[name^='item_unit_cost'] >> nth=0",
+     "92000",
+     110
+    ],
+    [
+     "wait",
+     900
+    ]
+   ],
+   "caption": "What you bought",
+   "sub": "It goes straight into your stock.",
+   "say": "Add what you bought, how many, and what each one cost. Nfelia adds them to your stock."
+  },
+  {
+   "chapter": "What you spend",
+   "steps": [
+    [
+     "scroll",
+     "select[name=payment_status]",
+     360
+    ],
+    [
+     "tap",
+     "select[name=payment_status]"
+    ],
+    [
+     "select",
+     "select[name=payment_status]",
+     "partial"
+    ],
+    [
+     "wait",
+     500
+    ],
+    [
+     "tap",
+     "input[name=amount_paid]"
+    ],
+    [
+     "type",
+     "input[name=amount_paid]",
+     "500000",
+     110
+    ],
+    [
+     "tap",
+     "select[name=payment_method]"
+    ],
+    [
+     "select",
+     "select[name=payment_method]",
+     "bank_transfer"
+    ],
+    [
+     "wait",
+     700
+    ],
+    [
+     "tap",
+     "button:has-text('Save expense')",
+     {
+      "nav": true
+     }
+    ],
+    [
+     "wait",
+     1600
+    ]
+   ],
+   "caption": "Part paid",
+   "sub": "The rest is what you owe.",
+   "say": "We paid five hundred thousand naira now, by transfer. Choose Part paid, type what you paid, and save. The rest is what you owe."
+  },
+  {
+   "open": "/debts",
+   "chapter": "Debts",
+   "steps": [
+    [
+     "wait",
+     1000
+    ],
+    [
+     "spot",
+     "a:has-text('Temitope')",
+     4
+    ],
+    [
+     "wait",
+     1600
+    ],
+    [
+     "unspot"
+    ],
+    [
+     "tap",
+     ":is(a,button):has-text('I owe')"
+    ],
+    [
+     "wait",
+     1100
+    ],
+    [
+     "spot",
+     "a:has-text('Balogun')",
+     4
+    ],
+    [
+     "wait",
+     1600
+    ],
+    [
+     "unspot"
+    ]
+   ],
+   "caption": "Who owes you, and who you owe",
+   "say": "Debts shows who owes you, and who you owe. Temitope owes the rest of her bridal order, and we owe our supplier."
+  },
+  {
+   "chapter": "Debts",
+   "steps": [
+    [
+     "tap",
+     ":is(a,button):has-text('Owed to me')"
+    ],
+    [
+     "wait",
+     900
+    ],
+    [
+     "tap",
+     "a:has-text('Temitope') >> nth=0",
+     {
+      "nav": true
+     }
+    ],
+    [
+     "wait",
+     1200
+    ],
+    [
+     "spot",
+     "a:has-text('WhatsApp'):visible",
+     6
+    ],
+    [
+     "wait",
+     2000
+    ],
+    [
+     "unspot"
+    ]
+   ],
+   "caption": "A friendly reminder",
+   "sub": "On WhatsApp, written for you.",
+   "say": "Open a debt to see what was paid, and when the rest is due. Send a friendly reminder on WhatsApp, already written for you."
+  },
+  {
+   "open": "/tasks",
+   "chapter": "Tasks and calendar",
+   "steps": [
+    [
+     "wait",
+     900
+    ],
+    [
+     "tap",
+     "input[placeholder*='task' i], input[name=title] >> nth=0"
+    ],
+    [
+     "type",
+     "input[placeholder*='task' i], input[name=title] >> nth=0",
+     "Call Temitope about the fitting",
+     55
+    ],
+    [
+     "tap",
+     "label:has-text('Tomorrow'):visible"
+    ],
+    [
+     "wait",
+     400
+    ],
+    [
+     "tap",
+     "button:has-text('Add'):visible >> nth=0"
+    ],
+    [
+     "wait",
+     1400
+    ]
+   ],
+   "caption": "Tasks and reminders",
+   "sub": "Nfelia reminds you on the day.",
+   "say": "Use Tasks for things you must not forget. Type it, choose the day, and Nfelia reminds you. Deliveries and payments due show here by themselves."
+  },
+  {
+   "chapter": "Tasks and calendar",
+   "steps": [
+    [
+     "tap",
+     ":is(a,button):has-text('Calendar'):visible"
+    ],
+    [
+     "wait",
+     1800
+    ]
+   ],
+   "caption": "Your calendar",
+   "say": "The calendar shows your whole month at a glance."
+  },
+  {
+   "open": "/reports/profit-loss",
+   "chapter": "Your money",
+   "steps": [
+    [
+     "wait",
+     1600
+    ],
+    [
+     "scrollBy",
+     360,
+     1200
+    ],
+    [
+     "wait",
+     1000
+    ]
+   ],
+   "caption": "Profit and loss",
+   "sub": "Money in, money out.",
+   "say": "Profit and loss shows the money that came in, and the money that went out, for any month."
+  },
+  {
+   "chapter": "Your money",
+   "steps": [
+    [
+     "spot",
+     "text=Spent on stock",
+     10
+    ],
+    [
+     "wait",
+     2400
+    ],
+    [
+     "unspot"
+    ]
+   ],
+   "caption": "Money put into stock",
+   "sub": "Not money lost.",
+   "say": "Money you spent on stock shows on its own line. The hair is still on your shelf, so it is not a loss."
+  },
+  {
+   "open": "/records",
+   "chapter": "Your records",
+   "steps": [
+    [
+     "wait",
+     1300
+    ],
+    [
+     "spot",
+     "section[aria-labelledby=rb-h], #rb-h",
+     4
+    ],
+    [
+     "wait",
+     2200
+    ],
+    [
+     "unspot"
+    ]
+   ],
+   "caption": "Your Records Book",
+   "sub": "Every sale and receipt, in one book.",
+   "say": "Your records are always yours. The Records Book has every sale, invoice and receipt in one Excel book, with a code anyone can check."
+  },
+  {
+   "chapter": "Your records",
+   "steps": [
+    [
+     "scroll",
+     "#req-h",
+     200
+    ],
+    [
+     "wait",
+     600
+    ],
+    [
+     "tap",
+     "a[href*='/records/request/']:visible >> nth=0",
+     {
+      "nav": true
+     }
+    ],
+    [
+     "wait",
+     1400
+    ]
+   ],
+   "caption": "Someone asks for your records",
+   "sub": "A lender, landlord or buyer.",
+   "say": "A bank or a savings group can check your records with that code, and ask to see them. Kemi, from a savings group, asked to check our sales for a loan."
+  },
+  {
+   "chapter": "Your records",
+   "steps": [
+    [
+     "scrollBy",
+     300,
+     900
+    ],
+    [
+     "tap",
+     "button:has-text('Approve')"
+    ],
+    [
+     "wait",
+     1800
+    ]
+   ],
+   "caption": "You decide",
+   "sub": "Approve, or decline.",
+   "say": "You decide. Tap Approve, and Nfelia sends her a copy. Or decline, and she sees nothing."
+  },
+  {
+   "open": "/settings",
+   "chapter": "Your team",
+   "steps": [
+    [
+     "wait",
+     900
+    ],
+    [
+     "tap",
+     "main :is(a,button):has-text('Team')"
+    ],
+    [
+     "wait",
+     900
+    ],
+    [
+     "spot",
+     "text=1 of 2 seats used",
+     10
+    ],
+    [
+     "wait",
+     1500
+    ],
+    [
+     "unspot"
+    ],
+    [
+     "scroll",
+     "input[name=staff_name]",
+     300
+    ],
+    [
+     "tap",
+     "input[name=staff_name]"
+    ],
+    [
+     "type",
+     "input[name=staff_name]",
+     "Ifeoma Eze",
+     75
+    ],
+    [
+     "tap",
+     "input[name=staff_email]"
+    ],
+    [
+     "type",
+     "input[name=staff_email]",
+     "ifeoma@adannaluxehair.com",
+     50
+    ],
+    [
+     "wait",
+     400
+    ]
+   ],
+   "caption": "Add your staff",
+   "sub": "Your trial includes one.",
+   "say": "To add a staff member, open Settings, then Team. Your free trial includes one staff member."
+  },
+  {
+   "chapter": "Your team",
+   "steps": [
+    [
+     "tap",
+     "select[name=staff_role]"
+    ],
+    [
+     "select",
+     "select[name=staff_role]",
+     "staff"
+    ],
+    [
+     "wait",
+     400
+    ],
+    [
+     "tap",
+     "input[name=staff_password]"
+    ],
+    [
+     "type",
+     "input[name=staff_password]",
+     "Ifeoma2026!shop",
+     90
+    ],
+    [
+     "wait",
+     500
+    ],
+    [
+     "tap",
+     "button:has-text('Add member')",
+     {
+      "nav": true
+     }
+    ],
+    [
+     "wait",
+     1600
+    ]
+   ],
+   "caption": "Staff or admin",
+   "sub": "Staff do the daily work.",
+   "say": "Choose Staff for the daily work, or Admin if they also handle money. Give them a password, and add them. They sign in on their own phone."
+  },
+  {
+   "chapter": "After your trial",
+   "steps": [
+    [
+     "tap",
+     "main :is(a,button):has-text('Billing')"
+    ],
+    [
+     "wait",
+     1200
+    ],
+    [
+     "spot",
+     "text=Free trial",
+     10
+    ],
+    [
+     "wait",
+     1500
+    ],
+    [
+     "unspot"
+    ],
+    [
+     "scroll",
+     "button:has-text('Pay for the month')",
+     380
+    ],
+    [
+     "spot",
+     "button:has-text('Pay for the month')",
+     6
+    ],
+    [
+     "wait",
+     1600
+    ],
+    [
+     "unspot"
+    ]
+   ],
+   "caption": "When your trial ends",
+   "sub": "Pay for a month, when you are ready.",
+   "say": "Billing shows the days left in your trial. When you are ready, pay for a month here, and add seats for more staff."
+  },
+  {
+   "card": {
+    "kicker": "You're all set",
+    "title": "Thank you for choosing Nfelia",
+    "sub": "Questions? Chat with us on WhatsApp from the More tab."
+   },
+   "min": 5,
+   "say": "That is the whole of Nfelia. You can sell, deliver, and keep good records, all from your phone. Thank you for watching, and welcome to Nfelia."
+  }
+ ]
+}
