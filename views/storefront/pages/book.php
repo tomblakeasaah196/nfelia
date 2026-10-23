@@ -15,6 +15,11 @@ $banks   = $catalogue['banks'];
 $nights  = $info['mode'] === 'nights';
 $slot    = $info['mode'] === 'slot';
 $has_dep = $info['deposit_type'] !== 'none' && $info['deposit_value'] > 0;
+// A stay may ask for a refundable caution fee, paid with the booking
+$caution = $nights ? $info['caution'] : 0.0;
+$pay_now = $has_dep || $caution > 0;
+$pay_what = $has_dep && $caution > 0 ? 'the deposit and the caution fee' : ($caution > 0 ? 'the caution fee' : 'the deposit');
+$rules   = $nights ? $page['settings']['rules'] : [];
 $photo   = '';
 foreach ($item['images'] as $rel) {
     if (($photo = sf_img($rel, '96px', '', 'sf-book__photo-img')) !== '') {
@@ -35,6 +40,7 @@ $price_line = $item['price'] > 0 ? sf_money($item['price'], $currency) . ($night
                 <p class="sf-eyebrow">Book with <?= e($business['name']) ?></p>
                 <h1 class="sf-h1 sf-page__title" id="sf-book-title"><?= e($item['name']) ?></h1>
                 <p class="sf-book__meta"><strong><?= e($price_line) ?></strong> · <?= e(booking_summary($info, $item['price'], $currency)) ?></p>
+                <?= $nights ? sf_stay_rates($info, $currency) : '' ?>
             </div>
         </div>
 
@@ -88,12 +94,26 @@ $price_line = $item['price'] > 0 ? sf_money($item['price'], $currency) . ($night
             </fieldset>
 
             <fieldset class="sf-book__step">
-                <legend class="sf-book__legend"><span aria-hidden="true">3</span><?= $has_dep ? 'Pay the deposit' : 'Send your request' ?></legend>
+                <legend class="sf-book__legend"><span aria-hidden="true">3</span><?= $pay_now ? 'Pay ' . e($pay_what) : 'Send your request' ?></legend>
+                <?php if ($rules): ?>
+                    <div class="sf-rules sf-rules--book">
+                        <p class="sf-rules__title"><?= sf_icon('clipboard', 18) ?>House rules</p>
+                        <ul class="sf-rules__list">
+                            <li>Check-in from <?= e(booking_time_text($page['settings']['checkin'])) ?>, check-out by <?= e(booking_time_text($page['settings']['checkout'])) ?></li>
+                            <?php foreach ($rules as $rule): ?><li><?= e($rule) ?></li><?php endforeach; ?>
+                        </ul>
+                    </div>
+                <?php endif; ?>
                 <p class="sf-total"><span>Total</span><strong data-book-total>—</strong></p>
-                <?php if ($has_dep): ?>
-                    <p class="sf-total sf-total--deposit"><span>Deposit to book</span><strong data-book-deposit>—</strong></p>
+                <?php if ($nights): ?><p class="sf-orderline__meta" data-book-rate></p><?php endif; ?>
+                <?php if ($pay_now): ?>
+                    <?php if ($has_dep): ?><p class="sf-total sf-total--deposit"><span>Deposit to book</span><strong data-book-deposit>—</strong></p><?php endif; ?>
+                    <?php if ($caution > 0): ?>
+                        <p class="sf-total sf-total--deposit"><span>Caution fee, refundable</span><strong><?= e(sf_money($caution, $currency)) ?></strong></p>
+                        <p class="sf-total sf-total--now"><span>To pay now</span><strong data-book-now>—</strong></p>
+                    <?php endif; ?>
                     <?php if ($banks): ?>
-                        <p class="sf-note">Send the deposit to one of these accounts, then book. <?= e($business['name']) ?> confirms your booking once they see it. You pay the rest on the day.</p>
+                        <p class="sf-note">Send <?= e($pay_what) ?> to one of these accounts, then book. <?= e($business['name']) ?> confirms your booking once they see it.<?= $caution > 0 ? ' The caution fee comes back to you after you check out.' : '' ?><?= $has_dep ? ' You pay the rest on the day.' : '' ?></p>
                         <fieldset class="sf-options">
                             <legend>Pay by <?= e(sf_pay_way($banks)) ?> to</legend>
                             <?php foreach ($banks as $i => $bank): ?>
@@ -109,13 +129,13 @@ $price_line = $item['price'] > 0 ? sf_money($item['price'], $currency) . ($night
                         </fieldset>
                         <?= sf_proof_field('A screenshot of your transfer helps ' . $business['name'] . ' confirm it quickly.') ?>
                     <?php else: ?>
-                        <p class="sf-note"><?= e($business['name']) ?> will tell you how to pay the deposit, on the number you give.</p>
+                        <p class="sf-note"><?= e($business['name']) ?> will tell you how to pay <?= e($pay_what) ?>, on the number you give.</p>
                     <?php endif; ?>
                 <?php else: ?>
                     <p class="sf-note"><?= e($business['name']) ?> confirms your booking on the number you give. You pay on the day.</p>
                 <?php endif; ?>
                 <p class="sf-form__error" role="alert" data-book-error></p>
-                <button type="submit" class="sf-btn sf-btn--block" data-book-submit><?= $has_dep && $banks ? 'Book it' : 'Send my booking request' ?></button>
+                <button type="submit" class="sf-btn sf-btn--block" data-book-submit><?= $pay_now && $banks ? 'Book it' : 'Send my booking request' ?></button>
                 <?php if ($wa !== ''): ?>
                     <button type="button" class="sf-btn sf-btn--outline sf-btn--block" data-book-wa><?= sf_icon('whatsapp', 20) ?><span>Book on WhatsApp instead</span></button>
                 <?php endif; ?>

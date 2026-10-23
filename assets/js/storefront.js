@@ -1967,24 +1967,27 @@
     // times a day at a time (?date=). The server checks the time again when
     // the booking is sent; if it was just taken, the calendar reloads.
 
+    // Dates as the shop's calendars write them (YYYY-MM-DD), shared with Haven's dates
+    var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    var WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+    var parseDay = function (s) { var p = s.split('-'); return new Date(+p[0], +p[1] - 1, +(p[2] || 1)); };
+    var ymd = function (d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
+    var addDays = function (s, n) { var d = parseDay(s); d.setDate(d.getDate() + n); return ymd(d); };
+    var nightsBetween = function (a, b) { return Math.round((parseDay(b) - parseDay(a)) / 86400000); };
+    var dayText = function (s) { var d = parseDay(s); return WEEKDAYS[d.getDay()] + ' ' + d.getDate() + ' ' + MONTHS[d.getMonth()]; };
+    var shiftMonth = function (m, n) { var d = parseDay(m + '-01'); d.setMonth(d.getMonth() + n); return ymd(d).slice(0, 7); };
+    var isDay = function (s) { return /^\d{4}-\d{2}-\d{2}$/.test(s || ''); };
+
     var bookForm = $('[data-bookform]');
     if (bookForm && S.booking) {
         var B = S.booking;
-        var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-        var WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
         var cal = { month: B.first.slice(0, 7), cache: {} };
         var pick = { date: '', time: '', timeLabel: '', checkin: '', checkout: '' };
         var grid = $('[data-cal-grid]', bookForm);
         var calWait = $('[data-cal-wait]', bookForm);
         var timesBox = $('[data-times]', bookForm);
         var bookError = $('[data-book-error]', bookForm);
-        var pad = function (n) { return (n < 10 ? '0' : '') + n; };
-        var parseDay = function (s) { var p = s.split('-'); return new Date(+p[0], +p[1] - 1, +(p[2] || 1)); };
-        var ymd = function (d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
-        var addDays = function (s, n) { var d = parseDay(s); d.setDate(d.getDate() + n); return ymd(d); };
-        var nightsBetween = function (a, b) { return Math.round((parseDay(b) - parseDay(a)) / 86400000); };
-        var dayText = function (s) { var d = parseDay(s); return WEEKDAYS[d.getDay()] + ' ' + d.getDate() + ' ' + MONTHS[d.getMonth()]; };
-        var shiftMonth = function (m, n) { var d = parseDay(m + '-01'); d.setMonth(d.getMonth() + n); return ymd(d).slice(0, 7); };
         var dayState = function (d) { var m = cal.cache[d.slice(0, 7)]; return m ? m[d] : 'open'; };
         // Every night from check-in to the night before check-out is free
         var nightsFree = function (a, b) {
@@ -1999,6 +2002,12 @@
             if (B.deposit.type === 'percent') { return Math.round(total * Math.min(100, B.deposit.value)) / 100; }
             if (B.deposit.type === 'fixed') { return Math.min(B.deposit.value, total); }
             return 0;
+        };
+        // A longer stay pays the cheapest night it reaches (booking_night_price)
+        var nightPrice = function (n) {
+            var price = B.price;
+            (B.rates || []).forEach(function (r) { if (n >= r[0]) { price = Math.min(price, r[1]); } });
+            return price;
         };
 
         var drawCal = function () {
@@ -2071,10 +2080,17 @@
                 text = dayText(pick.date) + (B.mode === 'slot' ? (pick.time ? ' at ' + pick.timeLabel : '. Now pick a time.') : '');
             }
             $('[data-book-picked]', bookForm).textContent = text;
-            var total = B.price * units();
+            var each = B.mode === 'nights' ? nightPrice(units()) : B.price;
+            var total = Math.round(each * units() * 100) / 100;
             $('[data-book-total]', bookForm).textContent = units() ? money(total) : '—';
+            var rate = $('[data-book-rate]', bookForm);
+            if (rate) {
+                rate.textContent = units() ? plural(units(), 'night') + ' × ' + money(each) + (each < B.price ? ' instead of ' + money(B.price) + ', for a longer stay' : '') : '';
+            }
             var dep = $('[data-book-deposit]', bookForm);
             if (dep) { dep.textContent = units() ? money(depositFor(total)) : '—'; }
+            var now = $('[data-book-now]', bookForm);
+            if (now) { now.textContent = units() ? money(depositFor(total) + (B.caution || 0)) : '—'; }
         };
 
         grid.addEventListener('click', function (e) {
@@ -2191,8 +2207,8 @@
                 $('[data-book-done-text]', done).textContent = 'Send it to ' + S.name + ' on WhatsApp so they can confirm it with you.';
             } else {
                 wa.hidden = true;
-                $('[data-book-done-text]', done).textContent = json.deposit > 0
-                    ? S.name + ' will check your deposit and confirm your booking.'
+                $('[data-book-done-text]', done).textContent = json.deposit > 0 || json.caution > 0
+                    ? S.name + ' will check your ' + (json.caution > 0 ? 'payment' : 'deposit') + ' and confirm your booking.'
                     : S.name + ' will confirm your booking on the number you gave.';
             }
             done.scrollIntoView({ block: 'start' });
@@ -2202,9 +2218,442 @@
         var bookWa = $('[data-book-wa]', bookForm);
         if (bookWa) { bookWa.addEventListener('click', function () { sendBooking('whatsapp'); }); }
 
+        // Dates picked on the shop's first screen come along (Haven's dates,
+        // Stage's day): the server checks them again when the booking is sent
+        var asked = new URLSearchParams(location.search);
+        var okDay = function (d) { return isDay(d) && d >= B.first && d <= B.last; };
+        if (B.mode === 'nights' && okDay(asked.get('checkin')) && isDay(asked.get('checkout')) && asked.get('checkout') > asked.get('checkin')) {
+            pick.checkin = asked.get('checkin');
+            pick.checkout = asked.get('checkout');
+            cal.month = pick.checkin.slice(0, 7);
+        } else if (B.mode === 'day' && okDay(asked.get('date'))) {
+            pick.date = asked.get('date');
+            cal.month = pick.date.slice(0, 7);
+        }
+        // Stage's plan comes along as the booking's note
+        if (asked.get('note') && !bookForm.elements.customer_note.value) {
+            bookForm.elements.customer_note.value = asked.get('note').slice(0, 1000);
+        }
         loadMonth(cal.month);
         updatePicked();
     }
+
+    /* ── Haven's dates ───────────────────────────── */
+    // "When are you coming?": the guest picks their nights in a calendar that
+    // shows how many places are free each night (/stays/free?month=). Then
+    // every place says whether it is free those nights and what the stay
+    // costs (/stays/free?checkin=&checkout=, worked out as the booking will
+    // charge it), free ones first, and books those dates in one tap. The
+    // dates and guests stay in the address, so a shared link opens on the
+    // same answer.
+
+    var staysEl = $('[data-stays]');
+    if (staysEl) {
+        var SD = { first: staysEl.dataset.first, last: staysEl.dataset.last, max: +staysEl.dataset.maxNights || 30 };
+        var trip = { checkin: '', checkout: '', guests: 2 };
+        var draft = { checkin: '', checkout: '' };
+        var dcal = { month: SD.first.slice(0, 7), cache: {}, focus: false };
+        var datesDialog = $('#sf-dates');
+        var datesGrid = $('[data-dates-grid]', datesDialog);
+        var datesSaid = $('[data-dates-said]', staysEl);
+        var stayList = $('[data-stays-list]', staysEl);
+        var stayCards = $$('[data-stay]', stayList);
+        var guestsOut = $('[data-guests]', staysEl);
+        var maxGuests = Math.max(2, Math.min(16, stayCards.reduce(function (m, c) { return Math.max(m, +c.dataset.sleeps || 0); }, 0)));
+        var answers = null;
+        stayCards.forEach(function (c, i) { c.dataset.order = i; });
+        var shortDay = function (s) { var d = parseDay(s); return WEEKDAYS[d.getDay()].slice(0, 3) + ' ' + d.getDate() + ' ' + MONTHS[d.getMonth()].slice(0, 3); };
+
+        var loadStayMonth = function (m) {
+            dcal.month = m;
+            if (dcal.cache[m]) { drawDates(); return; }
+            var wait = $('[data-dates-wait]', datesDialog);
+            wait.hidden = false;
+            wait.textContent = 'Finding free nights…';
+            datesGrid.textContent = '';
+            fetch('/stays/free?month=' + m, { credentials: 'omit' })
+                .then(function (r) { return r.json(); })
+                .then(function (json) { dcal.cache[m] = json.days || {}; if (dcal.month === m) { drawDates(); } })
+                .catch(function () { wait.textContent = 'We couldn\'t load the free nights. Check your connection and try again.'; });
+        };
+        var drawDates = function () {
+            var days = dcal.cache[dcal.month] || {};
+            var leaving = !!(draft.checkin && !draft.checkout);
+            var lastMonth = leaving ? addDays(draft.checkin, SD.max).slice(0, 7) : SD.last.slice(0, 7);
+            $('[data-dates-wait]', datesDialog).hidden = true;
+            $('[data-dates-month]', datesDialog).textContent = MONTHS[+dcal.month.slice(5) - 1] + ' ' + dcal.month.slice(0, 4);
+            $('[data-dates-prev]', datesDialog).disabled = dcal.month <= SD.first.slice(0, 7);
+            $('[data-dates-next]', datesDialog).disabled = dcal.month >= lastMonth;
+            $('[data-dates-title]', datesDialog).textContent = leaving ? 'And when do you leave?' : 'When do you arrive?';
+            datesGrid.textContent = '';
+            var start = parseDay(dcal.month + '-01');
+            var lead = (start.getDay() + 6) % 7;   // weeks start on Monday
+            for (var i = 0; i < lead; i++) { datesGrid.appendChild(el('span', { class: 'sf-cal__pad', 'aria-hidden': 'true' })); }
+            for (var d = dcal.month + '-01'; d.slice(0, 7) === dcal.month; d = addDays(d, 1)) {
+                var free = typeof days[d] === 'number' ? days[d] : -1;
+                var canEnd = leaving && d > draft.checkin && nightsBetween(draft.checkin, d) <= SD.max;
+                var canStart = !leaving && free > 0 && d >= SD.first && d <= SD.last;
+                var b = el('button', { type: 'button', class: 'sf-cal__day is-' + (free > 0 ? 'open' : free === 0 ? 'full' : 'closed'), 'data-day': d }, String(parseDay(d).getDate()));
+                b.disabled = !(canStart || canEnd);
+                if (canEnd) { b.classList.add('can-end'); }
+                var picked = d === draft.checkin || d === draft.checkout;
+                if (picked) { b.classList.add('is-picked'); }
+                if (draft.checkin && draft.checkout && d > draft.checkin && d < draft.checkout) { b.classList.add('is-between'); }
+                b.setAttribute('aria-pressed', String(picked));
+                b.setAttribute('aria-label', dayText(d) + (canEnd ? ', ' + plural(nightsBetween(draft.checkin, d), 'night') : free > 0 ? ', ' + plural(free, 'place') + ' free' : free === 0 ? ', every place is taken' : ', not open for booking'));
+                datesGrid.appendChild(b);
+            }
+            var picked = $('[data-dates-picked]', datesDialog);
+            picked.textContent = draft.checkin && draft.checkout
+                ? shortDay(draft.checkin) + ' to ' + shortDay(draft.checkout) + ', ' + plural(nightsBetween(draft.checkin, draft.checkout), 'night')
+                : draft.checkin ? 'Arriving ' + shortDay(draft.checkin) + '. Now tap the day you leave.' : 'Tap the day you arrive.';
+            $('[data-dates-done]', datesDialog).disabled = !(draft.checkin && draft.checkout);
+            // Just opened: the first day that can be picked, not the close button
+            if (dcal.focus) {
+                dcal.focus = false;
+                var day = $('[data-day]:not([disabled])', datesGrid);
+                if (day) { day.focus(); }
+            }
+        };
+        var openDates = function (which, from) {
+            draft = { checkin: trip.checkin, checkout: which === 'out' ? '' : trip.checkout };
+            if (which === 'in') { draft = { checkin: '', checkout: '' }; }
+            datesDialog.returnTo = from;
+            dcal.focus = true;
+            if (!datesDialog.open) { datesDialog.showModal(); }
+            loadStayMonth((draft.checkin || trip.checkin || SD.first).slice(0, 7));
+        };
+        datesGrid.addEventListener('click', function (e) {
+            var b = e.target.closest('[data-day]');
+            if (!b || b.disabled) { return; }
+            var d = b.dataset.day;
+            if (draft.checkin && !draft.checkout && d > draft.checkin) {
+                draft.checkout = d;
+            } else {
+                draft = { checkin: d, checkout: '' };
+            }
+            drawDates();
+            var again = datesGrid.querySelector('[data-day="' + d + '"]');
+            if (again) { again.focus(); }
+        });
+        $('[data-dates-prev]', datesDialog).addEventListener('click', function () { loadStayMonth(shiftMonth(dcal.month, -1)); });
+        $('[data-dates-next]', datesDialog).addEventListener('click', function () { loadStayMonth(shiftMonth(dcal.month, 1)); });
+        $('[data-dates-close]', datesDialog).addEventListener('click', function () { datesDialog.close(); });
+        $('[data-dates-clear]', datesDialog).addEventListener('click', function () { draft = { checkin: '', checkout: '' }; drawDates(); });
+        datesDialog.addEventListener('click', function (e) { if (e.target === datesDialog) { datesDialog.close(); } });
+        datesDialog.addEventListener('close', function () { if (datesDialog.returnTo) { datesDialog.returnTo.focus(); } });
+        $('[data-dates-done]', datesDialog).addEventListener('click', function () {
+            trip.checkin = draft.checkin;
+            trip.checkout = draft.checkout;
+            datesDialog.close();
+            remember();
+            askStays();
+        });
+        $$('[data-dates-open]', staysEl).forEach(function (b) {
+            b.addEventListener('click', function () { openDates(b.dataset.datesOpen, b); });
+        });
+
+        // The trip in the address bar, so it can be shared or come back to
+        var remember = function () {
+            try {
+                var url = new URL(location.href);
+                ['checkin', 'checkout', 'guests'].forEach(function (k) { url.searchParams.delete(k); });
+                if (trip.checkin && trip.checkout) { url.searchParams.set('checkin', trip.checkin); url.searchParams.set('checkout', trip.checkout); }
+                if (trip.guests !== 2) { url.searchParams.set('guests', trip.guests); }
+                history.replaceState(history.state, '', url.pathname + url.search + url.hash);
+            } catch (err) { /* an old browser keeps the plain address */ }
+        };
+        var paintBar = function () {
+            $('[data-date-in]', staysEl).textContent = trip.checkin ? shortDay(trip.checkin) : 'Add a date';
+            $('[data-date-out]', staysEl).textContent = trip.checkout ? shortDay(trip.checkout) : 'Add a date';
+            $$('[data-dates-open]', staysEl).forEach(function (b) { b.classList.toggle('is-set', !!trip[b.dataset.datesOpen === 'in' ? 'checkin' : 'checkout']); });
+            if (guestsOut) {
+                guestsOut.textContent = trip.guests;
+                $('[data-guests-step="-1"]', staysEl).disabled = trip.guests <= 1;
+                $('[data-guests-step="1"]', staysEl).disabled = trip.guests >= maxGuests;
+            }
+        };
+        $$('[data-guests-step]', staysEl).forEach(function (b) {
+            b.addEventListener('click', function () {
+                trip.guests = Math.max(1, Math.min(maxGuests, trip.guests + +b.dataset.guestsStep));
+                remember();
+                paintStays();
+            });
+        });
+
+        var askStays = function () {
+            paintBar();
+            if (!trip.checkin || !trip.checkout) { return; }
+            datesSaid.textContent = 'Checking what\'s free…';
+            staysEl.classList.add('is-asking');
+            fetch('/stays/free?checkin=' + trip.checkin + '&checkout=' + trip.checkout, { credentials: 'omit' })
+                .then(function (r) { return r.json(); })
+                .then(function (json) {
+                    answers = {};
+                    (json.stays || []).forEach(function (a) { answers[a.id] = a; });
+                    paintStays();
+                })
+                .catch(function () { datesSaid.textContent = 'We couldn\'t check just now. Check your connection, or tap a place to see its free dates.'; })
+                .then(function () { staysEl.classList.remove('is-asking'); });
+        };
+        var line = function (cls, text) { return el('p', { class: cls }, text); };
+        var paintStays = function () {
+            paintBar();
+            var nights = trip.checkin && trip.checkout ? nightsBetween(trip.checkin, trip.checkout) : 0;
+            var freeCount = 0;
+            stayCards.forEach(function (card) {
+                var a = answers ? answers[card.dataset.stay] : null;
+                var item = S.items[card.dataset.stay] || { price: 0 };
+                var sleeps = +card.dataset.sleeps || 0;
+                var small = sleeps > 0 && sleeps < trip.guests;
+                var box = $('[data-stay-answer]', card);
+                var book = $('[data-stay-book]', card);
+                box.textContent = '';
+                card.classList.toggle('is-small', small);
+                card.classList.toggle('is-free', !!(a && a.free));
+                card.classList.toggle('is-taken', !!(a && !a.free));
+                if (small) { box.appendChild(line('sf-stay__warn', 'Sleeps ' + sleeps + ': you are ' + trip.guests + '.')); }
+                if (!a) {
+                    book.textContent = 'Check dates and book';
+                    book.href = card.dataset.bookHref;
+                    return;
+                }
+                if (a.free) {
+                    freeCount++;
+                    box.insertBefore(line('sf-stay__free', 'Free for your ' + plural(a.nights, 'night')), box.firstChild);
+                    var total = line('sf-stay__total', money(a.total));
+                    total.appendChild(el('small', {}, ' for ' + plural(a.nights, 'night') + (a.each < item.price ? ' at ' + money(a.each) + ' a night' : '')));
+                    box.insertBefore(total, box.children[1] || null);
+                    var now = Math.round((a.deposit + a.caution) * 100) / 100;
+                    if (now > 0) {
+                        box.appendChild(line('sf-stay__now', 'Pay ' + money(now) + ' now to book it'
+                            + (a.caution > 0 ? (a.deposit > 0 ? ': the deposit and the ' : ': the ') + money(a.caution) + ' caution fee, which comes back' : '') + '.'));
+                    }
+                    book.textContent = 'Book these dates';
+                    book.href = card.dataset.bookHref + '?checkin=' + trip.checkin + '&checkout=' + trip.checkout;
+                } else {
+                    box.insertBefore(line('sf-stay__taken', a.why === 'dates' && a.error ? a.error : 'Taken some of those nights'), box.firstChild);
+                    book.textContent = 'See its free dates';
+                    book.href = card.dataset.bookHref;
+                }
+            });
+            if (answers) {
+                datesSaid.textContent = freeCount
+                    ? plural(freeCount, 'place') + ' free for ' + plural(nights, 'night') + ', ' + shortDay(trip.checkin) + ' to ' + shortDay(trip.checkout) + '.'
+                    : 'Nothing is free for all of those nights. Try other dates' + (S.wa ? ', or ask ' + S.name + ' on WhatsApp.' : '.');
+            }
+            sortStays();
+        };
+        // Free places that fit first, then free ones that are small, then
+        // taken ones; each slides to its new place (FLIP)
+        var rank = function (c) { return c.classList.contains('is-taken') ? 2 : c.classList.contains('is-small') ? 1 : 0; };
+        var sortStays = function () {
+            var before = stayCards.map(function (c) { return c.getBoundingClientRect(); });
+            var sorted = stayCards.slice().sort(function (a, b) { return rank(a) - rank(b) || a.dataset.order - b.dataset.order; });
+            if (sorted.every(function (c, i) { return stayList.children[i] === c; })) { return; }
+            sorted.forEach(function (c) { stayList.appendChild(c); });
+            if (lessMotion) { return; }
+            sorted.forEach(function (c) {
+                var was = before[stayCards.indexOf(c)];
+                var now = c.getBoundingClientRect();
+                var dx = was.left - now.left;
+                var dy = was.top - now.top;
+                if (dx || dy) {
+                    c.style.transition = 'none';
+                    c.style.transform = 'translate(' + dx + 'px, ' + dy + 'px)';
+                }
+            });
+            void stayList.offsetHeight;
+            sorted.forEach(function (c) { if (c.style.transform) { c.style.transition = ''; c.style.transform = ''; } });
+        };
+
+        // A shared link opens on its trip
+        var asked = new URLSearchParams(location.search);
+        var g = parseInt(asked.get('guests'), 10);
+        if (g >= 1) { trip.guests = Math.min(maxGuests, g); }
+        if (isDay(asked.get('checkin')) && isDay(asked.get('checkout')) && asked.get('checkout') > asked.get('checkin')
+            && asked.get('checkin') >= SD.first && nightsBetween(asked.get('checkin'), asked.get('checkout')) <= SD.max) {
+            trip.checkin = asked.get('checkin');
+            trip.checkout = asked.get('checkout');
+            askStays();
+        } else {
+            paintStays();
+        }
+    }
+
+    /* ── Stage's planner ─────────────────────────── */
+    // How many guests picks the package that holds them (or the guest picks
+    // one), the day says whether it's free (packages booked by the day, from
+    // /book/{id}/free), the colours recolour the drawing of the hall, and
+    // extras suggest enough for everyone. The plan adds up as it goes and
+    // goes to the shop: "Hold the date" books the day with the plan in its
+    // note, else "Send this plan" on WhatsApp or the request form.
+
+    var planEl = $('[data-plan]');
+    if (planEl) {
+        var PL = JSON.parse(planEl.dataset.plan);
+        var plan = { guests: PL.start, pick: null, date: '', day: '', theme: '', extras: {}, own: {} };
+        var planner = $('[data-planner]', planEl);
+        var range = $('[data-plan-range]', planner);
+        var dateIn = $('[data-plan-date]', planner);
+        var monthsFree = {};
+        var packOf = function (id) { return PL.packages.filter(function (p) { return p.id === id; })[0]; };
+        // The smallest package that holds them, else the one for more, else the biggest
+        var fitFor = function (n) {
+            var fits = PL.packages.filter(function (p) { return p.open ? n >= p.guests || p === PL.packages[PL.packages.length - 1] : n <= p.guests; });
+            return fits[0] || PL.packages[PL.packages.length - 1];
+        };
+        var chosen = function () { return plan.pick ? packOf(plan.pick) : fitFor(plan.guests); };
+        var suggest = function (x) { return x.per ? Math.max(1, Math.ceil(plan.guests / x.per)) : 1; };
+        var depositOf = function (b, price) {
+            if (b.type === 'percent') { return Math.round(price * Math.min(100, b.value)) / 100; }
+            if (b.type === 'fixed') { return Math.min(b.value, price || b.value); }
+            return 0;
+        };
+        var themeName = function () { var t = $('input[name="sf-theme"]:checked', planner); return t ? t.dataset.themeName : ''; };
+        var extrasPicked = function () {
+            return PL.extras.filter(function (x) { return plan.extras[x.id] > 0; }).map(function (x) { return { x: x, n: plan.extras[x.id] }; });
+        };
+        var planText = function () {
+            var p = chosen();
+            var bits = ['Hello ' + S.name + ', I would like to plan an event: ' + plural(plan.guests, 'guest') + (plan.date ? ' on ' + dayText(plan.date) : '') + '.',
+                        'Package: ' + p.name + (p.price > 0 ? ' (' + money(p.price) + ')' : '') + '.'];
+            if (themeName()) { bits.push('Colours: ' + themeName() + '.'); }
+            var xs = extrasPicked();
+            if (xs.length) { bits.push('Extras: ' + xs.map(function (e) { return e.n + ' × ' + e.x.name + ' (' + money(e.x.price * e.n) + ')'; }).join(', ') + '.'); }
+            bits.push('Total so far: ' + money(planTotal()) + '.');
+            return bits.join(' ');
+        };
+        var planTotal = function () {
+            return chosen().price + extrasPicked().reduce(function (t, e) { return t + e.x.price * e.n; }, 0);
+        };
+
+        var checkDay = function () {
+            var p = chosen();
+            var said = $('[data-plan-day]', planner);
+            plan.day = '';
+            if (!plan.date) { said.textContent = 'Pick the day and we tell you if it\'s free.'; return paintPlan(); }
+            if (!p.book) { said.textContent = dayText(plan.date) + ': ' + S.name + ' checks the day when they get your plan.'; return paintPlan(); }
+            var m = plan.date.slice(0, 7);
+            var answer = function (days) {
+                plan.day = days[plan.date] || 'closed';
+                said.textContent = plan.day === 'open'
+                    ? 'Free on ' + dayText(plan.date) + '.'
+                    : plan.day === 'full' ? dayText(plan.date) + ' is already booked. Pick another day' + (S.wa ? ', or ask on WhatsApp.' : '.')
+                    : S.name + ' doesn\'t take bookings on ' + dayText(plan.date) + '. Pick another day.';
+                paintPlan();
+            };
+            var key = p.id + ':' + m;
+            if (monthsFree[key]) { answer(monthsFree[key]); return; }
+            said.textContent = 'Checking ' + dayText(plan.date) + '…';
+            fetch(p.book.free + '?month=' + m, { credentials: 'omit' })
+                .then(function (r) { return r.json(); })
+                .then(function (json) { monthsFree[key] = json.days || {}; if (plan.date.slice(0, 7) === m) { answer(monthsFree[key]); } })
+                .catch(function () { said.textContent = 'We couldn\'t check that day just now. Send your plan and ' + S.name + ' will tell you.'; });
+        };
+
+        var paintPlan = function () {
+            var fit = fitFor(plan.guests);
+            var p = chosen();
+            $('[data-plan-guests]', planner).textContent = plan.guests;
+            range.value = plan.guests;
+            range.style.setProperty('--fill', ((plan.guests - +range.min) / (+range.max - +range.min) * 100) + '%');
+            $$('[data-pack]', planner).forEach(function (card) {
+                var pk = packOf(+card.dataset.pack);
+                var small = !pk.open && pk.guests < plan.guests;
+                var input = $('input', card);
+                input.checked = pk === p;
+                card.classList.toggle('is-on', pk === p);
+                card.classList.toggle('is-small', small);
+                $('[data-pack-fit]', card).textContent = pk === p
+                    ? (small ? 'Holds ' + pk.guests + ': you have ' + plan.guests : pk === fit ? 'Fits your ' + plural(plan.guests, 'guest') : 'Your pick')
+                    : small ? 'Too small for ' + plan.guests : '';
+            });
+            PL.extras.forEach(function (x) {
+                var row = $('[data-extra="' + x.id + '"]', planner);
+                if (!row) { return; }
+                var n = plan.extras[x.id] || 0;
+                $('[data-extra-on]', row).checked = n > 0;
+                $('[data-extra-qty]', row).hidden = n === 0;
+                $('[data-extra-qty] output', row).textContent = n;
+                $('[data-extra-said]', row).textContent = n > 0
+                    ? n + ' × ' + money(x.price) + ' = ' + money(x.price * n) + (x.per && !plan.own[x.id] ? ', enough for ' + plural(plan.guests, 'guest') : '')
+                    : x.per ? 'You\'d need ' + suggest(x) + ' for ' + plural(plan.guests, 'guest') : '';
+            });
+            $('[data-plan-total]', planner).textContent = money(planTotal());
+            var xs = extrasPicked();
+            $('[data-plan-sum]', planner).textContent = p.name + (xs.length ? ' and ' + plural(xs.reduce(function (t, e) { return t + e.n; }, 0), 'extra') : '') + (plan.date ? ', ' + dayText(plan.date) : '');
+            var hold = $('[data-plan-hold]', planner);
+            var canHold = !!(p.book && plan.date && plan.day === 'open');
+            hold.hidden = !canHold;
+            if (canHold) {
+                hold.href = p.book.url + '?date=' + plan.date + '&note=' + encodeURIComponent(planText().slice(0, 1000));
+            }
+            var dep = canHold ? depositOf(p.book, p.price) : 0;
+            var send = $('[data-plan-send]', planner);
+            if (S.wa) {
+                send.href = 'https://wa.me/' + S.wa + '?text=' + encodeURIComponent(planText());
+            } else {
+                var to = new URL(S.urls.contact, location.href);
+                to.searchParams.set('plan', planText().slice(0, 1500));
+                to.hash = 'sf-quote';
+                send.href = to.pathname + to.search + to.hash;
+            }
+            send.classList.toggle('sf-btn--outline', canHold);
+            $('span', send).textContent = canHold ? 'Send plan' : 'Send this plan';
+            $('[data-plan-note]', planner).textContent = canHold
+                ? (dep > 0 ? 'Hold the date with a ' + money(dep) + ' deposit. ' : '') + 'Your extras and colours go with the booking as a note, and ' + S.name + ' confirms the final bill.'
+                : 'Nothing is paid yet: ' + S.name + ' replies with the final bill.';
+        };
+
+        var setGuests = function (n) {
+            plan.guests = Math.max(+range.min, Math.min(+range.max, Math.round(n / 10) * 10));
+            // Extras the guest didn't set themselves follow the guests
+            PL.extras.forEach(function (x) { if (plan.extras[x.id] > 0 && !plan.own[x.id]) { plan.extras[x.id] = suggest(x); } });
+            if (plan.pick && plan.pick === fitFor(plan.guests).id) { plan.pick = null; }
+            paintPlan();
+        };
+        range.addEventListener('input', function () { setGuests(+range.value); });
+        $$('[data-plan-step]', planner).forEach(function (b) {
+            b.addEventListener('click', function () { setGuests(plan.guests + +b.dataset.planStep); });
+        });
+        planner.addEventListener('change', function (e) {
+            if (e.target.name === 'sf-package') {
+                var id = +e.target.value;
+                plan.pick = id === fitFor(plan.guests).id ? null : id;
+                if (plan.date) { checkDay(); } else { paintPlan(); }
+            } else if (e.target.name === 'sf-theme') {
+                var c = PL.themes[e.target.value];
+                var decor = $('[data-decor]', planner);
+                if (c && decor) { ['--t1', '--t2', '--t3'].forEach(function (v, i) { decor.style.setProperty(v, c[i]); }); }
+                paintPlan();
+            } else if (e.target.matches('[data-extra-on]')) {
+                var row = e.target.closest('[data-extra]');
+                var x = PL.extras.filter(function (y) { return y.id === +row.dataset.extra; })[0];
+                plan.extras[x.id] = e.target.checked ? suggest(x) : 0;
+                plan.own[x.id] = false;
+                paintPlan();
+            } else if (e.target === dateIn) {
+                plan.date = isDay(dateIn.value) && dateIn.value >= PL.first && dateIn.value <= PL.last ? dateIn.value : '';
+                checkDay();
+            }
+        });
+        planner.addEventListener('click', function (e) {
+            var b = e.target.closest('[data-extra-step]');
+            if (!b) { return; }
+            var id = +b.closest('[data-extra]').dataset.extra;
+            plan.extras[id] = Math.max(0, Math.min(999, (plan.extras[id] || 0) + +b.dataset.extraStep));
+            plan.own[id] = true;
+            paintPlan();
+        });
+        planner.addEventListener('submit', function (e) { e.preventDefault(); });
+        paintPlan();
+    }
+
+    // A plan sent to the request form arrives in its message
+    var planned = new URLSearchParams(location.search).get('plan');
+    var planBox = planned && $('[data-quote-form] textarea[name="message"]');
+    if (planBox && !planBox.value) { planBox.value = planned.slice(0, 5000); }
 
     /* ── Image for WhatsApp Status ───────────────── */
     // A 1080 × 1920 picture of a product in the shop's colours and fonts,

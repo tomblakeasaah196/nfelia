@@ -49,7 +49,7 @@ $tabs = ['requests' => 'Requests', 'upcoming' => 'Coming up', 'past' => 'Past'];
                     <?= e($b['booking_number']) ?> ·
                     <?= $b['deposit_due'] > 0
                         ? 'Deposit ' . e(sf_money((float)$b['deposit_due'], $currency)) . ($b['payment_proof_path'] ? ', proof sent' : ($b['channel'] === 'whatsapp' ? ', on WhatsApp' : ''))
-                        : 'No deposit' ?>
+                        : 'No deposit' ?><?php if ((float)($b['caution_fee'] ?? 0) > 0 && !$b['caution_refunded_at'] && strtotime((string)$b['ends_at']) <= time() && in_array($b['status'], ['confirmed', 'completed'], true)): ?> · <span class="font-bold text-amber-800">Caution <?= e(sf_money((float)$b['caution_fee'], $currency)) ?> to give back</span><?php endif; ?>
                 </p>
             </div>
             <span class="shrink-0 px-2.5 py-1 rounded-full text-xs font-bold <?= $badge_class ?>"><?= e($badge) ?></span>

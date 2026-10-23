@@ -16,6 +16,18 @@ $featured_on = $sections['featured']['on'] && storefront_featured($catalogue, $s
 if ($look['hero'] === 'board') {
     return;
 }
+// Haven's first screen lists its places, Stage's planner its packages and
+// extras; here, only what else they sell
+if ($look['hero'] === 'stays' || $look['hero'] === 'planner') {
+    $planned = $look['hero'] === 'planner' ? storefront_plan($catalogue, $sections['hero']) : ['packages' => [], 'extras' => []];
+    $in_plan = array_merge(array_column($planned['packages'], 'id'), array_column($planned['extras'], 'id'));
+    $items = array_values(array_filter($items, fn($i) => ($i['booking']['mode'] ?? '') !== 'nights' && !in_array($i['id'], $in_plan, true)));
+    if (!$items) {
+        return;
+    }
+    $categories = array_values(array_unique(array_filter(array_column($items, 'category'), 'strlen')));
+    $all_count  = count($catalogue['items']);
+}
 if (!$items) {
     if ($mode === 'live') {
         return;

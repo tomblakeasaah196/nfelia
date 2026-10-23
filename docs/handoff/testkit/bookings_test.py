@@ -174,13 +174,15 @@ check("beyond how far ahead people can book, no times", j.get("times") == [], j)
 
 # ── Time slots ─────────────────────────────────────────────────────────
 s, j = book("glow-by-temi", BRAIDS, date=day(2), time="10:00", bank_id=GLOW_BANK, customer_email="ada@example.com", customer_note="<b>long</b> hair please")
-check("a time slot is booked", s == 200 and j.get("success") and j["booking_number"] == "BKG-0001" and j["total"] == 45000 and j["deposit"] == 13500, j)
+# Booking numbers carry the business's prefix since the orders hub (ADA-BKG-001; the seed leaves the counters running)
+BKG1 = j.get("booking_number") or ""
+check("a time slot is booked", s == 200 and j.get("success") and re.fullmatch(r"[A-Z0-9]+-BKG-\d{3,}", BKG1) and j["total"] == 45000 and j["deposit"] == 13500, j)
 check("with its own private link", re.fullmatch(r"http://glow-by-temi\.nfelia\.test:8000/booking/[a-f0-9]{32}", j.get("booking_url") or ""), j)
 braids_link = j["booking_url"]
-row = sql(f"SELECT kind, starts_at, ends_at, status, payment_method, deposit_due, customer_id IS NOT NULL FROM bookings WHERE booking_number = 'BKG-0001' AND business_id = 4")[0]
+row = sql(f"SELECT kind, starts_at, ends_at, status, payment_method, deposit_due, customer_id IS NOT NULL FROM bookings WHERE booking_number = '{BKG1}' AND business_id = 4")[0]
 check("held as a request, 3 hours long, by transfer", row == ["slot", f"{day(2)} 10:00:00", f"{day(2)} 13:00:00", "pending", "bank_transfer", "13500.00", "1"], row)
 told = sql("SELECT title, message, action_url FROM notifications WHERE business_id = 4 AND title LIKE 'New booking%'")
-check("the owner is told", told and "BKG-0001" in told[0][1] and told[0][2].startswith("bookings/view/"), told)
+check("the owner is told", told and BKG1 in told[0][1] and told[0][2].startswith("bookings/view/"), told)
 s, j = shop("glow-by-temi").json("GET", f"/book/{LASH}/free?date={day(2)}")
 times = [t["t"] for t in j.get("times", [])]
 check("a request takes its time away from everyone", "09:00" in times and "09:30" not in times and "12:30" not in times and "13:00" in times, times)
@@ -260,7 +262,7 @@ check("the deposit's proof is kept, privately", s == 200 and proof and proof.sta
 # ── The shopper's booking page ─────────────────────────────────────────
 path = urllib.parse.urlparse(braids_link).path
 s, h, page = shop("glow-by-temi").get(path)
-check("booking page draws cleanly and privately", s == 200 and not PHP_NOISE.search(page) and "Booking BKG-0001</h1>" in page
+check("booking page draws cleanly and privately", s == 200 and not PHP_NOISE.search(page) and f"Booking {BKG1}</h1>" in page
       and "no-store" in h.get("cache-control", "") and "noindex" in h.get("x-robots-tag", "") and h.get("referrer-policy") == "same-origin", (s, h))
 check("it says the deposit is being checked and what's left to pay", "is checking your deposit" in page and "₦13,500" in page and "₦31,500" in page, "")
 check("it offers the phone's calendar", f'href="{path}/calendar.ics"' in page, "")
@@ -275,9 +277,9 @@ check("another shop can't open it", s == 404, s)
 temi = Client()
 temi.login("owner4@nfelia.test")
 s, h, page = temi.get("/bookings")
-check("requests wait in Bookings", s == 200 and not PHP_NOISE.search(page) and "BKG-0001" in page and "To confirm" in page, (s, PHP_NOISE.search(page)))
+check("requests wait in Bookings", s == 200 and not PHP_NOISE.search(page) and BKG1 in page and "To confirm" in page, (s, PHP_NOISE.search(page)))
 check("the menu has Bookings", 'href="' + "http://nfelia.test:8000" + '/bookings"' in page or "/bookings\"" in page, "")
-braids_id = one("SELECT id FROM bookings WHERE business_id = 4 AND booking_number = 'BKG-0001'")
+braids_id = one(f"SELECT id FROM bookings WHERE business_id = 4 AND booking_number = '{BKG1}'")
 s, h, page = temi.get(f"/bookings/view/{braids_id}")
 check("one booking, with the shopper's note escaped", s == 200 and "&lt;b&gt;long&lt;/b&gt;" in page and "<b>long</b>" not in page and "Confirm and add to my calendar" in page, s)
 temi.post(f"/bookings/confirm/{braids_id}", {"csrf_token": temi.token})

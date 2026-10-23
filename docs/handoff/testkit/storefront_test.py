@@ -16,6 +16,7 @@ if it isn't running) and these in .env; without them they are skipped:
     GEOAPIFY_API_URL=http://127.0.0.1:8099
     GEOAPIFY_MAPS_URL=http://127.0.0.1:8099
 """
+import html
 import http.client
 import json
 import os
@@ -762,6 +763,123 @@ s, h, prev = kola.get("/landing-page/preview")
 check("with no device to show, Volt keeps its spec sheet", "data-spotlight" not in prev and "sf-hero--spec" in prev, "")
 hero_of(volt_draft).update({"picks": [], "badge": ""})
 kola.api("/landing-page/save-draft", {"settings": volt_draft})
+
+# ── Haven and Stage: dates first, plan your event ─────────────────────
+import shutil
+
+one, studio_apt, duplex = pid(10, "One-bedroom apartment"), pid(10, "Studio"), pid(10, "Three-bedroom duplex")
+sql(f"UPDATE products SET booking_mode = 'nights', deposit_type = 'percent', deposit_value = 30, caution_fee = 50000, stay_rates = '[[7,75000],[28,65000],[3,90000]]' WHERE id = {one}")
+sql(f"UPDATE products SET booking_mode = 'nights' WHERE id IN ({studio_apt}, {duplex})")
+sql("UPDATE businesses SET booking_settings = '{\"rules\":[\"No parties or events\",\"No smoking indoors\"]}' WHERE id = 10")
+sql("DELETE FROM bookings WHERE business_id = 10")
+s, h, page = shop("haven-shortlets").get("/")
+stays_html = page[page.find("data-stays"):page.find("</section>", page.find("data-stays"))]
+check("Haven opens on its dates: When are you coming?, every place below", "When are you coming?" in stays_html and stays_html.count('<li class="sf-stay" data-stay="') == 3
+      and 'class="sf-h1 sf-stays__title" id="sf-hero-title"' in stays_html and 'id="sf-dates"' in page, stays_html.count('class="sf-stay"'))
+one_card = re.search(rf'<li class="sf-stay" data-stay="{one}".*?data-stay-book>', stays_html, re.S)
+one_card = one_card.group(0) if one_card else ""
+check("Haven: what it sleeps and its amenities, power first", 'Sleeps 2' in one_card and re.search(r'<li class="sf-amenity sf-amenity--power">.*?24-hour power</li>\s*<li class="sf-amenity">.*?Wi-Fi</li>', one_card, re.S), one_card[:600])
+check("Haven: a place's longer-stay prices and refundable caution fee, only the ones that are cheaper",
+      "7+ nights <strong>₦75,000</strong>" in one_card and "28+ nights <strong>₦65,000</strong>" in one_card and "₦90,000" not in one_card
+      and "₦50,000 refundable caution fee" in one_card, one_card[:800])
+check("Haven: the house rules, with the check-in times", "House rules" in stays_html and "Check-in from 2:00pm" in stays_html and "No parties or events" in stays_html, "")
+check("Haven: its places aren't listed again under the dates", "sf-cats" not in page and "sf-item--listing" not in page, "")
+first = (datetime.date.today() + datetime.timedelta(days=10)).isoformat()
+week = (datetime.date.today() + datetime.timedelta(days=17)).isoformat()
+s, h, raw = shop("haven-shortlets").req("GET", f"/stays/free?checkin={first}&checkout={week}")
+free = {a["id"]: a for a in json.loads(raw)["stays"]}
+check("Haven: a week is priced as the booking will charge it", s == 200 and h.get("cache-control") == "no-store"
+      and free[one] == {"id": one, "free": True, "nights": 7, "each": 75000, "total": 525000, "deposit": 157500, "caution": 50000}
+      and free[studio_apt]["total"] == 420000 and free[studio_apt]["caution"] == 0, (s, free.get(one)))
+s, h, raw = shop("haven-shortlets").req("GET", "/stays/free?month=" + first[:7])
+days = json.loads(raw)["days"]
+check("Haven: each night says how many places are free", days.get(first) == 3 and min(days.values()) >= -1, list(days.items())[:3])
+sql("DELETE FROM auth_throttle WHERE bucket LIKE 'booking%' OR bucket = 'form_email'")
+s, h, raw = shop("haven-shortlets").req("POST", f"/book/{one}", {"customer_name": "Ada Obi", "customer_phone": "08031112222", "checkin": first, "checkout": week, "channel": "whatsapp"})
+booked = json.loads(raw)
+row = sql(f"SELECT units, unit_price, total, deposit_due, caution_fee FROM bookings WHERE business_id = 10 ORDER BY id DESC LIMIT 1")
+check("a week's stay books at the longer-stay price, with the deposit and the caution fee", s == 200 and booked.get("caution") == 50000
+      and row == [["7", "75000.00", "525000.00", "157500.00", "50000.00"]], (s, booked, row))
+s, h, raw = shop("haven-shortlets").req("GET", f"/stays/free?checkin={first}&checkout={week}")
+check("Haven: a place booked for those nights says it's taken", {a["id"]: a for a in json.loads(raw)["stays"]}[one] == {"id": one, "free": False, "why": "taken"}, raw[:200])
+s, h, raw = shop("haven-shortlets").req("GET", f"/stays/free?checkin={first}&checkout=" + (datetime.date.today() + datetime.timedelta(days=50)).isoformat())
+check("Haven: a stay that's too long says why", "Stays can be up to 30 nights" in raw.decode(), raw[:200])
+s, h, page = shop("haven-shortlets").get(f"/book/{one}-one-bedroom-apartment")
+check("the booking page asks for the deposit and the caution fee, after the house rules", "Pay the deposit and the caution fee" in page and "Caution fee, refundable</span><strong>₦50,000" in page
+      and "data-book-now" in page and "No smoking indoors" in page and "7+ nights <strong>₦75,000</strong>" in page, "")
+token = sql(f"SELECT public_token FROM bookings WHERE business_id = 10 ORDER BY id DESC LIMIT 1")[0][0]
+s, h, page = shop("haven-shortlets").get(f"/booking/{token}")
+check("the guest's booking page shows the caution fee and that it comes back", "Caution fee, refundable</span><strong>₦50,000" in page and "comes back to you after you check out" in page
+      and "7 nights × ₦75,000" in page, "")
+
+bid = sql(f"SELECT id FROM bookings WHERE business_id = 10 ORDER BY id DESC LIMIT 1")[0][0]
+host = Client()
+host.login("owner10@nfelia.test")
+sql(f"UPDATE bookings SET status = 'confirmed' WHERE id = {bid}")
+host.req("POST", f"/bookings/caution/{bid}", {"csrf_token": host.token})
+check("a caution fee can't be marked given back before the guest checks out", sql(f"SELECT caution_refunded_at IS NULL FROM bookings WHERE id = {bid}") == [["1"]], "")
+sql(f"UPDATE bookings SET status = 'confirmed', starts_at = NOW() - INTERVAL 8 DAY, ends_at = CONCAT(CURDATE() - INTERVAL 1 DAY, ' 12:00:00') WHERE id = {bid}")
+if shutil.which("faketime"):
+    out = subprocess.run(f"TZ=Africa/Lagos faketime '{datetime.date.today().isoformat()} 10:00:00' php cron/planner.php", shell=True, capture_output=True, text=True, cwd=ROOT).stdout
+    told = sql(f"SELECT title FROM notifications WHERE business_id = 10 AND type = 'booking.caution'")
+    check("the morning after a stay, the owner hears to give back the caution fee", "cautions=1" in out and told and told[0][0].startswith("Give back a caution fee"), (out[-300:], told))
+else:
+    print("SKIP the caution reminder: needs faketime for the cron's clock")
+s, h, page = host.get(f"/bookings/view/{bid}")
+check("the owner's booking says to give back the caution fee once the stay is over", "Give back the ₦50,000 caution fee" in page and f'/bookings/caution/{bid}' in page, "")
+s, h, page = host.get("/bookings?show=past")
+check("and the list says so too", "Caution ₦50,000 to give back" in page, "")
+s, h, _ = host.req("POST", f"/bookings/caution/{bid}", {"csrf_token": host.token})
+check("marking it given back stamps the booking", sql(f"SELECT caution_refunded_at IS NOT NULL FROM bookings WHERE id = {bid}") == [["1"]], (s, h.get("location")))
+s, h, page = host.get(f"/bookings/view/{bid}")
+check("then the booking shows it given back, with no reminder", "Given back" in page and "Give back the ₦50,000" not in page, "")
+s, h, page = shop("haven-shortlets").get(f"/booking/{token}")
+check("and the guest's page says when", "Haven Shortlets gave it back on" in page, "")
+host.studio_token()
+s, h, _ = host.req("POST", "/bookings/settings", {"csrf_token": host.token, "checkin": "15:00", "checkout": "11:00", "rules": "- No parties\n2. No smoking indoors\n\nNo parties\n" + "x" * 200})
+rules = json.loads(sql("SELECT booking_settings FROM businesses WHERE id = 10")[0][0])["rules"]
+check("house rules are cleaned: a line each, numbering and repeats dropped, each kept short", rules == ["No parties", "No smoking indoors", "x" * 120], rules)
+s, h, page = host.get(f"/products/edit/{duplex}")
+check("the product form asks a stay for its caution fee and longer-stay prices", 'name="caution_fee"' in page and 'name="stay_from[]"' in page and "Cheaper for longer stays" in page, "")
+form = [("csrf_token", host.token), ("name", "Three-bedroom duplex"), ("auto_sku", "1"), ("category", "Victoria Island"), ("description", "Victoria Island, sleeps 6."),
+        ("sell_price", "250000"), ("unit", "night"), ("is_service", "1"), ("booking_mode", "nights"), ("deposit_type", "none"), ("caution_fee", "100000"),
+        ("stay_from[]", "14"), ("stay_price[]", "200000"), ("stay_from[]", "5"), ("stay_price[]", "230000"), ("stay_from[]", "1"), ("stay_price[]", "1")]
+host.req("POST", f"/products/edit/{duplex}", body=urllib.parse.urlencode(form), headers={"Content-Type": "application/x-www-form-urlencoded"})
+saved = sql(f"SELECT caution_fee, stay_rates FROM products WHERE id = {duplex}")
+check("the product form keeps the caution fee and the steps, fewest nights first", saved == [["100000.00", "[[5,230000],[14,200000]]"]], saved)
+
+s, h, page = shop("lola-events").get("/")
+plan_json = re.search(r'<div class="sf-plan" data-plan="([^"]+)"', page)
+plan_data = json.loads(html.unescape(plan_json.group(1))) if plan_json else {}
+check("Stage opens on its planner, the packages smallest first with the guests they hold",
+      [(p["name"], p["guests"], p["open"]) for p in plan_data.get("packages", [])] == [("Intimate", 80, False), ("Classic", 250, False), ("Grand", 500, True)]
+      and 'class="sf-h1 sf-plan__title" id="sf-hero-title"' in page and "How many guests?" in page, plan_data.get("packages"))
+check("Stage: extras say how many guests each covers", [(x["name"], x["per"]) for x in plan_data.get("extras", [])] == [("Small chops tray", 50)], plan_data.get("extras"))
+check("Stage: the colours to pick from, and the hall to see them on", page.count('name="sf-theme"') == 8 and 'data-decor' in page and "sf-decor__arch" in page, page.count('name="sf-theme"'))
+check("Stage: no package is held online until the owner books it by the day", all(p["book"] is None for p in plan_data.get("packages", [])), "")
+check("Stage: its packages and extras aren't listed again under the planner", "sf-item--package" not in page and "sf-cats" not in page, "")
+classic = pid(7, "Classic")
+sql(f"UPDATE products SET booking_mode = 'day', deposit_type = 'percent', deposit_value = 30 WHERE id = {classic}")
+lola = Client()
+lola.login("owner7@nfelia.test")
+stage_draft = studio_data_of(lola)["settings"]
+hero_of(stage_draft).update({"guests": [{"id": classic, "guests": 300}, {"id": olokun, "guests": 5}, {"id": classic, "guests": 10}], "themes": ["black-gold", "nope", "gold-emerald"]})
+s, r = lola.api("/landing-page/save-draft", {"settings": stage_draft})
+kept = hero_of(r["settings"])
+check("the owner's guest numbers are kept for their own packages, once each; themes only known ones", kept["guests"] == [{"id": classic, "guests": 300}]
+      and kept["themes"] == ["gold-emerald", "black-gold"], (kept["guests"], kept["themes"]))
+s, h, prev = lola.get("/landing-page/preview")
+plan_json = re.search(r'<div class="sf-plan" data-plan="([^"]+)"', prev)
+plan_data = json.loads(html.unescape(plan_json.group(1))) if plan_json else {}
+booked_pack = [p for p in plan_data.get("packages", []) if p["name"] == "Classic"]
+check("a package booked by the day can be held, with its deposit and free days", booked_pack and booked_pack[0]["guests"] == 300
+      and booked_pack[0]["book"] == {"url": f"/book/{classic}-classic", "free": f"/book/{classic}/free", "type": "percent", "value": 30}, booked_pack)
+check("the planner offers only the owner's themes", prev.count('name="sf-theme"') == 2 and "Black and gold" in prev and "Royal blue" not in prev, prev.count('name="sf-theme"'))
+sql(f"UPDATE products SET description = 'Decor and lighting.' WHERE business_id = 7 AND is_service = 1")
+hero_of(stage_draft).update({"guests": [], "themes": []})
+lola.api("/landing-page/save-draft", {"settings": stage_draft})
+s, h, prev = lola.get("/landing-page/preview")
+check("without packages that say how many guests, Stage keeps its arch", "data-plan" not in prev and "sf-hero--arch" in prev, "")
 
 # ── Map and directions ───────────────────────────────────────────────
 env = open(os.path.join(ROOT, ".env")).read()

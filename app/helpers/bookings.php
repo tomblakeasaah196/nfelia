@@ -36,6 +36,8 @@ const BOOKING_MAX_NIGHTS = 30;
  *   step      minutes between start times
  *   at_once   how many time-slot bookings can overlap
  *   checkin / checkout  times for stays
+ *   rules     house rules for stays, a line each (up to 8), shown before
+ *             paying and on Haven's first screen
  */
 function booking_settings(array $business): array {
     $raw = json_decode((string)($business['booking_settings'] ?? ''), true);
@@ -65,7 +67,27 @@ function booking_clean_settings(array $raw): array {
         'at_once'  => max(1, min(20, (int)($raw['at_once'] ?? 1))),
         'checkin'  => booking_clean_time($raw['checkin'] ?? null) ?? '14:00',
         'checkout' => booking_clean_time($raw['checkout'] ?? null) ?? '12:00',
+        'rules'    => booking_clean_rules($raw['rules'] ?? []),
     ];
+}
+
+/**
+ * House rules: a list or text with a line each, each line short and once,
+ * up to eight ("No parties", "Check-in with a photo ID").
+ */
+function booking_clean_rules(mixed $value): array {
+    $lines = is_array($value) ? $value : preg_split('/\R/u', (string)$value);
+    $rules = [];
+    foreach ($lines as $line) {
+        $line = trim(preg_replace('/^[\s\-*•·\d.)]+/u', '', preg_replace('/\s+/u', ' ', is_string($line) ? $line : '')));
+        if ($line !== '' && !in_array(mb_strtolower($line), array_map('mb_strtolower', $rules), true)) {
+            $rules[] = mb_substr($line, 0, 120);
+        }
+        if (count($rules) >= 8) {
+            break;
+        }
+    }
+    return $rules;
 }
 
 function booking_clean_time(mixed $value): ?string {
@@ -74,20 +96,66 @@ function booking_clean_time(mixed $value): ?string {
 
 /**
  * How a product is booked, or null when it is bought:
- *   mode, minutes (slots), capacity (days), deposit_type, deposit_value
+ *   mode, minutes (slots), capacity (days), deposit_type, deposit_value,
+ *   and for stays: caution (a refundable fee paid with the booking, 0 for
+ *   none) and rates (cheaper for longer stays: [[from nights, price a
+ *   night], …], each cheaper than the last and than the nightly price).
  */
 function booking_info(array $product): ?array {
     $mode = (string)($product['booking_mode'] ?? 'none');
     if (!in_array($mode, ['slot', 'nights', 'day'], true)) {
         return null;
     }
+    $stay = $mode === 'nights';
     return [
         'mode'          => $mode,
         'minutes'       => $mode === 'slot' ? max(15, min(720, (int)($product['booking_minutes'] ?? 60) ?: 60)) : 0,
         'capacity'      => max(1, (int)($product['booking_capacity'] ?? 1)),
         'deposit_type'  => in_array($product['deposit_type'] ?? '', ['percent', 'fixed'], true) ? $product['deposit_type'] : 'none',
         'deposit_value' => max(0, (float)($product['deposit_value'] ?? 0)),
+        'caution'       => $stay ? max(0.0, round((float)($product['caution_fee'] ?? 0), 2)) : 0.0,
+        'rates'         => $stay ? booking_clean_rates($product['stay_rates'] ?? null, (float)($product['sell_price'] ?? 0)) : [],
     ];
+}
+
+/**
+ * Cheaper for longer stays, from the JSON in products.stay_rates (or the
+ * product form's rows): up to three [from nights, price a night], from 2 to
+ * BOOKING_MAX_NIGHTS nights, fewest first. As a ladder (the default), each
+ * is cheaper than the one before and, when the nightly price is known, than
+ * it: a step that isn't is dropped, so the price a stay shows is the price
+ * it pays. The product form keeps the owner's steps as typed ($ladder
+ * false), so lowering the nightly price later never loses them.
+ */
+function booking_clean_rates(mixed $value, float $price = 0.0, bool $ladder = true): array {
+    $rows = is_string($value) ? json_decode($value, true) : $value;
+    $by_from = [];
+    foreach (is_array($rows) ? $rows : [] as $row) {
+        $from = is_array($row) ? filter_var($row[0] ?? $row['from'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 2, 'max_range' => BOOKING_MAX_NIGHTS]]) : false;
+        $each = is_array($row) && is_numeric($row[1] ?? $row['price'] ?? null) ? round((float)($row[1] ?? $row['price']), 2) : 0.0;
+        if ($from !== false && $each > 0 && $each <= 1000000000 && !isset($by_from[$from])) {
+            $by_from[$from] = $each;
+        }
+    }
+    ksort($by_from);
+    $rates = [];
+    $below = $price > 0 ? $price : PHP_FLOAT_MAX;
+    foreach ($by_from as $from => $each) {
+        if ((!$ladder || $each < $below) && count($rates) < 3) {
+            $rates[] = [$from, $each];
+            $below = $each;
+        }
+    }
+    return $rates;
+}
+
+/**
+ * What a night costs on a stay this long: the cheapest step it reaches
+ * (sf_price_at), never more than the nightly price. As nightPrice() in
+ * storefront.js; place_booking charges this.
+ */
+function booking_night_price(array $info, float $price, int $nights): float {
+    return $info['mode'] === 'nights' ? sf_price_at($price, $info['rates'], $nights) : $price;
 }
 
 /**
@@ -137,6 +205,9 @@ function booking_summary(array $info, float $price, string $symbol): string {
         $bits[] = sf_money($fixed, $symbol) . ' deposit to book';
     } else {
         $bits[] = 'No deposit';
+    }
+    if (($info['caution'] ?? 0) > 0) {
+        $bits[] = sf_money($info['caution'], $symbol) . ' caution fee, refunded after';
     }
     return implode(' · ', $bits);
 }

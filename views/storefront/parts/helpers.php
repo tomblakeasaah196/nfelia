@@ -445,6 +445,18 @@ function sf_buy_more(array $item, array $ctx): string {
 }
 
 /**
+ * Haven's cheaper prices for longer stays ("7+ nights ₦75,000"), or
+ * nothing: booking_info's rates, each already cheaper than the last.
+ */
+function sf_stay_rates(?array $info, string $currency, string $class = 'sf-buymore sf-stayrates'): string {
+    if (!$info || empty($info['rates'])) {
+        return '';
+    }
+    $steps = array_map(fn($r) => '<span>' . (int)$r[0] . '+ nights <strong>' . e(sf_money($r[1], $currency)) . '</strong></span>', $info['rates']);
+    return '<p class="' . e($class) . '">' . sf_icon('tag', 14) . implode('', $steps) . '<span class="sf-sr"> a night</span></p>';
+}
+
+/**
  * Where Market says a price moved since the shopper last looked (filled
  * in by storefront.js, "Since your last visit").
  */

@@ -12,6 +12,7 @@ $money   = fn($amount) => sf_money((float)$amount, $currency);
 $status  = (string)$booking['status'];
 $past    = strtotime((string)$booking['ends_at']) < time();
 $balance = max(0, (float)$booking['total'] - (float)$booking['deposit_due']);
+$caution = (float)($booking['caution_fee'] ?? 0);
 $here    = $shop_url . '/booking/' . $booking['public_token'];
 $when    = booking_when($booking);
 
@@ -78,6 +79,12 @@ $waiting_on_wa = $booking['channel'] === 'whatsapp' && $status === 'pending';
             <?php if ($booking['deposit_due'] > 0): ?>
                 <p class="sf-total sf-total--deposit"><span>Deposit<?= $booking['payment_method'] === 'bank_transfer' ? ($booking['payment_proof_path'] ? ', proof sent' : ', by transfer') : '' ?></span><strong><?= e($money($booking['deposit_due'])) ?></strong></p>
                 <p class="sf-total sf-total--deposit"><span>To pay on the day</span><strong><?= e($money($balance)) ?></strong></p>
+            <?php endif; ?>
+            <?php if ($caution > 0): ?>
+                <p class="sf-total sf-total--deposit"><span>Caution fee, refundable</span><strong><?= e($money($caution)) ?></strong></p>
+                <p class="sf-orderline__meta"><?= $booking['caution_refunded_at']
+                    ? e($shop . ' gave it back on ' . date('j F', strtotime((string)$booking['caution_refunded_at'])) . '.')
+                    : (in_array($status, ['declined', 'cancelled'], true) ? 'If you paid it, ' . e($shop) . ' gives it back.' : 'Paid with the booking. It comes back to you after you check out.') ?></p>
             <?php endif; ?>
         </div>
 

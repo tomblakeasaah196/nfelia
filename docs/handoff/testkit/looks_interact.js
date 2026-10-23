@@ -1,9 +1,10 @@
 // Buka's turntable, Glow's stories, Shea's skin finder, Market's price
-// board and Volt's spotlight, used like a shopper would on a phone, plus no
-// sideways scroll on their pages at three widths. Needs the local server and
-// the storefront seed; Market's prices for buying more and its thresholds
-// are set here and put back after. Prints PASS/FAIL lines; screenshots go
-// to <out dir>.
+// board, Volt's spotlight, Haven's dates and Stage's planner, used like a
+// shopper would on a phone, plus no sideways scroll on their pages at three
+// widths. Needs the local server and the storefront seed; Market's prices
+// for buying more and its thresholds, Haven's places booked by the night and
+// a Stage package booked by the day are set here and put back after. Prints
+// PASS/FAIL lines; screenshots go to <out dir>.
 //   NODE_PATH=/opt/node22/lib/node_modules node docs/handoff/testkit/looks_interact.js <out dir>
 const { chromium } = require('playwright');
 const fs = require('fs');
@@ -20,6 +21,9 @@ const publish = (id, json) => {
   const cache = path.join(ROOT, 'storage/cache');
   for (const f of fs.existsSync(cache) ? fs.readdirSync(cache) : []) { try { fs.unlinkSync(path.join(cache, f)); } catch (e) { /* a folder */ } }
 };
+
+// A business's products by name
+const ids = (biz) => db(`SELECT id, name FROM products WHERE business_id = ${biz}`).split('\n').reduce((m, l) => { const [id, n] = l.split('\t'); m[n] = +id; return m; }, {});
 
 const OUT = process.argv[2] || 'shots';
 const results = [];
@@ -263,9 +267,102 @@ const check = (label, ok, detail = '') => {
   check('Volt: and it is in the bag', (await bag(page)) === '1');
   await page.context().close();
 
+  // ── Haven: dates first ──
+  {
+  const haven = ids(10);
+  const havenWas = db(`SELECT id, booking_mode, IFNULL(deposit_type, ''), IFNULL(deposit_value, 'NULL'), IFNULL(caution_fee, 'NULL'), IFNULL(stay_rates, 'NULL') FROM products WHERE business_id = 10`);
+  db(`UPDATE products SET booking_mode = 'nights' WHERE business_id = 10;
+      UPDATE products SET deposit_type = 'percent', deposit_value = 30, caution_fee = 50000, stay_rates = '[[7,75000]]' WHERE id = ${haven['One-bedroom apartment']};
+      DELETE FROM bookings WHERE business_id = 10;`);
+  publish(10, db('SELECT IFNULL(storefront_published, "NULL") FROM businesses WHERE id = 10'));
+  page = await open('haven-shortlets');
+  await page.click('[data-dates-open="in"]');
+  await page.waitForTimeout(900);
+  const focusDay = await page.evaluate(() => document.activeElement && document.activeElement.matches('#sf-dates [data-day]'));
+  check('Haven: the calendar opens on the first free night, not the close button', focusDay);
+  // Next month, so a week fits in the one month shown
+  await page.click('[data-dates-next]');
+  await page.waitForTimeout(900);
+  const free = page.locator('#sf-dates [data-day]:not([disabled])');
+  await free.nth(0).click();
+  const arrive = await page.evaluate(() => document.querySelector('#sf-dates [data-day].is-picked').dataset.day);
+  await page.locator('#sf-dates [data-day].can-end').nth(6).click();
+  await page.waitForTimeout(200);
+  check('Haven: arrival then departure, the nights counted', (await page.textContent('[data-dates-picked]')).includes('7 nights') && !(await page.isDisabled('[data-dates-done]')));
+  await page.click('[data-dates-done]');
+  await page.waitForTimeout(1200);
+  const stays = await page.evaluate(() => [...document.querySelectorAll('[data-stay]')].map((c) => ({ name: c.querySelector('.sf-stay__name').textContent.trim(), free: c.classList.contains('is-free'),
+    total: (c.querySelector('.sf-stay__total') || {}).textContent, now: (c.querySelector('.sf-stay__now') || {}).textContent, href: c.querySelector('[data-stay-book]').getAttribute('href') })));
+  const oneB = stays.find((x) => x.name === 'One-bedroom apartment');
+  check('Haven: every place says it is free, and what the week costs at the longer-stay price', stays.every((x) => x.free) && oneB.total.startsWith('₦525,000 for 7 nights at ₦75,000')
+    && oneB.now === 'Pay ₦207,500 now to book it: the deposit and the ₦50,000 caution fee, which comes back.' && oneB.href.includes('?checkin=' + arrive), JSON.stringify(oneB));
+  check('Haven: the dates stay in the address', (await page.evaluate(() => location.search)).includes('checkin=' + arrive));
+  await page.screenshot({ path: path.join(OUT, 'haven-free.png') });
+  // Someone books the one-bedroom for those nights: it drops to the end
+  const out = await page.evaluate(() => new URLSearchParams(location.search).get('checkout'));
+  db(`INSERT INTO bookings (business_id, product_id, product_name, booking_number, public_token, kind, starts_at, ends_at, units, unit_price, total, customer_name, customer_phone, status)
+      VALUES (10, ${haven['One-bedroom apartment']}, 'One-bedroom apartment', 'S10-BKG-900', '${'a'.repeat(32)}', 'nights', '${arrive} 14:00:00', '${out} 12:00:00', 7, 75000, 525000, 'Test', '08030000000', 'confirmed')`);
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(1200);
+  const order = await page.evaluate(() => [...document.querySelectorAll('[data-stay]')].map((c) => c.querySelector('.sf-stay__name').textContent.trim() + (c.classList.contains('is-taken') ? ' (taken)' : '')));
+  check('Haven: a shared link opens on its dates, and a place taken those nights goes last', order[order.length - 1] === 'One-bedroom apartment (taken)', JSON.stringify(order));
+  await page.click('[data-guests-step="1"]');
+  await page.click('[data-guests-step="1"]');
+  await page.waitForTimeout(700);
+  const small = await page.evaluate(() => [...document.querySelectorAll('[data-stay].is-small')].map((c) => c.querySelector('.sf-stay__warn').textContent));
+  const firstName = await page.evaluate(() => document.querySelector('[data-stay] .sf-stay__name').textContent.trim());
+  check('Haven: four guests put the place that sleeps six first, and the small ones say so', firstName === 'Three-bedroom duplex' && small.includes('Sleeps 2: you are 4.'), JSON.stringify([firstName, small]));
+  await page.context().close();
+  db(`DELETE FROM bookings WHERE business_id = 10;` + havenWas.split('\n').map((l) => { const [id, mode, dt, dv, cf, sr] = l.split('\t');
+    return `UPDATE products SET booking_mode = '${mode}', deposit_type = ${dt ? `'${dt}'` : `'none'`}, deposit_value = ${dv}, caution_fee = ${cf}, stay_rates = ${sr === 'NULL' ? 'NULL' : quote(sr)} WHERE id = ${id};`; }).join('\n'));
+  publish(10, db('SELECT IFNULL(storefront_published, "NULL") FROM businesses WHERE id = 10'));
+
+  }
+
+  // ── Stage: plan your event ──
+  {
+  const lola = ids(7);
+  const classicWas = db(`SELECT booking_mode, deposit_type, IFNULL(deposit_value, 'NULL') FROM products WHERE id = ${lola.Classic}`).split('\t');
+  db(`UPDATE products SET booking_mode = 'day', deposit_type = 'percent', deposit_value = 30 WHERE id = ${lola.Classic}`);
+  publish(7, db('SELECT IFNULL(storefront_published, "NULL") FROM businesses WHERE id = 7'));
+  page = await open('lola-events');
+  const lit = () => page.evaluate(() => (document.querySelector('.sf-pack.is-on .sf-pack__name') || {}).textContent);
+  check('Stage: the package for the guests lights up', (await lit()) === 'Intimate');
+  await page.fill('[data-plan-range]', '200');
+  await page.dispatchEvent('[data-plan-range]', 'input');
+  await page.waitForTimeout(200);
+  check('Stage: more guests light up the package that holds them', (await lit()) === 'Classic' && (await page.textContent('.sf-pack.is-on [data-pack-fit]')) === 'Fits your 200 guests'
+    && (await page.textContent('[data-plan-guests]')) === '200');
+  await page.click('.sf-extra__pick');
+  await page.waitForTimeout(200);
+  check('Stage: an extra suggests enough for everyone, and the plan adds up', (await page.textContent('[data-extra-said]')).startsWith('4 × ₦75,000 = ₦300,000')
+    && (await page.textContent('[data-plan-total]')) === '₦1,500,000', await page.textContent('[data-plan-total]'));
+  await page.click('[data-plan-step="10"]');
+  await page.waitForTimeout(200);
+  check('Stage: the extras follow the guests', (await page.textContent('[data-extra-said]')).startsWith('5 × ₦75,000'));
+  const before = await page.evaluate(() => getComputedStyle(document.querySelector('[data-decor]')).getPropertyValue('--t1').trim());
+  await page.locator('.sf-theme').nth(3).click();
+  await page.waitForTimeout(200);
+  const after = await page.evaluate(() => getComputedStyle(document.querySelector('[data-decor]')).getPropertyValue('--t1').trim());
+  check('Stage: picking colours recolours the hall', before !== after && after.toUpperCase() === '#1D3F91', `${before} → ${after}`);
+  const day = await page.evaluate(() => { const d = new Date(); d.setDate(d.getDate() + 21); return d.toISOString().slice(0, 10); });
+  await page.fill('[data-plan-date]', day);
+  await page.dispatchEvent('[data-plan-date]', 'change');
+  await page.waitForTimeout(1200);
+  const hold = await page.evaluate(() => { const h = document.querySelector('[data-plan-hold]'); return { hidden: h.hidden, href: h.getAttribute('href') }; });
+  check('Stage: a free day for a package booked by the day can be held, the plan in its note', !hold.hidden && hold.href.startsWith(`/book/${lola.Classic}-classic?date=${day}&note=`)
+    && decodeURIComponent(hold.href).includes('Colours: Royal blue and gold') && decodeURIComponent(hold.href).includes('5 × Small chops tray'), JSON.stringify(hold));
+  const send = await page.getAttribute('[data-plan-send]', 'href');
+  check('Stage: or the plan goes on WhatsApp', send.startsWith('https://wa.me/') && decodeURIComponent(send).includes('210 guests'), send);
+  await page.screenshot({ path: path.join(OUT, 'stage-plan.png') });
+  await page.context().close();
+  db(`UPDATE products SET booking_mode = '${classicWas[0]}', deposit_type = '${classicWas[1]}', deposit_value = ${classicWas[2]} WHERE id = ${lola.Classic}`);
+  publish(7, db('SELECT IFNULL(storefront_published, "NULL") FROM businesses WHERE id = 7'));
+  }
+
   // ── No sideways scroll ──
   const wide = [];
-  for (const shop of ['mama-nkechi', 'glow-by-temi', 'zainab-naturals', 'musa-provisions', 'kola-gadgets']) {
+  for (const shop of ['mama-nkechi', 'glow-by-temi', 'zainab-naturals', 'musa-provisions', 'kola-gadgets', 'haven-shortlets', 'lola-events']) {
     for (const width of [390, 800, 1280]) {
       for (const where of ['/', '/shop', '/contact']) {
         const context = await browser.newContext({ viewport: { width, height: 900 } });
@@ -277,7 +374,7 @@ const check = (label, ok, detail = '') => {
       }
     }
   }
-  check('Buka, Glow, Shea, Market and Volt pages never scroll sideways', !wide.length, wide.join(', '));
+  check('Buka, Glow, Shea, Market, Volt, Haven and Stage pages never scroll sideways', !wide.length, wide.join(', '));
 
   check('no script errors', errors.length === 0, errors.join(' | '));
   await browser.close();

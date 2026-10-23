@@ -20,7 +20,7 @@ $sample = [
     'order_number' => 'ORD-0700', 'debt_id' => 800, 'total' => 65000, 'items' => 2, 'channel' => 'cart_pop', 'fulfillment' => 'delivery',
     'phone' => '08031110000', 'address' => '12 Allen Avenue', 'note' => 'Call first', 'request_id' => 1, 'name' => 'Bola Ade',
     'email' => 'bola@example.test', 'message' => 'Price for 20 bundles?', 'booking_id' => 1, 'booking_number' => 'BKG-0001',
-    'item' => 'Braids', 'when' => 'Sat 24 Oct, 10:00am', 'deposit' => 5000, 'quotation_id' => 500, 'quotation_number' => 'ADA-QUO-0500',
+    'item' => 'Braids', 'when' => 'Sat 24 Oct, 10:00am', 'deposit' => 5000, 'caution' => 50000, 'quotation_id' => 500, 'quotation_number' => 'ADA-QUO-0500',
     'reason' => 'Too pricey', 'comment' => 'Can you do it for less?', 'delivery_id' => 600, 'delivery_number' => 'ADA-DN-0600',
     'signer' => 'Ngozi Eze', 'rating' => 4, 'who' => 'Ngozi E.', 'days' => 3, 'expiry_date' => date('Y-m-d'), 'title' => 'Restock closures',
     'body' => '2 items are running low.', 'task_id' => 900, 'line' => 'Today, 2:00pm', 'from' => 'Ada', 'by' => 'Ada', 'to_name' => 'Bisi',
