@@ -18,9 +18,10 @@ if (!$items) {
     }
 }
 
-// A photo for each category: its first product that has one
+// A photo for each category: its first product that has one. Glow's
+// stories already have a ring per category, so it shows its first prices.
 $tiles = [];
-if (count($categories) >= 2) {
+if (count($categories) >= 2 && $look['hero'] !== 'stories') {
     foreach (array_slice($categories, 0, 6) as $category) {
         $in = array_values(array_filter($items, fn($i) => $i['category'] === $category));
         $pictured = array_values(array_filter($in, fn($i) => (bool)$i['images']))[0] ?? $in[0];

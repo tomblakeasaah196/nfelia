@@ -20,7 +20,7 @@ $looks = [];
 foreach (storefront_looks() as $key => $look) {
     $looks[] = ['key' => $key, 'name' => $look['name'], 'kind' => $look['kind'], 'pair' => $look['pair'],
                 'colours' => $look['colours'], 'band' => $look['band'], 'shape' => $look['shape'], 'labels' => $look['labels'],
-                'thumb' => STOREFRONT_LOOKS[$key]['shape'], 'slides' => $look['slides'], 'backdrop' => $look['backdrop']];
+                'thumb' => STOREFRONT_LOOKS[$key]['shape'], 'slides' => $look['slides'], 'backdrop' => $look['backdrop'], 'hero' => $look['hero']];
 }
 $fonts = [];
 foreach (storefront_fonts() as $key => $font) {
@@ -58,6 +58,17 @@ foreach ($products as $p) {
     $product_list[] = ['id' => (int)$p['id'], 'name' => $p['name'], 'price' => sf_money((float)$p['sell_price'], $currency),
                        'service' => (bool)$p['is_service'], 'thumb' => $thumb];
 }
+// Shea's skin finder: the skin types it offers until the owner sets their
+// own, the steps, and our guess at each product's step (storefront_routines)
+// (in the shop's order: by each category's first product, as storefront_catalogue)
+$by_id = $products;
+usort($by_id, fn($a, $b) => (int)$a['id'] <=> (int)$b['id']);
+$categories = array_values(array_unique(array_filter(array_map(fn($p) => trim((string)$p['category']), $by_id), 'strlen')));
+$finder = [
+    'skins' => storefront_skins(['categories' => $categories], ['skins' => []]),
+    'steps' => array_map(fn($step) => $step['name'], SF_ROUTINE_STEPS),
+    'guess' => (object)array_column(array_map(fn($p) => ['id' => (string)$p['id'], 'step' => sf_routine_guess(['name' => (string)$p['name'], 'category' => (string)$p['category'], 'is_service' => (bool)$p['is_service']])], $products), 'step', 'id'),
+];
 $logo = (string)($business['logo_path'] ?? '');
 $logo_url = $logo !== '' && str_starts_with($logo, 'uploads/') && is_file(BASE_PATH . '/' . $logo) ? sf_media_url($logo) : '';
 
@@ -104,6 +115,7 @@ $studio = [
     'sets'        => storefront_colour_sets(),
     'types'       => $types,
     'products'    => $product_list,
+    'finder'      => $finder,
     'business'    => ['name' => (string)$business['name'], 'logo' => $logo_url, 'currency' => $currency,
                       'tagline' => (string)($business['tagline'] ?? ''), 'base' => shop_base_host(),
                       'address' => (string)($business['address'] ?? ''), 'owner' => is_owner()],

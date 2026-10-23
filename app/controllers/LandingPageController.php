@@ -366,10 +366,13 @@ class LandingPageController {
         $stmt->execute([$this->biz_id]);
         $own = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
         foreach ($settings['sections'] as &$section) {
-            foreach (['products', 'only'] as $key) {
+            foreach (['products', 'only', 'picks'] as $key) {
                 if (isset($section[$key])) {
                     $section[$key] = array_values(array_intersect($section[$key], $own));
                 }
+            }
+            if (isset($section['routine'])) {
+                $section['routine'] = array_values(array_filter($section['routine'], fn($tag) => in_array($tag['id'], $own, true)));
             }
         }
         unset($section);

@@ -3,9 +3,11 @@
  *
  * Reads the shop's catalogue from <script id="sf-data"> (views/storefront/
  * shell.php) and runs the product sheet, the bag and its checkout, the
- * category filter and search, the quote form and the hero video; on a
- * product's page, its buy box and photos; on an order's page, "order again";
- * on a booking page, the calendar of free days and times, and sending it.
+ * category filter and search, the quote form and the hero video; the looks'
+ * first screens (Atelier's cover, Buka's turntable, Glow's stories, Shea's
+ * skin finder) and the photo that flies to the bag on Add; on a product's
+ * page, its buy box and photos; on an order's page, "order again"; on a
+ * booking page, the calendar of free days and times, and sending it.
  *
  * Product links go to each product's page (/p/12-name). On the shop a tap
  * opens the product as a sheet instead and puts its address in the bar, so
@@ -81,6 +83,79 @@
         toastTimer = setTimeout(function () { toastEl.classList.remove('is-on'); }, 2600);
     }
 
+    /* ── Tap replies: what was added flies to the bag ── */
+    // Buka, Glow and Shea answer an Add with a small copy of its photo that
+    // flies in an arc to the bag, and the bag gives a little bump. Only a
+    // picture over the page, gone in under a second; nothing for people who
+    // ask for less motion (the toast still says it was added).
+
+    var REPLIES = ['buka', 'glow', 'shea'].indexOf(S.look) !== -1;
+    var lessMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    function onScreen(node) {
+        var r = node.getBoundingClientRect();
+        return r.width > 0 && r.bottom > 0 && r.top < window.innerHeight;
+    }
+    function bagTarget() {
+        var bar = $('[data-bagbar]:not([hidden]) .sf-bagbar__btn');
+        if (bar && onScreen(bar)) { return bar; }
+        var btn = $('.sf-header .sf-bagbtn');
+        return btn && onScreen(btn) ? btn : null;
+    }
+    function bump(node) {
+        if (!node || lessMotion) { return; }
+        node.classList.remove('is-bumped');
+        void node.offsetWidth;
+        node.classList.add('is-bumped');
+    }
+    // Where a picture is and what it shows, taken before its sheet closes
+    function snap(node) {
+        if (!node || !onScreen(node)) { return null; }
+        var img = node.tagName === 'IMG' ? node : $('img', node);
+        return { rect: node.getBoundingClientRect(), src: img ? img.currentSrc || img.src : '' };
+    }
+    function flyToBag(from, delay) {
+        var shot = from && from.rect ? from : snap(from);
+        if (!REPLIES || lessMotion || !shot || !document.body.animate) { return; }
+        var to = bagTarget();
+        if (!to) { return; }
+        var a = shot.rect;
+        var b = to.getBoundingClientRect();
+        var size = Math.round(Math.min(72, Math.max(44, a.width * 0.42)));
+        var ghost = el('span', { class: 'sf-fly', 'aria-hidden': 'true' });
+        var dot = el('span', { class: 'sf-fly__dot' });
+        if (shot.src) { dot.style.backgroundImage = 'url("' + shot.src.replace(/"/g, '%22') + '")'; }
+        ghost.appendChild(dot);
+        ghost.style.left = Math.round(a.left + a.width / 2 - size / 2) + 'px';
+        ghost.style.top = Math.round(a.top + a.height / 2 - size / 2) + 'px';
+        ghost.style.width = ghost.style.height = size + 'px';
+        document.body.appendChild(ghost);
+        var dx = b.left + b.width / 2 - (a.left + a.width / 2);
+        var dy = b.top + b.height / 2 - (a.top + a.height / 2);
+        var peak = Math.min(0, dy) - 70;
+        var timing = { duration: 680, delay: delay || 0, fill: 'both' };
+        ghost.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(' + dx + 'px)' }], Object.assign({ easing: 'cubic-bezier(0.4, 0, 0.6, 1)' }, timing));
+        var flight = dot.animate([
+            { transform: 'translateY(0) scale(1)', opacity: 1, easing: 'cubic-bezier(0.2, 0.7, 0.4, 1)' },
+            { transform: 'translateY(' + peak + 'px) scale(0.8)', opacity: 1, offset: 0.45, easing: 'cubic-bezier(0.5, 0, 0.8, 0.4)' },
+            { transform: 'translateY(' + dy + 'px) scale(0.3)', opacity: 0.6 }
+        ], timing);
+        flight.onfinish = function () {
+            ghost.remove();
+            bump(to);
+            bump($('.sf-header .sf-bagbtn .sf-badge'));
+        };
+    }
+    // The picture to fly: the photo of what the Add belongs to
+    function flySource(btn) {
+        var dishCard = btn.closest('[data-turn-card]');
+        if (dishCard) { return $('.sf-turntable__plate.is-front .sf-turntable__food'); }
+        var story = btn.closest('[data-story]');
+        if (story) { return $('.sf-story__media', story); }
+        var card = btn.closest('[data-item]');
+        if (card) { return $('.sf-media', card) || btn; }
+        return btn;
+    }
+
     /* ── Variant prices ──────────────────────────── */
 
     function round2(n) { return Math.round(n * 100) / 100; }
@@ -136,13 +211,14 @@
         }
     }
     function addedText() { return 'Added. ' + (S.look === 'market' ? 'Your order has ' : 'Your bag has ') + plural(cartCount(), 'item') + '.'; }
-    function addLine(id, qty, variant, note) {
+    function addLine(id, qty, variant, note, from) {
         var item = S.items[String(id)];
         if (!item) { return; }
         if (item.sold) { toast(item.name + ' is sold out.'); return; }
         putLine(item, qty, variant, note);
         saveCart();
         toast(addedText());
+        flyToBag(from);
     }
     // Several lines at once ("order again"); returns how many were still on sale
     function addLines(lines) {
@@ -403,8 +479,9 @@
         $('[data-p-add]', sheet).addEventListener('click', function () {
             if (!current) { return; }
             var qty = parseInt($('[data-p-qty]', sheet).textContent, 10) || 1;
-            addLine(current.id, qty, variantString($('[data-p-variants]', sheet)), $('[data-p-note]', sheet).value.trim().slice(0, 255));
+            var photo = snap($('[data-p-gallery] img', sheet));
             closeProduct();
+            addLine(current.id, qty, variantString($('[data-p-variants]', sheet)), $('[data-p-note]', sheet).value.trim().slice(0, 255), photo);
         });
         $$('[data-p-step]', sheet).forEach(function (b) {
             b.addEventListener('click', function () {
@@ -689,9 +766,9 @@
             var card = add.closest('[data-item]');
             var size = card && $('[data-size][aria-pressed="true"]', card);
             if (!item.variants.length) {
-                addLine(item.id, 1, '', '');
+                addLine(item.id, 1, '', '', flySource(add));
             } else if (size && item.variants.length === 1) {
-                addLine(item.id, 1, item.variants[0].name + ': ' + size.dataset.size, '');
+                addLine(item.id, 1, item.variants[0].name + ': ' + size.dataset.size, '', flySource(add));
             } else {
                 var preset = {};
                 if (size) { preset[size.closest('[role=group]').getAttribute('aria-label')] = size.dataset.size; }
@@ -865,10 +942,11 @@
 
     var overHeader = $('.sf-header--over');
     var coverEl = $('[data-cover]');
-    if (overHeader && coverEl && 'IntersectionObserver' in window) {
+    var underHeader = coverEl || $('[data-stories] .sf-stories__stage');
+    if (overHeader && underHeader && 'IntersectionObserver' in window) {
         new IntersectionObserver(function (entries) {
             overHeader.classList.toggle('is-solid', !entries[0].isIntersecting);
-        }, { rootMargin: '-' + overHeader.offsetHeight + 'px 0px 0px 0px' }).observe(coverEl);
+        }, { rootMargin: '-' + overHeader.offsetHeight + 'px 0px 0px 0px' }).observe(underHeader);
     }
 
     /* ── The cover: photos taking turns ──────────── */
@@ -973,6 +1051,449 @@
                 if (Math.abs(dx) > 48) { show(at + (dx < 0 ? 1 : -1)); }
             });
         }
+    }
+
+    /* ── The turntable (Buka) ────────────────────── */
+    // The dishes sit round a table that turns. A drag turns it with the
+    // finger and lets go on the nearest dish, carried on a little by a quick
+    // flick; the arrows, the dots or a tap on a waiting dish turn it to the
+    // next one. The table only ever turns forward or back, the short way, and
+    // --turn keeps counting, so it never spins back to the start. The dish in
+    // front gets its name, price and Add below, and lets off some steam.
+    // Nothing turns by itself.
+
+    var turntable = $('[data-turntable]');
+    if (turntable && parseInt(turntable.dataset.count, 10) > 0) {
+        var dishes = parseInt(turntable.dataset.count, 10);
+        var stage = $('.sf-turntable__stage', turntable);
+        var places = $$('.sf-turntable__plate', turntable);
+        var slots = places.length;
+        var cards = $$('[data-turn-card]', turntable);
+        var dots = $$('[data-turn-to]', turntable);
+        var turnHint = $('[data-turn-hint]', turntable);
+        var turned = 0;
+        var mod = function (n, m) { return ((n % m) + m) % m; };
+        var frontSlot = function (t) { return mod(Math.round(t), slots); };
+        var dishAt = function (t) { return mod(frontSlot(t), dishes); };
+        var steamTimer = null;
+
+        var paintFront = function (t) {
+            var front = frontSlot(t);
+            places.forEach(function (p, i) { p.classList.toggle('is-front', i === front); });
+        };
+        var settle = function (t, from) {
+            var before = dishAt(turned);
+            turned = Math.round(t);
+            turntable.style.setProperty('--turn', String(turned));
+            paintFront(turned);
+            var now = dishAt(turned);
+            if (now !== before) {
+                cards.forEach(function (card, i) {
+                    card.classList.toggle('is-on', i === now);
+                    card.classList.remove('is-arriving');
+                    if (i === now && !lessMotion) {
+                        card.style.setProperty('--from', String(from || 1));
+                        void card.offsetWidth;
+                        card.classList.add('is-arriving');
+                    }
+                });
+                dots.forEach(function (d, i) { if (i === now) { d.setAttribute('aria-current', 'true'); } else { d.removeAttribute('aria-current'); } });
+                if (turnHint) { turnHint.hidden = true; }
+                steam();
+            }
+        };
+        // The short way round to a place at the table
+        var toward = function (slot) {
+            var delta = mod(slot - frontSlot(turned), slots);
+            if (delta > slots / 2) { delta -= slots; }
+            return turned + delta;
+        };
+        var steam = function () {
+            if (lessMotion) { return; }
+            clearTimeout(steamTimer);
+            turntable.classList.remove('is-steaming');
+            void turntable.offsetWidth;
+            turntable.classList.add('is-steaming');
+            steamTimer = setTimeout(function () { turntable.classList.remove('is-steaming'); }, 3200);
+        };
+
+        $$('[data-turn-step]', turntable).forEach(function (b) {
+            b.addEventListener('click', function () {
+                var step = parseInt(b.dataset.turnStep, 10);
+                settle(turned + step, step);
+            });
+        });
+        dots.forEach(function (d) {
+            d.addEventListener('click', function () {
+                var want = parseInt(d.dataset.turnTo, 10);
+                var best = null;
+                places.forEach(function (p, slot) {
+                    if (slot % dishes !== want) { return; }
+                    var t = toward(slot);
+                    if (best === null || Math.abs(t - turned) < Math.abs(best - turned)) { best = t; }
+                });
+                if (best !== null) { settle(best, best >= turned ? 1 : -1); }
+            });
+        });
+
+        // Dragging: one plate's width of finger turns the table one place
+        var drag = null;
+        var dragged = false;
+        var plateWidth = function () { return (places[0] && places[0].offsetWidth) || 300; };
+        stage.addEventListener('pointerdown', function (e) {
+            if (!e.isPrimary || e.button > 0 || dishes < 2) { return; }
+            drag = { x: e.clientX, y: e.clientY, t: turned, at: turned, moved: false, id: e.pointerId, last: e.clientX, time: e.timeStamp, speed: 0 };
+            dragged = false;
+        });
+        stage.addEventListener('pointermove', function (e) {
+            if (!drag || e.pointerId !== drag.id) { return; }
+            var dx = e.clientX - drag.x;
+            if (!drag.moved) {
+                if (Math.abs(dx) < 8) { return; }
+                if (Math.abs(e.clientY - drag.y) > Math.abs(dx)) { drag = null; return; }   // scrolling the page
+                drag.moved = true;
+                turntable.classList.add('is-dragging');
+                try { stage.setPointerCapture(e.pointerId); } catch (err) { /* already gone */ }
+            }
+            var dt = Math.max(1, e.timeStamp - drag.time);
+            drag.speed = (e.clientX - drag.last) / dt;
+            drag.last = e.clientX;
+            drag.time = e.timeStamp;
+            drag.at = drag.t - dx / (plateWidth() * 0.9);
+            turntable.style.setProperty('--turn', String(drag.at));
+            paintFront(drag.at);
+        });
+        var release = function (e) {
+            if (!drag || (e && e.pointerId !== drag.id)) { return; }
+            var was = drag;
+            drag = null;
+            turntable.classList.remove('is-dragging');
+            if (!was.moved) { return; }
+            dragged = true;
+            // A flick carries on to the next dish
+            var carry = Math.abs(was.speed) > 0.45 ? -Math.sign(was.speed) * 0.5 : 0;
+            var target = Math.round(was.at + carry);
+            settle(target, target >= was.t ? 1 : -1);
+        };
+        stage.addEventListener('pointerup', release);
+        stage.addEventListener('pointercancel', release);
+        // A drag isn't a tap: the dish in front opens only on a tap, and a
+        // tap on a waiting dish brings it round
+        stage.addEventListener('click', function (e) {
+            if (dragged) {
+                dragged = false;
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+            }
+            var place = e.target.closest('.sf-turntable__plate');
+            if (place && !place.classList.contains('is-front')) {
+                e.preventDefault();
+                e.stopPropagation();
+                var t = toward(places.indexOf(place));
+                settle(t, t >= turned ? 1 : -1);
+            }
+        }, true);
+        // Steam off the first dish, once
+        if (!lessMotion) { setTimeout(steam, 600); }
+    }
+
+    /* ── The stories (Glow) ──────────────────────── */
+    // A bar per story fills while it shows, then the next one comes. A tap
+    // on the right goes on, on the left goes back; holding a finger on the
+    // story pauses it, as on Instagram; a swipe up opens the details. They
+    // also rest while a button in them has focus, while they are off screen
+    // or the tab is hidden, and with the pause button. Nothing moves by
+    // itself for people who ask for less motion or save data: they tap. On a
+    // computer the stories beside the one showing can be clicked to.
+
+    var storiesEl = $('[data-stories]');
+    if (storiesEl) {
+        var stage2 = $('.sf-stories__stage', storiesEl);
+        var tales = $$('[data-story]', storiesEl);
+        var talesBars = $$('.sf-stories__bar', storiesEl);
+        var glows = $$('[data-glow]', storiesEl);
+        var talePause = $('[data-stories-pause]', storiesEl);
+        var conn2 = navigator.connection || {};
+        var thrifty2 = conn2.saveData || /(^|-)2g$/.test(conn2.effectiveType || '');
+        var nowAt = 0;
+        var holds = { user: false, hidden: false, away: false, focus: false, finger: false };
+
+        var loadTale = function (i) {
+            var tale = tales[i];
+            if (!tale) { return; }
+            var img = $('img[data-src]', tale);
+            if (img) {
+                if (img.dataset.srcset) { img.srcset = img.dataset.srcset; }
+                img.src = img.dataset.src;
+                img.removeAttribute('data-src');
+                img.removeAttribute('data-srcset');
+            }
+            var vid = $('video[data-src]', tale);
+            if (vid && !thrifty2 && !lessMotion) {
+                vid.src = vid.dataset.src;
+                vid.removeAttribute('data-src');
+            }
+        };
+        var playTales = function () {
+            tales.forEach(function (tale, i) {
+                var vid = $('video', tale);
+                if (!vid || !vid.src) { return; }
+                if (i === nowAt) {
+                    var p = vid.play();
+                    if (p && p.then) { p.then(function () { vid.classList.add('is-playing'); }, function () { /* the colour shows */ }); }
+                } else {
+                    vid.pause();
+                }
+            });
+        };
+        var place = function () {
+            // Where each story sits from the one showing: -2 … 2, or far
+            tales.forEach(function (tale, i) {
+                var d = i - nowAt;
+                tale.dataset.pos = Math.abs(d) <= 2 ? String(d) : 'far';
+            });
+        };
+        var tellTale = function (i, quiet) {
+            if (!tales.length) { return; }
+            // Taps go round: on from the last is the first again
+            nowAt = ((i % tales.length) + tales.length) % tales.length;
+            loadTale(nowAt);
+            tales.forEach(function (tale, j) {
+                tale.classList.toggle('is-on', j === nowAt);
+                if (j === nowAt) { tale.removeAttribute('inert'); } else { tale.setAttribute('inert', ''); }
+            });
+            glows.forEach(function (g, j) { g.classList.toggle('is-on', j === nowAt); });
+            // A story without a photo is light: the bars and the header turn to ink
+            var light = tales[nowAt].classList.contains('sf-story--drawn');
+            storiesEl.classList.toggle('is-light', light);
+            if (overHeader) { overHeader.classList.toggle('is-light', light); }
+            talesBars.forEach(function (bar, j) {
+                bar.classList.toggle('is-done', j < nowAt);
+                if (j === nowAt) { bar.setAttribute('aria-current', 'true'); } else { bar.removeAttribute('aria-current'); }
+            });
+            place();
+            playTales();
+            // The next story's photo arrives while this one shows
+            if (!thrifty2) { setTimeout(function () { loadTale(nowAt + 1); }, 1200); }
+            if (!quiet) { storiesEl.classList.add('was-moved'); }
+        };
+        var heldNow = function () { return holds.user || holds.hidden || holds.away || holds.focus || holds.finger; };
+        var updateHolds = function () { storiesEl.classList.toggle('is-paused', heldNow()); };
+
+        loadTale(0);
+        place();
+        playTales();
+        storiesEl.classList.toggle('is-light', tales[0].classList.contains('sf-story--drawn'));
+        if (overHeader) { overHeader.classList.toggle('is-light', storiesEl.classList.contains('is-light')); }
+        if (talesBars.length > 1) {
+            storiesEl.style.setProperty('--sf-interval', (parseInt(storiesEl.dataset.interval, 10) || 5500) + 'ms');
+            if (!lessMotion && !thrifty2) {
+                storiesEl.classList.add('is-running');
+                setTimeout(function () { loadTale(1); }, 1500);
+            }
+            storiesEl.addEventListener('animationend', function (e) {
+                if (e.animationName !== 'sf-bar') { return; }
+                // After the last story they stop, as Instagram's do
+                if (nowAt < tales.length - 1) { tellTale(nowAt + 1, true); } else { storiesEl.classList.remove('is-running'); }
+            });
+            $$('[data-story-to]', storiesEl).forEach(function (b) {
+                b.addEventListener('click', function () {
+                    tellTale(parseInt(b.dataset.storyTo, 10));
+                    if (b.classList.contains('sf-ring') && stage2.getBoundingClientRect().top < 0) { stage2.scrollIntoView({ behavior: lessMotion ? 'auto' : 'smooth', block: 'start' }); }
+                });
+            });
+            $$('[data-story-step]', storiesEl).forEach(function (b) {
+                b.addEventListener('click', function () { tellTale(nowAt + parseInt(b.dataset.storyStep, 10)); });
+            });
+            if (talePause) {
+                talePause.addEventListener('click', function () {
+                    holds.user = !holds.user;
+                    talePause.setAttribute('aria-pressed', String(holds.user));
+                    talePause.setAttribute('aria-label', holds.user ? 'Play the stories' : 'Pause the stories');
+                    if (!holds.user && !storiesEl.classList.contains('is-running') && !lessMotion && !thrifty2) {
+                        storiesEl.classList.add('is-running');
+                    }
+                    updateHolds();
+                });
+            }
+            document.addEventListener('visibilitychange', function () { holds.hidden = document.hidden; updateHolds(); });
+            if ('IntersectionObserver' in window) {
+                new IntersectionObserver(function (entries) { holds.away = !entries[0].isIntersecting; updateHolds(); }, { threshold: 0.35 }).observe(stage2);
+            }
+            stage2.addEventListener('focusin', function (e) { if (e.target.closest('.sf-story')) { holds.focus = true; updateHolds(); } });
+            stage2.addEventListener('focusout', function () { holds.focus = false; updateHolds(); });
+
+            // A finger on the story: hold pauses, a tap moves, a swipe up opens it
+            var press = null;
+            var holdTimer = null;
+            stage2.addEventListener('pointerdown', function (e) {
+                if (!e.isPrimary || e.button > 0 || e.target.closest('a, button')) { return; }
+                press = { x: e.clientX, y: e.clientY, time: e.timeStamp, id: e.pointerId };
+                holdTimer = setTimeout(function () { holds.finger = true; updateHolds(); }, 220);
+            });
+            var lift = function (e) {
+                clearTimeout(holdTimer);
+                if (!press || e.pointerId !== press.id) { return; }
+                var was = press;
+                press = null;
+                var heldLong = holds.finger;
+                holds.finger = false;
+                updateHolds();
+                if (e.type === 'pointercancel') { return; }
+                var dx = e.clientX - was.x;
+                var dy = e.clientY - was.y;
+                var shown = tales[nowAt];
+                if (dy < -60 && Math.abs(dy) > Math.abs(dx)) {
+                    var openIt = shown && $('[data-open]', shown);
+                    if (openIt) { openProduct(openIt.dataset.open); }
+                    return;
+                }
+                if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy)) { tellTale(nowAt + (dx < 0 ? 1 : -1)); return; }
+                if (heldLong || Math.abs(dx) > 10 || Math.abs(dy) > 10) { return; }
+                // A tap: on a story beside the one showing, go to it; else by side
+                var beside = e.target.closest('.sf-story');
+                if (beside && beside !== shown) { tellTale(tales.indexOf(beside)); return; }
+                var r = (shown || stage2).getBoundingClientRect();
+                tellTale(nowAt + (e.clientX < r.left + r.width * 0.3 ? -1 : 1));
+            };
+            stage2.addEventListener('pointerup', lift);
+            stage2.addEventListener('pointercancel', lift);
+            stage2.addEventListener('contextmenu', function (e) { if (holds.finger) { e.preventDefault(); } });
+        }
+    }
+
+    /* ── The skin finder (Shea) ──────────────────── */
+    // A skin type picked shows its routine (CSS shows it too, with :has()).
+    // Swap brings the next product that fits a step; Add the routine puts
+    // every step in the bag, each as it comes when nobody picks (the first of
+    // its choices), and they fly to the bag one after another.
+
+    var finder = $('[data-finder]');
+    if (finder) {
+        var choiceOf = function (item) {
+            var parts = (item.variants || []).map(function (g) { return g.name + ': ' + g.options[0]; });
+            var variant = parts.join(', ');
+            return { variant: variant, label: (item.variants || []).map(function (g) { return g.options[0]; }).join(', '), price: linePrice(item, variant) };
+        };
+        var showRoutine = function () {
+            var picked = $('[data-skin]:checked', finder);
+            $$('[data-routine]', finder).forEach(function (r) { r.classList.toggle('is-on', !!picked && r.dataset.routine === picked.value); });
+            var empty = $('[data-routine-empty]', finder);
+            if (empty) { empty.classList.toggle('is-off', !!picked); }
+        };
+        var routineTotal = function (routine) {
+            var total = 0;
+            var asks = false;
+            $$('[data-step]', routine).forEach(function (step) {
+                var item = S.items[step.dataset.stepItems.split(',')[step.dataset.stepAt | 0]];
+                if (!item) { return; }
+                if (item.price > 0) { total += choiceOf(item).price; } else { asks = true; }
+            });
+            $('[data-routine-total]', routine).textContent = money(total) + (asks ? ' +' : '');
+        };
+        var paintStep = function (step) {
+            var item = S.items[step.dataset.stepItems.split(',')[step.dataset.stepAt | 0]];
+            if (!item) { return; }
+            var href = LIVE ? item.path : '#item-' + item.id;
+            var media = $('.sf-step__media', step);
+            media.textContent = '';
+            if (item.img.length) {
+                var holder = el('span', { class: 'sf-media' });
+                holder.appendChild(el('img', { src: item.img[0].src, alt: '', loading: 'lazy', decoding: 'async' }));
+                media.appendChild(holder);
+            } else {
+                var ph = el('span', { class: 'sf-media sf-ph sf-ph--' + (item.id % 4) });
+                ph.appendChild(el('span', { class: 'sf-ph__mark' }, initials(item.name)));
+                media.appendChild(ph);
+            }
+            $$('[data-open]', step).forEach(function (a) { a.href = href; a.dataset.open = item.id; });
+            $('.sf-step__name', step).textContent = item.name;
+            var choice = choiceOf(item);
+            $('.sf-step__opts', step).textContent = choice.label;
+            $('.sf-step__price', step).textContent = item.price > 0 ? money(choice.price) : 'Ask';
+            if (!lessMotion) {
+                step.classList.remove('is-swapped');
+                void step.offsetWidth;
+                step.classList.add('is-swapped');
+            }
+        };
+        finder.addEventListener('change', function (e) { if (e.target.matches('[data-skin]')) { showRoutine(); } });
+        finder.addEventListener('click', function (e) {
+            var swap = e.target.closest('[data-swap]');
+            if (swap) {
+                var step = swap.closest('[data-step]');
+                var ids = step.dataset.stepItems.split(',');
+                step.dataset.stepAt = String(((step.dataset.stepAt | 0) + 1) % ids.length);
+                paintStep(step);
+                routineTotal(step.closest('[data-routine]'));
+                return;
+            }
+            var all = e.target.closest('[data-add-routine]');
+            if (all) {
+                var routine = all.closest('[data-routine]');
+                var steps = $$('[data-step]', routine);
+                var added = 0;
+                steps.forEach(function (step) {
+                    var item = S.items[step.dataset.stepItems.split(',')[step.dataset.stepAt | 0]];
+                    if (!item || item.sold) { return; }
+                    putLine(item, 1, choiceOf(item).variant, '');
+                    added++;
+                });
+                if (!added) { return; }
+                saveCart();
+                toast('Added your routine: ' + plural(added, 'product') + '. Your bag has ' + plural(cartCount(), 'item') + '.');
+                steps.forEach(function (step, i) { flyToBag($('.sf-step__media', step), i * 140); });
+            }
+        });
+        showRoutine();
+    }
+
+    /* ── Opening hours: open now? ────────────────── */
+    // The page says today's hours as it was drawn; this says, at the shop's
+    // own time, whether it is open right now and until when.
+
+    var openEl = $('[data-hours]');
+    if (openEl) {
+        var hours = {};
+        try { hours = JSON.parse(openEl.dataset.hours) || {}; } catch (err) { hours = {}; }
+        var clock = function (hhmm) {
+            var p = hhmm.split(':').map(Number);
+            return (p[0] % 12 || 12) + (p[1] ? ':' + ('0' + p[1]).slice(-2) : '') + (p[0] < 12 ? 'am' : 'pm');
+        };
+        var tellOpen = function () {
+            var parts = {};
+            try {
+                new Intl.DateTimeFormat('en-GB', { timeZone: openEl.dataset.tz || 'Africa/Lagos', weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false })
+                    .formatToParts(new Date()).forEach(function (p) { parts[p.type] = p.value; });
+            } catch (err) { return; }
+            var keys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+            var day = keys.indexOf(String(parts.weekday || '').slice(0, 3).toLowerCase());
+            if (day === -1) { return; }
+            var now = ('0' + (parseInt(parts.hour, 10) % 24)).slice(-2) + ':' + parts.minute;
+            var today = hours[keys[day]];
+            var text;
+            var open = false;
+            if (today && now >= today.open && now < today.close) {
+                open = true;
+                text = 'Open now, until ' + clock(today.close);
+            } else if (today && now < today.open) {
+                text = 'Closed now, opens at ' + clock(today.open);
+            } else {
+                text = 'Closed now';
+                for (var i = 1; i <= 7; i++) {
+                    var next = hours[keys[(day + i) % 7]];
+                    if (next) {
+                        text += ', opens ' + (i === 1 ? 'tomorrow' : ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][(day + i) % 7]) + ' at ' + clock(next.open);
+                        break;
+                    }
+                }
+            }
+            $('[data-open-text]', openEl).textContent = text;
+            openEl.classList.toggle('is-open', open);
+        };
+        tellOpen();
+        setInterval(tellOpen, 60000);
     }
 
     /* ── Arriving at the list or the contact page ── */

@@ -67,10 +67,11 @@ $announcement = $sections['announcement'];
 $announce_ended = $announcement['until'] !== '' && $announcement['until'] < date('Y-m-d');
 $announce_show  = !$private && $announcement['on'] && ($is_live ? $announcement['text'] !== '' && !$announce_ended : true);
 
-// Looks with a cover open on full-screen photos; looks with a backdrop keep
-// a faint photo behind every page: the one the owner chose, else the first
-// photo among the slides
-$cover    = $look['hero'] === 'cover' && $kind === 'shop';
+// Looks with a cover (Atelier's photos, Glow's stories) open on full-screen
+// pictures, with the header over them; looks with a backdrop keep a faint
+// photo behind every page: the one the owner chose, else the first photo
+// among the slides
+$cover    = in_array($look['hero'], ['cover', 'stories'], true) && $kind === 'shop';
 $backdrop = '';
 if ($look['backdrop'] && $hero['background'] !== 'none') {
     $candidates = $hero['background'] !== '' ? [$hero['background']] : $hero['slides'];

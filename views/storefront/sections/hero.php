@@ -2,10 +2,16 @@
 /**
  * The top of the shop: headline, a line or two, the main button and a photo
  * (or the look's own drawing until there is one). Each look lays it out its
- * own way; see storefront_looks()['…']['hero'].
+ * own way; see storefront_looks()['…']['hero']. Buka's turntable, Glow's
+ * stories and Shea's skin finder have partials of their own (hero_*.php).
  */
 $hero_section = $section;
 $variant  = $look['hero'];
+// Shea's skin finder needs two products with a step; until then, its shelf
+$routines = $variant === 'finder' ? storefront_routines($catalogue, $hero_section) : null;
+if ($routines !== null && !$routines['routines']) {
+    $variant = 'shelf';
+}
 $headline = $hero_section['headline'] !== '' ? $hero_section['headline'] : (string)$business['name'];
 $button   = $hero_section['button'] !== '' ? $hero_section['button'] : $labels['button'];
 $has_items = (bool)$catalogue['items'];
@@ -30,7 +36,7 @@ if ($image !== '' && is_file(BASE_PATH . '/' . $image)) {
 }
 // Looks with a drawing show it until there is a photo (and under a video
 // until it plays)
-$motif = in_array($variant, ['plate', 'soft', 'arch', 'stamp', 'shelf', 'facade'], true) && ($media === '' || $is_video)
+$motif = in_array($variant, ['arch', 'stamp', 'shelf', 'finder', 'facade'], true) && ($media === '' || $is_video)
     ? sf_motif($settings['look'], $ctx) : '';
 $frame = $media !== '' || $motif !== '' ? $motif . $media : '';
 
@@ -41,7 +47,7 @@ $wa_button = $wa !== '' && $go !== ''
     ? '<a class="sf-btn sf-btn--outline" href="https://wa.me/' . e($wa) . '?text=' . e(rawurlencode('Hello ' . $business['name'] . ', I found your shop and I would like to order.')) . '" target="_blank" rel="noopener">' . sf_icon('whatsapp', 20) . '<span>Order on WhatsApp</span></a>'
     : '';
 $badge = $hero_section['badge'];
-if ($badge === '' && $variant === 'plate' && $catalogue['min_price']) {
+if ($badge === '' && $variant === 'turntable' && $catalogue['min_price']) {
     $badge = 'From ' . sf_money((float)$catalogue['min_price'], $currency);
 }
 $text_html = $hero_section['text'] !== '' ? sf_paragraphs($hero_section['text'], 'sf-lead') : '';
@@ -89,19 +95,15 @@ $text_html = $hero_section['text'] !== '' ? sf_paragraphs($hero_section['text'],
     </div>
     <?php break;
 
-    case 'plate': ?>
-    <div class="sf-wrap sf-hero__grid">
-        <div class="sf-hero__plate">
-            <div class="sf-plate sf-plate--hero<?= $media !== '' && !$is_video ? '' : ' sf-plate--drawn' ?>"><?= $media !== '' && !$is_video ? $media : $frame ?></div>
-            <?php if ($badge !== ''): ?><p class="sf-roundel"><?= e($badge) ?></p><?php endif; ?>
-        </div>
-        <div class="sf-hero__body">
-            <h1 class="sf-h1" id="sf-hero-title"><?= e($headline) ?></h1>
-            <?= $text_html ?>
-            <div class="sf-hero__actions"><?= $primary ?><?= $wa_button ?></div>
-        </div>
-    </div>
-    <?php break;
+    case 'turntable':
+        // Buka: the dishes on a table that turns
+        include __DIR__ . '/hero_turntable.php';
+        break;
+
+    case 'stories':
+        // Glow: shoppable stories
+        include __DIR__ . '/hero_stories.php';
+        break;
 
     case 'spec': ?>
     <div class="sf-wrap sf-hero__grid">
@@ -184,7 +186,12 @@ $text_html = $hero_section['text'] !== '' ? sf_paragraphs($hero_section['text'],
     </div>
     <?php break;
 
-    default: // soft, arch, stamp, shelf, facade
+    case 'finder':
+        // Shea: the skin finder
+        include __DIR__ . '/hero_finder.php';
+        break;
+
+    default: // arch, stamp, shelf, facade
         $frame_first = in_array($variant, ['arch', 'stamp', 'facade'], true);
     ?>
     <div class="sf-wrap sf-hero__grid<?= $frame_first ? ' sf-hero__grid--frame-first' : '' ?>">
