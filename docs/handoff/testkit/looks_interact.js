@@ -132,6 +132,14 @@ const check = (label, ok, detail = '') => {
   await page.waitForTimeout(1300);
   const cart = await page.evaluate(() => JSON.parse(localStorage.getItem('nfelia_cart_zainab-naturals') || '[]'));
   check('Shea: Add the routine puts every step in the bag, each as it comes', (await bag(page)) === '3' && cart.length === 3 && cart.some((l) => l.variant === 'Size: 100ml'), JSON.stringify(cart));
+  await page.click('[data-bagbar] [data-open-bag]');
+  await page.waitForTimeout(400);
+  const laid = await page.evaluate(() => {
+    const step = document.querySelector('#sf-bag [data-step="bag"]');
+    const name = document.querySelector('#sf-bag .sf-bagline__name');
+    return { display: getComputedStyle(step).display, direction: getComputedStyle(step).flexDirection, name: name ? name.getBoundingClientRect().width : 0 };
+  });
+  check('Shea: the bag keeps its own layout (lines readable, steps a column)', laid.display === 'flex' && laid.direction === 'column' && laid.name > 120, JSON.stringify(laid));
   await page.context().close();
 
   // ── No sideways scroll ──
