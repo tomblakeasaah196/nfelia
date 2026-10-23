@@ -285,6 +285,58 @@ function sf_cover_media(string $rel, int $index): string {
 }
 
 /**
+ * What a product comes as when nobody picks: the first option of each of its
+ * choices ("Size: 250g, Scent: Unscented", as the bag writes it) and the
+ * price with them. The skin finder adds routines this way.
+ */
+function sf_default_choice(array $item): array {
+    $picked = [];
+    $price  = $item['price'];
+    foreach ($item['variants'] as $group) {
+        $first = $group['options'][0];
+        $picked[] = $group['name'] . ': ' . $first;
+        $price += (float)($group['deltas'][$first] ?? 0);
+    }
+    return ['variant' => implode(', ', $picked), 'label' => implode(', ', array_map(fn($g) => $g['options'][0], $item['variants'])),
+            'price' => max(0.0, round($price, 2))];
+}
+
+/**
+ * A little drawing for a skin type in the skin finder, from its words.
+ */
+function sf_skin_icon(string $skin): string {
+    $words = mb_strtolower($skin);
+    return match (true) {
+        (bool)preg_match('/combin|combo|mixed|t-zone/u', $words)             => 'drop-half',
+        (bool)preg_match('/dry|flak|rough|ashy/u', $words)                   => 'cracked',
+        (bool)preg_match('/oil|shin|greas/u', $words)                         => 'drop',
+        (bool)preg_match('/spot|pigment|dark|uneven|blemish|mark/u', $words) => 'spots',
+        (bool)preg_match('/acne|break|pimple/u', $words)                      => 'flame',
+        (bool)preg_match('/dull|glow|bright|tired|sun/u', $words)             => 'sun',
+        (bool)preg_match('/normal|all|every/u', $words)                       => 'sparkle',
+        default                                                               => 'leaf',
+    };
+}
+
+/**
+ * "8am", "9:30pm" from "08:00", "21:30". As clock() in storefront.js.
+ */
+function sf_clock(string $hhmm): string {
+    [$h, $m] = array_map('intval', explode(':', $hhmm) + [1 => 0]);
+    return ($h % 12 ?: 12) . ($m ? ':' . sprintf('%02d', $m) : '') . ($h < 12 ? 'am' : 'pm');
+}
+
+/**
+ * Today's opening hours in words as the page is drawn ("Open today, 8am to
+ * 9pm", "Closed today"); storefront.js then says whether the shop is open
+ * right now, as pages are kept for a while.
+ */
+function sf_hours_today(array $hours): string {
+    $today = $hours[strtolower(date('D'))] ?? null;
+    return $today ? 'Open today, ' . sf_clock($today['open']) . ' to ' . sf_clock($today['close']) : 'Closed today';
+}
+
+/**
  * The faint photo behind every page (looks with a backdrop): a small copy is
  * plenty, since only a sixth of it shows through.
  */

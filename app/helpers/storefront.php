@@ -64,12 +64,16 @@ const STOREFRONT_ICON_SIZES = [32, 180];
  *            yellow, Volt's price stickers…); it stays when the colour set
  *            changes
  *   shape    corner radii for the hero, tiles, buttons, cards, chips, fields
- *   hero     how the top of the page is laid out
+ *   hero     how the top of the page is laid out: 'cover' (Atelier's
+ *            photos taking turns), 'turntable' (Buka's dishes on a table
+ *            that turns), 'stories' (Glow's shoppable stories), 'finder'
+ *            (Shea's skin finder) and the looks' own
  *   items    how the catalogue draws each product
  *   tiles    how "New in" draws each product
  *   off      sections that start switched off in this look
  *   labels   default words, used until the owner types their own
- *   slides   how many hero photos the look shows (the 'cover' hero plays them in turn)
+ *   slides   how many hero photos the look shows (the 'cover' hero plays them
+ *            in turn; 'stories' opens with them)
  *   backdrop the page background photo, faint behind every page
  */
 function storefront_looks(): array {
@@ -98,10 +102,10 @@ function storefront_looks(): array {
             'colours' => ['ground' => '#FDFDFB', 'ink' => '#1E2A3A', 'muted' => '#4E5868', 'accent' => '#2C4BAF', 'on' => '#FFFFFF', 'motif' => '#F3C690', 'line' => '#E3E6EC', 'surface' => '#F3F5F9'],
             'band'    => '#E58A2B',
             'shape'   => ['hero' => '50%', 'tile' => '50%', 'btn' => '999px', 'card' => '20px', 'chip' => '999px', 'field' => '14px'],
-            'hero'    => 'plate',
+            'hero'    => 'turntable',
             'items'   => 'menu',
             'tiles'   => 'plate',
-            'labels'  => ['button' => 'See the menu', 'catalogue' => 'Menu', 'quote' => 'Party and bulk orders'],
+            'labels'  => ['button' => 'See the full menu', 'catalogue' => 'Menu', 'quote' => 'Party and bulk orders'],
         ],
         'glow' => [
             'kind'    => 'Beauty',
@@ -109,9 +113,10 @@ function storefront_looks(): array {
             'colours' => ['ground' => '#F6F2F7', 'ink' => '#2A1630', 'muted' => '#5C4A60', 'accent' => '#8E3B8A', 'on' => '#FFFFFF', 'motif' => '#EBD3EA', 'line' => '#E6DCE8'],
             'band'    => null,
             'shape'   => ['hero' => '28px', 'tile' => '18px', 'btn' => '999px', 'card' => '24px', 'chip' => '999px', 'field' => '14px'],
-            'hero'    => 'soft',
+            'hero'    => 'stories',
             'items'   => 'pricerow',
             'tiles'   => 'rounded',
+            'slides'  => 5,
             'off'     => ['featured'],   // this look leads with its list
             'labels'  => ['button' => 'See prices', 'catalogue' => 'Prices', 'quote' => 'Custom requests'],
         ],
@@ -166,7 +171,7 @@ function storefront_looks(): array {
             'colours' => ['ground' => '#FFFFFF', 'ink' => '#2A1E17', 'muted' => '#5E5048', 'accent' => '#A3194E', 'on' => '#FFFFFF', 'motif' => '#F6F0E6', 'line' => '#E8DFD2', 'surface' => '#F6F0E6', 'card' => '#F6F0E6'],
             'band'    => null,
             'shape'   => ['hero' => '22px', 'tile' => '16px', 'btn' => '999px', 'card' => '20px', 'chip' => '999px', 'field' => '12px'],
-            'hero'    => 'shelf',
+            'hero'    => 'finder',
             'items'   => 'shelf',
             'tiles'   => 'rounded',
             'labels'  => ['button' => 'Shop now', 'catalogue' => 'Shop', 'quote' => 'Custom and bulk orders'],
@@ -255,7 +260,8 @@ function storefront_colour_sets(): array {
  * Field kinds: line (one line), text (paragraphs), bool, youtube, image,
  * media (a list of photos and videos), backdrop (a photo, '' for the first
  * slide, or 'none'), date (YYYY-MM-DD or ''), lat, lng, zoom, products (a
- * list of product ids), faq (question and answer pairs).
+ * list of product ids), faq (question and answer pairs), skins (short
+ * labels), routine (a product id with its step and skin types, each).
  */
 function storefront_section_types(): array {
     return [
@@ -271,6 +277,12 @@ function storefront_section_types(): array {
                 'image'      => ['kind' => 'image', 'label' => 'Photo or video'],   // the first slide, kept for older readers
                 'slides'     => ['kind' => 'media', 'max' => 5, 'label' => 'Photos and videos'],
                 'background' => ['kind' => 'backdrop', 'label' => 'Page background'],
+                // Buka's turntable and Glow's stories: the products they show
+                'picks'      => ['kind' => 'products', 'max' => 8, 'label' => 'Products to show at the top'],
+                // Shea's skin finder: the skin types shoppers pick from, and
+                // which step of a routine each product is, for which skins
+                'skins'      => ['kind' => 'skins', 'max' => 6, 'label' => 'Skin types'],
+                'routine'    => ['kind' => 'routine', 'max' => 500, 'label' => 'Routine steps'],
             ]],
         'featured' => ['name' => 'New in', 'hint' => 'A few products at the top. Pick them, or we show your newest.', 'pin' => null, 'switch' => true, 'on' => true, 'available' => true,
             'fields' => ['title' => ['kind' => 'line', 'max' => 50, 'label' => 'Title'],
@@ -580,6 +592,8 @@ function sf_clean_section(string $type, array $raw, int $business_id): array {
             'zoom'     => is_numeric($value) ? max(3, min(19, (int)$value)) : 16,
             'products' => sf_clean_ids($value, $field['max']),
             'faq'      => sf_clean_faq($value, $field['max']),
+            'skins'    => sf_clean_skins($value, $field['max']),
+            'routine'  => sf_clean_routine($value, $field['max']),
             'handle'   => sf_social_handle(is_string($value) ? $value : ''),
             default    => null,
         };
@@ -591,6 +605,11 @@ function sf_clean_section(string $type, array $raw, int $business_id): array {
             $clean['slides'] = [$clean['image']];
         }
         $clean['image'] = $clean['slides'][0] ?? '';
+        // A product's skin types are ones the finder offers
+        foreach ($clean['routine'] as &$tag) {
+            $tag['skins'] = array_values(array_intersect($tag['skins'], $clean['skins']));
+        }
+        unset($tag);
     }
     if ($type === 'location' && ($clean['lat'] === null || $clean['lng'] === null)) {
         $clean['lat'] = $clean['lng'] = null;
@@ -720,6 +739,44 @@ function sf_clean_faq(mixed $value, int $max): array {
         }
     }
     return $items;
+}
+
+/**
+ * The skin finder's skin types: short labels, each once.
+ */
+function sf_clean_skins(mixed $value, int $max): array {
+    $skins = [];
+    foreach (is_array($value) ? $value : [] as $one) {
+        $label = sf_clean_line($one, 24);
+        if ($label !== '' && !in_array(mb_strtolower($label), array_map('mb_strtolower', $skins), true)) {
+            $skins[] = $label;
+            if (count($skins) >= $max) {
+                break;
+            }
+        }
+    }
+    return $skins;
+}
+
+/**
+ * The owner's word on products in the skin finder: each product once, with
+ * its step of a routine ('none' keeps it out) and the skin types it is for
+ * (none: every skin).
+ */
+function sf_clean_routine(mixed $value, int $max): array {
+    $tags = [];
+    foreach (is_array($value) ? $value : [] as $one) {
+        $id = is_array($one) ? filter_var($one['id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) : false;
+        if ($id === false || isset($tags[$id])) {
+            continue;
+        }
+        $step = is_string($one['step'] ?? null) && (isset(SF_ROUTINE_STEPS[$one['step']]) || $one['step'] === 'none') ? $one['step'] : 'none';
+        $tags[$id] = ['id' => $id, 'step' => $step, 'skins' => sf_clean_skins($one['skins'] ?? [], 6)];
+        if (count($tags) >= $max) {
+            break;
+        }
+    }
+    return array_values($tags);
 }
 
 /**
@@ -1254,6 +1311,144 @@ function storefront_featured(array $catalogue, array $section, int $count = 4): 
     return array_slice($items, 0, $count);
 }
 
+/**
+ * What Buka's turntable and Glow's stories show: the owner's picks in their
+ * order, else what is on sale with a photo first, newest first.
+ */
+function storefront_hero_picks(array $catalogue, array $hero, int $max = 8): array {
+    $by_id = array_column($catalogue['items'], null, 'id');
+    if ($hero['picks']) {
+        return array_slice(array_values(array_filter(array_map(fn($id) => $by_id[$id] ?? null, $hero['picks']))), 0, $max);
+    }
+    $items = array_values(array_filter($catalogue['items'], fn($i) => !$i['sold_out']));
+    usort($items, fn($a, $b) => [!$b['images'] ? 0 : 1, $b['created_at'], $b['id']] <=> [!$a['images'] ? 0 : 1, $a['created_at'], $a['id']]);
+    return array_slice($items, 0, $max);
+}
+
+/**
+ * The steps of a skin routine, in the order they are used, with what the
+ * skin finder says about each.
+ */
+const SF_ROUTINE_STEPS = [
+    'cleanse'    => ['name' => 'Cleanse',    'why' => 'Washes off the day'],
+    'tone'       => ['name' => 'Tone',       'why' => 'Calms and balances'],
+    'treat'      => ['name' => 'Treat',      'why' => 'Works on what bothers you'],
+    'moisturise' => ['name' => 'Moisturise', 'why' => 'Locks the water in'],
+    'protect'    => ['name' => 'Protect',    'why' => 'Guards against the sun'],
+];
+
+/**
+ * A product's step in a routine, guessed from its name and category until
+ * the owner says: soap cleanses, a toner tones, a serum treats, a butter
+ * moisturises, sunscreen protects. Perfumes, services and anything else:
+ * 'none'.
+ */
+function sf_routine_guess(array $item): string {
+    if (!empty($item['is_service'])) {
+        return 'none';
+    }
+    $text = mb_strtolower($item['name'] . ' · ' . ($item['category'] ?? ''));
+    return match (true) {
+        (bool)preg_match('/perfume|fragrance|cologne|\boud\b|scent|incense|candle|diffuser|deodor/u', $text)            => 'none',
+        (bool)preg_match('/sunscreen|sun ?block|sun cream|\bspf\b/u', $text)                                            => 'protect',
+        (bool)preg_match('/soap|cleans|face wash|body wash|\bwash\b|scrub|exfoliat/u', $text)                           => 'cleanse',
+        (bool)preg_match('/toner|tonic|\bmist\b|astringent/u', $text)                                                    => 'tone',
+        (bool)preg_match('/serum|treatment|\bspots?\b|\bmask\b|ampoule|essence|face oil|facial oil|\bclay\b/u', $text) => 'treat',
+        (bool)preg_match('/cream|butter|lotion|balm|moistur|\boil\b|\bgel\b|whipped/u', $text)                           => 'moisturise',
+        default                                                                                                          => 'none',
+    };
+}
+
+/**
+ * The skin types a product's words mention, of those offered ("For
+ * sensitive skin" → Sensitive). Only a guess: it puts the product first for
+ * those skins without keeping it from the others.
+ */
+function sf_skins_guess(array $item, array $skins): array {
+    $text = ' ' . mb_strtolower($item['name'] . ' ' . ($item['category'] ?? '') . ' ' . ($item['description'] ?? '')) . ' ';
+    return array_values(array_filter($skins, function ($skin) use ($text) {
+        $words = trim(preg_replace('/\bskin\b/u', '', mb_strtolower($skin)) ?? '');
+        $words = $words === '' ? mb_strtolower($skin) : $words;
+        return (bool)preg_match('/\b' . preg_quote(rtrim($words, 's'), '/') . 's?\b/u', $text);
+    }));
+}
+
+/**
+ * The skin types the finder offers: the owner's, else the shop's
+ * categories that name one ("Dry skin", "Sensitive"), else five common ones.
+ */
+function storefront_skins(array $catalogue, array $hero): array {
+    if ($hero['skins']) {
+        return $hero['skins'];
+    }
+    $named = array_values(array_filter($catalogue['categories'], fn($c) => (bool)preg_match(
+        '/\bskin\b|^(dry|oily|combination|sensitive|normal|mature|acne|eczema|dull|dark spots?|hyperpigmentation)\b/iu', $c)));
+    return count($named) >= 2 ? array_slice($named, 0, 6) : ['Dry', 'Oily', 'Combination', 'Sensitive', 'Dark spots'];
+}
+
+/**
+ * Shea's skin finder: for each skin type, a routine from what the shop
+ * sells, one product per step in the order they are used, with the others
+ * that fit each step to swap in. A product the owner placed is only for the
+ * skins they ticked (none ticked: every skin); a guessed one goes first for
+ * the skins its words mention and still fits the rest. Sold-out products
+ * stay out. Empty when fewer than two products have a step, so the look
+ * shows its shelf instead.
+ *
+ * Returns ['skins' => [label, …], 'routines' => [label => [['step' => key,
+ * 'items' => [item, …]], …]]]: only skins with at least one step.
+ */
+function storefront_routines(array $catalogue, array $hero): array {
+    $skins = storefront_skins($catalogue, $hero);
+    $tags  = array_column($hero['routine'], null, 'id');
+    $placed = [];
+    foreach ($catalogue['items'] as $item) {
+        if ($item['sold_out'] || $item['booking'] !== null) {
+            continue;
+        }
+        $tag = $tags[$item['id']] ?? null;
+        $step = $tag ? $tag['step'] : sf_routine_guess($item);
+        if ($step !== 'none') {
+            $placed[] = ['item' => $item, 'step' => $step, 'skins' => $tag ? $tag['skins'] : sf_skins_guess($item, $skins), 'strict' => $tag !== null];
+        }
+    }
+    if (count($placed) < 2) {
+        return ['skins' => [], 'routines' => []];
+    }
+    $routines = [];
+    foreach ($skins as $skin) {
+        $steps = [];
+        foreach (array_keys(SF_ROUTINE_STEPS) as $step) {
+            $fits = array_values(array_filter($placed, fn($p) => $p['step'] === $step
+                && (!$p['strict'] || !$p['skins'] || in_array($skin, $p['skins'], true))));
+            if (!$fits) {
+                continue;
+            }
+            // For this skin first, then for every skin, then the rest; photos first
+            usort($fits, fn($a, $b) => [in_array($skin, $a['skins'], true) ? 0 : ($a['skins'] ? 2 : 1), $a['item']['images'] ? 0 : 1, $a['item']['name']]
+                                   <=> [in_array($skin, $b['skins'], true) ? 0 : ($b['skins'] ? 2 : 1), $b['item']['images'] ? 0 : 1, $b['item']['name']]);
+            $steps[] = ['step' => $step, 'items' => array_slice(array_column($fits, 'item'), 0, 5)];
+        }
+        if ($steps) {
+            $routines[$skin] = $steps;
+        }
+    }
+    return ['skins' => array_keys($routines), 'routines' => $routines];
+}
+
+/**
+ * The shop's opening hours, from its booking hours (Bookings › Settings),
+ * when the owner has set them: per day ['open' => '08:00', 'close' => '21:00']
+ * or null when closed. Null when there are none.
+ */
+function sf_opening_hours(array $business): ?array {
+    if (empty($business['booking_settings'])) {
+        return null;
+    }
+    $hours = booking_settings($business)['hours'];
+    return array_filter($hours) ? $hours : null;
+}
+
 /* ──────────────────────────────────────────
  *  OUTPUT HELPERS
  * ────────────────────────────────────────── */
@@ -1478,6 +1673,16 @@ function sf_icon(string $name, int $size = 20, string $class = ''): string {
         'menu'      => '<path d="M4 7h16M4 12h16M4 17h10"/>',
         'pause'     => '<path d="M9 6v12M15 6v12"/>',
         'route'     => '<circle cx="6" cy="18" r="2.2"/><path d="M8.2 18H15a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h6.5"/><path d="M15 3.5L18 6l-3 2.5"/>',
+        'swap'      => '<path d="M4 8h13l-3.5-3.5M20 16H7l3.5 3.5"/>',
+        'turn'      => '<path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 4v4h-4"/>',
+        // The skin finder's skin types
+        'drop'      => '<path d="M12 3.5s6 6.6 6 10.9a6 6 0 0 1-12 0C6 10.1 12 3.5 12 3.5z"/>',
+        'drop-half' => '<path d="M12 3.5s6 6.6 6 10.9a6 6 0 0 1-12 0C6 10.1 12 3.5 12 3.5z"/><path d="M12 3.5v16.9" /><path d="M12 9.5h3.2M12 13h5.6M12 16.5h5" stroke-width="1.4"/>',
+        'cracked'   => '<circle cx="12" cy="12" r="8.5"/><path d="M12.5 3.6l-2 4.4 3.2 2.4-2.9 3.6 1.8 2.6-1 3.8M13.7 10.4l4.6-1.6M10.8 14l-4.9.6" stroke-width="1.5"/>',
+        'leaf'      => '<path d="M5 19c0-8 5-13 14-14 0 9-5 14-13 14"/><path d="M5 19c3-4 6-6.5 9.5-8"/>',
+        'spots'     => '<circle cx="12" cy="12" r="8.5"/><circle cx="9" cy="10" r="1.3" fill="currentColor"/><circle cx="14.5" cy="9" r="0.9" fill="currentColor"/><circle cx="13.5" cy="14.5" r="1.6" fill="currentColor"/>',
+        'sun'       => '<circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4"/>',
+        'flame'     => '<path d="M12 21a6 6 0 0 0 6-6c0-4-3-6-4-10-2 2-3 4-3 6-1-1-2-2-2-3.5C7 10 6 12.5 6 15a6 6 0 0 0 6 6z"/>',
     ];
     return '<svg width="' . $size . '" height="' . $size . '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"'
          . ($class !== '' ? ' class="' . e($class) . '"' : '') . '>' . ($paths[$name] ?? '') . '</svg>';

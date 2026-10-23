@@ -1,7 +1,8 @@
 # Shop look upgrade playbook
 
 How Atelier was upgraded (step 6), written so the same can be done for the other nine looks, one at
-a time. Read [Shop upgrade step 6.md](Shop%20upgrade%20step%206.md) first for what changed.
+a time. Read [Shop upgrade step 6.md](Shop%20upgrade%20step%206.md) first for what changed. Buka, Glow
+and Shea followed in step 7 ([Shop looks step 7.md](Shop%20looks%20step%207.md)).
 
 ## What every look already has
 
@@ -29,13 +30,13 @@ Ideas for the others (to be confirmed with the owner, one look at a time):
 
 | Look | Trade | A memorable thing that would suit it |
 | --- | --- | --- |
-| Buka | Food | The menu board: today's dishes first, big prices, one tap to order on WhatsApp |
-| Glow | Beauty | Before-and-after or treatment photos taking turns, soft and slow |
+| Buka | Food | Done in step 7: the dishes on a table that turns |
+| Glow | Beauty | Done in step 7: shoppable stories |
 | Volt | Gadgets and repairs | The repair ticket as the first screen: "What's wrong with your phone?" |
 | Market | Wholesale | The price list itself as the home page's first screen, with the date it was updated |
 | Stage | Events | Full-screen event photos taking turns, like Atelier, with dates booked |
 | Harvest | Farm produce | This week's harvest and the pickup day, with real farm photos |
-| Shea | Skincare | Product close-ups, ingredients, small-batch dates |
+| Shea | Skincare | Done in step 7: the skin finder, which builds a routine |
 | Haven | Short stays | Apartment photos taking turns, then the nightly price and the calendar |
 | Desk | Services | What's included, as a checklist, and "Book a visit" |
 
@@ -43,8 +44,9 @@ Ideas for the others (to be confirmed with the owner, one look at a time):
 
 In `app/helpers/storefront.php`, `storefront_looks()`:
 
-- `hero`: `'cover'` gives Atelier's full-screen photos (`sections/hero.php`, case `cover`); other
-  values are the looks' existing heroes.
+- `hero`: `'cover'` gives Atelier's full-screen photos (`sections/hero.php`, case `cover`);
+  `'turntable'`, `'stories'` and `'finder'` are Buka's, Glow's and Shea's, each in its own partial
+  (`sections/hero_turntable.php` and so on); other values are the looks' existing heroes.
 - `slides`: how many photos the cover plays (1 for a still photo). Studio's photo shelf follows it.
 - `backdrop`: `true` keeps a photo faintly behind every page (`$backdrop` in `shell.php`); Studio
   then shows the "Page background" choice.

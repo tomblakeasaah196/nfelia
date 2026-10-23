@@ -922,9 +922,9 @@
         wrap.appendChild(el('span', {}, label));
         return wrap;
     }
-    function picks(s, key, max, note) {
+    function picks(s, key, max, note, label) {
         var box = el('div', { class: 'st-field' });
-        box.appendChild(el('span', { class: 'st-label' }, D.types[s.type].fields[key].label));
+        box.appendChild(el('span', { class: 'st-label' }, label || D.types[s.type].fields[key].label));
         if (note) { box.appendChild(el('span', { class: 'st-field__hint' }, note)); }
         if (!D.products.length) {
             var none = el('p', { class: 'st-help' }, 'You have no products yet. ');
@@ -990,6 +990,13 @@
                 editorEl.appendChild(field('Sticker', textInput(s, 'badge', f.badge, 'Delivery in 24 hours'), 'A short note in a sticker or stamp. Leave it empty for none.'));
                 editorEl.appendChild(slidesField(s));
                 if (look(state.look).backdrop) { editorEl.appendChild(backgroundField(s)); }
+                if (look(state.look).hero === 'turntable') {
+                    editorEl.appendChild(picks(s, 'picks', 8, 'They sit round a table that turns, the first in front. Pick up to 8, in the order you tick them. Leave them all empty and we show the ones with photos first.', 'Dishes on the table'));
+                }
+                if (look(state.look).hero === 'stories') {
+                    editorEl.appendChild(picks(s, 'picks', 8, 'Each gets a story of its own, with its price and Book or Add. Pick up to 8, in the order you tick them. Leave them all empty and we show the ones with photos first.', 'In your stories'));
+                }
+                if (look(state.look).hero === 'finder') { editorEl.appendChild(finderField(s)); }
                 break;
             case 'featured':
                 editorEl.appendChild(field('Title', textInput(s, 'title', f.title, labelFor('featured'))));
@@ -1164,7 +1171,11 @@
         var max = 5;
         var box = el('div', { class: 'st-field st-slides' });
         box.appendChild(el('span', { class: 'st-label' }, 'Photos and videos'));
-        box.appendChild(el('span', { class: 'st-field__hint' }, lk.slides > 1
+        box.appendChild(el('span', { class: 'st-field__hint' }, lk.hero === 'stories'
+            ? 'Up to five. They open your stories, the first with your headline, before a story for each service. Tall photos look best.'
+            : lk.hero === 'turntable'
+            ? 'Your dishes\' own photos go round the table. This photo shows on it until you add a dish.'
+            : lk.slides > 1
             ? 'Up to five. They fill the first screen and take turns, with your words over them. One photo stays put. Tall photos look best on phones.'
             : 'This look shows your first photo. Atelier shows up to five, in turn. Videos play only on good connections and never with sound.'));
         var list = el('ul', { class: 'st-slides__list' });
@@ -1259,6 +1270,129 @@
             });
         });
         box.appendChild(other);
+        return box;
+    }
+
+    // Shea's skin finder: the skin types shoppers pick from, and for each
+    // product its step in a routine and the skins it is for. Until the owner
+    // changes them, the skin types are the shop's own (its categories that
+    // name one, else five common ones) and each step is our guess from the
+    // product's name (D.finder, from storefront_skins and sf_routine_guess).
+    // A product the owner sets is only for the skins they tick; none ticked
+    // is every skin.
+    function finderField(s) {
+        var box = el('div', { class: 'st-field st-finder' });
+        box.appendChild(el('span', { class: 'st-label' }, 'Skin finder'));
+        box.appendChild(el('span', { class: 'st-field__hint' }, 'Shoppers pick their skin type and get a routine from your products, one for each step. We guessed each product\'s step from its name: change any we got wrong.'));
+        var skins = s.skins.length ? s.skins : D.finder.skins;
+        var tagOf = function (id) { return s.routine.filter(function (t) { return t.id === id; })[0]; };
+        // The skin types become the owner's own the first time they change one
+        var own = function () { if (!s.skins.length) { s.skins = D.finder.skins.slice(); } };
+        var redraw = function (focus) {
+            renderEditor();
+            var again = focus && $(focus, editorEl);
+            if (again) { again.focus(); }
+        };
+
+        var skinsBox = el('div', { class: 'st-finder__block' });
+        skinsBox.appendChild(el('span', { class: 'st-finder__sub' }, 'Skin types they pick from'));
+        var tags = el('ul', { class: 'st-tags' });
+        skins.forEach(function (skin) {
+            var li = el('li', { class: 'st-tag' });
+            li.appendChild(el('span', {}, skin));
+            var x = el('button', { type: 'button', class: 'st-tag__x', 'aria-label': 'Remove ' + skin });
+            x.appendChild(icon(ICON.close, 16));
+            x.addEventListener('click', function () {
+                if (skins.length <= 1) { toast('Keep at least one skin type.'); return; }
+                commit(function () {
+                    own();
+                    s.skins = s.skins.filter(function (k) { return k !== skin; });
+                    s.routine.forEach(function (t) { t.skins = t.skins.filter(function (k) { return k !== skin; }); });
+                }, { reload: true, scrollTo: 'sf-hero' });
+                redraw('.st-finder__add input');
+            });
+            li.appendChild(x);
+            tags.appendChild(li);
+        });
+        skinsBox.appendChild(tags);
+        if (skins.length < 6) {
+            var addRow = el('div', { class: 'st-finder__add' });
+            var input = el('input', { type: 'text', maxlength: 24, placeholder: 'Dark spots', 'aria-label': 'A skin type to add', autocomplete: 'off' });
+            var addBtn = el('button', { type: 'button', class: 'st-btn st-btn--quiet st-btn--sm' }, 'Add skin type');
+            var addSkin = function () {
+                var v = input.value.trim().slice(0, 24);
+                if (!v) { input.focus(); return; }
+                if (skins.some(function (k) { return k.toLowerCase() === v.toLowerCase(); })) { toast('That skin type is there already.'); return; }
+                commit(function () { own(); s.skins.push(v); }, { reload: true, scrollTo: 'sf-hero' });
+                redraw('.st-finder__add input');
+            };
+            addBtn.addEventListener('click', addSkin);
+            input.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); addSkin(); } });
+            addRow.appendChild(input);
+            addRow.appendChild(addBtn);
+            skinsBox.appendChild(addRow);
+        }
+        box.appendChild(skinsBox);
+
+        var goods = D.products.filter(function (p) { return !p.service; });
+        var stepsBox = el('div', { class: 'st-finder__block' });
+        stepsBox.appendChild(el('span', { class: 'st-finder__sub' }, 'Your products in routines'));
+        if (!goods.length) {
+            var none = el('p', { class: 'st-help' }, 'You have no products yet. ');
+            none.appendChild(el('a', { href: D.urls.products }, 'Add your first product'));
+            stepsBox.appendChild(none);
+        }
+        var list = el('ul', { class: 'st-routine' });
+        goods.forEach(function (p) {
+            var tag = tagOf(p.id);
+            var step = tag ? tag.step : (D.finder.guess[String(p.id)] || 'none');
+            var li = el('li', { class: 'st-routine__item' });
+            var head = el('div', { class: 'st-routine__head' });
+            if (p.thumb) { head.appendChild(el('img', { src: p.thumb, alt: '', loading: 'lazy' })); } else { head.appendChild(el('span', { class: 'st-pick__ph' })); }
+            var named = el('span', { class: 'st-routine__name' }, p.name);
+            if (!tag && step !== 'none') { named.appendChild(el('small', {}, 'Our guess')); }
+            head.appendChild(named);
+            var select = el('select', { 'aria-label': 'Step for ' + p.name });
+            Object.keys(D.finder.steps).concat(['none']).forEach(function (key) {
+                var opt = el('option', { value: key }, key === 'none' ? 'Not in a routine' : D.finder.steps[key]);
+                if (key === step) { opt.selected = true; }
+                select.appendChild(opt);
+            });
+            select.addEventListener('change', function () {
+                commit(function () {
+                    var t = tagOf(p.id);
+                    if (t) { t.step = select.value; } else { s.routine.push({ id: p.id, step: select.value, skins: [] }); }
+                }, { reload: true, scrollTo: 'sf-hero' });
+                redraw();
+            });
+            head.appendChild(select);
+            li.appendChild(head);
+            if (step !== 'none') {
+                var fits = el('div', { class: 'st-routine__skins', role: 'group', 'aria-label': 'Skin types ' + p.name + ' is for' });
+                fits.appendChild(el('span', { class: 'st-routine__for' }, tag && tag.skins.length ? 'For' : 'For every skin, or only'));
+                skins.forEach(function (skin) {
+                    var label = el('label', { class: 'st-minichip' });
+                    var box2 = el('input', { type: 'checkbox' });
+                    box2.checked = !!(tag && tag.skins.indexOf(skin) !== -1);
+                    box2.addEventListener('change', function () {
+                        commit(function () {
+                            own();
+                            var t = tagOf(p.id);
+                            if (!t) { t = { id: p.id, step: step, skins: [] }; s.routine.push(t); }
+                            t.skins = box2.checked ? t.skins.concat([skin]) : t.skins.filter(function (k) { return k !== skin; });
+                        }, { reload: true, scrollTo: 'sf-hero' });
+                        redraw();
+                    });
+                    label.appendChild(box2);
+                    label.appendChild(el('span', {}, skin));
+                    fits.appendChild(label);
+                });
+                li.appendChild(fits);
+            }
+            list.appendChild(li);
+        });
+        stepsBox.appendChild(list);
+        box.appendChild(stepsBox);
         return box;
     }
 

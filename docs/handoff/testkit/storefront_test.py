@@ -497,13 +497,135 @@ hero["slides"] = slides[:1]
 bisi.api("/landing-page/save-draft", {"settings": draft})
 s, h, prev = bisi.get("/landing-page/preview")
 check("one photo stays put: no bars, no timer", prev.count('class="sf-cover__slide') == 1 and "sf-cover__bar" not in prev and "data-interval" not in prev, "")
-draft["look"] = "glow"
+draft["look"] = "stage"
 hero["slides"] = slides[:3]
 bisi.api("/landing-page/save-draft", {"settings": draft})
 s, h, prev = bisi.get("/landing-page/preview")
 check("other looks show the first photo", "sf-cover__slide" not in prev and slides[0].split("/")[-1] in prev and slides[1].split("/")[-1] not in prev, "")
+draft["look"] = "glow"
+bisi.api("/landing-page/save-draft", {"settings": draft})
+s, h, prev = bisi.get("/landing-page/preview")
+intro = re.search(r'<article class="sf-story sf-story--intro[^"]*".*?</article>', prev, re.S)
+check("Glow opens its stories with them, the first with the headline",
+      intro and slides[0].split("/")[-1] in intro.group(0) and 'id="sf-hero-title"' in intro.group(0)
+      and prev.count("sf-story sf-story--photo") == 2 and slides[2].split("/")[-1] in prev, intro and intro.group(0)[:300])
 draft["look"] = "atelier"
 bisi.api("/landing-page/save-draft", {"settings": draft})
+
+# ── Buka, Glow and Shea: the turntable, the stories, the skin finder ──
+def pid(biz, name):
+    return int(sql(f"SELECT id FROM products WHERE business_id = {biz} AND name = '{name}'")[0][0])
+
+
+def hero_of(settings):
+    return next(x for x in settings["sections"] if x["type"] == "hero")
+
+
+def studio_data_of(client):
+    s, h, page = client.get("/landing-page")
+    return json.loads(re.search(r'<script type="application/json" id="st-data">(.*?)</script>', page, re.S).group(1))
+
+
+s, h, page = shop("mama-nkechi").get("/")
+check("Buka opens on the turntable, a plate and the words for each dish",
+      'data-turntable data-count="6"' in page and page.count('class="sf-turntable__plate') == 6 and page.count('data-turn-card="') == 6
+      and page.count('class="sf-turntable__dot"') == 6 and 'id="sf-hero-title"' in page, page.count('class="sf-turntable__plate'))
+first = re.search(r'data-turn-card="0">\s*<h2 class="sf-turntable__name"><a [^>]*>([^<]+)</a>', page)
+check("Buka: dishes with photos come round first", first and first.group(1) in ("Jollof rice and chicken", "Egusi soup, 1 litre"), first and first.group(1))
+check("Buka: only the dish in front is open to a tap; the plates are pictures", page.count('class="sf-turntable__plate is-front"') == 1
+      and re.search(r'class="sf-turntable__food" tabindex="-1" aria-hidden="true"', page), "")
+check("Buka: every dish has its price and Add", page.count('class="sf-btn sf-turntable__add" data-add="') == 6 and "per plate" in page, "")
+check("Buka: no open sign without opening hours", "data-hours=" not in page, "")
+sql("UPDATE businesses SET booking_settings = '{\"hours\":{\"mon\":{\"open\":\"08:00\",\"close\":\"21:00\"},\"tue\":{\"open\":\"08:00\",\"close\":\"21:00\"},"
+    "\"wed\":{\"open\":\"08:00\",\"close\":\"21:00\"},\"thu\":{\"open\":\"08:00\",\"close\":\"21:00\"},\"fri\":{\"open\":\"08:00\",\"close\":\"21:00\"},"
+    "\"sat\":{\"open\":\"10:30\",\"close\":\"18:00\"},\"sun\":null}}' WHERE id = 3")
+s, h, page = shop("mama-nkechi").get("/")
+today = datetime.date.today().weekday()
+said = "Closed today" if today == 6 else ("Open today, 10:30am to 6pm" if today == 5 else "Open today, 8am to 9pm")
+check("Buka: its booking hours make an open sign, today's hours in words", 'data-hours="{&quot;mon&quot;:{&quot;open&quot;:&quot;08:00&quot;' in page and said in page, re.findall(r'data-open-text>([^<]*)<', page))
+sql("UPDATE businesses SET booking_settings = NULL WHERE id = 3")
+
+nkechi = Client()
+nkechi.login("owner3@nfelia.test")
+buka_draft = studio_data_of(nkechi)["settings"]
+egusi, zobo, olokun = pid(3, "Egusi soup, 1 litre"), pid(3, "Zobo, 1 litre"), pid(2, "Olokun wrap dress")
+hero_of(buka_draft)["picks"] = [zobo, olokun, egusi]
+s, r = nkechi.api("/landing-page/save-draft", {"settings": buka_draft})
+check("the dishes on the table are the owner's own, in the owner's order", hero_of(r["settings"])["picks"] == [zobo, egusi], hero_of(r["settings"])["picks"])
+s, h, prev = nkechi.get("/landing-page/preview")
+first = re.search(r'data-turn-card="0">\s*<h2 class="sf-turntable__name"><a [^>]*>([^<]+)</a>', prev)
+check("two dishes go round the table three times, the first picked in front",
+      'data-count="2" style="--slots: 6;' in prev and prev.count('class="sf-turntable__plate') == 6 and first and first.group(1) == "Zobo, 1 litre", first and first.group(1))
+hero_of(buka_draft)["picks"] = [egusi]
+nkechi.api("/landing-page/save-draft", {"settings": buka_draft})
+s, h, prev = nkechi.get("/landing-page/preview")
+check("one dish sits still: no arrows, no dots", 'data-count="1"' in prev and "sf-turntable__controls" not in prev and "sf-turntable__dot" not in prev, "")
+hero_of(buka_draft)["picks"] = []
+nkechi.api("/landing-page/save-draft", {"settings": buka_draft})
+
+s, h, page = shop("glow-by-temi").get("/")
+check("Glow opens on its stories, the headline first",
+      'data-stories data-interval="5500"' in page and re.search(r'<article class="sf-story sf-story--intro[^"]*is-on"', page)
+      and 'class="sf-h1 sf-story__title" id="sf-hero-title"' in page, "")
+check("Glow: a story for each service, with a bar each", page.count('data-story-item="') == 5 and page.count('class="sf-stories__bar"') == 6, page.count('data-story-item="'))
+check("Glow: stories after the first wait out of reach", page.count(' inert>') == 5, page.count(' inert>'))
+check("Glow: a ring per category, and one to the prices", page.count('class="sf-ring"') == 3 and 'sf-ring sf-ring--all' in page, page.count('class="sf-ring"'))
+check("Glow: its home page lists prices instead of category tiles again", "sf-cats" not in page and "sf-item--pricerow" in page, "")
+check("Glow: the header sits over the stories", "sf-header--over" in page, "")
+s, h, list_page = shop("glow-by-temi").get("/shop")
+check("Glow: but not over its other pages", "sf-header--over" not in list_page and "data-stories" not in list_page, "")
+lash = pid(4, "Classic lash set")
+sql(f"UPDATE products SET booking_mode = 'slot', booking_minutes = 90 WHERE id = {lash}")
+s, h, page = shop("glow-by-temi").get("/")
+story = re.search(rf'<article [^>]*data-story-item="{lash}".*?</article>', page, re.S)
+check("Glow: a service people book says how long and books from the story",
+      story and "1 hour 30 minutes" in story.group(0) and f'data-book="{lash}"' in story.group(0) and "Book a slot" in story.group(0) and "data-add=" not in story.group(0),
+      story and story.group(0)[:400])
+sql(f"UPDATE products SET booking_mode = 'none' WHERE id = {lash}")
+
+s, h, page = shop("zainab-naturals").get("/")
+finder_html = page[page.find("data-finder"):page.find("</section>", page.find("data-finder"))]
+skins = re.findall(r'data-skin="\d">\s*<span><span class="sf-skin__icon">.*?</span>([^<]+)</span>', finder_html, re.S)
+check("Shea opens on the skin finder, its skin types from its categories", "What's your skin like?" in page and skins == ["Dry skin", "Oily skin", "Sensitive"], skins)
+check("Shea: before a pick, the steps wait as empty places", finder_html.count("sf-step sf-step--ghost") == 3, finder_html.count("sf-step--ghost"))
+dry = re.search(r'data-routine="0".*?data-add-routine.*?</button>', finder_html, re.S)
+dry = dry.group(0) if dry else ""
+steps = re.findall(r'class="sf-step__name">([^<]+)</a>', dry)
+check("Shea: a routine per skin, in the order the steps are used", steps == ["African black soap, 200g", "Hibiscus face toner, 100ml", "Whipped shea butter"]
+      and finder_html.count('data-routine="') == 3, steps)
+shea, oil, toner, soap = pid(9, "Whipped shea butter"), pid(9, "Calming body oil"), pid(9, "Hibiscus face toner, 100ml"), pid(9, "African black soap, 200g")
+check("Shea: what the words say goes first, the other that fits can be swapped in", f'data-step-items="{shea},{oil}"' in dry and "data-swap" in dry, "")
+check("Shea: the routine adds up its steps, as each comes unpicked", "data-routine-total>₦15,000<" in dry and "250g, Unscented" in dry, re.findall(r"data-routine-total>([^<]*)<", dry))
+check("Shea: perfume stays out of routines", "Oud perfume oil" not in finder_html, "")
+
+zainab = Client()
+zainab.login("owner9@nfelia.test")
+studio_data = studio_data_of(zainab)
+check("Studio knows the finder's skin types and its guesses", studio_data["finder"]["skins"] == ["Dry skin", "Oily skin", "Sensitive"]
+      and studio_data["finder"]["guess"].get(str(soap)) == "cleanse" and studio_data["finder"]["guess"].get(str(pid(9, "Oud perfume oil, 12ml"))) == "none", studio_data.get("finder"))
+shea_draft = studio_data["settings"]
+hero_of(shea_draft).update({"skins": ["Dry skin", "Oily skin", "oily SKIN", "Sensitive", "Dark spots and uneven tone, all over", "Acne", "Mature", "Eczema"],
+                            "routine": [{"id": toner, "step": "tone", "skins": ["Oily skin", "Not offered"]}, {"id": oil, "step": "none", "skins": []},
+                                        {"id": soap, "step": "exfoliate", "skins": []}, {"id": olokun, "step": "treat", "skins": []}]})
+s, r = zainab.api("/landing-page/save-draft", {"settings": shea_draft})
+kept = hero_of(r["settings"])
+check("skin types are cleaned: each once, short, six at most", kept["skins"] == ["Dry skin", "Oily skin", "Sensitive", "Dark spots and uneven to", "Acne", "Mature"], kept["skins"])
+check("the owner's word on products is kept, cleaned, and only for their own",
+      kept["routine"] == [{"id": toner, "step": "tone", "skins": ["Oily skin"]}, {"id": oil, "step": "none", "skins": []}, {"id": soap, "step": "none", "skins": []}], kept["routine"])
+hero_of(shea_draft)["routine"] = [{"id": toner, "step": "tone", "skins": ["Oily skin"]}, {"id": oil, "step": "none", "skins": []}]
+zainab.api("/landing-page/save-draft", {"settings": shea_draft})
+s, h, prev = zainab.get("/landing-page/preview")
+routines = dict(re.findall(r'<h2 class="sf-routine__title">Your routine for ([^<]+)</h2>(.*?)data-add-routine', prev, re.S))
+names = {k: re.findall(r'class="sf-step__name">([^<]+)</a>', v) for k, v in routines.items()}
+check("a product the owner placed is only for the skins they ticked", "Hibiscus face toner, 100ml" in names.get("oily skin", [])
+      and "Hibiscus face toner, 100ml" not in names.get("dry skin", ["x"]) and all("Calming body oil" not in n for n in names.values()), names)
+check("every skin the owner added gets a routine", len(routines) == 6 and "dark spots and uneven to" in routines, list(routines))
+hero_of(shea_draft)["routine"] = [{"id": x, "step": "none", "skins": []} for x in (soap, toner, oil)]
+zainab.api("/landing-page/save-draft", {"settings": shea_draft})
+s, h, prev = zainab.get("/landing-page/preview")
+check("with fewer than two products in routines, the shelf shows instead", "sf-hero--shelf" in prev and "data-finder" not in prev, "")
+hero_of(shea_draft).update({"skins": [], "routine": []})
+zainab.api("/landing-page/save-draft", {"settings": shea_draft})
 
 # ── Map and directions ───────────────────────────────────────────────
 env = open(os.path.join(ROOT, ".env")).read()
