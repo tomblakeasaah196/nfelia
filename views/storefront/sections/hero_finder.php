@@ -46,10 +46,10 @@ $ghosts = array_slice(array_values(array_filter(array_keys(SF_ROUTINE_STEPS), fn
             <p class="sf-routine__hint">Pick one and we put a routine together from our products.</p>
             <ol class="sf-routine__steps" aria-hidden="true">
                 <?php foreach ($ghosts as $n => $step): ?>
-                    <li class="sf-step sf-step--ghost">
-                        <span class="sf-step__n"><?= $n + 1 ?></span>
-                        <span class="sf-step__media"></span>
-                        <span class="sf-step__body"><span class="sf-step__what"><?= e(SF_ROUTINE_STEPS[$step]['name']) ?></span><span class="sf-step__line"></span></span>
+                    <li class="sf-rstep sf-rstep--ghost">
+                        <span class="sf-rstep__n"><?= $n + 1 ?></span>
+                        <span class="sf-rstep__media"></span>
+                        <span class="sf-rstep__body"><span class="sf-rstep__what"><?= e(SF_ROUTINE_STEPS[$step]['name']) ?></span><span class="sf-rstep__line"></span></span>
                     </li>
                 <?php endforeach; ?>
             </ol>
@@ -70,18 +70,18 @@ $ghosts = array_slice(array_values(array_filter(array_keys(SF_ROUTINE_STEPS), fn
                         $about  = SF_ROUTINE_STEPS[$step['step']];
                         $others = count($step['items']) - 1;
                     ?>
-                        <li class="sf-step" style="--n: <?= $n ?>" data-step="<?= e($step['step']) ?>" data-step-items="<?= e(implode(',', array_column($step['items'], 'id'))) ?>" data-step-at="0">
-                            <span class="sf-step__n"><?= $n + 1 ?></span>
-                            <?= sf_open_link($item, sf_item_media($item, '64px'), 'sf-step__media', true) ?>
-                            <span class="sf-step__body">
-                                <span class="sf-step__what"><?= e($about['name']) ?> <span>· <?= e($about['why']) ?></span></span>
-                                <?= sf_open_link($item, e($item['name']), 'sf-step__name') ?>
-                                <span class="sf-step__opts"><?= e($choice['label']) ?></span>
+                        <li class="sf-rstep" style="--n: <?= $n ?>" data-rstep="<?= e($step['step']) ?>" data-rstep-items="<?= e(implode(',', array_column($step['items'], 'id'))) ?>" data-rstep-at="0">
+                            <span class="sf-rstep__n"><?= $n + 1 ?></span>
+                            <?= sf_open_link($item, sf_item_media($item, '64px'), 'sf-rstep__media', true) ?>
+                            <span class="sf-rstep__body">
+                                <span class="sf-rstep__what"><?= e($about['name']) ?> <span>· <?= e($about['why']) ?></span></span>
+                                <?= sf_open_link($item, e($item['name']), 'sf-rstep__name') ?>
+                                <span class="sf-rstep__opts"><?= e($choice['label']) ?></span>
                             </span>
-                            <span class="sf-step__side">
-                                <span class="sf-step__price"><?= $item['price'] > 0 ? e(sf_money($choice['price'], $ctx['currency'])) : 'Ask' ?></span>
+                            <span class="sf-rstep__side">
+                                <span class="sf-rstep__price"><?= $item['price'] > 0 ? e(sf_money($choice['price'], $ctx['currency'])) : 'Ask' ?></span>
                                 <?php if ($others): ?>
-                                    <button type="button" class="sf-step__swap" data-swap aria-label="<?= e('Swap for another ' . mb_strtolower($about['name']) . ' product, ' . ($others + 1) . ' to choose from') ?>"><?= sf_icon('swap', 16) ?><span aria-hidden="true">Swap</span></button>
+                                    <button type="button" class="sf-rstep__swap" data-swap aria-label="<?= e('Swap for another ' . mb_strtolower($about['name']) . ' product, ' . ($others + 1) . ' to choose from') ?>"><?= sf_icon('swap', 16) ?><span aria-hidden="true">Swap</span></button>
                                 <?php endif; ?>
                             </span>
                         </li>

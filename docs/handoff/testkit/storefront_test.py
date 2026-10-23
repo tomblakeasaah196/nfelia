@@ -587,16 +587,18 @@ s, h, page = shop("zainab-naturals").get("/")
 finder_html = page[page.find("data-finder"):page.find("</section>", page.find("data-finder"))]
 skins = re.findall(r'data-skin="\d">\s*<span><span class="sf-skin__icon">.*?</span>([^<]+)</span>', finder_html, re.S)
 check("Shea opens on the skin finder, its skin types from its categories", "What's your skin like?" in page and skins == ["Dry skin", "Oily skin", "Sensitive"], skins)
-check("Shea: before a pick, the steps wait as empty places", finder_html.count("sf-step sf-step--ghost") == 3, finder_html.count("sf-step--ghost"))
+check("Shea: before a pick, the steps wait as empty places", finder_html.count("sf-rstep sf-rstep--ghost") == 3, finder_html.count("sf-rstep--ghost"))
 dry = re.search(r'data-routine="0".*?data-add-routine.*?</button>', finder_html, re.S)
 dry = dry.group(0) if dry else ""
-steps = re.findall(r'class="sf-step__name">([^<]+)</a>', dry)
+steps = re.findall(r'class="sf-rstep__name">([^<]+)</a>', dry)
 check("Shea: a routine per skin, in the order the steps are used", steps == ["African black soap, 200g", "Hibiscus face toner, 100ml", "Whipped shea butter"]
       and finder_html.count('data-routine="') == 3, steps)
 shea, oil, toner, soap = pid(9, "Whipped shea butter"), pid(9, "Calming body oil"), pid(9, "Hibiscus face toner, 100ml"), pid(9, "African black soap, 200g")
-check("Shea: what the words say goes first, the other that fits can be swapped in", f'data-step-items="{shea},{oil}"' in dry and "data-swap" in dry, "")
+check("Shea: what the words say goes first, the other that fits can be swapped in", f'data-rstep-items="{shea},{oil}"' in dry and "data-swap" in dry, "")
 check("Shea: the routine adds up its steps, as each comes unpicked", "data-routine-total>₦15,000<" in dry and "250g, Unscented" in dry, re.findall(r"data-routine-total>([^<]*)<", dry))
 check("Shea: perfume stays out of routines", "Oud perfume oil" not in finder_html, "")
+css = open(os.path.join(ROOT, "assets/css/storefront.css")).read()
+check("no look restyles the checkout's steps (.sf-step is the bag's alone)", len(re.findall(r"\.sf-step(?![\w-])", css)) == 1, re.findall(r"[^\n]*\.sf-step(?![\w-])[^\n]*", css)[:4])
 
 zainab = Client()
 zainab.login("owner9@nfelia.test")
@@ -616,7 +618,7 @@ hero_of(shea_draft)["routine"] = [{"id": toner, "step": "tone", "skins": ["Oily 
 zainab.api("/landing-page/save-draft", {"settings": shea_draft})
 s, h, prev = zainab.get("/landing-page/preview")
 routines = dict(re.findall(r'<h2 class="sf-routine__title">Your routine for ([^<]+)</h2>(.*?)data-add-routine', prev, re.S))
-names = {k: re.findall(r'class="sf-step__name">([^<]+)</a>', v) for k, v in routines.items()}
+names = {k: re.findall(r'class="sf-rstep__name">([^<]+)</a>', v) for k, v in routines.items()}
 check("a product the owner placed is only for the skins they ticked", "Hibiscus face toner, 100ml" in names.get("oily skin", [])
       and "Hibiscus face toner, 100ml" not in names.get("dry skin", ["x"]) and all("Calming body oil" not in n for n in names.values()), names)
 check("every skin the owner added gets a routine", len(routines) == 6 and "dark spots and uneven to" in routines, list(routines))

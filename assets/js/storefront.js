@@ -1385,18 +1385,18 @@
         var routineTotal = function (routine) {
             var total = 0;
             var asks = false;
-            $$('[data-step]', routine).forEach(function (step) {
-                var item = S.items[step.dataset.stepItems.split(',')[step.dataset.stepAt | 0]];
+            $$('[data-rstep]', routine).forEach(function (step) {
+                var item = S.items[step.dataset.rstepItems.split(',')[step.dataset.rstepAt | 0]];
                 if (!item) { return; }
                 if (item.price > 0) { total += choiceOf(item).price; } else { asks = true; }
             });
             $('[data-routine-total]', routine).textContent = money(total) + (asks ? ' +' : '');
         };
         var paintStep = function (step) {
-            var item = S.items[step.dataset.stepItems.split(',')[step.dataset.stepAt | 0]];
+            var item = S.items[step.dataset.rstepItems.split(',')[step.dataset.rstepAt | 0]];
             if (!item) { return; }
             var href = LIVE ? item.path : '#item-' + item.id;
-            var media = $('.sf-step__media', step);
+            var media = $('.sf-rstep__media', step);
             media.textContent = '';
             if (item.img.length) {
                 var holder = el('span', { class: 'sf-media' });
@@ -1408,10 +1408,10 @@
                 media.appendChild(ph);
             }
             $$('[data-open]', step).forEach(function (a) { a.href = href; a.dataset.open = item.id; });
-            $('.sf-step__name', step).textContent = item.name;
+            $('.sf-rstep__name', step).textContent = item.name;
             var choice = choiceOf(item);
-            $('.sf-step__opts', step).textContent = choice.label;
-            $('.sf-step__price', step).textContent = item.price > 0 ? money(choice.price) : 'Ask';
+            $('.sf-rstep__opts', step).textContent = choice.label;
+            $('.sf-rstep__price', step).textContent = item.price > 0 ? money(choice.price) : 'Ask';
             if (!lessMotion) {
                 step.classList.remove('is-swapped');
                 void step.offsetWidth;
@@ -1422,9 +1422,9 @@
         finder.addEventListener('click', function (e) {
             var swap = e.target.closest('[data-swap]');
             if (swap) {
-                var step = swap.closest('[data-step]');
-                var ids = step.dataset.stepItems.split(',');
-                step.dataset.stepAt = String(((step.dataset.stepAt | 0) + 1) % ids.length);
+                var step = swap.closest('[data-rstep]');
+                var ids = step.dataset.rstepItems.split(',');
+                step.dataset.rstepAt = String(((step.dataset.rstepAt | 0) + 1) % ids.length);
                 paintStep(step);
                 routineTotal(step.closest('[data-routine]'));
                 return;
@@ -1432,10 +1432,10 @@
             var all = e.target.closest('[data-add-routine]');
             if (all) {
                 var routine = all.closest('[data-routine]');
-                var steps = $$('[data-step]', routine);
+                var steps = $$('[data-rstep]', routine);
                 var added = 0;
                 steps.forEach(function (step) {
-                    var item = S.items[step.dataset.stepItems.split(',')[step.dataset.stepAt | 0]];
+                    var item = S.items[step.dataset.rstepItems.split(',')[step.dataset.rstepAt | 0]];
                     if (!item || item.sold) { return; }
                     putLine(item, 1, choiceOf(item).variant, '');
                     added++;
@@ -1443,7 +1443,7 @@
                 if (!added) { return; }
                 saveCart();
                 toast('Added your routine: ' + plural(added, 'product') + '. Your bag has ' + plural(cartCount(), 'item') + '.');
-                steps.forEach(function (step, i) { flyToBag($('.sf-step__media', step), i * 140); });
+                steps.forEach(function (step, i) { flyToBag($('.sf-rstep__media', step), i * 140); });
             }
         });
         showRoutine();
