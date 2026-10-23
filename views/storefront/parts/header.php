@@ -5,8 +5,8 @@
  * them as links. On the shop's other pages the name leads back home.
  * Atelier centres the name, with the menu on the left; over its cover the
  * header is clear until the cover scrolls away (storefront.js).
- * Market draws its price-list band here, with the headline in it, so its
- * hero partial adds only a photo; other pages get the band without it.
+ * Market's header is a slim band in its colour; its headline is painted on
+ * the price board below (sections/hero_board.php).
  */
 $logo     = (string)($business['logo_path'] ?? '');
 $logo_ok  = $logo !== '' && is_file(BASE_PATH . '/' . $logo) && str_starts_with($logo, 'uploads/');
@@ -41,10 +41,8 @@ foreach ($nav_pages as $nav_key => $nav_label) {
 }
 $nav_links .= '</nav>';
 ?>
-<?php if ($settings['look'] === 'market'):
-    $market_headline = $hero['headline'] !== '' ? $hero['headline'] : (string)$business['name'];
-?>
-<header class="sf-header sf-header--band<?= $kind !== 'shop' ? ' sf-header--slim' : '' ?>" data-header>
+<?php if ($settings['look'] === 'market'): ?>
+<header class="sf-header sf-header--band sf-header--slim" data-header>
     <div class="sf-wrap sf-header__inner">
         <div class="sf-brand">
             <?= $brand_open ?><?= $brand_mark ?>
@@ -54,25 +52,6 @@ $nav_links .= '</nav>';
         <?= $bag_button ?>
         <?= $menu_button ?>
     </div>
-    <?php if ($kind === 'shop'): ?>
-    <div class="sf-wrap sf-header__hero">
-        <?php if ($market_headline !== (string)$business['name']): ?>
-            <h1 class="sf-h1" id="sf-hero-title"><?= e($market_headline) ?></h1>
-        <?php else: ?>
-            <h1 class="sf-sr" id="sf-hero-title"><?= e($market_headline) ?></h1>
-        <?php endif; ?>
-        <?php if ($hero['text'] !== ''): ?>
-            <?= sf_paragraphs($hero['text'], 'sf-header__text') ?>
-        <?php elseif ($address !== ''): ?>
-            <p class="sf-header__text"><?= e($address) ?></p>
-        <?php endif; ?>
-        <?php if ($hero['badge'] !== ''): ?>
-            <p class="sf-header__chip"><?= sf_icon('tag', 16) ?><?= e($hero['badge']) ?></p>
-        <?php elseif ($catalogue['updated_at']): ?>
-            <p class="sf-header__chip"><?= sf_icon('clock', 16) ?>Prices updated <?= e(date('j F Y', strtotime($catalogue['updated_at']))) ?></p>
-        <?php endif; ?>
-    </div>
-    <?php endif; ?>
 </header>
 <?php else: ?>
 <header class="sf-header<?= $centred ? ' sf-header--centred' : '' ?><?= $cover ? ' sf-header--over' : '' ?>" data-header>

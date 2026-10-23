@@ -928,6 +928,15 @@ class PublicController
         foreach ($stmtVar->fetchAll() as $vrow) {
             $variant_deltas[(int) $vrow["product_id"]][$vrow["group_name"] . ": " . $vrow["label"]] = (float) $vrow["price_delta"];
         }
+        /* Market sells for less to people who buy more of a product, and may
+           ask for a smallest order: both as the published shop says
+           (storefront_breaks, sf_price_at), whatever the browser sent */
+        $shop_settings = storefront_settings($business, "published");
+        $breaks = storefront_breaks($shop_settings);
+        $bought = [];
+        foreach ($lines as $line) {
+            $bought[$line["product_id"]] = ($bought[$line["product_id"]] ?? 0) + $line["quantity"];
+        }
         $subtotal = 0;
         $order_items = [];
         foreach ($lines as $line) {
@@ -935,7 +944,7 @@ class PublicController
             if (!$product) {
                 continue; /* removed or hidden since the page was loaded */
             }
-            $price = (float) $product["sell_price"];
+            $price = sf_price_at((float) $product["sell_price"], $breaks[$line["product_id"]] ?? [], $bought[$line["product_id"]]);
             if (!empty($line["variant_selection"]) && !empty($variant_deltas[$line["product_id"]])) {
                 $map = $variant_deltas[$line["product_id"]];
                 foreach (explode(", ", $line["variant_selection"]) as $chosen) {
@@ -976,6 +985,17 @@ class PublicController
                     "unavailable" => array_values(array_unique(array_diff(array_column($lines, "product_id"), array_keys($catalogue)))),
                 ],
                 409,
+            );
+        }
+        $min_order = $shop_settings["look"] === "market" ? (float) (sf_section($shop_settings, "hero")["min_order"] ?? 0) : 0.0;
+        if ($min_order > 0 && $subtotal < $min_order) {
+            $symbol = trim((string) ($business["currency_symbol"] ?? "")) ?: "₦";
+            json_response(
+                [
+                    "error" =>
+                        "The smallest order " . $business["name"] . " takes is " . sf_money($min_order, $symbol) . ". Add " . sf_money($min_order - $subtotal, $symbol) . " more and send it again.",
+                ],
+                422,
             );
         }
         $this->public_form_guard("order", $business_id, $customer_email);

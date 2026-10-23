@@ -13,6 +13,7 @@ $bag_word = $settings['look'] === 'market' ? 'order' : 'bag';
     <div class="sf-bagbar__sum">
         <span data-bag-count-text>0 items</span>
         <strong data-bag-total>₦0</strong>
+        <?php if ($bag_word === 'order'): ?><span class="sf-goal" data-goal hidden><span class="sf-goal__bar"><span data-goal-fill></span></span><span data-goal-text></span></span><?php endif; ?>
     </div>
     <button type="button" class="sf-bagbar__btn" data-open-bag><?= $bag_word === 'order' ? 'See my order' : 'View bag' ?></button>
 </div>
@@ -26,6 +27,7 @@ $bag_word = $settings['look'] === 'market' ? 'order' : 'bag';
         <div class="sf-product__body">
             <h2 class="sf-h2" id="sf-product-name" data-p-name></h2>
             <p class="sf-product__price" data-p-price></p>
+            <p class="sf-buymore" data-p-breaks hidden></p>
             <div class="sf-prose sf-product__desc" data-p-desc></div>
             <div class="sf-product__variants" data-p-variants></div>
             <label class="sf-field">
@@ -55,6 +57,31 @@ $bag_word = $settings['look'] === 'market' ? 'order' : 'bag';
     </div>
 </dialog>
 
+<?php if ($bag_word === 'order'): ?>
+<?php // Market's calculator: how many of one product, typed on its keys ?>
+<dialog class="sf-dialog sf-dialog--calc" id="sf-calc" aria-labelledby="sf-calc-name">
+    <div class="sf-dialog__panel sf-calc">
+        <div class="sf-dialog__head">
+            <h2 class="sf-h3" id="sf-calc-name" data-calc-name></h2>
+            <button type="button" class="sf-iconbtn sf-iconbtn--bare" data-close aria-label="Close"><?= sf_icon('close', 22) ?></button>
+        </div>
+        <p class="sf-calc__each" data-calc-each></p>
+        <div class="sf-calc__ladder" data-calc-ladder hidden></div>
+        <div class="sf-calc__screen">
+            <label class="sf-calc__qty"><span class="sf-sr">How many</span><input type="text" inputmode="none" autocomplete="off" maxlength="3" data-calc-input aria-describedby="sf-calc-sum" value="1"></label>
+            <output class="sf-calc__sum" id="sf-calc-sum" aria-live="polite" data-calc-sum></output>
+        </div>
+        <div class="sf-calc__keys" role="group" aria-label="Number keys">
+            <?php foreach (['7', '8', '9', '4', '5', '6', '1', '2', '3', '0', '00'] as $key): ?>
+                <button type="button" class="sf-calc__key" data-key="<?= $key ?>"><?= $key ?></button>
+            <?php endforeach; ?>
+            <button type="button" class="sf-calc__key sf-calc__key--back" data-key="back" aria-label="Rub out the last number"><?= sf_icon('left', 20) ?></button>
+        </div>
+        <button type="button" class="sf-btn sf-btn--block sf-calc__go" data-calc-add>Add to order</button>
+    </div>
+</dialog>
+<?php endif; ?>
+
 <dialog class="sf-dialog sf-dialog--bag" id="sf-bag" aria-labelledby="sf-bag-title">
     <div class="sf-dialog__panel">
         <div class="sf-dialog__head">
@@ -64,6 +91,16 @@ $bag_word = $settings['look'] === 'market' ? 'order' : 'bag';
         </div>
 
         <div class="sf-step" data-step="bag">
+            <?php if ($bag_word === 'order'): ?>
+                <?php // Market's order book: the shop's name and the date, as on a receipt book ?>
+                <div class="sf-book__head" aria-hidden="true">
+                    <p class="sf-book__shop"><?= e($business['name']) ?></p>
+                    <?php $book_addr = !empty($contact['show_address']) ? sf_short_address($business) : ''; // hidden means hidden (W3) ?>
+                    <?php if ($book_addr !== ''): ?><p class="sf-book__addr"><?= e($book_addr) ?></p><?php endif; ?>
+                    <p class="sf-book__meta"><span>Order</span><span>Date <?= e(date('j/n/Y')) ?></span></p>
+                    <p class="sf-book__cols"><span>Qty</span><span>Description</span><span>Amount</span></p>
+                </div>
+            <?php endif; ?>
             <ul class="sf-baglist" data-bag-list></ul>
             <p class="sf-empty" data-bag-empty>Your <?= $bag_word ?> is empty.</p>
             <div class="sf-recent" data-recent hidden>
@@ -72,7 +109,11 @@ $bag_word = $settings['look'] === 'market' ? 'order' : 'bag';
             </div>
             <div class="sf-dialog__foot" data-bag-foot>
                 <p class="sf-total"><span>Total</span><strong data-bag-total>₦0</strong></p>
-                <button type="button" class="sf-btn sf-btn--block" data-go="details">Check out</button>
+                <?php if ($bag_word === 'order'): ?>
+                    <p class="sf-goal sf-goal--book" data-goal hidden><span class="sf-goal__bar"><span data-goal-fill></span></span><span data-goal-text></span></p>
+                    <p class="sf-book__tear" aria-hidden="true"></p>
+                <?php endif; ?>
+                <button type="button" class="sf-btn sf-btn--block" data-go="details"><?= $bag_word === 'order' ? 'Send this order' : 'Check out' ?></button>
             </div>
         </div>
 

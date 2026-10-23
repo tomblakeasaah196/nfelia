@@ -629,6 +629,140 @@ check("with fewer than two products in routines, the shelf shows instead", "sf-h
 hero_of(shea_draft).update({"skins": [], "routine": []})
 zainab.api("/landing-page/save-draft", {"settings": shea_draft})
 
+# ── Market and Volt: the price board, the spotlight ──────────────────
+def checkout(label, lines, phone="08031110000"):
+    sql("DELETE FROM auth_throttle WHERE bucket LIKE 'order%' OR bucket = 'form_email'")
+    s, h, raw = shop(label).req("POST", "/checkout", {"customer_name": "Ada Obi", "customer_phone": phone, "fulfillment_type": "pickup", "channel": "whatsapp",
+                                                      "items": json.dumps([{"product_id": i, "quantity": n, "item_note": f"line {k}"} for k, (i, n) in enumerate(lines)])})
+    try:
+        return s, json.loads(raw)
+    except Exception:
+        return s, {"raw": raw[:300].decode("utf-8", "replace")}
+
+
+def last_order_lines(biz):
+    return [(float(p), float(n)) for p, n in sql(f"SELECT i.unit_price, i.quantity FROM order_items i JOIN orders o ON o.id = i.order_id "
+                                                 f"WHERE o.business_id = {biz} AND o.id = (SELECT MAX(id) FROM orders WHERE business_id = {biz}) ORDER BY i.id")]
+
+
+s, h, page = shop("musa-provisions").get("/")
+board = page[page.find("data-board"):page.find("</section>", page.find("data-board"))]
+check("Market opens on its price board, the shop's name painted across it",
+      'class="sf-board__title" id="sf-hero-title"' in board and 'class="sf-board__shop" aria-hidden="true"><span>★</span>Musa &amp; Sons Provisions' in board
+      and "sf-header--slim" in page, "")
+check("Market: every product on the board, by category, each with Add and a stepper", board.count('class="sf-board__row') == 7
+      and board.count('class="sf-board__cat"') == 3 and board.count('data-stepper="') == 6 and "Macaroni 500g" in board, (board.count('class="sf-board__row'), board.count('data-stepper="')))
+check("Market: a product with choices opens its sheet instead of the calculator", re.search(r'data-add="\d+" aria-label="Add Macaroni 500g to your bag"', board), "")
+check("Market: the board says when its prices changed, and has a tab for a list", "Prices updated today" in board and 'data-board-tab="list"' in board and "data-mylist-text" in board, "")
+check("Market: no category tiles under the board", "sf-cats" not in page, "")
+check("Market: the calculator and the order book come with the bag", 'id="sf-calc"' in page and "data-calc-input" in page and "sf-book__tear" in page and "Send this order" in page, "")
+check("Market: no buy-more prices, smallest order or free delivery until the owner sets them", "sf-buymore\"><svg" not in board and "Smallest order" not in board and "Free delivery from" not in board, "")
+check("Market: the sign takes a colour readable on the board, its shadows only where they stand apart",
+      re.search(r"--sf-sign: ?#[0-9A-Fa-f]{6}", page) and re.search(r"--sf-sign-shade: ?(#[0-9A-Fa-f]{6}|transparent);", page)
+      and re.search(r"--sf-price-shade: ?(#[0-9A-Fa-f]{6}|transparent);", page), "")
+
+musa = Client()
+musa.login("owner6@nfelia.test")
+market_draft = studio_data_of(musa)["settings"]
+noodles, rice, spaghetti = pid(6, "Instant noodles, chicken 70g"), pid(6, "Rice, long grain"), pid(6, "Spaghetti 500g")
+hero_of(market_draft).update({"min_order": "50000", "free_from": 200000, "badge": "Wholesale prices daily", "breaks": [
+    {"id": noodles, "from": 20, "price": 9000}, {"id": noodles, "from": 5, "price": 9300}, {"id": noodles, "from": 5, "price": 9100},
+    {"id": noodles, "from": 50, "price": 8800}, {"id": noodles, "from": 100, "price": 8500},
+    {"id": rice, "from": 1, "price": 70000}, {"id": rice, "from": 5, "price": "76500"}, {"id": spaghetti, "from": 10, "price": 25000},
+    {"id": olokun, "from": 5, "price": 100}, {"id": rice, "from": 10, "price": 0}]})
+s, r = musa.api("/landing-page/save-draft", {"settings": market_draft})
+kept = hero_of(r["settings"])
+check("prices for buying more are cleaned: three steps a product, fewest first, the shop's own products only",
+      kept["breaks"] == [{"id": noodles, "from": 5, "price": 9300}, {"id": noodles, "from": 20, "price": 9000}, {"id": noodles, "from": 50, "price": 8800},
+                         {"id": rice, "from": 5, "price": 76500}, {"id": spaghetti, "from": 10, "price": 25000}]
+      and kept["min_order"] == 50000 and kept["free_from"] == 200000, kept["breaks"])
+musa.api("/landing-page/publish")
+s, h, page = shop("musa-provisions").get("/")
+board = page[page.find("data-board"):page.find("</section>", page.find("data-board"))]
+row = lambda pid_: (re.search(rf'<div [^>]*data-item="{pid_}"[^>]*class="sf-board__row.*?</div>\s*</div>', board, re.S)
+                    or re.search(rf'<div class="sf-board__row[^"]*"[^>]*data-item="{pid_}".*?class="sf-board__act"', board, re.S))
+noodle_row = row(noodles)
+noodle_row = noodle_row.group(0) if noodle_row else ""
+check("Market: the board shows each step under its product", "5+ <strong>₦9,300</strong>" in noodle_row and "20+ <strong>₦9,000</strong>" in noodle_row
+      and "50+ <strong>₦8,800</strong>" in noodle_row and '<span class="sf-sr"> each</span>' in noodle_row, noodle_row[:500])
+spag_row = row(spaghetti)
+check("Market: a step that isn't cheaper than the price is never shown", spag_row and "sf-buymore" not in spag_row.group(0) and "₦25,000" not in board, "")
+check("Market: the smallest order and free delivery are on the sign", "Smallest order ₦50,000" in board and "Free delivery from ₦200,000" in board and "Wholesale prices daily" in board, "")
+data = json.loads(re.search(r'<script type="application/json" id="sf-data">(.*?)</script>', page, re.S).group(1))
+by_id = {i["id"]: i for i in data["items"].values()}
+check("Market: the page's script knows the steps and the thresholds", by_id[noodles]["breaks"] == [{"from": 5, "price": 9300}, {"from": 20, "price": 9000}, {"from": 50, "price": 8800}]
+      and by_id[spaghetti]["breaks"] == [] and data["order"] == {"min": 50000, "free": 200000}, (by_id[noodles].get("breaks"), data.get("order")))
+
+s, r = checkout("musa-provisions", [(noodles, 3)])
+check("checkout refuses an order under the smallest, and says how much more", s == 422 and r.get("error") == "The smallest order Musa & Sons Provisions takes is ₦50,000. Add ₦21,200 more and send it again.", (s, r))
+s, r = checkout("musa-provisions", [(noodles, 2), (noodles, 4)])
+check("checkout charges the step reached by all the lines of a product together", s == 200 and r.get("total") == 55800 and last_order_lines(6) == [(9300.0, 2.0), (9300.0, 4.0)], (s, r, last_order_lines(6)))
+s, r = checkout("musa-provisions", [(noodles, 25), (rice, 1)])
+check("each product gets its own step; one bag of rice pays the rice price", s == 200 and last_order_lines(6) == [(9000.0, 25.0), (78000.0, 1.0)], last_order_lines(6))
+s, r = checkout("musa-provisions", [(spaghetti, 10), (rice, 1)])
+check("a step dearer than the price never raises it", s == 200 and last_order_lines(6)[0] == (21500.0, 10.0), last_order_lines(6))
+market_draft = studio_data_of(musa)["settings"]
+market_draft["look"] = "desk"
+musa.api("/landing-page/save-draft", {"settings": market_draft})
+musa.api("/landing-page/publish")
+s, r = checkout("musa-provisions", [(noodles, 3)])
+check("a shop that leaves Market charges its own prices and takes any order", s == 200 and last_order_lines(6) == [(9600.0, 3.0)], (s, r, last_order_lines(6)))
+s, h, page = shop("musa-provisions").get("/")
+check("and shows no steps or thresholds", "sf-buymore\"><svg" not in page and "Smallest order" not in page and '"order":{"min":0,"free":0}' in page, "")
+market_draft["look"] = "market"
+musa.api("/landing-page/save-draft", {"settings": market_draft})
+musa.api("/landing-page/publish")
+hero_of(market_draft)["headline"] = "Musa & Sons provisions"
+musa.api("/landing-page/save-draft", {"settings": market_draft})
+s, h, prev = musa.get("/landing-page/preview")
+check("Market: a headline that is only the shop's name is painted once", '<h1 class="sf-board__shop" id="sf-hero-title">' in prev and "sf-board__title" not in prev, "")
+hero_of(market_draft)["headline"] = ""
+musa.api("/landing-page/save-draft", {"settings": market_draft})
+s, h, page = shop("musa-provisions").get("/shop")
+check("Market's list page sells with the calculator and shows the steps too", 'data-calc-open="' in page and "5+ <strong>₦9,300</strong>" in page and 'data-stepper="' in page, "")
+
+s, h, page = shop("kola-gadgets").get("/")
+spot = page[page.find("data-spotlight"):page.find("</section>", page.find("data-spotlight"))]
+figures = spot.split('<figure class="sf-spot__device')[1:]
+cards = spot[:spot.find('class="sf-spot__repairs"')].split('data-spot-card="')[1:]
+check("Volt opens on the spotlight: each device with a card, the first lit", 'data-spotlight data-count="5"' in spot and len(figures) == 5 and len(cards) == 5
+      and spot.count('class="sf-spot__device is-on"') == 1 and spot.count('class="sf-spot__dot"') == 5 and 'class="sf-h1 sf-spot__title" id="sf-hero-title"' in spot, len(figures))
+check("Volt: services stay out of the spotlight", not any("Screen replacement" in c for c in cards), "")
+card_of = {re.search(r'<h2 class="sf-spot__name"><a [^>]*>([^<]+)</a>', c).group(1): (c, figures[i]) for i, c in enumerate(cards)}
+iphone_card, iphone_fig = card_of.get("iPhone 12, 128GB", ("", ""))
+chips = lambda fig: [re.sub(r"<[^>]+>", "", x) for x in re.findall(r'class="sf-callout__chip">(.*?)</span>\s*</li>', fig, re.S)]
+check("Volt: what a buyer checks first is pointed out round the device, from its name, options and words",
+      chips(iphone_fig) == ["128GB", "2 colours", "Battery 86%", "Face ID works"] and 'class="sf-battery sf-battery--sm" style="--level: 86%"' in iphone_fig, chips(iphone_fig))
+check("Volt: the card says its condition and battery health", '<p class="sf-grade sf-grade--abroad">UK used</p>' in iphone_card
+      and 'sf-batterymeter sf-batterymeter--strong' in iphone_card and "Battery health <strong>86%</strong>" in iphone_card and "₦385,000" in iphone_card, iphone_card[:500])
+hp_card, hp_fig = card_of.get("HP EliteBook 840 G6", ("", ""))
+check("Volt: a laptop's specs come from its options; no condition or battery it doesn't state", chips(hp_fig) == ["16GB RAM", "512GB SSD", "Core i5"]
+      and "sf-grade" not in hp_card and "sf-batterymeter" not in hp_card, chips(hp_fig))
+check("Volt: a sealed box is brand new; two storage sizes are one callout", '<p class="sf-grade sf-grade--new">Brand new</p>' in card_of.get("Samsung Galaxy A15, 128GB", ("", ""))[0]
+      and chips(card_of.get("Samsung Galaxy A15, 128GB", ("", ""))[1]) == ["128GB or 256GB"], chips(card_of.get("Samsung Galaxy A15, 128GB", ("", ""))[1]))
+check("Volt: devices with photos come first", list(card_of)[:2] in (["Power bank, 20,000mAh", "iPhone 12, 128GB"], ["iPhone 12, 128GB", "Power bank, 20,000mAh"]), list(card_of))
+check("Volt: a strip to the repair desk, from the cheapest repair", 'class="sf-spot__repairs" href="/shop#sf-services"' in spot and "Repairs from ₦12,000" in spot, "")
+check("Volt: no stamp without a sticker", "sf-spot__stamp" not in spot, "")
+s, h, list_page = shop("kola-gadgets").get("/shop")
+check("Volt: the list shows condition and battery too", '<p class="sf-grade sf-grade--abroad">UK used</p>' in list_page and "Battery health <strong>86%</strong>" in list_page, "")
+
+kola = Client()
+kola.login("owner5@nfelia.test")
+volt_draft = studio_data_of(kola)["settings"]
+hp, screen = pid(5, "HP EliteBook 840 G6"), pid(5, "Screen replacement")
+hero_of(volt_draft).update({"picks": [hp, screen, olokun], "badge": "Tested before you pay"})
+s, r = kola.api("/landing-page/save-draft", {"settings": volt_draft})
+check("the devices in the spotlight are the owner's own", hero_of(r["settings"])["picks"] == [hp, screen], hero_of(r["settings"])["picks"])
+s, h, prev = kola.get("/landing-page/preview")
+check("one device stands still: no arrows, no dots; the sticker is a stamp", 'data-spotlight data-count="1"' in prev and "data-spot-step" not in prev and "sf-spot__dot" not in prev
+      and '<p class="sf-spot__stamp"><span>Tested before you pay</span>' in prev and "HP EliteBook 840 G6" in prev, "")
+hero_of(volt_draft)["picks"] = [screen]
+kola.api("/landing-page/save-draft", {"settings": volt_draft})
+s, h, prev = kola.get("/landing-page/preview")
+check("with no device to show, Volt keeps its spec sheet", "data-spotlight" not in prev and "sf-hero--spec" in prev, "")
+hero_of(volt_draft).update({"picks": [], "badge": ""})
+kola.api("/landing-page/save-draft", {"settings": volt_draft})
+
 # ── Map and directions ───────────────────────────────────────────────
 env = open(os.path.join(ROOT, ".env")).read()
 if "GEOAPIFY_API_URL=http://127.0.0.1:8099" not in env or "GEOAPIFY_API_KEY=test-key" not in env:

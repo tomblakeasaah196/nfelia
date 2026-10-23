@@ -67,7 +67,8 @@ const STOREFRONT_ICON_SIZES = [32, 180];
  *   hero     how the top of the page is laid out: 'cover' (Atelier's
  *            photos taking turns), 'turntable' (Buka's dishes on a table
  *            that turns), 'stories' (Glow's shoppable stories), 'finder'
- *            (Shea's skin finder) and the looks' own
+ *            (Shea's skin finder), 'board' (Market's painted price board),
+ *            'spotlight' (Volt's devices under a spotlight) and the looks' own
  *   items    how the catalogue draws each product
  *   tiles    how "New in" draws each product
  *   off      sections that start switched off in this look
@@ -126,7 +127,7 @@ function storefront_looks(): array {
             'colours' => ['ground' => '#EEF1F4', 'ink' => '#0E1B2B', 'muted' => '#4A5566', 'accent' => '#C2410C', 'on' => '#FFFFFF', 'motif' => '#FFD9C2', 'line' => '#D9DFE6', 'surface' => '#E3E8EE', 'card' => '#FFFFFF'],
             'band'    => '#F26B1D',
             'shape'   => ['hero' => '14px', 'tile' => '10px', 'btn' => '10px', 'card' => '16px', 'chip' => '6px', 'field' => '12px'],
-            'hero'    => 'spec',
+            'hero'    => 'spotlight',
             'items'   => 'spec',
             'tiles'   => 'sticker',
             'labels'  => ['button' => 'Shop now', 'catalogue' => 'Shop', 'quote' => 'Custom and bulk orders'],
@@ -137,7 +138,7 @@ function storefront_looks(): array {
             'colours' => ['ground' => '#FFFFFF', 'ink' => '#14213D', 'muted' => '#4B5568', 'accent' => '#1D3F91', 'on' => '#FFFFFF', 'motif' => '#FFD23F', 'line' => '#E3E7EF', 'surface' => '#F4F6FA'],
             'band'    => '#FFD23F',
             'shape'   => ['hero' => '6px', 'tile' => '4px', 'btn' => '8px', 'card' => '10px', 'chip' => '8px', 'field' => '8px'],
-            'hero'    => 'band',
+            'hero'    => 'board',
             'items'   => 'pricelist',
             'tiles'   => 'square',
             'off'     => ['featured'],   // this look leads with its list
@@ -261,7 +262,9 @@ function storefront_colour_sets(): array {
  * media (a list of photos and videos), backdrop (a photo, '' for the first
  * slide, or 'none'), date (YYYY-MM-DD or ''), lat, lng, zoom, products (a
  * list of product ids), faq (question and answer pairs), skins (short
- * labels), routine (a product id with its step and skin types, each).
+ * labels), routine (a product id with its step and skin types, each), money
+ * (an amount, 0 for none), breaks (a product id, from how many, and the
+ * price each from then on).
  */
 function storefront_section_types(): array {
     return [
@@ -283,6 +286,11 @@ function storefront_section_types(): array {
                 // which step of a routine each product is, for which skins
                 'skins'      => ['kind' => 'skins', 'max' => 6, 'label' => 'Skin types'],
                 'routine'    => ['kind' => 'routine', 'max' => 500, 'label' => 'Routine steps'],
+                // Market's order: the least an order can be, where delivery
+                // turns free, and lower prices for buying more
+                'min_order'  => ['kind' => 'money', 'label' => 'Minimum order'],
+                'free_from'  => ['kind' => 'money', 'label' => 'Free delivery from'],
+                'breaks'     => ['kind' => 'breaks', 'max' => 300, 'label' => 'Prices for buying more'],
             ]],
         'featured' => ['name' => 'New in', 'hint' => 'A few products at the top. Pick them, or we show your newest.', 'pin' => null, 'switch' => true, 'on' => true, 'available' => true,
             'fields' => ['title' => ['kind' => 'line', 'max' => 50, 'label' => 'Title'],
@@ -594,6 +602,8 @@ function sf_clean_section(string $type, array $raw, int $business_id): array {
             'faq'      => sf_clean_faq($value, $field['max']),
             'skins'    => sf_clean_skins($value, $field['max']),
             'routine'  => sf_clean_routine($value, $field['max']),
+            'money'    => is_numeric($value) && (float)$value > 0 ? min(1000000000.0, round((float)$value, 2)) : 0.0,
+            'breaks'   => sf_clean_breaks($value, $field['max']),
             'handle'   => sf_social_handle(is_string($value) ? $value : ''),
             default    => null,
         };
@@ -777,6 +787,41 @@ function sf_clean_routine(mixed $value, int $max): array {
         }
     }
     return array_values($tags);
+}
+
+/**
+ * Market's prices for buying more: per product up to three steps, each
+ * "from this many, this much each", in order. A step needs at least two and
+ * a price above nothing; one repeating an earlier quantity is dropped.
+ */
+function sf_clean_breaks(mixed $value, int $max): array {
+    $steps = [];
+    foreach (is_array($value) ? $value : [] as $one) {
+        if (!is_array($one)) {
+            continue;
+        }
+        $id   = filter_var($one['id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        $from = filter_var($one['from'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 2, 'max_range' => 999]]);
+        $price = is_numeric($one['price'] ?? null) ? round((float)$one['price'], 2) : 0.0;
+        if ($id === false || $from === false || $price <= 0 || $price > 1000000000 || isset($steps[$id][$from])) {
+            continue;
+        }
+        if (count($steps[$id] ?? []) >= 3) {
+            continue;
+        }
+        $steps[$id][$from] = $price;
+        if (array_sum(array_map('count', $steps)) >= $max) {
+            break;
+        }
+    }
+    $clean = [];
+    foreach ($steps as $id => $by_from) {
+        ksort($by_from);
+        foreach ($by_from as $from => $price) {
+            $clean[] = ['id' => $id, 'from' => $from, 'price' => $price];
+        }
+    }
+    return $clean;
 }
 
 /**
@@ -1028,6 +1073,10 @@ function storefront_resolve(array $settings, array $business = []): array {
         $palette['muted']       = sf_readable($palette['muted'], $worst);
         $palette['accent_text'] = sf_readable($palette['accent_text'], $worst);
     }
+    // Market's painted letters: its second colour, made readable on the
+    // accent. The painted shadows show only where they stand apart: a dark
+    // drop under light letters, the second colour under the prices
+    $sign = sf_readable($palette['band'], $palette['accent']);
     $vars = [
         '--sf-ground'      => $palette['ground'],
         '--sf-ink'         => $palette['ink'],
@@ -1043,6 +1092,9 @@ function storefront_resolve(array $settings, array $business = []): array {
         '--sf-band'        => $palette['band'],
         '--sf-band-ink'    => $palette['band_ink'],
         '--sf-tint'        => $palette['tint'],
+        '--sf-sign'        => $sign,
+        '--sf-sign-shade'  => sf_luminance($sign) > sf_luminance($palette['accent']) ? ($palette['dark'] ? $palette['ground'] : $palette['ink']) : 'transparent',
+        '--sf-price-shade' => sf_contrast($palette['band'], $palette['accent_text']) >= 3 ? $palette['band'] : 'transparent',
         // The dark of the palette, for fades over photos, and the light words on it
         '--sf-scrim'       => $palette['dark'] ? $palette['ground'] : $palette['ink'],
         '--sf-paper'       => $palette['dark'] ? $palette['ink'] : $palette['ground'],
@@ -1162,6 +1214,7 @@ function storefront_catalogue(array $business, array $settings): array {
         }
     }
 
+    $breaks = storefront_breaks($settings);
     $items = [];
     $categories = [];   // in the order their first product was added
     $first_id = [];
@@ -1188,6 +1241,16 @@ function storefront_catalogue(array $business, array $settings): array {
             'sold_out'    => shop_sold_out($business, $row),
         ];
         $item += sf_item_details($item);
+        // Each step cheaper than the last, and than the price itself: a price
+        // the owner changed since may have overtaken a step
+        $item['breaks'] = [];
+        $below = $item['price'];
+        foreach ($breaks[$pid] ?? [] as [$from, $each]) {
+            if ($each < $below) {
+                $item['breaks'][] = ['from' => $from, 'price' => $each];
+                $below = $each;
+            }
+        }
         $items[] = $item;
         if ($item['category'] !== '') {
             $first_id[$item['category']] = min($first_id[$item['category']] ?? PHP_INT_MAX, $pid);
@@ -1309,6 +1372,100 @@ function storefront_featured(array $catalogue, array $section, int $count = 4): 
     $items = $catalogue['items'];
     usort($items, fn($a, $b) => [$b['created_at'], $b['id']] <=> [$a['created_at'], $a['id']]);
     return array_slice($items, 0, $count);
+}
+
+/**
+ * What Volt's spotlight shows: the owner's picks, else the devices on sale
+ * (not services, nothing people book), with a photo first, newest first.
+ */
+function storefront_devices(array $catalogue, array $hero, int $max = 8): array {
+    $goods = ['items' => array_values(array_filter($catalogue['items'], fn($i) => !$i['is_service'] && $i['booking'] === null))];
+    return storefront_hero_picks($goods, $hero, $max);
+}
+
+/**
+ * Market's prices for buying more, by product: [[from, price each], …],
+ * fewest first. Only Market sells this way; other looks get none, so a shop
+ * that changes look never shows one price and charges another.
+ */
+function storefront_breaks(array $settings): array {
+    if (($settings['look'] ?? '') !== 'market') {
+        return [];
+    }
+    $by_product = [];
+    foreach (sf_section($settings, 'hero')['breaks'] ?? [] as $step) {
+        $by_product[$step['id']][] = [$step['from'], $step['price']];
+    }
+    return $by_product;
+}
+
+/**
+ * What one costs when this many are bought: the lowest step reached, never
+ * more than the product's own price. As priceAt() in storefront.js; checkout
+ * (PublicController::place_order) charges this.
+ */
+function sf_price_at(float $price, array $breaks, int $qty): float {
+    foreach ($breaks as $step) {
+        [$from, $each] = isset($step['from']) ? [$step['from'], $step['price']] : $step;
+        if ($qty >= $from) {
+            $price = min($price, (float)$each);
+        }
+    }
+    return $price;
+}
+
+/**
+ * What a phone buyer checks first, read from what the owner already writes:
+ * the device's condition ("UK used", from its name, options or words), its
+ * battery health ("Battery 86%") and a few facts for Volt's spotlight: its
+ * options and the short phrases of its description.
+ *   ['grade' => 'UK used' or '', 'battery' => 86 or null, 'specs' => [...]]
+ */
+function sf_device_facts(array $item): array {
+    $options = [];
+    foreach ($item['variants'] as $group) {
+        $options = array_merge($options, $group['options']);
+    }
+    $words = ' ' . mb_strtolower($item['name'] . ' ' . $item['description'] . ' ' . implode(' ', $options)) . ' ';
+    $grade = match (true) {
+        (bool)preg_match('/\b(brand[- ]?new|sealed|new in (the )?box)\b/u', $words)       => 'Brand new',
+        (bool)preg_match('/\b(uk|london)[- ]used\b/u', $words)                          => 'UK used',
+        (bool)preg_match('/\bus[- ]used\b/u', $words)                                   => 'US used',
+        (bool)preg_match('/\b(foreign[- ]used|tokunbo)\b/u', $words)                    => 'Foreign used',
+        (bool)preg_match('/\b(nigerian|naija|9ja|fairly|locally)[- ]used\b/u', $words)  => 'Nigerian used',
+        (bool)preg_match('/\b(refurbished|renewed)\b/u', $words)                        => 'Refurbished',
+        default                                                                        => '',
+    };
+    $battery = preg_match('/battery(?:\s*health)?\s*[:\-]?\s*(\d{2,3})\s*%/u', $words, $m) && (int)$m[1] <= 100 ? (int)$m[1] : null;
+    $is_grade = fn(string $text) => (bool)preg_match('/\b(new|used|sealed|tokunbo|refurbished|renewed)\b/iu', $text);
+
+    // Storage and memory in the name ("iPhone 12, 128GB") come first
+    $specs = preg_match_all('/\b\d{1,4}\s?(?:GB|TB)(?:\s?RAM)?\b/iu', $item['name'], $m) ? array_map(fn($x) => strtoupper(str_replace(' ', '', $x)), $m[0]) : [];
+    foreach ($item['variants'] as $group) {
+        $name = mb_strtolower($group['name']);
+        $opts = array_values(array_filter($group['options'], fn($o) => !$is_grade($o)));
+        if (!$opts || preg_match('/condition|grade/u', $name)) {
+            continue;
+        }
+        if (preg_match('/colou?r/u', $name)) {
+            $specs[] = count($opts) === 1 ? $opts[0] : count($opts) . ' colours';
+        } elseif (preg_match('/spec|feature|detail/u', $name) || count($opts) === 1) {
+            array_push($specs, ...$opts);
+        } else {
+            $specs[] = implode(' or ', array_slice($opts, 0, 2));
+        }
+    }
+    foreach (preg_split('/[.;\n]+/u', $item['description']) as $phrase) {
+        $phrase = trim($phrase, " \t-–•*");
+        $known = array_filter($specs, fn($spec) => mb_stripos($phrase, $spec) !== false);
+        if ($phrase !== '' && mb_strlen($phrase) <= 26 && !$is_grade($phrase) && !$known) {
+            $specs[] = $phrase;
+        }
+    }
+    $specs = array_values(array_unique(array_filter($specs, fn($s) => mb_strlen($s) <= 26)));
+    // One that another says already ("128GB" in "128GB or 256GB") goes
+    $specs = array_values(array_filter($specs, fn($a) => !array_filter($specs, fn($b) => $b !== $a && mb_stripos($b, $a) !== false)));
+    return ['grade' => $grade, 'battery' => $battery, 'specs' => array_slice($specs, 0, 4)];
 }
 
 /**

@@ -55,7 +55,7 @@ $currency = trim((string)($business['currency_symbol'] ?? '')) ?: '₦';
 $product_list = [];
 foreach ($products as $p) {
     $thumb = $p['image_path'] && sf_image_size((string)$p['image_path']) ? sf_media_url((string)$p['image_path']) : '';
-    $product_list[] = ['id' => (int)$p['id'], 'name' => $p['name'], 'price' => sf_money((float)$p['sell_price'], $currency),
+    $product_list[] = ['id' => (int)$p['id'], 'name' => $p['name'], 'price' => sf_money((float)$p['sell_price'], $currency), 'amount' => (float)$p['sell_price'],
                        'service' => (bool)$p['is_service'], 'thumb' => $thumb];
 }
 // Shea's skin finder: the skin types it offers until the owner sets their

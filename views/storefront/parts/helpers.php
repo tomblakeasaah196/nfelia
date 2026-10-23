@@ -285,6 +285,31 @@ function sf_cover_media(string $rel, int $index): string {
 }
 
 /**
+ * A device's condition as a badge (sf_device_facts): new is filled, used
+ * from abroad is in the look's second colour, used here is outlined.
+ */
+function sf_grade_badge(string $grade): string {
+    if ($grade === '') {
+        return '';
+    }
+    $kind = match ($grade) { 'Brand new' => 'new', 'Nigerian used', 'Refurbished' => 'local', default => 'abroad' };
+    return '<p class="sf-grade sf-grade--' . $kind . '">' . e($grade) . '</p>';
+}
+
+/**
+ * Battery health as a meter with its number and a word for it, or nothing
+ * when the owner hasn't written one ("Battery 86%").
+ */
+function sf_battery_meter(?int $level): string {
+    if ($level === null) {
+        return '';
+    }
+    $word = $level >= 85 ? 'strong' : ($level >= 75 ? 'good' : 'weak');
+    return '<p class="sf-batterymeter sf-batterymeter--' . $word . '"><span class="sf-battery" style="--level: ' . $level . '%" aria-hidden="true"></span>'
+         . '<span>Battery health <strong>' . $level . '%</strong> · ' . $word . '</span></p>';
+}
+
+/**
  * What a product comes as when nobody picks: the first option of each of its
  * choices ("Size: 250g, Scent: Unscented", as the bag writes it) and the
  * price with them. The skin finder adds routines this way.
@@ -384,11 +409,13 @@ function sf_item_pricerow(array $item, array $ctx): string {
 
 function sf_item_spec(array $item, array $ctx): string {
     $sticker = $item['price'] > 0 ? '<span class="sf-sticker">' . e(sf_price_text($item, $ctx['currency'])) . '</span>' : '';
+    $facts = $item['is_service'] ? ['grade' => '', 'battery' => null] : sf_device_facts($item);
     return '<article ' . sf_item_attrs($item, 'sf-item sf-item--spec') . '>'
          . '<div class="sf-item__visual">' . sf_open_link($item, sf_item_media($item, '120px'), 'sf-item__media', true) . $sticker . '</div>'
          . '<div class="sf-item__body">'
-         . ($item['category'] !== '' ? '<span class="sf-tag">' . e($item['category']) . '</span>' : '')
+         . '<div class="sf-item__tags">' . ($item['category'] !== '' ? '<span class="sf-tag">' . e($item['category']) . '</span>' : '') . sf_grade_badge($facts['grade']) . '</div>'
          . '<h3 class="sf-item__name">' . sf_open_link($item, e($item['name'])) . '</h3>'
+         . sf_battery_meter($facts['battery'])
          . ($item['price'] > 0 ? '' : '<p class="sf-item__price">' . sf_price_html($item, $ctx) . '</p>')
          . sf_chips(sf_item_chips($item), 'sf-chips sf-chips--spec')
          . '<div class="sf-item__actions">' . sf_add_button($item, 'Add to bag', 'sf-btn sf-btn--ink sf-btn--sm sf-btn--grow', false) . sf_wa_ask($item, $ctx) . '</div>'
@@ -399,15 +426,52 @@ function sf_item_pricelist(array $item, array $ctx): string {
     $unit = sf_unit_text($item['unit']);
     return '<div ' . sf_item_attrs($item, 'sf-item sf-item--pricelist') . '>'
          . '<div class="sf-item__body"><h3 class="sf-item__name">' . sf_open_link($item, e($item['name'])) . '</h3>'
-         . ($unit !== '' ? '<p class="sf-item__unit">' . e(ucfirst(trim($unit))) . '</p>' : '') . '</div>'
-         . '<span class="sf-item__price">' . sf_price_html($item, $ctx, false) . '</span>'
-         . '<div class="sf-item__act">'
-         . sf_add_button($item, 'Add to order', 'sf-btn sf-btn--outline sf-btn--sm')
-         . ($item['booking'] ? '' : '<div class="sf-stepper" data-stepper="' . (int)$item['id'] . '" hidden>'
-         . '<button type="button" data-step="-1" aria-label="One fewer ' . e($item['name']) . '">' . sf_icon('minus', 18) . '</button>'
-         . '<output aria-live="polite">0</output>'
-         . '<button type="button" data-step="1" aria-label="One more ' . e($item['name']) . '">' . sf_icon('plus', 18) . '</button>'
-         . '</div>') . '</div>'
+         . ($unit !== '' ? '<p class="sf-item__unit">' . e(ucfirst(trim($unit))) . '</p>' : '') . sf_buy_more($item, $ctx) . '</div>'
+         . '<span class="sf-item__price">' . sf_price_html($item, $ctx, false) . sf_price_move($item) . '</span>'
+         . '<div class="sf-item__act">' . sf_qty_control($item, 'Add to order') . '</div>'
+         . '</div>';
+}
+
+/**
+ * Market's prices for buying more under a product ("5+ ₦9,300 · 20+
+ * ₦9,000 each"), or nothing.
+ */
+function sf_buy_more(array $item, array $ctx): string {
+    if (empty($item['breaks']) || !empty($item['sold_out'])) {
+        return '';
+    }
+    $steps = array_map(fn($b) => '<span>' . (int)$b['from'] . '+ <strong>' . e(sf_money($b['price'], $ctx['currency'])) . '</strong></span>', $item['breaks']);
+    return '<p class="sf-buymore">' . sf_icon('tag', 14) . implode('', $steps) . '<span class="sf-sr"> each</span></p>';
+}
+
+/**
+ * Where Market says a price moved since the shopper last looked (filled
+ * in by storefront.js, "Since your last visit").
+ */
+function sf_price_move(array $item): string {
+    return '<span class="sf-move" data-move="' . (int)$item['id'] . '" hidden></span>';
+}
+
+/**
+ * How Market adds a product: "Add" opens the calculator to type how many,
+ * then a stepper shows how many are in the order, its number a button back
+ * to the calculator. Products with choices open their sheet; booked ones
+ * book (sf_add_button).
+ */
+function sf_qty_control(array $item, string $label): string {
+    if ($item['variants'] || $item['booking'] || !empty($item['sold_out'])) {
+        return $label === '' ? sf_add_button($item, '', 'sf-add sf-add--round') : sf_add_button($item, $label, 'sf-btn sf-btn--outline sf-btn--sm');
+    }
+    $name = e($item['name']);
+    // No label: a round "+", as on the price board
+    $add = $label === ''
+        ? '<button type="button" class="sf-add sf-add--round" data-calc-open="' . (int)$item['id'] . '" aria-label="Add ' . $name . '">' . sf_icon('plus', 20) . '</button>'
+        : '<button type="button" class="sf-btn sf-btn--outline sf-btn--sm" data-calc-open="' . (int)$item['id'] . '">' . sf_icon('plus', 18) . '<span>' . e($label) . '</span></button>';
+    return $add
+         . '<div class="sf-stepper" data-stepper="' . (int)$item['id'] . '" hidden>'
+         . '<button type="button" data-step="-1" aria-label="One fewer ' . $name . '">' . sf_icon('minus', 18) . '</button>'
+         . '<button type="button" class="sf-stepper__qty" data-calc-open="' . (int)$item['id'] . '" aria-label="How many ' . $name . ': type it"><output aria-live="polite">0</output></button>'
+         . '<button type="button" data-step="1" aria-label="One more ' . $name . '">' . sf_icon('plus', 18) . '</button>'
          . '</div>';
 }
 
