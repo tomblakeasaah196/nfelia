@@ -991,8 +991,8 @@
                 var hero = look(state.look).hero;
                 editorEl.appendChild(field('Headline', textInput(s, 'headline', f.headline, D.business.tagline || D.business.name)));
                 editorEl.appendChild(field('A line or two under it', textInput(s, 'text', f.text, 'What you sell, where, and why people come back')));
-                // The price board is the way in; it has no button of its own
-                if (hero !== 'board') {
+                // The price board, Haven's dates and Stage's planner are the way in: no button of their own
+                if (['board', 'stays', 'planner'].indexOf(hero) === -1) {
                     editorEl.appendChild(field('Button', textInput(s, 'button', f.button, labelFor('hero', 'button')), 'It takes people to your products.'));
                 }
                 editorEl.appendChild(field('Sticker', textInput(s, 'badge', f.badge, hero === 'board' ? 'Wholesale prices every day' : hero === 'spotlight' ? 'Tested before you pay' : 'Delivery in 24 hours'),
@@ -1015,6 +1015,14 @@
                 if (look(state.look).hero === 'finder') { editorEl.appendChild(finderField(s)); }
                 if (hero === 'spotlight') {
                     editorEl.appendChild(picks(s, 'picks', 8, 'They stand in the spotlight one at a time, the first when the page opens. We point out what buyers check from each one\'s name, options and description: storage, battery health, UK used. Pick up to 8, in the order you tick them. Leave them all empty and we show the ones with photos first.', 'Devices in the spotlight', function (p) { return !p.service; }));
+                }
+                if (hero === 'stays') {
+                    editorEl.appendChild(picks(s, 'picks', 8, 'Every place you book by the night shows here, and says if it is free for the guest\'s dates. Tick the ones to show first, in the order you tick them.', 'Places, in the order they show', function (p) { return p.mode === 'nights'; }));
+                    editorEl.appendChild(linkHelp('Set each place\'s caution fee and its prices for longer stays in ', 'Products', D.urls.productsList, '. Your house rules and check-in times are in ', 'Booking hours', D.urls.bookings, '.'));
+                }
+                if (hero === 'planner') {
+                    editorEl.appendChild(guestsField(s));
+                    editorEl.appendChild(themesField(s));
                 }
                 break;
             case 'featured':
@@ -1198,6 +1206,10 @@
             ? 'Your price board leads this look, so it shows no photo here. Your products keep their own photos, and these come back if you change look.'
             : lk.hero === 'spotlight'
             ? 'Your devices\' own photos stand in the spotlight. Photos on a plain white background look best. This photo shows until you add a device.'
+            : lk.hero === 'stays'
+            ? 'Your first photo sits behind "When are you coming?". A wide photo of the building or the view looks best. Each place keeps its own photos.'
+            : lk.hero === 'planner'
+            ? 'Up to five photos of events you have done. They run across the page with what your clients said beside them, then your packages\' own photos.'
             : lk.slides > 1
             ? 'Up to five. They fill the first screen and take turns, with your words over them. One photo stays put. Tall photos look best on phones.'
             : 'This look shows your first photo. Atelier shows up to five, in turn. Videos play only on good connections and never with sound.'));
@@ -1436,6 +1448,86 @@
             addRow.appendChild(addBtn);
             box.appendChild(addRow);
         }
+        return box;
+    }
+
+    // A line of help with links in it: text, link label, link url, text, …
+    function linkHelp() {
+        var help = el('p', { class: 'st-help' });
+        for (var i = 0; i < arguments.length; i += 3) {
+            help.appendChild(document.createTextNode(arguments[i]));
+            if (arguments[i + 1]) { help.appendChild(el('a', { href: arguments[i + 2] }, arguments[i + 1])); }
+        }
+        return help;
+    }
+
+    // Stage's planner: how many guests each package holds. Empty is what its
+    // words say ("Up to 80 guests"); a package with neither isn't in the
+    // planner (storefront_plan).
+    function guestsField(s) {
+        var box = el('div', { class: 'st-field st-finder' });
+        box.appendChild(el('span', { class: 'st-label' }, 'Guests each package holds'));
+        box.appendChild(el('span', { class: 'st-field__hint' }, 'Guests say how many are coming, and the package that holds them lights up. We read it from each package\'s words, like "Up to 80 guests". Type a number to change it. Packages you book by the day in Products can be held with a deposit.'));
+        var packs = D.products.filter(function (p) { return p.service || p.mode === 'day'; });
+        if (!packs.length) {
+            var none = el('p', { class: 'st-help' }, 'Add your packages as services in ');
+            none.appendChild(el('a', { href: D.urls.products }, 'Products'));
+            none.appendChild(document.createTextNode(', with how many guests each holds in its description.'));
+            box.appendChild(none);
+            return box;
+        }
+        var list = el('ul', { class: 'st-routine' });
+        packs.forEach(function (p) {
+            var row = s.guests.filter(function (g) { return g.id === p.id; })[0];
+            var li = el('li', { class: 'st-routine__item' });
+            var head = el('div', { class: 'st-routine__head' });
+            if (p.thumb) { head.appendChild(el('img', { src: p.thumb, alt: '', loading: 'lazy' })); } else { head.appendChild(el('span', { class: 'st-pick__ph' })); }
+            var named = el('span', { class: 'st-routine__name' }, p.name);
+            named.appendChild(el('small', {}, row ? 'Your number' : p.guests ? 'From its words: ' + p.guests : 'Not in the planner: no number of guests'));
+            head.appendChild(named);
+            var input = el('input', { type: 'text', inputmode: 'numeric', maxlength: 6, placeholder: p.guests ? String(p.guests) : '—', autocomplete: 'off', 'aria-label': 'Guests ' + p.name + ' holds', class: 'st-guests__n' });
+            input.value = row ? String(row.guests) : '';
+            input.addEventListener('input', function () {
+                var n = parseInt(input.value.replace(/\D/g, ''), 10) || 0;
+                commit(function () {
+                    s.guests = s.guests.filter(function (g) { return g.id !== p.id; });
+                    if (n > 0) { s.guests.push({ id: p.id, guests: Math.min(100000, n) }); }
+                }, { key: 'hero.guests.' + p.id, reload: true, scrollTo: 'sf-hero' });
+            });
+            head.appendChild(input);
+            li.appendChild(head);
+            list.appendChild(li);
+        });
+        box.appendChild(list);
+        return box;
+    }
+
+    // Stage's colour themes: the ones guests pick from (none ticked: all)
+    function themesField(s) {
+        var box = el('div', { class: 'st-field' });
+        box.appendChild(el('span', { class: 'st-label' }, 'Colour themes guests pick from'));
+        box.appendChild(el('span', { class: 'st-field__hint' }, 'A drawing of the hall takes the colours a guest picks, and their pick goes with their plan. Leave them all empty to offer every one.'));
+        var row = el('div', { class: 'st-routine__skins st-themes' });
+        Object.keys(D.themes).forEach(function (key) {
+            var t = D.themes[key];
+            var label = el('label', { class: 'st-minichip' });
+            var input = el('input', { type: 'checkbox', value: key });
+            input.checked = s.themes.indexOf(key) !== -1;
+            input.addEventListener('change', function () {
+                commit(function () {
+                    s.themes = input.checked ? s.themes.concat([key]) : s.themes.filter(function (k) { return k !== key; });
+                }, { reload: true, scrollTo: 'sf-hero' });
+            });
+            label.appendChild(input);
+            var chip = el('span', {});
+            var dots = el('i', { class: 'st-themes__dots', 'aria-hidden': 'true' });
+            dots.style.background = 'linear-gradient(90deg, ' + t.colours[0] + ' 0 33%, ' + t.colours[1] + ' 33% 66%, ' + t.colours[2] + ' 66%)';
+            chip.appendChild(dots);
+            chip.appendChild(document.createTextNode(t.name));
+            label.appendChild(chip);
+            row.appendChild(label);
+        });
+        box.appendChild(row);
         return box;
     }
 

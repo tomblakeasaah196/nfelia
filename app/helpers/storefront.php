@@ -150,7 +150,8 @@ function storefront_looks(): array {
             'colours' => ['ground' => '#0E3B36', 'ink' => '#F3EEE2', 'muted' => '#C9D3CD', 'accent' => '#D4A73C', 'on' => '#0E3B36', 'motif' => '#0E3B36', 'line' => '#2A5A53'],
             'band'    => null,
             'shape'   => ['hero' => '18px', 'tile' => '12px', 'btn' => '999px', 'card' => '22px', 'chip' => '999px', 'field' => '12px'],
-            'hero'    => 'arch',
+            'hero'    => 'planner',
+            'slides'  => 5,
             'items'   => 'package',
             'tiles'   => 'arch',
             'labels'  => ['button' => 'See packages', 'catalogue' => 'Packages', 'quote' => 'Plan your event'],
@@ -183,7 +184,7 @@ function storefront_looks(): array {
             'colours' => ['ground' => '#EEF3F6', 'ink' => '#0F1F2E', 'muted' => '#4A5866', 'accent' => '#0B6E79', 'on' => '#FFFFFF', 'motif' => '#E8D5B5', 'line' => '#D6DEE4', 'surface' => '#DCE6EC', 'card' => '#FFFFFF'],
             'band'    => '#E8D5B5',
             'shape'   => ['hero' => '22px', 'tile' => '12px', 'btn' => '14px', 'card' => '18px', 'chip' => '8px', 'field' => '12px'],
-            'hero'    => 'facade',
+            'hero'    => 'stays',
             'items'   => 'listing',
             'tiles'   => 'rounded',
             'labels'  => ['button' => 'See what we offer', 'catalogue' => 'Listings', 'quote' => 'Ask for a quote'],
@@ -291,6 +292,10 @@ function storefront_section_types(): array {
                 'min_order'  => ['kind' => 'money', 'label' => 'Minimum order'],
                 'free_from'  => ['kind' => 'money', 'label' => 'Free delivery from'],
                 'breaks'     => ['kind' => 'breaks', 'max' => 300, 'label' => 'Prices for buying more'],
+                // Stage's planner: how many guests each package holds (else
+                // read from its words), and the colour themes guests pick from
+                'guests'     => ['kind' => 'guests', 'max' => 50, 'label' => 'Guests each package holds'],
+                'themes'     => ['kind' => 'themes', 'label' => 'Colour themes'],
             ]],
         'featured' => ['name' => 'New in', 'hint' => 'A few products at the top. Pick them, or we show your newest.', 'pin' => null, 'switch' => true, 'on' => true, 'available' => true,
             'fields' => ['title' => ['kind' => 'line', 'max' => 50, 'label' => 'Title'],
@@ -604,6 +609,8 @@ function sf_clean_section(string $type, array $raw, int $business_id): array {
             'routine'  => sf_clean_routine($value, $field['max']),
             'money'    => is_numeric($value) && (float)$value > 0 ? min(1000000000.0, round((float)$value, 2)) : 0.0,
             'breaks'   => sf_clean_breaks($value, $field['max']),
+            'guests'   => sf_clean_guests($value, $field['max']),
+            'themes'   => array_values(array_intersect(array_keys(SF_THEMES), array_unique(array_filter(is_array($value) ? $value : [], 'is_string')))),
             'handle'   => sf_social_handle(is_string($value) ? $value : ''),
             default    => null,
         };
@@ -794,6 +801,25 @@ function sf_clean_routine(mixed $value, int $max): array {
  * "from this many, this much each", in order. A step needs at least two and
  * a price above nothing; one repeating an earlier quantity is dropped.
  */
+/**
+ * Stage's guests per package, as the owner sets them in Studio: [{id,
+ * guests}], each package once, 1 to 100,000 guests.
+ */
+function sf_clean_guests(mixed $value, int $max): array {
+    $rows = [];
+    foreach (is_array($value) ? $value : [] as $one) {
+        $id     = is_array($one) ? filter_var($one['id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) : false;
+        $guests = is_array($one) ? filter_var($one['guests'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 100000]]) : false;
+        if ($id !== false && $guests !== false && !isset($rows[$id])) {
+            $rows[$id] = ['id' => $id, 'guests' => $guests];
+        }
+        if (count($rows) >= $max) {
+            break;
+        }
+    }
+    return array_values($rows);
+}
+
 function sf_clean_breaks(mixed $value, int $max): array {
     $steps = [];
     foreach (is_array($value) ? $value : [] as $one) {
@@ -1166,7 +1192,7 @@ function storefront_catalogue(array $business, array $settings): array {
 
     $stmt = $db->prepare("
         SELECT id, name, description, category, image_path, sell_price, unit, is_service, stock_qty, created_at, updated_at,
-               booking_mode, booking_minutes, booking_capacity, deposit_type, deposit_value
+               booking_mode, booking_minutes, booking_capacity, deposit_type, deposit_value, caution_fee, stay_rates
         FROM products
         WHERE business_id = ? AND deleted_at IS NULL AND is_active = 1
         ORDER BY name ASC
@@ -1372,6 +1398,124 @@ function storefront_featured(array $catalogue, array $section, int $count = 4): 
     $items = $catalogue['items'];
     usort($items, fn($a, $b) => [$b['created_at'], $b['id']] <=> [$a['created_at'], $a['id']]);
     return array_slice($items, 0, $count);
+}
+
+/**
+ * Colour themes for Stage's planner: the main colour (drapes, the arch),
+ * the second (flowers, sashes, the lights) and the light one (cloths). A
+ * guest picks one and the drawing of the hall takes its colours.
+ */
+const SF_THEMES = [
+    'gold-emerald'    => ['name' => 'Gold and emerald',    'colours' => ['#0E5A43', '#D4A73C', '#F6F1E4']],
+    'white-silver'    => ['name' => 'White and silver',    'colours' => ['#E9EAEC', '#9AA3AD', '#FFFFFF']],
+    'blush-gold'      => ['name' => 'Blush and gold',      'colours' => ['#E7B3B9', '#C99A2E', '#FFF6F2']],
+    'royal-gold'      => ['name' => 'Royal blue and gold', 'colours' => ['#1D3F91', '#D4A73C', '#F5F1E6']],
+    'wine-champagne'  => ['name' => 'Wine and champagne',  'colours' => ['#6E1E3A', '#E4CFA3', '#FBF6EE']],
+    'black-gold'      => ['name' => 'Black and gold',      'colours' => ['#1A1A1A', '#D4A73C', '#F5EFE1']],
+    'orange-green'    => ['name' => 'Orange and green',    'colours' => ['#E2621B', '#2F7D3A', '#FFF4E6']],
+    'lilac-silver'    => ['name' => 'Lilac and silver',    'colours' => ['#9B7CC4', '#B9C0C8', '#FAF7FD']],
+];
+
+/**
+ * How many guests an event package holds, from the owner's number in Studio
+ * or their words ("Up to 80 guests", "for 250 people", "500 guests and
+ * more", "500+ guests"), and what an extra covers ("For 50 guests").
+ *   ['guests' => 80 or null, 'open' => true when it is "and more"]
+ */
+function sf_event_guests(array $item, ?int $own = null): array {
+    if ($own) {
+        return ['guests' => $own, 'open' => false];
+    }
+    $text = $item['name'] . ' ' . $item['description'];
+    $num  = '(\d{1,3}(?:,\d{3})+|\d{1,6})';
+    $who  = '(?:guests?|people|persons|pax|attendees)';
+    if (preg_match('/' . $num . '\s*(?:\+\s*' . $who . '|' . $who . '\s*(?:and|or)\s*(?:more|above|over)|\s*' . $who . '\s*plus)/i', $text, $m)) {
+        return ['guests' => (int)str_replace(',', '', $m[1]), 'open' => true];
+    }
+    if (preg_match('/(?:up\s*to|max(?:imum)?(?:\s*of)?|holds?|seats?|for)\s*' . $num . '\s*' . $who . '\b/i', $text, $m)
+        || preg_match('/\b' . $num . '\s*' . $who . '\b/i', $text, $m)) {
+        return ['guests' => (int)str_replace(',', '', $m[1]), 'open' => false];
+    }
+    return ['guests' => null, 'open' => false];
+}
+
+/**
+ * What Stage's planner works with: its packages (services, or whole days
+ * people book, that say how many guests they hold), smallest first, and its
+ * extras (things bought, each maybe "for 50 guests", so the planner suggests
+ * enough for everyone).
+ *   ['packages' => [item + guests, open], 'extras' => [item + per]]
+ */
+function storefront_plan(array $catalogue, array $hero): array {
+    $own = array_column($hero['guests'] ?? [], 'guests', 'id');
+    $packages = [];
+    $extras   = [];
+    foreach ($catalogue['items'] as $item) {
+        if (!empty($item['sold_out']) || ($item['booking'] && $item['booking']['mode'] !== 'day')) {
+            continue;
+        }
+        $g = sf_event_guests($item, $own[$item['id']] ?? null);
+        if (($item['is_service'] || $item['booking']) && $g['guests']) {
+            $packages[] = $item + $g;
+        } elseif (!$item['is_service'] && !$item['booking'] && $item['price'] > 0) {
+            $extras[] = $item + ['per' => $g['guests']];
+        }
+    }
+    usort($packages, fn($a, $b) => [$a['guests'], $a['open']] <=> [$b['guests'], $b['open']]);
+    return ['packages' => $packages, 'extras' => array_slice($extras, 0, 8)];
+}
+
+/**
+ * What Haven's first screen lists: places booked by the night that aren't
+ * sold out, the owner's picks first in their order (storefront_hero_picks),
+ * then the rest with a photo first, newest first.
+ */
+function storefront_stays(array $catalogue, array $hero): array {
+    $stays = ['items' => array_values(array_filter($catalogue['items'], fn($i) => ($i['booking']['mode'] ?? '') === 'nights' && empty($i['sold_out'])))];
+    $picked = storefront_hero_picks($stays, $hero, 50);
+    $ids = array_column($picked, 'id');
+    return array_merge($picked, array_values(array_filter($stays['items'], fn($i) => !in_array($i['id'], $ids, true))));
+}
+
+/**
+ * Amenities a guest asks about, by what owners write for them, with power
+ * first: in Nigeria the first question is whether the light stays on.
+ */
+const SF_AMENITIES = [
+    'power'    => ['label' => '24-hour power', 'icon' => 'bolt',  'words' => '/24\s*(?:-|\/|\s)?\s*(?:hours?|hrs?|7)\s*(?:power|light|electricity|supply)|\b(?:inverter|solar|generator|gen(?:erator)? backup)\b|(?:steady|constant|uninterrupted|stable)\s+(?:power|light|electricity)/i'],
+    'wifi'     => ['label' => 'Wi-Fi',         'icon' => 'wifi',  'words' => '/\bwi-?fi\b|\binternet\b|\bstarlink\b|\bbroadband\b/i'],
+    'ac'       => ['label' => 'Air conditioning', 'icon' => 'snow', 'words' => '/\ba\.?c\b|air[\s-]?condition/i'],
+    'pool'     => ['label' => 'Pool',          'icon' => 'waves', 'words' => '/\b(?:swimming\s+)?pool\b/i'],
+    'parking'  => ['label' => 'Parking',       'icon' => 'car',   'words' => '/\bparking\b|\bcar\s*park\b/i'],
+    'security' => ['label' => '24-hour security', 'icon' => 'lock', 'words' => '/\bsecurity\b|\bgated\b|\bcctv\b|\bguards?\b/i'],
+    'kitchen'  => ['label' => 'Kitchen',       'icon' => 'pot',   'words' => '/\bkitchen(?:ette)?\b/i'],
+    'tv'       => ['label' => 'Smart TV',      'icon' => 'tv',    'words' => '/\bsmart\s*tv\b|\bnetflix\b|\bdstv\b|\btv\b/i'],
+];
+
+/**
+ * What a guest checks first about a place, from what the owner already
+ * writes: how many it sleeps ("sleeps 4", "4 guests") and its amenities,
+ * from an options group named like Amenities or Features, else from its
+ * description. Power first.
+ *   ['sleeps' => 4 or null, 'amenities' => [['key' => 'power', 'label' => '24-hour power', 'icon' => 'bolt'], …]]
+ */
+function sf_stay_facts(array $item): array {
+    $text = $item['name'] . "\n" . $item['description'];
+    $sleeps = preg_match('/\bsleeps\s*(?:up\s*to\s*)?(\d{1,2})\b|\b(\d{1,2})\s*(?:guests|people|persons)\b/i', $text, $m) ? (int)($m[1] ?: $m[2]) : null;
+    $named = [];
+    foreach ($item['variants'] as $group) {
+        if (preg_match('/amenit|feature|facilit|included|comes with|perks/i', $group['name'])) {
+            $named = array_merge($named, $group['options']);
+        }
+    }
+    $haystack = $named ? implode("\n", $named) : $text;
+    $found = [];
+    foreach (SF_AMENITIES as $key => $amenity) {
+        if (preg_match($amenity['words'], $haystack)) {
+            $found[] = ['key' => $key, 'label' => $amenity['label'], 'icon' => $amenity['icon']];
+        }
+    }
+    return ['sleeps' => $sleeps > 0 ? $sleeps : null, 'amenities' => $found];
 }
 
 /**
@@ -1840,6 +1984,20 @@ function sf_icon(string $name, int $size = 20, string $class = ''): string {
         'spots'     => '<circle cx="12" cy="12" r="8.5"/><circle cx="9" cy="10" r="1.3" fill="currentColor"/><circle cx="14.5" cy="9" r="0.9" fill="currentColor"/><circle cx="13.5" cy="14.5" r="1.6" fill="currentColor"/>',
         'sun'       => '<circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4"/>',
         'flame'     => '<path d="M12 21a6 6 0 0 0 6-6c0-4-3-6-4-10-2 2-3 4-3 6-1-1-2-2-2-3.5C7 10 6 12.5 6 15a6 6 0 0 0 6 6z"/>',
+        // Haven's amenities and Stage's planner
+        'bolt'      => '<path d="M13 3L5 13.5h6L10 21l8-10.5h-6L13 3z"/>',
+        'wifi'      => '<path d="M3 9a13 13 0 0 1 18 0M6 12.5a8.5 8.5 0 0 1 12 0M9 16a4 4 0 0 1 6 0"/><circle cx="12" cy="19" r="0.6"/>',
+        'waves'     => '<path d="M3 15c1.5 0 1.5-1.5 3-1.5s1.5 1.5 3 1.5 1.5-1.5 3-1.5 1.5 1.5 3 1.5 1.5-1.5 3-1.5 1.5 1.5 3 1.5M3 19c1.5 0 1.5-1.5 3-1.5s1.5 1.5 3 1.5 1.5-1.5 3-1.5 1.5 1.5 3 1.5 1.5-1.5 3-1.5 1.5 1.5 3 1.5M8 12V5.5a2 2 0 0 1 4 0M15 12V5.5"/>',
+        'car'       => '<path d="M5 16.5V12l1.8-4.5A2 2 0 0 1 8.7 6h6.6a2 2 0 0 1 1.9 1.5L19 12v4.5"/><path d="M4 12h16v4.5H4zM7 16.5V19M17 16.5V19"/><circle cx="7.5" cy="14.2" r="0.6"/><circle cx="16.5" cy="14.2" r="0.6"/>',
+        'snow'      => '<path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9M9.5 4.5L12 6.5l2.5-2M9.5 19.5L12 17.5l2.5 2"/>',
+        'people'    => '<circle cx="9" cy="8" r="3.2"/><path d="M3.5 19.5a5.5 5.5 0 0 1 11 0M15.5 5.2a3 3 0 0 1 0 5.6M17.5 14.2a5.5 5.5 0 0 1 3 5.3"/>',
+        'bed'       => '<path d="M3 18.5V6M3 14h18v4.5M21 14v-2.5a3 3 0 0 0-3-3h-7V14"/><circle cx="7" cy="11" r="1.8"/>',
+        'moon'      => '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>',
+        'lock'      => '<rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3"/>',
+        'tv'        => '<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8M12 17v4"/>',
+        'pot'       => '<path d="M4 10h16v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5v-5zM2 10h20M9 6.5c0-1 1-1.5 1-2.5M14 6.5c0-1 1-1.5 1-2.5"/>',
+        'palette'   => '<path d="M12 3a9 9 0 1 0 0 18c1.2 0 1.8-.8 1.8-1.7 0-1.2-1-1.5-1-2.6 0-1 .8-1.7 1.8-1.7H17a4 4 0 0 0 4-4C21 6.6 17 3 12 3z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10" cy="7" r="1"/><circle cx="14.5" cy="7" r="1"/>',
+        'quote'     => '<path d="M5 18c2.5-1 3.5-3 3.5-6.5V7H4v5h3M14 18c2.5-1 3.5-3 3.5-6.5V7H13v5h3"/>',
     ];
     return '<svg width="' . $size . '" height="' . $size . '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"'
          . ($class !== '' ? ' class="' . e($class) . '"' : '') . '>' . ($paths[$name] ?? '') . '</svg>';

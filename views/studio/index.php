@@ -56,7 +56,9 @@ $product_list = [];
 foreach ($products as $p) {
     $thumb = $p['image_path'] && sf_image_size((string)$p['image_path']) ? sf_media_url((string)$p['image_path']) : '';
     $product_list[] = ['id' => (int)$p['id'], 'name' => $p['name'], 'price' => sf_money((float)$p['sell_price'], $currency), 'amount' => (float)$p['sell_price'],
-                       'service' => (bool)$p['is_service'], 'thumb' => $thumb];
+                       'service' => (bool)$p['is_service'], 'thumb' => $thumb, 'mode' => (string)($p['booking_mode'] ?? 'none'),
+                       // Stage's planner: how many guests its words say it holds
+                       'guests' => sf_event_guests(['name' => (string)$p['name'], 'description' => (string)($p['description'] ?? '')])['guests']];
 }
 // Shea's skin finder: the skin types it offers until the owner sets their
 // own, the steps, and our guess at each product's step (storefront_routines)
@@ -92,6 +94,7 @@ $studio = [
         'preview'    => APP_URL . '/landing-page/preview',
         'check'      => APP_URL . '/shop-setup/check',
         'products'   => APP_URL . '/products/create',
+        'productsList' => APP_URL . '/products',
         'settings'   => APP_URL . '/settings?tab=business',
         'payments'   => APP_URL . '/settings?tab=business#payments',
         'bookings'   => APP_URL . '/bookings/settings',
@@ -116,6 +119,7 @@ $studio = [
     'types'       => $types,
     'products'    => $product_list,
     'finder'      => $finder,
+    'themes'      => array_map(fn($t) => ['name' => $t['name'], 'colours' => $t['colours']], SF_THEMES),
     'business'    => ['name' => (string)$business['name'], 'logo' => $logo_url, 'currency' => $currency,
                       'tagline' => (string)($business['tagline'] ?? ''), 'base' => shop_base_host(),
                       'address' => (string)($business['address'] ?? ''), 'owner' => is_owner()],

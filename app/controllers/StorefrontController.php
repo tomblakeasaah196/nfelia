@@ -151,6 +151,14 @@ class StorefrontController extends PublicController
             return;
         }
 
+        if ($path === 'stays/free' && in_array($method, ['GET', 'HEAD'], true)) {
+            if ($visibility === 'closed') {
+                json_response(['error' => 'This shop is closed for now, so it can\'t take bookings. You can still reach it on WhatsApp.'], 403);
+            }
+            $this->stays_free($business);
+            return;
+        }
+
         if (in_array($path, ['checkout', 'quote-request'], true) && $method === 'POST') {
             if ($visibility === 'closed') {
                 json_response(['error' => 'This shop is closed for now, so it can\'t take orders. You can still reach it on WhatsApp.'], 403);
@@ -469,6 +477,63 @@ class StorefrontController extends PublicController
     }
 
     /**
+     * Haven's first screen asks which places are free (/stays/free, JSON,
+     * never cached: it changes with every booking):
+     *   ?month=2026-11                    each date's number of places free
+     *                                     that night (-1: none can be booked)
+     *   ?checkin=2026-11-02&checkout=…    each place: free or why not, and
+     *                                     for those free, what the stay costs
+     *                                     (booking_night_price, the deposit,
+     *                                     the caution fee), as place_booking
+     *                                     would charge it
+     */
+    private function stays_free(array $business): void
+    {
+        header('Cache-Control: no-store');
+        $settings  = storefront_settings($business, 'published');
+        $catalogue = storefront_catalogue($business, $settings);
+        $stays     = array_values(array_filter($catalogue['items'], fn($i) => ($i['booking']['mode'] ?? '') === 'nights' && empty($i['sold_out'])));
+        $month = (string)($_GET['month'] ?? '');
+        if (preg_match('/^\d{4}-\d{2}$/', $month)) {
+            $days = [];
+            foreach ($stays as $item) {
+                foreach (booking_month($this->db, $business, $item, $item['booking'], $month) as $d => $state) {
+                    $days[$d] = max($days[$d] ?? -1, 0) + ($state === 'open' ? 1 : 0);
+                    if ($state === 'closed' && ($days[$d] ?? 0) === 0) {
+                        $days[$d] = -1;
+                    }
+                }
+            }
+            json_response(['month' => $month, 'days' => (object)$days]);
+        }
+        $in  = (string)($_GET['checkin'] ?? '');
+        $out = (string)($_GET['checkout'] ?? '');
+        if (!booking_valid_date($in) || !booking_valid_date($out)) {
+            json_response(['error' => 'Ask for a month (month=2026-11) or a stay (checkin=2026-11-02&checkout=2026-11-05).'], 422);
+        }
+        $answer = [];
+        foreach ($stays as $item) {
+            $info = $item['booking'];
+            // Taken, or dates no place can be booked for (too far ahead, too long)
+            if ($out > $in && booking_taken_nights($this->db, (int)$item['id'], $in, planner_add_days($out, -1))) {
+                $answer[] = ['id' => $item['id'], 'free' => false, 'why' => 'taken'];
+                continue;
+            }
+            $check = booking_check($this->db, $business, $item, $info, ['checkin' => $in, 'checkout' => $out]);
+            if (!$check['ok']) {
+                $answer[] = ['id' => $item['id'], 'free' => false, 'why' => 'dates', 'error' => $check['error']];
+                continue;
+            }
+            $nights = (int)$check['units'];
+            $each   = booking_night_price($info, (float)$item['price'], $nights);
+            $total  = round($each * $nights, 2);
+            $answer[] = ['id' => $item['id'], 'free' => true, 'nights' => $nights, 'each' => $each, 'total' => $total,
+                         'deposit' => booking_deposit($info, $total), 'caution' => $info['caution']];
+        }
+        json_response(['checkin' => $in, 'checkout' => $out, 'stays' => $answer]);
+    }
+
+    /**
      * A booking request: the time is checked again while the shop's other
      * bookings wait (a lock on the shop), then held as 'pending' until the
      * owner confirms it. Prices come from the products table, never from the
@@ -526,8 +591,11 @@ class StorefrontController extends PublicController
                 $drop_proof();
                 json_response(['error' => $slot['error']], 409);
             }
-            $total   = round($item['price'] * $slot['units'], 2);
+            // A longer stay may pay less a night; the caution fee is paid with the booking, refundable
+            $unit    = booking_night_price($info, (float)$item['price'], (int)$slot['units']);
+            $total   = round($unit * $slot['units'], 2);
             $deposit = booking_deposit($info, $total);
+            $caution = $info['caution'];
 
             // ADA-BKG-008, carrying on from the old BKG-0007 numbers
             $number = generate_doc_number($this->db, (int)$bid, 'BKG');
@@ -538,11 +606,11 @@ class StorefrontController extends PublicController
 
             $this->db->prepare("
                 INSERT INTO bookings (business_id, product_id, product_name, booking_number, public_token, kind, starts_at, ends_at, units,
-                                      unit_price, total, deposit_due, currency_code, customer_id, customer_name, customer_phone,
+                                      unit_price, total, deposit_due, caution_fee, currency_code, customer_id, customer_name, customer_phone,
                                       customer_email, customer_note, channel, payment_method, payment_proof_path)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ")->execute([$bid, $item['id'], mb_substr($item['name'], 0, 150), $number, $token, $info['mode'], $slot['starts_at'], $slot['ends_at'],
-                         $slot['units'], $item['price'], $total, $deposit, business_currency_code($business), $customer_id, $name, $phone,
+                         $slot['units'], $unit, $total, $deposit, $caution, business_currency_code($business), $customer_id, $name, $phone,
                          $email ?: null, $note ?: null, $channel, $method, $proof]);
             $booking_id = (int)$this->db->lastInsertId();
             $this->db->commit();
@@ -561,18 +629,19 @@ class StorefrontController extends PublicController
         $url  = booking_url($business, $booking);
         notify('booking.new', $bid, [
             'booking_id' => $booking_id, 'booking_number' => $number, 'item' => $item['name'], 'when' => $when,
-            'customer' => $name, 'phone' => $phone, 'deposit' => (float)$deposit,
+            'customer' => $name, 'phone' => $phone, 'deposit' => (float)$deposit, 'caution' => (float)$caution,
         ], ['business' => $business, 'dedupe' => (string)$booking_id]);
         if ($email !== '' && $url) {
             $symbol = (string)($business['currency_symbol'] ?? '');
             $vars = ['state' => 'received', 'first_name' => mail_first_name($name), 'shop_name' => (string)$business['name'],
                      'booking_number' => $number, 'service' => $item['name'], 'when' => $when, 'booking_url' => $url,
-                     'total' => sf_money($total, $symbol), 'deposit' => $deposit > 0 ? sf_money($deposit, $symbol) : '', 'message' => ''];
+                     'total' => sf_money($total, $symbol), 'deposit' => $deposit > 0 ? sf_money($deposit, $symbol) : '',
+                     'caution' => $caution > 0 ? sf_money($caution, $symbol) : '', 'message' => ''];
             notify_email($bid, $email, $name, 'Your booking ' . $number . ' with ' . $business['name'], 'booking_update', $vars,
                          'booking:' . $booking_id . ':received', 'shopper.booking');
         }
         json_response(['success' => true, 'booking_number' => $number, 'booking_url' => $url, 'when' => $when,
-                       'total' => $total, 'deposit' => $deposit, 'channel' => $channel]);
+                       'total' => $total, 'deposit' => $deposit, 'caution' => $caution, 'channel' => $channel]);
     }
 
     private function booking_banks(int $business_id): array

@@ -9,6 +9,10 @@ $status   = $booking['status'];
 $first    = planner_first_name($booking['customer_name']);
 $when     = booking_when($booking);
 $balance  = max(0, (float)$booking['total'] - (float)$booking['deposit_due']);
+// A stay's refundable caution fee: give it back once the stay is over, or if it didn't go ahead
+$caution     = (float)($booking['caution_fee'] ?? 0);
+$caution_due = $caution > 0 && !$booking['caution_refunded_at']
+    && (in_array($status, ['declined', 'cancelled'], true) || (in_array($status, ['confirmed', 'completed'], true) && strtotime((string)$booking['ends_at']) <= time()));
 $wa_text  = match ($status) {
     'confirmed' => 'Hello ' . $first . ', your booking ' . $booking['booking_number'] . ' for ' . $when . ' is confirmed. See you then.',
     'declined'  => 'Hello ' . $first . ', I\'m sorry, I can\'t take your booking ' . $booking['booking_number'] . ' for ' . $when . '.',
@@ -40,6 +44,9 @@ $labels = ['pending' => 'To confirm', 'confirmed' => 'Confirmed', 'declined' => 
                 <dt class="text-brand-plum/50">Deposit receipt</dt><dd class="text-right"><a href="<?= APP_URL ?>/receipts/view/<?= (int)$deposit_receipt['id'] ?>" class="font-bold text-brand-plum underline"><?= e($deposit_receipt['doc_number']) ?></a></dd>
                 <?php endif; ?>
                 <dt class="text-brand-plum/50">To pay on the day</dt><dd class="font-bold text-brand-plum text-right"><?= e(sf_money($balance, $currency)) ?></dd>
+                <?php if ($caution > 0): ?>
+                <dt class="text-brand-plum/50">Caution fee</dt><dd class="font-bold text-brand-plum text-right"><?= e(sf_money($caution, $currency)) ?><span class="block text-xs font-normal text-brand-plum/50"><?= $booking['caution_refunded_at'] ? 'Given back ' . e(date('j M', strtotime((string)$booking['caution_refunded_at']))) : 'Refundable, paid with the booking' ?></span></dd>
+                <?php endif; ?>
                 <dt class="text-brand-plum/50">How they paid</dt><dd class="text-brand-plum text-right"><?= $booking['channel'] === 'whatsapp' ? 'Arranging on WhatsApp' : ($booking['payment_method'] === 'bank_transfer' ? 'Bank transfer' : 'To arrange') ?></dd>
             </dl>
             <?php if ($booking['customer_note']): ?>
@@ -60,6 +67,19 @@ $labels = ['pending' => 'To confirm', 'confirmed' => 'Confirmed', 'declined' => 
         </div>
         <?php endif; ?>
 
+        <?php if ($caution_due): ?>
+        <div class="bg-brand-white border border-brand-sand rounded-xl p-5 shadow-sm space-y-3">
+            <p class="text-sm font-bold text-brand-plum">Give back the <?= e(sf_money($caution, $currency)) ?> caution fee</p>
+            <p class="text-sm text-brand-plum/70"><?= in_array($status, ['declined', 'cancelled'], true)
+                ? 'This stay isn\'t going ahead. If ' . e($first) . ' paid the caution fee, send it back, then mark it here.'
+                : e($first) . ' has checked out. Once you have checked the place, send the caution fee back and mark it here: we tell them.' ?></p>
+            <form method="POST" action="<?= APP_URL ?>/bookings/caution/<?= (int)$booking['id'] ?>">
+                <?= csrf_field() ?>
+                <button type="submit" class="w-full h-12 btn-primary text-white text-sm font-bold rounded-xl">I've given it back</button>
+            </form>
+        </div>
+        <?php endif; ?>
+
         <?php if ($status === 'pending'): ?>
         <div class="bg-brand-white border border-brand-sand rounded-xl p-5 shadow-sm space-y-4">
             <form method="POST" action="<?= APP_URL ?>/bookings/confirm/<?= (int)$booking['id'] ?>" class="space-y-3">
@@ -69,6 +89,9 @@ $labels = ['pending' => 'To confirm', 'confirmed' => 'Confirmed', 'declined' => 
                     <input type="checkbox" name="deposit_received" value="1" class="mt-0.5 w-5 h-5 rounded border-brand-sand" <?= $booking['payment_proof_path'] ? 'checked' : '' ?>>
                     <span>I have the <?= e(sf_money((float)$booking['deposit_due'], $currency)) ?> deposit <span class="block text-xs text-brand-plum/50">We make a receipt for it, so it shows in your money in.</span></span>
                 </label>
+                <?php endif; ?>
+                <?php if ($caution > 0): ?>
+                <p class="text-xs text-brand-plum/50">The <?= e(sf_money($caution, $currency)) ?> caution fee isn't income: it stays out of your money in, and we remind you to give it back after check-out.</p>
                 <?php endif; ?>
                 <button type="submit" class="w-full h-12 btn-primary text-white text-sm font-bold rounded-xl">Confirm and add to my calendar</button>
             </form>

@@ -85,6 +85,10 @@ $p_minutes  = (int)($product['booking_minutes'] ?? 60) ?: 60;
 $p_capacity = max(1, (int)($product['booking_capacity'] ?? 1));
 $p_dep_type = in_array($product['deposit_type'] ?? 'none', ['none', 'percent', 'fixed'], true) ? ($product['deposit_type'] ?? 'none') : 'none';
 $p_dep_val  = $product['deposit_value'] ?? '';
+// Stays: a refundable caution fee, and cheaper prices for longer stays as typed
+$p_caution  = isset($product['caution_fee']) && (float)$product['caution_fee'] > 0 ? (string)(float)$product['caution_fee'] : '';
+$p_rates    = array_map(fn($r) => ['from' => (string)$r[0], 'price' => (string)(float)$r[1]],
+                        booking_clean_rates($product['stay_rates'] ?? null, 0.0, false));
 
 $name_hint = $biz_cat === 'beauty' ? 'e.g. Body wave bundle, 18 inches' : 'e.g. Ankara fabric, phone repair, jollof rice';
 // Empty stays empty (not 0), so "leave it empty" reads true
@@ -319,7 +323,30 @@ $js_price  = fn($v) => ($v === '' || $v === null) ? "''" : (string)(float)$v;
             <label x-show="mode === 'day'">Bookings you can take a day
                 <input type="number" name="booking_capacity" min="1" max="20" inputmode="numeric" value="<?= $p_capacity ?>">
             </label>
-            <p class="nf-help" x-show="mode === 'nights'">The price is per night. Check-in and check-out times are in Booking hours.</p>
+            <p class="nf-help" x-show="mode === 'nights'">The price is per night. Check-in and check-out times, and your house rules, are in Booking hours.</p>
+            <div class="nf-sub-q" x-show="mode === 'nights'" x-cloak
+                 x-data="{ rates: <?= e(json_encode($p_rates ?: [['from' => '', 'price' => '']])) ?> }">
+                <label>Caution fee <small>Refundable</small>
+                    <span class="nf-amount"><span><?= e($currency) ?></span><input type="number" name="caution_fee" min="0" step="0.01" inputmode="decimal" value="<?= e($p_caution) ?>" placeholder="0"></span>
+                </label>
+                <p class="nf-help">Guests pay it with the booking, and you give it back after they check out: we remind you. It isn't part of the stay's price, so it stays out of your money in.</p>
+                <p class="nf-q">Cheaper for longer stays</p>
+                <template x-for="(rate, i) in rates" :key="i">
+                    <div class="nf-sub-q">
+                        <div class="nf-two">
+                            <label>From how many nights
+                                <input type="number" name="stay_from[]" min="2" max="<?= BOOKING_MAX_NIGHTS ?>" inputmode="numeric" x-model="rate.from" placeholder="7">
+                            </label>
+                            <label>Price a night
+                                <span class="nf-amount"><span><?= e($currency) ?></span><input type="number" name="stay_price[]" min="0" step="0.01" inputmode="decimal" x-model="rate.price" placeholder="75000"></span>
+                            </label>
+                        </div>
+                        <p class="nf-q" x-show="rate.price !== '' && sellPrice > 0 && +rate.price >= sellPrice" x-cloak><span class="is-owed">Make it less than the nightly price, or guests won't see it.</span></p>
+                    </div>
+                </template>
+                <button type="button" class="nf-add" x-show="rates.length < 3" @click="rates.push({ from: '', price: '' })"><?= nav_icon('plus') ?><span>Add a price for longer stays</span></button>
+                <p class="nf-help">For example 7 nights or more at <?= e($currency) ?>75,000 a night. A stay pays the cheapest price it reaches. Leave a row empty to take it off.</p>
+            </div>
             <div class="nf-if-deposit">
                 <label>Deposit to book
                     <select name="deposit_type" x-model="deposit">

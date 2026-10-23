@@ -70,6 +70,12 @@ $input  = 'h-11 px-3 rounded-lg border border-brand-sand bg-white text-sm';
             <span class="block text-sm font-semibold text-brand-plum mb-1">Check-out by</span>
             <input type="time" name="checkout" value="<?= e($settings['checkout']) ?>" class="<?= $input ?> w-full">
         </label>
+        <label class="block sm:col-span-2">
+            <span class="block text-sm font-semibold text-brand-plum mb-1">House rules</span>
+            <textarea name="rules" rows="4" maxlength="1200" placeholder="No parties or events&#10;No smoking indoors&#10;Check-in with a photo ID"
+                      class="px-3 py-2 rounded-lg border border-brand-sand bg-white text-sm w-full resize-y leading-relaxed"><?= e(implode("\n", $settings['rules'])) ?></textarea>
+            <span class="block text-xs text-brand-plum/50 mt-1">For stays: a line each, up to 8. Guests see them with your check-in times before they pay, and on your shop.</span>
+        </label>
     </div>
 
     <button type="submit" class="h-12 px-6 btn-primary text-white text-sm font-bold rounded-xl">Save booking hours</button>

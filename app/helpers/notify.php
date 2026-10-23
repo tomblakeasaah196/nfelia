@@ -187,6 +187,18 @@ function notify_events(): array
                                       'Phone' => $d['phone'] ?? '', 'Deposit' => $m && (float)($d['deposit'] ?? 0) > 0 ? $m($d['deposit']) : ''],
             'button' => 'Open the booking',
         ],
+        // A stay is over and its refundable caution fee is still the guest's (cron/planner.php)
+        'booking.caution' => [
+            'topic' => 'bookings', 'to' => 'boss',
+            'url' => fn($d) => 'bookings/view/' . (int)$d['booking_id'],
+            'tag' => fn($d) => 'booking-' . (int)$d['booking_id'],
+            'text' => fn($d, $m) => [
+                'Give back a caution fee' . ($m ? ': ' . $m($d['caution']) : ''),
+                $d['customer'] . ' checked out of ' . $d['item'] . '. Once you have checked the place, give it back and mark it on the booking. · ' . $d['booking_number'],
+            ],
+            'private' => 'A caution fee to give back',
+            'button' => 'Open the booking',
+        ],
 
         /* ── Customers acting on what you sent ────────────────── */
         // A signed quote becomes its order (order_from_quote()): that is where to go next

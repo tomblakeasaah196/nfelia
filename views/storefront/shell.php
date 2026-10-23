@@ -377,6 +377,8 @@ if ($kind === 'book') {
         'minutes'  => $book_info['minutes'],
         'price'    => $page['item']['price'],
         'deposit'  => ['type' => $book_info['deposit_type'], 'value' => $book_info['deposit_value']],
+        'caution'  => $book_info['caution'],    // a stay's refundable caution fee, paid with the booking
+        'rates'    => $book_info['rates'],      // cheaper for longer stays: [[from nights, price a night], …]
         'first'    => $page['window'][0],
         'last'     => $page['window'][1],
         'urls'     => ['free' => '/book/' . $page['item']['id'] . '/free', 'submit' => '/book/' . $page['item']['id']],

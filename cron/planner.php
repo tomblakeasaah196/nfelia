@@ -24,6 +24,10 @@
  *    expiry date, so it stops counting as waiting on an answer, and the
  *    owner hears about it.
  *
+ * 4b. Stays that are over with a refundable caution fee still to give
+ *    back, from 09:00: the owner hears once (the booking keeps saying so
+ *    until they mark it given back).
+ *
  * 5. Invoices past their due date, from 08:00: marked overdue, and the
  *    owner hears once a week while they stay unpaid (for eight weeks).
  *
@@ -94,7 +98,7 @@ $now   = planner_now();
 $now_s = $now->format('Y-m-d H:i:s');
 $today = $now->format('Y-m-d');
 $done  = ['reminders' => 0, 'stale' => 0, 'skipped' => 0, 'mornings' => 0, 'quiet' => 0, 'low_stock' => 0,
-          'quotes_expired' => 0, 'overdue_notes' => 0, 'errors' => 0];
+          'quotes_expired' => 0, 'cautions' => 0, 'overdue_notes' => 0, 'errors' => 0];
 
 /** A business that can use the app right now (with its subscription), or null. */
 function planner_cron_business(PDO $db, int $id, DateTimeImmutable $now): ?array {
@@ -296,6 +300,33 @@ try {
 } catch (Throwable $e) {
     $done['errors']++;
     errors_report_throwable($e, ['job' => 'Cron: quote expiry']);
+}
+
+/* ── 4b. Caution fees to give back ─────────────────────────── */
+
+// Stays that ended in the last fortnight, once each (dedupe): older ones
+// were heard about already, or came before caution fees.
+if ((int)$now->format('G') >= 9) {
+    try {
+        $cautions = $db->prepare("
+            SELECT id, business_id, booking_number, product_name, customer_name, caution_fee
+            FROM bookings
+            WHERE caution_fee > 0 AND caution_refunded_at IS NULL AND status IN ('confirmed', 'completed')
+              AND ends_at <= ? AND ends_at > ? - INTERVAL 14 DAY
+            LIMIT 500");
+        $cautions->execute([$now_s, $now_s]);
+        foreach ($cautions->fetchAll() as $c) {
+            if (!planner_cron_business($db, (int)$c['business_id'], $now)) continue;
+            $made = notify('booking.caution', (int)$c['business_id'], [
+                'booking_id' => (int)$c['id'], 'booking_number' => $c['booking_number'], 'item' => $c['product_name'],
+                'customer' => $c['customer_name'], 'caution' => (float)$c['caution_fee'],
+            ], ['dedupe' => (string)$c['id']]);
+            $done['cautions'] += (int)(bool)$made;
+        }
+    } catch (Throwable $e) {
+        $done['errors']++;
+        errors_report_throwable($e, ['job' => 'Cron: caution fees']);
+    }
 }
 
 /* ── 5. Invoices past their due date ───────────────────────── */

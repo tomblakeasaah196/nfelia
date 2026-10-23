@@ -225,6 +225,33 @@ class BookingController
     }
 
     /**
+     * A stay's caution fee given back: once the stay is over, or when the
+     * booking didn't go ahead. Tells the guest, and the reminders stop. It
+     * was never income, so nothing changes in the books.
+     */
+    public function caution($id = null)
+    {
+        $booking = $this->posted($id, ['confirmed', 'completed', 'declined', 'cancelled']);
+        if ((float)$booking['caution_fee'] <= 0) {
+            redirect('bookings/view/' . (int)$booking['id']);
+        }
+        if (in_array($booking['status'], ['confirmed', 'completed'], true) && strtotime((string)$booking['ends_at']) > time()) {
+            flash('error', 'Give the caution fee back once they have checked out and you have checked the place.');
+            redirect('bookings/view/' . (int)$booking['id']);
+        }
+        $stmt = $this->db->prepare("UPDATE bookings SET caution_refunded_at = NOW() WHERE id = ? AND business_id = ? AND caution_refunded_at IS NULL");
+        $stmt->execute([(int)$booking['id'], $this->biz_id]);
+        if ($stmt->rowCount() !== 1) {
+            flash('error', 'That caution fee is already marked as given back.');
+            redirect('bookings/view/' . (int)$booking['id']);
+        }
+        $this->tell_shopper($booking, 'caution_refunded', '');
+        $symbol = (string)(auth_business()['currency_symbol'] ?? '');
+        flash('success', 'The ' . sf_money((float)$booking['caution_fee'], $symbol) . ' caution fee for ' . $booking['booking_number'] . ' is marked as given back.');
+        redirect('bookings/view/' . (int)$booking['id']);
+    }
+
+    /**
      * Opening hours and booking rules. Shown to shoppers as free times.
      */
     public function settings()
@@ -247,6 +274,7 @@ class BookingController
                 'at_once'  => $_POST['at_once'] ?? null,
                 'checkin'  => $_POST['checkin'] ?? null,
                 'checkout' => $_POST['checkout'] ?? null,
+                'rules'    => (string)($_POST['rules'] ?? ''),
             ]);
             $bad = [];
             foreach (BOOKING_DAYS as $key => $day) {
@@ -360,7 +388,8 @@ class BookingController
             'state' => $state, 'first_name' => mail_first_name((string)$booking['customer_name']), 'shop_name' => (string)$business['name'],
             'booking_number' => $booking['booking_number'], 'service' => $booking['product_name'], 'when' => booking_when($booking),
             'booking_url' => $url, 'total' => sf_money((float)$booking['total'], $symbol),
-            'deposit' => (float)$booking['deposit_due'] > 0 ? sf_money((float)$booking['deposit_due'], $symbol) : '', 'message' => $message,
+            'deposit' => (float)$booking['deposit_due'] > 0 ? sf_money((float)$booking['deposit_due'], $symbol) : '',
+            'caution' => (float)($booking['caution_fee'] ?? 0) > 0 ? sf_money((float)$booking['caution_fee'], $symbol) : '', 'message' => $message,
         ];
         $subject = 'Your booking ' . $booking['booking_number'] . ' with ' . $business['name'];
         notify_email($this->biz_id, (string)$booking['customer_email'], (string)$booking['customer_name'], $subject, 'booking_update', $vars,

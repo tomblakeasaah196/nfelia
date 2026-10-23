@@ -939,7 +939,9 @@ class ProductController {
 
     /**
      * Booking fields from the form: how it is booked, how long, how many a
-     * day, and the deposit. Anything unknown means "people buy it".
+     * day, and the deposit; for stays, a refundable caution fee and cheaper
+     * prices for longer stays (kept as typed: booking_info drops any that
+     * aren't cheaper). Anything unknown means "people buy it".
      */
     private function save_booking_fields(int $product_id): void {
         $mode = in_array($_POST['booking_mode'] ?? 'none', BOOKING_MODES, true) ? $_POST['booking_mode'] : 'none';
@@ -948,8 +950,19 @@ class ProductController {
         if ($type === 'percent') {
             $value = min(100, $value);
         }
+        $stay    = $mode === 'nights';
+        $caution = $stay ? round(min(1000000000, max(0, (float)($_POST['caution_fee'] ?? 0))), 2) : 0;
+        $rates   = [];
+        if ($stay) {
+            $prices = (array)($_POST['stay_price'] ?? []);
+            foreach (array_values((array)($_POST['stay_from'] ?? [])) as $i => $from) {
+                $rates[] = [$from, array_values($prices)[$i] ?? null];
+            }
+            $rates = booking_clean_rates($rates, 0.0, false);
+        }
         $this->db->prepare("
-            UPDATE products SET booking_mode = ?, booking_minutes = ?, booking_capacity = ?, deposit_type = ?, deposit_value = ?
+            UPDATE products SET booking_mode = ?, booking_minutes = ?, booking_capacity = ?, deposit_type = ?, deposit_value = ?,
+                                caution_fee = ?, stay_rates = ?
             WHERE id = ? AND business_id = ?
         ")->execute([
             $mode,
@@ -957,6 +970,8 @@ class ProductController {
             max(1, min(20, (int)($_POST['booking_capacity'] ?? 1))),
             $mode === 'none' || $value <= 0 ? 'none' : $type,
             $mode === 'none' || $type === 'none' || $value <= 0 ? null : $value,
+            $caution > 0 ? $caution : null,
+            $rates ? json_encode($rates) : null,
             $product_id, $this->biz_id,
         ]);
     }

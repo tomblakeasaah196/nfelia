@@ -3,8 +3,8 @@
  * The top of the shop: headline, a line or two, the main button and a photo
  * (or the look's own drawing until there is one). Each look lays it out its
  * own way; see storefront_looks()['…']['hero']. Buka's turntable, Glow's
- * stories, Shea's skin finder, Market's price board and Volt's spotlight
- * have partials of their own (hero_*.php).
+ * stories, Shea's skin finder, Market's price board, Volt's spotlight,
+ * Haven's dates and Stage's planner have partials of their own (hero_*.php).
  */
 $hero_section = $section;
 $variant  = $look['hero'];
@@ -17,6 +17,16 @@ if ($routines !== null && !$routines['routines']) {
 $devices = $variant === 'spotlight' ? storefront_devices($catalogue, $hero_section) : null;
 if ($devices !== null && !$devices) {
     $variant = 'spec';
+}
+// Haven asks for dates when it has places booked by the night; else its facade
+$stays = $variant === 'stays' ? storefront_stays($catalogue, $hero_section) : null;
+if ($stays !== null && !$stays) {
+    $variant = 'facade';
+}
+// Stage plans an event when its packages say how many guests they hold; else its arch
+$plan = $variant === 'planner' ? storefront_plan($catalogue, $hero_section) : null;
+if ($plan !== null && !$plan['packages']) {
+    $variant = 'arch';
 }
 $headline = $hero_section['headline'] !== '' ? $hero_section['headline'] : (string)$business['name'];
 $button   = $hero_section['button'] !== '' ? $hero_section['button'] : $labels['button'];
@@ -147,6 +157,16 @@ $text_html = $hero_section['text'] !== '' ? sf_paragraphs($hero_section['text'],
     case 'spotlight':
         // Volt: devices under a spotlight
         include __DIR__ . '/hero_spotlight.php';
+        break;
+
+    case 'stays':
+        // Haven: dates first, then what's free
+        include __DIR__ . '/hero_stays.php';
+        break;
+
+    case 'planner':
+        // Stage: plan your event
+        include __DIR__ . '/hero_planner.php';
         break;
 
     case 'estimator':

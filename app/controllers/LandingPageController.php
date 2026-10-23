@@ -56,7 +56,7 @@ class LandingPageController {
         $published = $business['storefront_published'] ? storefront_settings($business, 'published') : null;
 
         $stmt = $this->db->prepare("
-            SELECT id, name, sell_price, is_service, image_path, category
+            SELECT id, name, description, sell_price, is_service, image_path, category, booking_mode
             FROM products
             WHERE business_id = ? AND deleted_at IS NULL AND is_active = 1
             ORDER BY name ASC
@@ -371,7 +371,7 @@ class LandingPageController {
                     $section[$key] = array_values(array_intersect($section[$key], $own));
                 }
             }
-            foreach (['routine', 'breaks'] as $key) {
+            foreach (['routine', 'breaks', 'guests'] as $key) {
                 if (isset($section[$key])) {
                     $section[$key] = array_values(array_filter($section[$key], fn($row) => in_array($row['id'], $own, true)));
                 }
