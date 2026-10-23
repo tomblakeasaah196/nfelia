@@ -340,6 +340,7 @@ foreach ($catalogue['items'] as $item) {
         'svc'      => $item['is_service'],
         'img'      => $images,
         'variants' => $item['variants'],
+        'breaks'   => $item['breaks'],     // Market's prices for buying more (storefront_breaks)
         'sold'     => $item['sold_out'],   // can't go in the bag (shop_sold_out)
         'book'     => $item['booking'] ? [
             'url'   => booking_page_path($item),
@@ -360,6 +361,8 @@ $js = [
     'items'    => (object)$js_items,
     'banks'    => array_map(fn($b) => ['id' => (int)$b['id'], 'bank' => $b['bank_name'], 'name' => $b['account_name'], 'number' => $b['account_number']], $catalogue['banks']),
     'delivery' => $sections['delivery']['on'] ? $sections['delivery']['text'] : '',
+    // Market's smallest order and where delivery turns free (0: none)
+    'order'    => $settings['look'] === 'market' ? ['min' => $hero['min_order'], 'free' => $hero['free_from']] : ['min' => 0, 'free' => 0],
     'urls'     => ['checkout' => '/checkout', 'quote' => '/quote-request', 'contact' => sf_page_href('contact'), 'shop' => sf_page_href('catalogue')],
 ];
 // Shop Studio's preview: tapping a section opens it in Studio

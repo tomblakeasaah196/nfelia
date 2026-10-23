@@ -1,11 +1,25 @@
-// Buka's turntable, Glow's stories and Shea's skin finder, used like a
-// shopper would on a phone, plus no sideways scroll on their pages at three
-// widths. Needs the local server and the storefront seed. Prints PASS/FAIL
-// lines; screenshots go to <out dir>.
+// Buka's turntable, Glow's stories, Shea's skin finder, Market's price
+// board and Volt's spotlight, used like a shopper would on a phone, plus no
+// sideways scroll on their pages at three widths. Needs the local server and
+// the storefront seed; Market's prices for buying more and its thresholds
+// are set here and put back after. Prints PASS/FAIL lines; screenshots go
+// to <out dir>.
 //   NODE_PATH=/opt/node22/lib/node_modules node docs/handoff/testkit/looks_interact.js <out dir>
 const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
+
+const ROOT = path.resolve(__dirname, '../../..');
+const db = (query) => execSync('mysql -uroot -N --raw smartqaq_nfelia_core', { input: query }).toString().trim();
+const quote = (text) => "'" + text.replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'";
+// A shop's published settings, as an owner would publish them; cached pages
+// would hide the change
+const publish = (id, json) => {
+  db(`UPDATE businesses SET storefront_published = ${json === 'NULL' ? 'NULL' : quote(json)} WHERE id = ${id}`);
+  const cache = path.join(ROOT, 'storage/cache');
+  for (const f of fs.existsSync(cache) ? fs.readdirSync(cache) : []) { try { fs.unlinkSync(path.join(cache, f)); } catch (e) { /* a folder */ } }
+};
 
 const OUT = process.argv[2] || 'shots';
 const results = [];
@@ -142,9 +156,116 @@ const check = (label, ok, detail = '') => {
   check('Shea: the bag keeps its own layout (lines readable, steps a column)', laid.display === 'flex' && laid.direction === 'column' && laid.name > 120, JSON.stringify(laid));
   await page.context().close();
 
+  // ── Market: the calculator, the order book, the list ──
+  const marketWas = db('SELECT storefront_published FROM businesses WHERE id = 6');
+  const noodles = Number(db("SELECT id FROM products WHERE business_id = 6 AND name = 'Instant noodles, chicken 70g'"));
+  // The seed leaves it on the settings from before Shop Studio
+  const market = marketWas === 'NULL' ? { v: 2, look: 'market', colours: { set: 'brand' }, sections: [{ type: 'hero' }] } : JSON.parse(marketWas);
+  Object.assign(market.sections.find((x) => x.type === 'hero'), { min_order: 50000, free_from: 200000,
+    breaks: [{ id: noodles, from: 5, price: 9300 }, { id: noodles, from: 20, price: 9000 }] });
+  publish(6, JSON.stringify(market));
+  page = await open('musa-provisions');
+  const calcState = () => page.evaluate(() => ({
+    open: document.getElementById('sf-calc').open, qty: document.querySelector('[data-calc-input]').value,
+    sum: document.querySelector('[data-calc-sum]').textContent, next: (document.querySelector('.sf-ladder__next') || {}).textContent,
+    on: (document.querySelector('.sf-ladder__step.is-on .sf-ladder__from') || {}).textContent, go: document.querySelector('[data-calc-add]').textContent }));
+  await page.click(`[data-item="${noodles}"] [data-calc-open]`);
+  await page.waitForTimeout(300);
+  let calc = await calcState();
+  check('Market: Add opens the calculator at one, with the steps and how far the next is', calc.open && calc.qty === '1' && calc.sum === '1 × ₦9,600 = ₦9,600'
+    && calc.next === '4 more for ₦9,300 each' && calc.on === '1+', JSON.stringify(calc));
+  await page.click('#sf-calc [data-key="2"]');
+  await page.click('#sf-calc [data-key="5"]');
+  calc = await calcState();
+  check('Market: the keys type over it, and the sum takes the step reached', calc.qty === '25' && calc.sum === '25 × ₦9,000 = ₦225,000'
+    && calc.on === '20+' && calc.go === 'Add 25 to the order', JSON.stringify(calc));
+  await page.screenshot({ path: path.join(OUT, 'market-calc.png') });
+  await page.click('#sf-calc [data-calc-add]');
+  await page.waitForTimeout(150);
+  check('Market: Add flies it to the order', (await page.locator('.sf-fly').count()) === 1);
+  await page.waitForTimeout(900);
+  const row = page.locator(`[data-item="${noodles}"]`);
+  check('Market: the row turns into a stepper with how many', (await bag(page)) === '25' && await row.locator('[data-stepper]').isVisible()
+    && (await row.locator('[data-stepper] output').textContent()) === '25' && !(await row.locator(':scope [data-calc-open]').first().isVisible()));
+  const goal = () => page.evaluate(() => document.querySelector('[data-bagbar] [data-goal-text]').textContent);
+  check('Market: the order says it gets free delivery', (await goal()) === 'This order gets free delivery.', await goal());
+  await row.locator('[data-stepper] [data-calc-open]').click();
+  await page.waitForTimeout(300);
+  await page.click('#sf-calc [data-key="3"]');
+  calc = await calcState();
+  check('Market: the number on the stepper opens the calculator to change it', calc.qty === '3' && calc.go === 'Change to 3' && calc.next === '2 more for ₦9,300 each', JSON.stringify(calc));
+  await page.click('#sf-calc [data-calc-add]');
+  await page.waitForTimeout(400);
+  check('Market: under the smallest order, the order says how much more', (await goal()) === 'Add ₦21,200 more: the smallest order is ₦50,000.', await goal());
+  await page.click('[data-bagbar] [data-open-bag]');
+  await page.waitForTimeout(500);
+  const book = await page.evaluate(() => ({ send: document.querySelector('[data-go="details"]').disabled, text: document.querySelector('[data-go="details"]').textContent.trim(),
+    lines: document.querySelectorAll('#sf-bag .sf-bagline').length, head: !!document.querySelector('#sf-bag .sf-book__head'), tear: !!document.querySelector('#sf-bag .sf-book__tear') }));
+  check('Market: the order book holds the order, and waits for the smallest', book.send && book.text === 'Send this order' && book.lines === 1 && book.head && book.tear, JSON.stringify(book));
+  await page.screenshot({ path: path.join(OUT, 'market-book.png') });
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(400);
+  await page.click('[data-board-tab="list"]');
+  await page.fill('[data-mylist-text]', '2 bags rice\nspag x10\nzobo leaves');
+  await page.waitForTimeout(600);
+  const read = await page.evaluate(() => [...document.querySelectorAll('[data-mylist-lines] li')].map((li) => li.classList.contains('is-found')
+    ? li.querySelector('select').selectedOptions[0].textContent + ' = ' + li.querySelector('.sf-mylist__price').textContent : '? ' + li.querySelector('.sf-mylist__name').textContent));
+  check('Market: a list typed the WhatsApp way is read and priced line by line', JSON.stringify(read) === JSON.stringify(['2 × Rice, long grain = ₦156,000', '10 × Spaghetti 500g = ₦215,000', '? zobo leaves']), JSON.stringify(read));
+  await page.click('[data-mylist-add]');
+  await page.waitForTimeout(700);
+  const listed = await page.evaluate(() => ({ open: document.getElementById('sf-bag').open, note: document.querySelector('#sf-bag [name="customer_note"]').value,
+    cart: JSON.parse(localStorage.getItem('nfelia_cart_musa-provisions') || '[]').map((l) => l.name + ' ' + l.qty) }));
+  check('Market: the list joins the order, and what wasn\'t found goes in the note', listed.open && listed.note === 'Also on my list: zobo leaves'
+    && listed.cart.includes('Rice, long grain 2') && listed.cart.includes('Spaghetti 500g 10'), JSON.stringify(listed));
+  await page.context().close();
+  // A shopper back a day later sees what moved
+  const seen = {};
+  for (const [id, price] of db('SELECT id, sell_price FROM products WHERE business_id = 6').split('\n').map((l) => l.split('\t'))) { seen[id] = Number(price); }
+  seen[noodles] = 9100;
+  page = await open('musa-provisions');
+  await page.evaluate((was) => localStorage.setItem('nfelia_prices_musa-provisions', JSON.stringify({ t: Date.now() - 26 * 3600 * 1000, p: was })), seen);
+  await page.reload({ waitUntil: 'networkidle' });
+  const moved = await page.evaluate(() => [...document.querySelectorAll('.sf-move:not([hidden])')].map((m) => m.textContent));
+  check('Market: since the last visit, the board marks the price that moved', JSON.stringify(moved) === JSON.stringify(['▲ ₦500 more than when you last looked']), JSON.stringify(moved));
+  await page.context().close();
+  publish(6, marketWas);
+
+  // ── Volt: the spotlight ──
+  page = await open('kola-gadgets');
+  const lit = () => page.evaluate(() => ({ device: [...document.querySelectorAll('[data-spot]')].findIndex((d) => d.classList.contains('is-on')),
+    card: [...document.querySelectorAll('[data-spot-card]')].findIndex((c) => c.classList.contains('is-on')),
+    dot: [...document.querySelectorAll('[data-spot-to]')].findIndex((d) => d.getAttribute('aria-current') === 'true') }));
+  await page.click('[data-spot-step="1"]');
+  await page.waitForTimeout(700);
+  let now = await lit();
+  check('Volt: the arrow brings the next device, its card and its dot', now.device === 1 && now.card === 1 && now.dot === 1, JSON.stringify(now));
+  const spot = await page.locator('.sf-spot__stage').boundingBox();
+  await page.mouse.move(spot.x + spot.width * 0.8, spot.y + spot.height / 2);
+  await page.mouse.down();
+  for (let x = 0.8; x >= 0.2; x -= 0.1) { await page.mouse.move(spot.x + spot.width * x, spot.y + spot.height / 2); await page.waitForTimeout(16); }
+  await page.mouse.up();
+  await page.waitForTimeout(700);
+  now = await lit();
+  check('Volt: a swipe brings the one after', now.device === 2 && now.card === 2, JSON.stringify(now));
+  await page.click('[data-spot-to="0"]');
+  await page.waitForTimeout(1500);
+  const callouts = await page.evaluate(() => [...document.querySelectorAll('[data-spot].is-on .sf-callout')].map((c) => getComputedStyle(c).opacity));
+  check('Volt: a dot goes back, and the callouts are drawn in round it', (await lit()).device === 0 && callouts.length > 0 && callouts.every((o) => o === '1'), JSON.stringify(callouts));
+  await page.screenshot({ path: path.join(OUT, 'volt-spotlight.png') });
+  // One with no choices to make (a phone's open its sheet first)
+  const plain = await page.evaluate(() => [...document.querySelectorAll('[data-spot-card]')].findIndex((c) => /Fast charger|Power bank/.test(c.textContent)));
+  await page.click(`[data-spot-to="${plain}"]`);
+  await page.waitForTimeout(700);
+  await page.click('.sf-spot__card.is-on [data-add]');
+  await page.waitForTimeout(150);
+  check('Volt: Add flies the device from its card to the bag', (await page.locator('.sf-fly').count()) === 1);
+  await page.waitForTimeout(900);
+  check('Volt: and it is in the bag', (await bag(page)) === '1');
+  await page.context().close();
+
   // ── No sideways scroll ──
   const wide = [];
-  for (const shop of ['mama-nkechi', 'glow-by-temi', 'zainab-naturals']) {
+  for (const shop of ['mama-nkechi', 'glow-by-temi', 'zainab-naturals', 'musa-provisions', 'kola-gadgets']) {
     for (const width of [390, 800, 1280]) {
       for (const where of ['/', '/shop', '/contact']) {
         const context = await browser.newContext({ viewport: { width, height: 900 } });
@@ -156,7 +277,7 @@ const check = (label, ok, detail = '') => {
       }
     }
   }
-  check('Buka, Glow and Shea pages never scroll sideways', !wide.length, wide.join(', '));
+  check('Buka, Glow, Shea, Market and Volt pages never scroll sideways', !wide.length, wide.join(', '));
 
   check('no script errors', errors.length === 0, errors.join(' | '));
   await browser.close();

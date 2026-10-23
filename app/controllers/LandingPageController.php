@@ -371,8 +371,10 @@ class LandingPageController {
                     $section[$key] = array_values(array_intersect($section[$key], $own));
                 }
             }
-            if (isset($section['routine'])) {
-                $section['routine'] = array_values(array_filter($section['routine'], fn($tag) => in_array($tag['id'], $own, true)));
+            foreach (['routine', 'breaks'] as $key) {
+                if (isset($section[$key])) {
+                    $section[$key] = array_values(array_filter($section[$key], fn($row) => in_array($row['id'], $own, true)));
+                }
             }
         }
         unset($section);

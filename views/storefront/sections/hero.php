@@ -3,7 +3,8 @@
  * The top of the shop: headline, a line or two, the main button and a photo
  * (or the look's own drawing until there is one). Each look lays it out its
  * own way; see storefront_looks()['…']['hero']. Buka's turntable, Glow's
- * stories and Shea's skin finder have partials of their own (hero_*.php).
+ * stories, Shea's skin finder, Market's price board and Volt's spotlight
+ * have partials of their own (hero_*.php).
  */
 $hero_section = $section;
 $variant  = $look['hero'];
@@ -11,6 +12,11 @@ $variant  = $look['hero'];
 $routines = $variant === 'finder' ? storefront_routines($catalogue, $hero_section) : null;
 if ($routines !== null && !$routines['routines']) {
     $variant = 'shelf';
+}
+// Volt's spotlight shows devices; a repair desk with none keeps its specs and tiles
+$devices = $variant === 'spotlight' ? storefront_devices($catalogue, $hero_section) : null;
+if ($devices !== null && !$devices) {
+    $variant = 'spec';
 }
 $headline = $hero_section['headline'] !== '' ? $hero_section['headline'] : (string)$business['name'];
 $button   = $hero_section['button'] !== '' ? $hero_section['button'] : $labels['button'];
@@ -133,10 +139,15 @@ $text_html = $hero_section['text'] !== '' ? sf_paragraphs($hero_section['text'],
     </div>
     <?php break;
 
-    case 'band': ?>
-    <?php // Market: the headline is in the header band ?>
-    <?php if ($media !== ''): ?><div class="sf-wrap"><div class="sf-hero__frame"><?= $media ?></div></div><?php endif; ?>
-    <?php break;
+    case 'board':
+        // Market: the painted price board
+        include __DIR__ . '/hero_board.php';
+        break;
+
+    case 'spotlight':
+        // Volt: devices under a spotlight
+        include __DIR__ . '/hero_spotlight.php';
+        break;
 
     case 'estimator':
         $choices = array_slice(array_merge(

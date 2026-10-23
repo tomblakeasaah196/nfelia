@@ -166,11 +166,14 @@
         }
         var key = pairKey(s);
         var f = key === 'brand' ? D.brand.fonts : D.fonts[key];
+        var sign = readable(p.band, p.accent);
         return {
             vars: {
                 '--sf-ground': p.ground, '--sf-ink': p.ink, '--sf-muted': p.muted, '--sf-accent': p.accent, '--sf-on': p.on,
                 '--sf-accent-text': p.accent_text, '--sf-line': p.line, '--sf-field': p.field, '--sf-surface': p.surface,
                 '--sf-card': p.card, '--sf-motif': p.motif, '--sf-band': p.band, '--sf-band-ink': p.band_ink, '--sf-tint': p.tint,
+                '--sf-sign': sign, '--sf-sign-shade': luminance(sign) > luminance(p.accent) ? (p.dark ? p.ground : p.ink) : 'transparent',
+                '--sf-price-shade': contrast(p.band, p.accent_text) >= 3 ? p.band : 'transparent',
                 '--sf-scrim': p.dark ? p.ground : p.ink, '--sf-paper': p.dark ? p.ink : p.ground,
                 '--sf-head': f.head_stack, '--sf-body': f.body_stack, '--sf-head-weight': String(f.weight),
                 '--sf-head-stretch': f.stretch, '--sf-scale': String(f.scale)
@@ -922,18 +925,19 @@
         wrap.appendChild(el('span', {}, label));
         return wrap;
     }
-    function picks(s, key, max, note, label) {
+    function picks(s, key, max, note, label, only) {
+        var products = only ? D.products.filter(only) : D.products;
         var box = el('div', { class: 'st-field' });
         box.appendChild(el('span', { class: 'st-label' }, label || D.types[s.type].fields[key].label));
         if (note) { box.appendChild(el('span', { class: 'st-field__hint' }, note)); }
-        if (!D.products.length) {
+        if (!products.length) {
             var none = el('p', { class: 'st-help' }, 'You have no products yet. ');
             none.appendChild(el('a', { href: D.urls.products }, 'Add your first product'));
             box.appendChild(none);
             return box;
         }
         var list = el('ul', { class: 'st-picks' });
-        D.products.forEach(function (p) {
+        products.forEach(function (p) {
             var li = el('li');
             var label = el('label', { class: 'st-pick' });
             var input = el('input', { type: 'checkbox', value: String(p.id) });
@@ -984,10 +988,22 @@
         var f = def.fields;
         switch (editing) {
             case 'hero':
+                var hero = look(state.look).hero;
                 editorEl.appendChild(field('Headline', textInput(s, 'headline', f.headline, D.business.tagline || D.business.name)));
                 editorEl.appendChild(field('A line or two under it', textInput(s, 'text', f.text, 'What you sell, where, and why people come back')));
-                editorEl.appendChild(field('Button', textInput(s, 'button', f.button, labelFor('hero', 'button')), 'It takes people to your products.'));
-                editorEl.appendChild(field('Sticker', textInput(s, 'badge', f.badge, 'Delivery in 24 hours'), 'A short note in a sticker or stamp. Leave it empty for none.'));
+                // The price board is the way in; it has no button of its own
+                if (hero !== 'board') {
+                    editorEl.appendChild(field('Button', textInput(s, 'button', f.button, labelFor('hero', 'button')), 'It takes people to your products.'));
+                }
+                editorEl.appendChild(field('Sticker', textInput(s, 'badge', f.badge, hero === 'board' ? 'Wholesale prices every day' : hero === 'spotlight' ? 'Tested before you pay' : 'Delivery in 24 hours'),
+                    hero === 'board' ? 'A short note on your signboard. Leave it empty for none.'
+                    : hero === 'spotlight' ? 'A stamp on the spotlight, round like a seal. Leave it empty for none.'
+                    : 'A short note in a sticker or stamp. Leave it empty for none.'));
+                if (hero === 'board') {
+                    editorEl.appendChild(moneyField(s, 'min_order', 'Smallest order you take', 'It shows on your board and in the order. We don\'t send orders under it. Leave it empty to take any order.', '50,000'));
+                    editorEl.appendChild(moneyField(s, 'free_from', 'Free delivery from', 'Shoppers see how far they are from it as they fill their order. Leave it empty if you always charge delivery.', '200,000'));
+                    editorEl.appendChild(breaksField(s));
+                }
                 editorEl.appendChild(slidesField(s));
                 if (look(state.look).backdrop) { editorEl.appendChild(backgroundField(s)); }
                 if (look(state.look).hero === 'turntable') {
@@ -997,6 +1013,9 @@
                     editorEl.appendChild(picks(s, 'picks', 8, 'Each gets a story of its own, with its price and Book or Add. Pick up to 8, in the order you tick them. Leave them all empty and we show the ones with photos first.', 'In your stories'));
                 }
                 if (look(state.look).hero === 'finder') { editorEl.appendChild(finderField(s)); }
+                if (hero === 'spotlight') {
+                    editorEl.appendChild(picks(s, 'picks', 8, 'They stand in the spotlight one at a time, the first when the page opens. We point out what buyers check from each one\'s name, options and description: storage, battery health, UK used. Pick up to 8, in the order you tick them. Leave them all empty and we show the ones with photos first.', 'Devices in the spotlight', function (p) { return !p.service; }));
+                }
                 break;
             case 'featured':
                 editorEl.appendChild(field('Title', textInput(s, 'title', f.title, labelFor('featured'))));
@@ -1175,6 +1194,10 @@
             ? 'Up to five. They open your stories, the first with your headline, before a story for each service. Tall photos look best.'
             : lk.hero === 'turntable'
             ? 'Your dishes\' own photos go round the table. This photo shows on it until you add a dish.'
+            : lk.hero === 'board'
+            ? 'Your price board leads this look, so it shows no photo here. Your products keep their own photos, and these come back if you change look.'
+            : lk.hero === 'spotlight'
+            ? 'Your devices\' own photos stand in the spotlight. Photos on a plain white background look best. This photo shows until you add a device.'
             : lk.slides > 1
             ? 'Up to five. They fill the first screen and take turns, with your words over them. One photo stays put. Tall photos look best on phones.'
             : 'This look shows your first photo. Atelier shows up to five, in turn. Videos play only on good connections and never with sound.'));
@@ -1270,6 +1293,149 @@
             });
         });
         box.appendChild(other);
+        return box;
+    }
+
+    // An amount in the shop's money, typed with or without commas: shown with
+    // them once the owner moves on, kept as a number
+    function amountOf(text) {
+        var n = parseFloat(String(text).replace(/[^\d.]/g, ''));
+        return isFinite(n) && n > 0 ? Math.min(1000000000, Math.round(n * 100) / 100) : 0;
+    }
+    function amountText(n) { return n > 0 ? Number(n).toLocaleString('en-NG', { maximumFractionDigits: 2 }) : ''; }
+    function moneyInput(value, attrs, onChange) {
+        var wrap = el('span', { class: 'st-prefix st-money' });
+        wrap.appendChild(el('span', { 'aria-hidden': 'true' }, D.business.currency));
+        var input = el('input', Object.assign({ type: 'text', inputmode: 'decimal', maxlength: 14, autocomplete: 'off' }, attrs));
+        input.value = amountText(value);
+        input.addEventListener('input', function () { onChange(amountOf(input.value)); });
+        input.addEventListener('blur', function () { if (input.value.trim() !== '') { input.value = amountText(amountOf(input.value)); } });
+        wrap.appendChild(input);
+        return wrap;
+    }
+    // Market's smallest order and free delivery (checkout refuses an order
+    // under the smallest: PublicController::place_order)
+    function moneyField(s, key, label, hint, example) {
+        return field(label, moneyInput(s[key], { placeholder: example }, function (n) { edit(s, key, n); }), hint);
+    }
+
+    // Market's prices for buying more: for a product, up to three steps, each
+    // a number from which one costs less ("5 or more, ₦9,300 each"). The
+    // board and the calculator show them and checkout charges them
+    // (storefront_breaks, sf_price_at). A step that isn't cheaper than the
+    // one before is never shown, so we say so here.
+    function breaksField(s) {
+        var box = el('div', { class: 'st-field st-finder st-breaks' });
+        box.appendChild(el('span', { class: 'st-label' }, 'Prices for buying more'));
+        box.appendChild(el('span', { class: 'st-field__hint' }, 'A lower price for buying more, the way traders sell: 5 cartons or more for ' + D.business.currency + '9,300 each. Shoppers see it on your board, the calculator works it out, and checkout charges it. Up to 3 steps a product.'));
+        var goods = D.products.filter(function (p) { return !p.service; });
+        if (!goods.length) {
+            var none = el('p', { class: 'st-help' }, 'You have no products yet. ');
+            none.appendChild(el('a', { href: D.urls.products }, 'Add your first product'));
+            box.appendChild(none);
+            return box;
+        }
+        var stepsOf = function (id) { return s.breaks.filter(function (b) { return b.id === id; }); };
+        var redraw = function (focus) {
+            renderEditor();
+            var again = focus && $(focus, editorEl);
+            if (again) { again.focus(); }
+        };
+        var change = function (step, key, value) {
+            commit(function () { step[key] = value; }, { key: 'hero.breaks.' + step.id + '.' + key, reload: true, scrollTo: 'sf-hero' });
+        };
+        var focusLast = function (id) {
+            redraw();
+            var input = $('[data-breaks-of="' + id + '"] .st-break:last-child .st-break__price input', editorEl);
+            if (input) { input.focus(); }
+        };
+
+        var priced = goods.filter(function (p) { return stepsOf(p.id).length; });
+        if (priced.length) {
+            var list = el('ul', { class: 'st-routine' });
+            priced.forEach(function (p) {
+                var li = el('li', { class: 'st-routine__item', 'data-breaks-of': String(p.id) });
+                var head = el('div', { class: 'st-routine__head' });
+                if (p.thumb) { head.appendChild(el('img', { src: p.thumb, alt: '', loading: 'lazy' })); } else { head.appendChild(el('span', { class: 'st-pick__ph' })); }
+                var named = el('span', { class: 'st-routine__name' }, p.name);
+                named.appendChild(el('small', {}, p.price + ' each'));
+                head.appendChild(named);
+                li.appendChild(head);
+                var steps = el('ol', { class: 'st-breaks__steps' });
+                stepsOf(p.id).forEach(function (step, n) {
+                    var row = el('li', { class: 'st-break' });
+                    var note = el('p', { class: 'st-break__note', 'aria-live': 'polite' });
+                    // What's wrong with a step, said once the owner moves on
+                    var check = function () {
+                        var mine = stepsOf(p.id);
+                        var below = mine.filter(function (b) { return b !== step && b.from && b.from < step.from; })
+                            .reduce(function (low, b) { return b.price > 0 ? Math.min(low, b.price) : low; }, p.amount);
+                        var text = !step.from ? '' : step.from < 2 ? 'Start from 2 or more.'
+                            : mine.some(function (b) { return b !== step && b.from === step.from; }) ? 'Another step starts from ' + step.from + '. Give each its own number.'
+                            : step.price > 0 && step.price >= below ? 'It has to be less than ' + D.business.currency + amountText(below) + ', or shoppers won\'t see it.'
+                            : '';
+                        note.textContent = text;
+                        row.classList.toggle('is-wrong', text !== '');
+                    };
+                    var from = el('input', { type: 'text', inputmode: 'numeric', maxlength: 3, placeholder: '5', autocomplete: 'off', 'aria-label': 'How many, for step ' + (n + 1) + ' of ' + p.name });
+                    from.value = step.from ? String(step.from) : '';
+                    from.addEventListener('input', function () {
+                        change(step, 'from', Math.min(999, parseInt(from.value.replace(/\D/g, ''), 10) || 0));
+                    });
+                    from.addEventListener('blur', check);
+                    var fromLabel = el('label', { class: 'st-break__from' });
+                    fromLabel.appendChild(from);
+                    fromLabel.appendChild(el('span', {}, 'or more'));
+                    var priceLabel = el('label', { class: 'st-break__price' });
+                    var money = moneyInput(step.price, { placeholder: amountText(Math.max(1, Math.round(p.amount * 0.95))), 'aria-label': 'Price each, for step ' + (n + 1) + ' of ' + p.name }, function (v) { change(step, 'price', v); });
+                    $('input', money).addEventListener('blur', check);
+                    priceLabel.appendChild(money);
+                    priceLabel.appendChild(el('span', {}, 'each'));
+                    var remove = el('button', { type: 'button', class: 'st-tag__x', 'aria-label': 'Remove step ' + (n + 1) + ' of ' + p.name });
+                    remove.appendChild(icon(ICON.close, 16));
+                    remove.addEventListener('click', function () {
+                        commit(function () { s.breaks = s.breaks.filter(function (b) { return b !== step; }); }, { reload: true, scrollTo: 'sf-hero' });
+                        redraw('.st-breaks__add select');
+                    });
+                    row.appendChild(fromLabel);
+                    row.appendChild(priceLabel);
+                    row.appendChild(remove);
+                    row.appendChild(note);
+                    steps.appendChild(row);
+                    check();
+                });
+                li.appendChild(steps);
+                if (stepsOf(p.id).length < 3) {
+                    var more = el('button', { type: 'button', class: 'st-btn st-btn--quiet st-btn--sm st-breaks__more' }, 'Add another step');
+                    more.addEventListener('click', function () {
+                        var last = stepsOf(p.id).reduce(function (m, b) { return Math.max(m, b.from || 0); }, 0);
+                        commit(function () { s.breaks.push({ id: p.id, from: Math.min(999, last ? last * 2 : 5), price: 0 }); });
+                        focusLast(p.id);
+                    });
+                    li.appendChild(more);
+                }
+                list.appendChild(li);
+            });
+            box.appendChild(list);
+        }
+
+        var rest = goods.filter(function (p) { return !stepsOf(p.id).length; });
+        if (rest.length) {
+            var addRow = el('div', { class: 'st-finder__add st-breaks__add' });
+            var select = el('select', { 'aria-label': 'A product to give a price for buying more' });
+            select.appendChild(el('option', { value: '' }, priced.length ? 'Another product' : 'Pick a product'));
+            rest.forEach(function (p) { select.appendChild(el('option', { value: String(p.id) }, p.name + ' · ' + p.price)); });
+            var addBtn = el('button', { type: 'button', class: 'st-btn st-btn--quiet st-btn--sm' }, 'Add a price');
+            addBtn.addEventListener('click', function () {
+                var id = parseInt(select.value, 10);
+                if (!id) { select.focus(); toast('Pick a product first.'); return; }
+                commit(function () { s.breaks.push({ id: id, from: 5, price: 0 }); });
+                focusLast(id);
+            });
+            addRow.appendChild(select);
+            addRow.appendChild(addBtn);
+            box.appendChild(addRow);
+        }
         return box;
     }
 

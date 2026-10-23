@@ -353,3 +353,18 @@ p, h1, h2, h3, ul { margin: 0; }
 .st-minichip span { display: inline-flex; align-items: center; min-height: 32px; padding: 0 10px; border: 1px solid var(--st-line); border-radius: 999px; font-size: 13px; font-weight: 600; }
 .st-minichip input:checked + span { border-color: var(--accent); background: var(--accent); color: var(--on-accent); }
 .st-minichip input:focus-visible + span { outline: 2px solid var(--accent-text); outline-offset: 2px; }
+
+/* Market's prices for buying more (studio.js, breaksField): each product
+   with up to three steps, "[5] or more [₦ 9,300] each" */
+.st-money { max-width: 220px; }
+.st-breaks__steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.st-break { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.st-break__from, .st-break__price { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--st-muted); }
+.st-field .st-break__from input { width: 56px; min-height: 40px; padding: 6px 8px; text-align: center; }
+.st-break__price .st-money { width: 136px; }
+.st-break__price .st-money input { min-height: 37px; padding: 6px 10px 6px 2px; }
+.st-break__note { flex-basis: 100%; font-size: 13px; font-weight: 600; color: var(--st-bad); }
+.st-break__note:empty { display: none; }
+.st-break.is-wrong .st-money, .st-field .st-break.is-wrong .st-break__from input { border-color: var(--st-bad); }
+.st-breaks__more { align-self: flex-start; }
+.st-breaks__add select { flex: 1; min-width: 0; min-height: 44px; padding: 0 10px; border: 1.5px solid var(--st-field); border-radius: 12px; background: #FFFFFF; font: inherit; font-size: 15px; }

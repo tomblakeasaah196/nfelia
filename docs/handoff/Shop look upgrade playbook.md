@@ -2,7 +2,8 @@
 
 How Atelier was upgraded (step 6), written so the same can be done for the other nine looks, one at
 a time. Read [Shop upgrade step 6.md](Shop%20upgrade%20step%206.md) first for what changed. Buka, Glow
-and Shea followed in step 7 ([Shop looks step 7.md](Shop%20looks%20step%207.md)).
+and Shea followed in step 7 ([Shop looks step 7.md](Shop%20looks%20step%207.md)), Market and Volt in
+step 8 ([Shop looks step 8.md](Shop%20looks%20step%208.md)).
 
 ## What every look already has
 
@@ -32,8 +33,8 @@ Ideas for the others (to be confirmed with the owner, one look at a time):
 | --- | --- | --- |
 | Buka | Food | Done in step 7: the dishes on a table that turns |
 | Glow | Beauty | Done in step 7: shoppable stories |
-| Volt | Gadgets and repairs | The repair ticket as the first screen: "What's wrong with your phone?" |
-| Market | Wholesale | The price list itself as the home page's first screen, with the date it was updated |
+| Volt | Gadgets and repairs | Done in step 8: each device under a spotlight, with spec callouts, its condition and battery health |
+| Market | Wholesale | Done in step 8: the price board as a painted signboard, with a calculator, prices for buying more and an order book |
 | Stage | Events | Full-screen event photos taking turns, like Atelier, with dates booked |
 | Harvest | Farm produce | This week's harvest and the pickup day, with real farm photos |
 | Shea | Skincare | Done in step 7: the skin finder, which builds a routine |

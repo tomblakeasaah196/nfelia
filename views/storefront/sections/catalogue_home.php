@@ -12,6 +12,10 @@ $all_count   = count($items);
 $list_href   = sf_page_href('catalogue');
 $list_title  = $section['title'] !== '' ? $section['title'] : $labels['catalogue'];
 $featured_on = $sections['featured']['on'] && storefront_featured($catalogue, $sections['featured'], 1);
+// Market's price board is its taste of the list, with its own way to all of it
+if ($look['hero'] === 'board') {
+    return;
+}
 if (!$items) {
     if ($mode === 'live') {
         return;

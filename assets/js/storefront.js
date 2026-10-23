@@ -84,12 +84,12 @@
     }
 
     /* ── Tap replies: what was added flies to the bag ── */
-    // Buka, Glow and Shea answer an Add with a small copy of its photo that
+    // Buka, Glow, Shea, Market and Volt answer an Add with a small copy of its photo that
     // flies in an arc to the bag, and the bag gives a little bump. Only a
     // picture over the page, gone in under a second; nothing for people who
     // ask for less motion (the toast still says it was added).
 
-    var REPLIES = ['buka', 'glow', 'shea'].indexOf(S.look) !== -1;
+    var REPLIES = ['buka', 'glow', 'shea', 'market', 'volt'].indexOf(S.look) !== -1;
     var lessMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
     function onScreen(node) {
         var r = node.getBoundingClientRect();
@@ -149,6 +149,8 @@
     function flySource(btn) {
         var dishCard = btn.closest('[data-turn-card]');
         if (dishCard) { return $('.sf-turntable__plate.is-front .sf-turntable__food'); }
+        var spotCard = btn.closest('[data-spot-card]');
+        if (spotCard) { return $('.sf-spot__device.is-on .sf-spot__photo'); }
         var story = btn.closest('[data-story]');
         if (story) { return $('.sf-story__media', story); }
         var card = btn.closest('[data-item]');
@@ -176,6 +178,14 @@
         return d;
     }
     function linePrice(item, variant) { return round2((item.price || 0) + variantDelta(item, variant)); }
+    // Market sells for less to people who buy more of one product: the
+    // lowest step reached (sf_price_at in app/helpers/storefront.php, which
+    // checkout charges). Choices still add their own difference.
+    function priceAt(item, qty) {
+        var price = item.price || 0;
+        (item.breaks || []).forEach(function (b) { if (qty >= b.from) { price = Math.min(price, b.price); } });
+        return price;
+    }
 
     /* ── The bag ─────────────────────────────────── */
 
@@ -192,10 +202,33 @@
             line.qty = Math.max(1, Math.min(999, parseInt(line.qty, 10) || 1));
             return true;
         });
+        repriceCart();
+    }
+    // Every line at what it costs now, counting all of a product in the bag
+    function repriceCart() {
+        var bought = {};
+        cart.forEach(function (l) { bought[l.id] = (bought[l.id] || 0) + l.qty; });
+        cart.forEach(function (l) {
+            var item = S.items[String(l.id)];
+            if (item) { l.price = round2(priceAt(item, bought[l.id]) + variantDelta(item, l.variant)); }
+        });
     }
     function saveCart() {
+        repriceCart();
         try { localStorage.setItem(CART_KEY, JSON.stringify(cart)); } catch (e) { /* private browsing */ }
         renderCart();
+    }
+    // Market: how far the order is from its smallest size, then from free
+    // delivery; null when the shop sets neither or the order is empty
+    function orderGoal() {
+        var min = (S.order && S.order.min) || 0;
+        var free = (S.order && S.order.free) || 0;
+        if (!cart.length || (!min && !free)) { return null; }
+        var total = cartTotal();
+        if (min && total < min) { return { short: true, fill: total / min * 100, text: 'Add ' + money(min - total) + ' more: the smallest order is ' + money(min) + '.' }; }
+        if (free && total < free) { return { fill: total / free * 100, text: money(free - total) + ' more for free delivery.' }; }
+        if (free) { return { met: true, fill: 100, text: 'This order gets free delivery.' }; }
+        return null;
     }
     function cartCount() { return cart.reduce(function (s, l) { return s + l.qty; }, 0); }
     function cartTotal() { return cart.reduce(function (s, l) { return s + l.price * l.qty; }, 0); }
@@ -273,6 +306,8 @@
         saveCart();
     }
 
+    // The lines the bag last showed, so a new one can be written in (Market)
+    var shownLines = null;
     function renderCart() {
         var count = cartCount();
         var total = money(cartTotal());
@@ -289,18 +324,33 @@
         // Market's steppers show how many of each plain product are in the order
         $$('[data-stepper]').forEach(function (stepper) {
             var line = cart.filter(function (l) { return l.key === stepper.dataset.stepper + '|'; })[0];
-            var add = stepper.parentNode.querySelector('[data-add]');
+            var add = stepper.parentNode.querySelector(':scope > [data-add], :scope > [data-calc-open]');
             stepper.hidden = !line;
             if (add) { add.hidden = !!line; }
             stepper.querySelector('output').textContent = line ? line.qty : 0;
         });
 
+        var goal = orderGoal();
+        $$('[data-goal]').forEach(function (g) {
+            g.hidden = !goal;
+            if (!goal) { return; }
+            $('[data-goal-text]', g).textContent = goal.text;
+            $('[data-goal-fill]', g).style.width = Math.min(100, Math.round(goal.fill)) + '%';
+            g.classList.toggle('is-short', !!goal.short);
+            g.classList.toggle('is-met', !!goal.met);
+        });
+        var send = $('[data-go="details"]');
+        if (send) { send.disabled = !!(goal && goal.short); }
+
         var list = $('[data-bag-list]');
         if (!list) { return; }
         list.textContent = '';
+        var before = shownLines;
+        shownLines = {};
         cart.forEach(function (line) {
             var item = S.items[String(line.id)];
-            var li = el('li', { class: 'sf-bagline' });
+            var li = el('li', { class: 'sf-bagline' + (before && !before[line.key] ? ' is-new' : '') });
+            shownLines[line.key] = true;
             var media = el('span', { class: 'sf-bagline__media' });
             if (item.img.length) {
                 media.appendChild(el('img', { src: item.img[0].src, alt: '', loading: 'lazy' }));
@@ -394,6 +444,11 @@
         $('[data-p-name]', sheet).textContent = item.name;
         var price = $('[data-p-price]', sheet);
         price.textContent = item.price > 0 ? money(item.price) + unitText(item.unit) : 'Ask for the price';
+        var breaksLine = $('[data-p-breaks]', sheet);
+        if (breaksLine) {
+            breaksLine.hidden = !(item.breaks && item.breaks.length) || !!item.sold;
+            breaksLine.textContent = (item.breaks || []).map(function (b) { return b.from + '+ ' + money(b.price); }).join(' · ') + ' each';
+        }
         var desc = $('[data-p-desc]', sheet);
         desc.textContent = item.desc || '';
         desc.style.whiteSpace = 'pre-line';
@@ -661,7 +716,8 @@
                 if (trackPath) { track.href = trackPath; }
                 var wa = $('[data-done-wa]', bag);
                 if (channel === 'whatsapp' && S.wa) {
-                    var message = ['Hello ' + S.name + ', this is my order ' + json.order_number + ':', ''].concat(lines, ['', 'Total: ' + total, 'Name: ' + field('customer_name')],
+                    var freeDelivery = S.order && S.order.free && json.total >= S.order.free ? ['Free delivery: the order is over ' + money(S.order.free)] : [];
+                    var message = ['Hello ' + S.name + ', this is my order ' + json.order_number + ':', ''].concat(lines, ['', 'Total: ' + total], freeDelivery, ['Name: ' + field('customer_name')],
                         json.order_url ? ['Follow it here: ' + json.order_url] : []);
                     wa.href = 'https://wa.me/' + S.wa + '?text=' + encodeURIComponent(message.join('\n'));
                     wa.hidden = false;
@@ -776,6 +832,8 @@
             }
             return;
         }
+        var calcBtn = t.closest('[data-calc-open]');
+        if (calcBtn) { openCalc(calcBtn.dataset.calcOpen, calcBtn); return; }
         var stepBtn = t.closest('[data-stepper] [data-step]');
         if (stepBtn) {
             var id = stepBtn.closest('[data-stepper]').dataset.stepper;
@@ -1447,6 +1505,336 @@
             }
         });
         showRoutine();
+    }
+
+    /* ── The spotlight (Volt) ────────────────────── */
+    // One device at a time under the light: a swipe, the arrows or a dot
+    // brings the next in from the side it was asked for, its callouts drawn
+    // in as it lands (CSS), its words, price and Add below. Nothing moves by
+    // itself.
+
+    var spot = $('[data-spotlight]');
+    if (spot && parseInt(spot.dataset.count, 10) > 1) {
+        var spots = $$('[data-spot]', spot);
+        var spotCards = $$('[data-spot-card]', spot);
+        var spotDots = $$('[data-spot-to]', spot);
+        var spotAt = 0;
+        var showSpot = function (i, dir) {
+            var next = ((i % spots.length) + spots.length) % spots.length;
+            if (next === spotAt) { return; }
+            spot.style.setProperty('--dir', String(dir || (next > spotAt ? 1 : -1)));
+            spots.forEach(function (d, j) {
+                d.classList.toggle('is-leaving', j === spotAt);
+                d.classList.toggle('is-on', j === next);
+            });
+            setTimeout(function () { spots.forEach(function (d) { d.classList.remove('is-leaving'); }); }, 600);
+            spotCards.forEach(function (c, j) { c.classList.toggle('is-on', j === next); });
+            spotDots.forEach(function (d, j) { if (j === next) { d.setAttribute('aria-current', 'true'); } else { d.removeAttribute('aria-current'); } });
+            spotAt = next;
+            // The photo after this one, ready before it is asked for
+            var ahead = $('img[loading="lazy"]', spots[(next + 1) % spots.length]);
+            if (ahead) { ahead.loading = 'eager'; }
+        };
+        $$('[data-spot-step]', spot).forEach(function (b) {
+            b.addEventListener('click', function () { var step = parseInt(b.dataset.spotStep, 10); showSpot(spotAt + step, step); });
+        });
+        spotDots.forEach(function (d) { d.addEventListener('click', function () { showSpot(parseInt(d.dataset.spotTo, 10)); }); });
+        var spotStage = $('.sf-spot__stage', spot);
+        var spotX = null;
+        var spotY = null;
+        var spotSwiped = false;
+        spotStage.addEventListener('pointerdown', function (e) { if (e.isPrimary) { spotX = e.clientX; spotY = e.clientY; spotSwiped = false; } });
+        spotStage.addEventListener('pointerup', function (e) {
+            if (spotX === null) { return; }
+            var dx = e.clientX - spotX;
+            var dy = e.clientY - spotY;
+            spotX = null;
+            if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy)) {
+                spotSwiped = true;
+                showSpot(spotAt + (dx < 0 ? 1 : -1), dx < 0 ? 1 : -1);
+            }
+        });
+        // A swipe isn't a tap on the device
+        spotStage.addEventListener('click', function (e) {
+            if (spotSwiped) { spotSwiped = false; e.preventDefault(); e.stopPropagation(); }
+        }, true);
+    }
+
+    /* ── The calculator (Market) ─────────────────── */
+    // Add opens a trader's calculator for that product: how many, typed on
+    // its keys (or a keyboard), the sum as it grows, and the prices for
+    // buying more as steps, with how many more reach the next one. The first
+    // key replaces what was there, as on a real one.
+
+    var calc = $('#sf-calc');
+    var calcItem = null;
+    var calcFrom = null;
+    var calcFresh = true;
+    function calcInput() { return $('[data-calc-input]', calc); }
+    function calcQty() { return Math.max(0, Math.min(999, parseInt(calcInput().value, 10) || 0)); }
+    function calcLine() { return calcItem && cart.filter(function (l) { return l.key === calcItem.id + '|'; })[0]; }
+    function paintCalc() {
+        var qty = calcQty();
+        var each = priceAt(calcItem, Math.max(1, qty));
+        var unit = unitText(calcItem.unit).replace(/^ (each|per )/, '').trim();
+        $('[data-calc-sum]', calc).textContent = qty ? qty + ' × ' + money(each) + ' = ' + money(each * qty) : 'Type how many';
+        var ladder = $('[data-calc-ladder]', calc);
+        var steps = [{ from: 1, price: calcItem.price }].concat(calcItem.breaks || []);
+        ladder.hidden = steps.length < 2;
+        if (steps.length > 1) {
+            ladder.textContent = '';
+            var at = 0;
+            steps.forEach(function (st, i) { if (Math.max(1, qty) >= st.from) { at = i; } });
+            var top = steps[0].price || 1;
+            steps.forEach(function (st, i) {
+                var row = el('p', { class: 'sf-ladder__step' + (i === at ? ' is-on' : '') });
+                var bar = el('span', { class: 'sf-ladder__bar' });
+                bar.style.setProperty('--w', Math.round(30 + 70 * (1 - (st.price - steps[steps.length - 1].price) / Math.max(1, top - steps[steps.length - 1].price))) + '%');
+                row.appendChild(el('span', { class: 'sf-ladder__from' }, st.from + '+'));
+                bar.appendChild(el('span', {}, money(st.price)));
+                row.appendChild(bar);
+                ladder.appendChild(row);
+            });
+            var next = steps[at + 1];
+            ladder.appendChild(el('p', { class: 'sf-ladder__next' }, next
+                ? (next.from - Math.max(1, qty)) + ' more for ' + money(next.price) + ' each'
+                : 'Your best price' + (unit ? ' per ' + unit : '') + '.'));
+        }
+        var line = calcLine();
+        var go = $('[data-calc-add]', calc);
+        go.disabled = !qty && !line;
+        go.textContent = !qty ? 'Take it out of the order' : line ? 'Change to ' + qty : 'Add ' + qty + ' to the order';
+    }
+    function openCalc(id, from) {
+        calcItem = S.items[String(id)];
+        if (!calc || !calcItem) { return; }
+        calcFrom = snap(from);
+        var line = calcLine();
+        calcInput().value = line ? String(line.qty) : '1';
+        calcFresh = true;
+        $('[data-calc-name]', calc).textContent = calcItem.name;
+        $('[data-calc-each]', calc).textContent = money(calcItem.price) + unitText(calcItem.unit);
+        calcInput().setAttribute('aria-label', 'How many ' + calcItem.name);
+        paintCalc();
+        if (!calc.open) { calc.showModal(); }
+        calcInput().focus();
+    }
+    function calcKey(key) {
+        var input = calcInput();
+        if (key === 'back') {
+            input.value = input.value.slice(0, -1);
+        } else {
+            input.value = ((calcFresh ? '' : input.value) + key).replace(/^0+(?=\d)/, '').slice(0, 3);
+        }
+        calcFresh = false;
+        paintCalc();
+    }
+    function calcDone() {
+        var qty = calcQty();
+        var line = calcLine();
+        if (!qty && !line) { return; }
+        calc.close();
+        if (line) {
+            setLineQty(line.key, qty);
+            toast(qty ? 'Now ' + qty + ' × ' + calcItem.name + '.' : calcItem.name + ' is out of your order.');
+        } else {
+            putLine(calcItem, qty, '', '');
+            saveCart();
+            toast(addedText());
+            flyToBag(calcFrom);
+        }
+    }
+    if (calc) {
+        calc.addEventListener('click', function (e) {
+            if (e.target === calc) { calc.close(); return; }
+            var key = e.target.closest('[data-key]');
+            if (key) { calcKey(key.dataset.key); calcInput().focus(); return; }
+            if (e.target.closest('[data-calc-add]')) { calcDone(); }
+        });
+        calcInput().addEventListener('input', function () {
+            calcInput().value = calcInput().value.replace(/\D/g, '').slice(0, 3);
+            calcFresh = false;
+            paintCalc();
+        });
+        calcInput().addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') { e.preventDefault(); calcDone(); return; }
+            // Typing over the number shown, as the keys do
+            if (calcFresh && /^\d$/.test(e.key)) { e.preventDefault(); calcKey(e.key); }
+        });
+    }
+
+    /* ── Since your last visit (Market) ──────────── */
+    // The phone keeps the prices the shopper saw on their last visit (a
+    // visit ends after six hours), and the board marks what moved since: up
+    // or down, by how much. A first visit marks nothing.
+
+    if ($('[data-move]')) {
+        var SEEN_KEY = 'nfelia_prices_' + S.shop;
+        var seen = null;
+        try { seen = JSON.parse(localStorage.getItem(SEEN_KEY)); } catch (e) { seen = null; }
+        var nowPrices = {};
+        Object.keys(S.items).forEach(function (id) { nowPrices[id] = S.items[id].price; });
+        if (!seen || !seen.p || Date.now() - seen.t > 6 * 3600 * 1000) {
+            seen = { t: Date.now(), p: nowPrices, was: seen && seen.p ? seen.p : null };
+            try { localStorage.setItem(SEEN_KEY, JSON.stringify(seen)); } catch (e) { /* private browsing */ }
+        }
+        if (seen.was) {
+            $$('[data-move]').forEach(function (mark) {
+                var item = S.items[mark.dataset.move];
+                var was = seen.was[mark.dataset.move];
+                if (!item || typeof was !== 'number' || !item.price || !was || was === item.price) { return; }
+                var up = item.price > was;
+                mark.textContent = '';
+                mark.className = 'sf-move ' + (up ? 'sf-move--up' : 'sf-move--down');
+                mark.appendChild(el('span', { 'aria-hidden': 'true' }, up ? '▲' : '▼'));
+                mark.appendChild(document.createTextNode(' ' + money(Math.abs(item.price - was))));
+                mark.appendChild(el('span', { class: 'sf-sr' }, (up ? ' more' : ' less') + ' than when you last looked'));
+                mark.hidden = false;
+            });
+        }
+    }
+
+    /* ── The price board's tabs (Market) ─────────── */
+
+    var board = $('[data-board]');
+    if (board) {
+        var boardTabs = $$('[data-board-tab]', board);
+        var showBoard = function (name, focus) {
+            boardTabs.forEach(function (tab) {
+                var on = tab.dataset.boardTab === name;
+                tab.setAttribute('aria-selected', String(on));
+                tab.tabIndex = on ? 0 : -1;
+                if (on && focus) { tab.focus(); }
+            });
+            $$('[data-board-panel]', board).forEach(function (p) { p.hidden = p.dataset.boardPanel !== name; });
+        };
+        boardTabs.forEach(function (tab, i) {
+            tab.addEventListener('click', function () { showBoard(tab.dataset.boardTab); });
+            tab.addEventListener('keydown', function (e) {
+                if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') { return; }
+                e.preventDefault();
+                showBoard(boardTabs[(i + (e.key === 'ArrowRight' ? 1 : boardTabs.length - 1)) % boardTabs.length].dataset.boardTab, true);
+            });
+        });
+    }
+
+    /* ── Send us your list (Market) ──────────────── */
+    // A list typed or pasted the way people send it on WhatsApp ("3 bags
+    // rice", "noodles x5", "two ctn spaghetti"): each line is matched to
+    // the price list by its words and priced; a match can be changed, and
+    // lines not found go to the shop in the order's note.
+
+    var mylist = $('[data-mylist]');
+    if (mylist) {
+        var NUMBER_WORDS = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, dozen: 12 };
+        var FILLER = /^(bags?|cartons?|ctns?|crates?|packs?|pkts?|packets?|tins?|pieces?|pcs|pc|bottles?|btls?|sachets?|kegs?|gallons?|tubers?|bundles?|rolls?|box|boxes|dozens?|of|x|and|the|pls|please|i|want|need)$/;
+        var SAME = { indomie: 'noodles', noodle: 'noodles', spag: 'spaghetti', veg: 'vegetable', gnut: 'groundnut', garri: 'gari', semo: 'semolina',
+                     ltr: 'litre', ltrs: 'litre', litres: 'litre', liter: 'litre', liters: 'litre', l: 'litre', kgs: 'kg', oils: 'oil', beanz: 'beans', tomatoes: 'tomato' };
+        var words = function (text) {
+            return String(text).toLowerCase().replace(/(\d)(l|kg|g|ml|cl)\b/g, '$1 $2').replace(/g\/nut/g, 'gnut')
+                .replace(/\bx(\d)/g, 'x $1').replace(/(\d)x\b/g, '$1 x')
+                .split(/[^a-z0-9]+/).filter(Boolean).map(function (w) { return SAME[w] || w; });
+        };
+        // A product's own words count double its category's ("noodles" is the
+        // noodles, not every carton under "Noodles and pasta")
+        var catalogueWords = Object.keys(S.items).map(function (id) {
+            var item = S.items[id];
+            var opts = (item.variants || []).map(function (g) { return g.options.join(' '); }).join(' ');
+            return { item: item, words: words(item.name + ' ' + opts), cat: words(item.cat) };
+        }).filter(function (c) { return !c.item.book && !c.item.sold; });
+        var readLine = function (text) {
+            var ws = words(text);
+            var qty = 0;
+            var rest = [];
+            ws.forEach(function (w, i) {
+                if (!qty && /^\d{1,3}$/.test(w) && (i === 0 || i === ws.length - 1 || ws[i - 1] === 'x')) { qty = parseInt(w, 10); return; }
+                if (!qty && i === 0 && NUMBER_WORDS[w]) { qty = NUMBER_WORDS[w]; return; }
+                if (!FILLER.test(w)) { rest.push(w); }
+            });
+            var scored = catalogueWords.map(function (c) {
+                var got = 0;
+                rest.forEach(function (w) {
+                    if (c.words.indexOf(w) !== -1) { got += 2; } else if (w.length >= 3 && c.words.some(function (t) { return t.length >= 3 && (t.indexOf(w) === 0 || w.indexOf(t) === 0); })) { got += 1.5; } else if (c.cat.indexOf(w) !== -1) { got += 1; }
+                });
+                return { item: c.item, score: rest.length ? got / (2 * rest.length) : 0 };
+            }).filter(function (c) { return c.score >= 0.5; }).sort(function (a, b) { return b.score - a.score || a.item.name.localeCompare(b.item.name); });
+            return { text: text.trim(), qty: Math.max(1, Math.min(999, qty || 1)), picks: scored.slice(0, 3).map(function (c) { return c.item; }), chosen: scored.length ? scored[0].item.id : null };
+        };
+        var readings = [];
+        var drawList = function () {
+            var box = $('[data-mylist-lines]', mylist);
+            box.textContent = '';
+            var total = 0;
+            var found = 0;
+            readings.forEach(function (r, ri) {
+                var li = el('li', { class: 'sf-mylist__line' + (r.chosen ? ' is-found' : ' is-missing') });
+                li.appendChild(el('span', { class: 'sf-mylist__mark', 'aria-hidden': 'true' }, r.chosen ? '✓' : '?'));
+                var body = el('span', { class: 'sf-mylist__body' });
+                if (r.chosen) {
+                    var item = S.items[String(r.chosen)];
+                    var each = priceAt(item, r.qty) + variantDelta(item, choiceFor(item));
+                    total += each * r.qty;
+                    found++;
+                    var pick = el('select', { 'aria-label': 'What “' + r.text + '” is' });
+                    r.picks.forEach(function (p) {
+                        var o = el('option', { value: p.id }, r.qty + ' × ' + p.name);
+                        if (p.id === r.chosen) { o.selected = true; }
+                        pick.appendChild(o);
+                    });
+                    pick.appendChild(el('option', { value: '' }, 'None of these: send it as a note'));
+                    pick.addEventListener('change', function () { r.chosen = pick.value ? Number(pick.value) : null; drawList(); });
+                    body.appendChild(pick);
+                    body.appendChild(el('span', { class: 'sf-mylist__said' }, '“' + r.text + '”'));
+                    li.appendChild(body);
+                    li.appendChild(el('span', { class: 'sf-mylist__price' }, money(each * r.qty)));
+                } else {
+                    body.appendChild(el('span', { class: 'sf-mylist__name' }, r.text));
+                    body.appendChild(el('span', { class: 'sf-mylist__said' }, 'Not on the price list: it goes to ' + S.name + ' as a note'));
+                    li.appendChild(body);
+                }
+                li.dataset.reading = ri;
+                box.appendChild(li);
+            });
+            var add = $('[data-mylist-add]', mylist);
+            add.hidden = !readings.length;
+            add.textContent = found ? 'Add ' + plural(found, 'thing') + ' to my order · ' + money(total) : 'Send it as a note with my order';
+        };
+        // What a product comes as when nobody picks: the first of each choice
+        var choiceFor = function (item) { return (item.variants || []).map(function (g) { return g.name + ': ' + g.options[0]; }).join(', '); };
+        var readTimer = null;
+        $('[data-mylist-text]', mylist).addEventListener('input', function (e) {
+            clearTimeout(readTimer);
+            var text = e.target.value;
+            readTimer = setTimeout(function () {
+                readings = text.split(/\n+/).filter(function (l) { return l.trim(); }).slice(0, 40).map(readLine);
+                drawList();
+            }, 250);
+        });
+        mylist.addEventListener('submit', function (e) {
+            e.preventDefault();
+            if (!readings.length) { return; }
+            var added = 0;
+            var missing = [];
+            readings.forEach(function (r) {
+                if (r.chosen) {
+                    var item = S.items[String(r.chosen)];
+                    putLine(item, r.qty, choiceFor(item), '');
+                    added++;
+                } else {
+                    missing.push(r.text);
+                }
+            });
+            if (missing.length) {
+                var note = $('[name="customer_note"]', bag);
+                if (note) { note.value = (note.value ? note.value + '. ' : '') + 'Also on my list: ' + missing.join('; '); }
+            }
+            if (added) { saveCart(); }
+            $('[data-mylist-text]', mylist).value = '';
+            readings = [];
+            drawList();
+            toast((added ? 'Added ' + plural(added, 'thing') + ' from your list.' : '') + (missing.length ? ' ' + plural(missing.length, 'line') + ' we couldn\'t find ' + (missing.length === 1 ? 'is' : 'are') + ' in your note to the shop.' : ''));
+            openBag();
+        });
     }
 
     /* ── Opening hours: open now? ────────────────── */
