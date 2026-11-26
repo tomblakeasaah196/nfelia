@@ -1249,8 +1249,12 @@ function notify_send_email(PDO $db, array $row): array
     // A shop's own customer sees the shop's name, and a reply reaches the
     // shop. People signed up to Nfelia, and Ops, hear from Nfelia.
     $shopper = $brand && empty($row['user_id']) && empty($row['staff_id']);
+    // An email someone in Ops wrote to a client (app/ops/client_email.php)
+    // names its writer, takes replies at support, and copies the team.
     if (send_mail($row['recipient'], (string)$row['recipient_name'], (string)($p['subject'] ?? 'Nfelia'), $html, true, (array)($p['headers'] ?? []),
-                  $shopper ? (string)$brand['name'] : '', $shopper ? (string)($brand['email'] ?? '') : '')) {
+                  $shopper ? (string)$brand['name'] : (string)($p['from_name'] ?? ''),
+                  $shopper ? (string)($brand['email'] ?? '') : (string)($p['reply_to'] ?? ''),
+                  (array)($p['bcc'] ?? []))) {
         return ['sent', null];
     }
     $bounced = mail_bounced();

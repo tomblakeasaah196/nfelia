@@ -280,6 +280,54 @@ foreach (['finance', 'referrals', 'countries'] as $page) {
     eq($sam->status, 403, 'Support cannot open ' . $page);
 }
 
+/* ── Email a client ─────────────────────────────────────────── */
+
+section('Email a client: in your own words, in Nfelia\'s design, replies to support');
+
+$grace->get(o('clients/2'));
+ok(str_contains($grace->body, '/clients/2/email'), 'a client\'s page has an Email button');
+$grace->get(o('clients/2/email?start=check_in'));
+eq($grace->status, 200, 'the composer opens');
+ok(str_contains($grace->body, 'How is Nfelia going for {business}?') && str_contains($grace->body, 'value="book" selected'),
+   'starting from "Checking in" fills the subject, the message and the "Book a session" button');
+ok(str_contains($grace->body, 'srcdoc="') && str_contains($grace->body, 'Hi Ada,'), 'and shows the email as it will arrive, filled in for the owner');
+ok(!str_contains($grace->body, 'value="polish"'), 'Polish is offered only with GEMINI_API_KEY on the server');
+$sam->get(o('clients/2/email'));
+eq($sam->status, 200, 'Support can email a client');
+$lola->get(o('clients/2/email'));
+eq($lola->status, 200, 'and Sales');
+
+$grace->post(o('clients/2/email'), ['to' => ADA, 'subject' => '', 'body' => 'Hello there, just checking in.', 'button' => 'none', 'do' => 'send']);
+eq(ops_to($grace), 'clients/2/email#preview', 'no subject: nothing is sent, back to the composer');
+$grace->get(o('clients/2/email'));
+ok(str_contains($grace->body, 'Give the email a subject.') && str_contains($grace->body, 'Hello there, just checking in.'), 'it says why, and keeps what was typed');
+
+$letter = ['to' => ADA, 'subject' => 'Hello from Nfelia', 'body' => "Hi {first_name},\n\nJust checking in on {business}.", 'button' => 'book', 'do' => 'send'];
+$grace->post(o('clients/2/email'), $letter);
+eq(ops_to($grace), 'clients/2#notes', 'Send goes back to the client\'s page');
+$to_ada = array_values(array_filter(mails_to('ada@adashair.test'), fn($m) => $m['subject'] === 'Hello from Nfelia'));
+eq(count($to_ada), 1, 'Ada gets it');
+$m = $to_ada[0] ?? ['text' => '', 'reply_to' => '', 'from' => '', 'rcpt' => '', 'to' => ''];
+ok(str_contains($m['text'], 'Hi Ada,') && str_contains($m['text'], "Just checking in on Ada's Hair & Co.")
+   && str_contains($m['text'], 'Book a session with us') && str_contains($m['text'], 'Grace Admin'),
+   'with her name, her business, the session button and who wrote it');
+ok(str_contains($m['reply_to'], 'support@nfelia.com'), 'a reply goes to support@nfelia.com');
+ok(str_contains($m['from'], 'Grace from Nfelia'), 'it is from "Grace from Nfelia"');
+ok(str_contains($m['rcpt'], 'praxisjbs@gmail.com') && !str_contains($m['to'], 'praxisjbs'), 'the team gets a copy Ada does not see');
+ok((bool)rows("SELECT 1 FROM ops_notes WHERE subject_type = 'business' AND subject_id = 2 AND body LIKE 'Emailed Ada%Hello from Nfelia%'"), 'it is kept in the client\'s notes');
+eq(count(audit_rows('client.email')), 1, 'and in the audit log');
+$grace->post(o('clients/2/email'), $letter);
+eq(count(array_filter(mails_to('ada@adashair.test'), fn($m) => $m['subject'] === 'Hello from Nfelia')), 1, 'pressing Send again by mistake sends nothing more');
+
+exec_sql("INSERT INTO users (business_id, full_name, email, password_hash, role, is_active) VALUES (2, 'Gone Away', 'gone@adashair.invalid', 'x', 'staff', 1)");
+$gone = (int)q("SELECT id FROM users WHERE email = 'gone@adashair.invalid'");
+$grace->post(o('clients/2/email'), ['to' => $gone, 'subject' => 'Are you there?', 'body' => 'Checking that this address works.', 'button' => 'none', 'do' => 'send']);
+eq(ops_to($grace), 'clients/2/email#preview', 'an address that bounces stays on the composer');
+$grace->get(o('clients/2/email'));
+ok(str_contains($grace->body, 'does not take email'), 'and says the address doesn\'t exist');
+ok(!rows("SELECT 1 FROM ops_notes WHERE subject_type = 'business' AND subject_id = 2 AND body LIKE 'Emailed Gone%'"), 'nothing is noted as emailed');
+exec_sql("DELETE FROM users WHERE id = ?", [$gone]);
+
 /* ── The old founder admin page ─────────────────────────────── */
 
 section('The old /admin sends the Nfelia team to Ops; the Nfelia business is ordinary');

@@ -67,6 +67,8 @@ function ops_routes(): array
         ['POST', 'clients/(\d+)/ai',             'OpsClientsController', 'ai',               'clients.ai'],
         ['POST', 'clients/(\d+)/notes',          'OpsClientsController', 'note',             'clients'],
         ['POST', 'clients/(\d+)/view-as',        'OpsClientsController', 'view_as',          'clients'],
+        ['GET',  'clients/(\d+)/email',          'OpsClientsController', 'email_form',       'clients.email'],
+        ['POST', 'clients/(\d+)/email',          'OpsClientsController', 'email',            'clients.email'],
         ['GET',  'clients/(\d+)/wipe',           'OpsWipeController',    'form',             'clients.wipe'],
         ['POST', 'clients/(\d+)/wipe',           'OpsWipeController',    'wipe',             'clients.wipe'],
         ['GET',  'wipes/(\d+)/copy',             'OpsWipeController',    'copy',             'clients.wipe'],

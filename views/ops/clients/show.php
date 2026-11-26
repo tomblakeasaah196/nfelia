@@ -23,6 +23,7 @@ $day    = fn(?string $d) => $d ? date('j M Y', strtotime($d)) : '—';
            Joined <?= e($day($b['created_at'])) ?>, last active <?= $active ? e(ops_ago($active)) : 'never' ?>.</p>
     </div>
     <div class="ops-head-actions">
+        <?php if (ops_can('clients.email') && array_filter($people, fn($p) => (int)$p['is_active'] && !empty($p['email']))): ?><a class="ops-btn ops-btn-secondary" href="<?= e(ops_url('clients/' . (int)$b['id'] . '/email')) ?>">Email</a><?php endif; ?>
         <?php if ($b['phone']): ?><a class="ops-btn ops-btn-secondary" href="https://wa.me/<?= e(preg_replace('/\D/', '', $b['whatsapp'] ?? $b['phone'])) ?>" rel="noopener noreferrer" target="_blank">WhatsApp</a><?php endif; ?>
         <?php if (ops_can('clients.view_as')): ?><button type="button" class="ops-btn ops-btn-primary" data-ops-dialog="view-as"><?= ops_icon('eye') ?> View as <?= e($owner['full_name'] ?? 'them') ?></button><?php endif; ?>
     </div>
