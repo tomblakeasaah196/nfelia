@@ -20,6 +20,7 @@
  * POST /landing-page/location-link     the pin in a pasted Google Maps link
  * POST /landing-page/visibility        switch the whole shop on or off
  * POST /landing-page/sold-out          show items with no stock left as sold out, or not
+ * POST /landing-page/on-shop           a product on the shop or off it (Show on my shop)
  *
  * Every POST checks the CSRF token, sent as the X-CSRF-Token header or a
  * csrf_token field. The shop link itself is changed through ShopSetupController.
@@ -55,14 +56,17 @@ class LandingPageController {
         $draft     = storefront_settings($business, 'draft');
         $published = $business['storefront_published'] ? storefront_settings($business, 'published') : null;
 
+        // Every item on sale, for "Everything you sell" to tick on or off the
+        // shop; the other lists pick from those on it
         $stmt = $this->db->prepare("
-            SELECT id, name, description, sell_price, is_service, image_path, category, booking_mode
+            SELECT id, name, description, sell_price, is_service, image_path, category, booking_mode, on_shop
             FROM products
             WHERE business_id = ? AND deleted_at IS NULL AND is_active = 1
             ORDER BY name ASC
             LIMIT " . (int)MAX_PRODUCTS);
         $stmt->execute([$this->biz_id]);
-        $products = $stmt->fetchAll();
+        $all_products = $stmt->fetchAll();
+        $products = array_values(array_filter($all_products, fn($p) => (int)$p['on_shop'] === 1));
 
         $public_url   = $business['subdomain'] ? shop_url($business['subdomain']) : null;
         $shop_host    = $public_url ? $business['subdomain'] . '.' . shop_base_host() : null;
@@ -131,6 +135,9 @@ class LandingPageController {
         $business = $this->business();
         $settings = $this->keep_own_products(storefront_settings($business, 'draft'));
         $json     = json_encode($settings, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        // Only a city from the list of the business's own country goes into
+        // the directory (W17): a shop in Cameroon can't be filed under Lagos
+        $city     = sf_known_city($settings['seo']['city'], sf_country_iso($business));
 
         $this->db->beginTransaction();
         try {
@@ -142,9 +149,7 @@ class LandingPageController {
                     directory_opt_in = ?, city = ?, city_slug = ?
                 WHERE id = ?
             ")->execute([$json, $json, $settings['look'], (int)$settings['seo']['directory'],
-                         // Only a city from the list goes into the directory (W17)
-                         sf_known_city($settings['seo']['city']) !== '' ? sf_known_city($settings['seo']['city']) : null,
-                         sf_known_city($settings['seo']['city']) !== '' ? sf_city_slug(sf_known_city($settings['seo']['city'])) : null, $this->biz_id]);
+                         $city !== '' ? $city : null, $city !== '' ? sf_city_slug($city) : null, $this->biz_id]);
             $this->db->prepare("INSERT INTO storefront_versions (business_id, settings, published_by) VALUES (?, ?, ?)")
                      ->execute([$this->biz_id, $json, (int)auth_user()['id']]);
             // Keep the ten newest
@@ -325,6 +330,34 @@ class LandingPageController {
         update_business_session(['shop_sold_out' => $on]);
         storefront_purge($this->biz_id);
         json_response(['ok' => true, 'on' => (bool)$on]);
+    }
+
+    /**
+     * POST /landing-page/on-shop {id, on} or {all: true, on}: a product on
+     * the shop or off it, from the ticks in "Everything you sell". It is the
+     * product's Show on my shop (products.on_shop), the same switch as in the
+     * Catalogue, so it is saved at once and needs no Publish.
+     */
+    public function on_shop() {
+        $this->require_post();
+        $in = $this->input();
+        $on = sf_bool($in['on'] ?? false) ? 1 : 0;
+        if (!empty($in['all'])) {
+            $stmt = $this->db->prepare("UPDATE products SET on_shop = ? WHERE business_id = ? AND deleted_at IS NULL AND is_active = 1");
+            $stmt->execute([$on, $this->biz_id]);
+            $said = $on ? 'Everything you sell is on your shop now.' : 'Nothing is on your shop now.';
+        } else {
+            $stmt = $this->db->prepare("SELECT name FROM products WHERE id = ? AND business_id = ? AND deleted_at IS NULL");
+            $stmt->execute([(int)($in['id'] ?? 0), $this->biz_id]);
+            $name = $stmt->fetchColumn();
+            if ($name === false) {
+                json_response(['error' => 'That item isn’t in your catalogue any more. Reload the page.'], 404);
+            }
+            $this->db->prepare("UPDATE products SET on_shop = ? WHERE id = ? AND business_id = ?")->execute([$on, (int)$in['id'], $this->biz_id]);
+            $said = $on ? $name . ' is on your shop now.' : $name . ' is off your shop. You can still put it on invoices, quotes and orders.';
+        }
+        storefront_purge($this->biz_id);
+        json_response(['ok' => true, 'on' => (bool)$on, 'message' => $said]);
     }
 
     /* ── Helpers ── */

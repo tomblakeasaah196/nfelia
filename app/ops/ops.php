@@ -37,6 +37,9 @@ const OPS_ROLES = [
  *   clients          see clients and their accounts
  *   clients.act      change a client's plan, approve payments and shop names
  *   clients.view_as  open a client's Nfelia read-only (logged, owner told)
+ *   clients.wipe     wipe a client's records for a fresh start (Admins only)
+ *   clients.ai       switch adding items from a photo on for a client, and set
+ *                    how many photos a week (Admins only)
  *   support          support tickets, feedback and reviews
  *   errors           the error monitor and system health
  *   exports          make a client's Records Book; it goes to the owner
@@ -499,6 +502,7 @@ function ops_nav(array $staff): array
         ],
         'Sales' => [
             ['leads',     'Leads',     'target', ops_can('sales', $staff) ? $count("SELECT COUNT(*) FROM leads WHERE next_follow_up_at <= NOW() AND stage IN ('new', 'contacted', 'demo', 'trial')") : null, 'sales'],
+            ['meetings',  'Meetings',  'calendar', ops_can('sales', $staff) ? $count("SELECT COUNT(*) FROM meetings WHERE status = 'booked' AND ends_at >= NOW()") : null, 'sales'],
             ['campaigns', 'Campaigns', 'mail',   null, 'campaigns'],
         ],
         'Clients' => [
@@ -569,6 +573,7 @@ function ops_icon(string $name, string $label = ''): string
         'copy'    => '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>',
         'eye'     => '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
         'download'=> '<path d="M12 4v11"/><path d="m7 10 5 5 5-5"/><path d="M5 20h14"/>',
+        'calendar'=> '<rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17"/><path d="M8 3v4M16 3v4"/>',
     ];
     $aria = $label !== '' ? ' role="img" aria-label="' . e($label) . '"' : ' aria-hidden="true"';
     return '<svg class="ops-icon" viewBox="0 0 24 24"' . $aria . '>' . ($paths[$name] ?? '') . '</svg>';

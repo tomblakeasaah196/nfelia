@@ -369,7 +369,7 @@ function notify_events(): array
             'topic' => 'billing', 'to' => 'owner', 'brand' => 'nfelia',
             'url' => fn($d) => 'settings?tab=billing', 'tag' => fn($d) => 'billing',
             'text' => fn($d, $m) => ['Nfelia is paused',
-                                     'Pay for a month to open Nfelia and your website again. Everything you added is still here.'],
+                                     'Pay for a month to open Nfelia and your website again. Everything you added is still here, and we keep it for 12 months.'],
             'private' => 'Nfelia is paused',
             'button' => 'Pay now',
         ],
@@ -392,7 +392,7 @@ function notify_events(): array
         'billing.trial_ended' => [
             'topic' => 'billing', 'to' => 'owner', 'brand' => 'nfelia',
             'url' => fn($d) => 'settings?tab=billing', 'tag' => fn($d) => 'billing',
-            'text' => fn($d, $m) => ['Your free trial has ended', 'Pay for a month to carry on. Everything you added is still here.'],
+            'text' => fn($d, $m) => ['Your free trial has ended', 'Pay for a month to carry on. Everything you added is still here, and we keep it for 12 months.'],
             'private' => 'Free trial ended',
             'button' => 'Choose a plan',
         ],
@@ -592,6 +592,24 @@ function notify_events(): array
                                      . '. Nothing was changed. Questions? Reply to support.'],
             'private' => 'Nfelia support looked at your account',
             'button' => 'Open Nfelia',
+        ],
+        'account.wiped' => [
+            'topic' => 'security', 'to' => 'owner', 'brand' => 'nfelia',
+            'url' => fn($d) => 'dashboard', 'tag' => fn($d) => 'security',
+            'text' => fn($d, $m) => ['Your records were cleared for a fresh start',
+                                     'As you asked, Nfelia cleared your ' . $d['parts'] . '.' . (!empty($d['numbers']) ? ' Your numbers start again at 001.' : '')
+                                     . ' Your sign-in, team, plan and shop are as they were. If you didn’t ask for this, reply to support.'],
+            'private' => 'Your records were cleared',
+            'button' => 'Open Nfelia',
+        ],
+        'account.ai_on' => [
+            'topic' => 'account', 'to' => 'boss', 'brand' => 'nfelia',
+            'url' => fn($d) => 'products/create', 'tag' => fn($d) => 'ai-on',
+            'text' => fn($d, $m) => ['You can now add items from a photo',
+                                     'Take a photo of an item and Nfelia writes its name, description and category for you, in English or French. You have '
+                                     . (int)$d['limit'] . ' photos a week.'],
+            'private' => 'Something new in your Nfelia',
+            'button' => 'Add an item from a photo',
         ],
         'security.signin_blocked' => [
             'topic' => 'security', 'to' => 'user', 'brand' => 'nfelia',

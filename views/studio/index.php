@@ -9,7 +9,8 @@
  * shop-link card is drawn here because it is an ordinary form.
  *
  * Available from LandingPageController::settings(): $business, $draft,
- * $published, $products, $theme, $public_url, $shop_host, $pending_name,
+ * $published, $products (those on the shop), $all_products (every one on
+ * sale, with on_shop), $theme, $public_url, $shop_host, $pending_name,
  * $can_rename, $unpublished.
  */
 $json_flags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES;
@@ -52,14 +53,19 @@ $greys  = array_map(fn($grey) => theme_retint($grey, $chrome['accent']), [
 $chrome['accent_text'] = theme_readable($chrome['accent_text'], [$greys['--st-stage'], $greys['--st-tint']]);
 
 $currency = trim((string)($business['currency_symbol'] ?? '')) ?: '₦';
-$product_list = [];
-foreach ($products as $p) {
+// Every product on sale: "Everything you sell" ticks each on the shop or off
+// it ('shop'); the other lists pick from those on it (studio.js keeps
+// D.products in step when a tick changes)
+$catalogue_list = [];
+foreach ($all_products as $p) {
     $thumb = $p['image_path'] && sf_image_size((string)$p['image_path']) ? sf_media_url((string)$p['image_path']) : '';
-    $product_list[] = ['id' => (int)$p['id'], 'name' => $p['name'], 'price' => sf_money((float)$p['sell_price'], $currency), 'amount' => (float)$p['sell_price'],
-                       'service' => (bool)$p['is_service'], 'thumb' => $thumb, 'mode' => (string)($p['booking_mode'] ?? 'none'),
-                       // Stage's planner: how many guests its words say it holds
-                       'guests' => sf_event_guests(['name' => (string)$p['name'], 'description' => (string)($p['description'] ?? '')])['guests']];
+    $catalogue_list[] = ['id' => (int)$p['id'], 'name' => $p['name'], 'price' => sf_money((float)$p['sell_price'], $currency), 'amount' => (float)$p['sell_price'],
+                         'service' => (bool)$p['is_service'], 'thumb' => $thumb, 'mode' => (string)($p['booking_mode'] ?? 'none'),
+                         // Stage's planner: how many guests its words say it holds
+                         'guests' => sf_event_guests(['name' => (string)$p['name'], 'description' => (string)($p['description'] ?? '')])['guests'],
+                         'shop' => (int)$p['on_shop'] === 1];
 }
+$product_list = array_values(array_filter($catalogue_list, fn($p) => $p['shop']));
 // Shea's skin finder: the skin types it offers until the owner sets their
 // own, the steps, and our guess at each product's step (storefront_routines)
 // (in the shop's order: by each category's first product, as storefront_catalogue)
@@ -80,6 +86,13 @@ $about_draft   = sf_section($draft, 'about') ?? [];
 $seo_default_title = (string)$business['name'] . (($hero_draft['headline'] ?? '') !== '' && $hero_draft['headline'] !== $business['name'] ? ' — ' . $hero_draft['headline'] : '');
 $seo_default_desc  = trim(preg_replace('/\s+/u', ' ', ($hero_draft['text'] ?? '') ?: (($about_draft['text'] ?? '') ?: (string)($business['tagline'] ?? ''))) ?? '');
 
+// The city picker offers the cities of the business's own country, with its
+// biggest as the example (site_countries); in a country with no list the
+// City box is free to type in, and the example is left out
+$city_iso     = sf_country_iso($business);
+$city_choices = sf_cities($city_iso);
+$city_example = $city_choices ? (site_countries()[$city_iso]['cities'][0] ?? $city_choices[0]) : '';
+
 $studio = [
     'csrf'        => csrf_token(),
     'seoDefaults' => ['title' => $seo_default_title, 'description' => $seo_default_desc],
@@ -91,6 +104,7 @@ $studio = [
         'upload'     => APP_URL . '/landing-page/upload-image',
         'visibility' => APP_URL . '/landing-page/visibility',
         'soldOut'    => APP_URL . '/landing-page/sold-out',
+        'onShop'     => APP_URL . '/landing-page/on-shop',
         'preview'    => APP_URL . '/landing-page/preview',
         'check'      => APP_URL . '/shop-setup/check',
         'products'   => APP_URL . '/products/create',
@@ -118,11 +132,12 @@ $studio = [
     'sets'        => storefront_colour_sets(),
     'types'       => $types,
     'products'    => $product_list,
+    'catalogue'   => $catalogue_list,
     'finder'      => $finder,
     'themes'      => array_map(fn($t) => ['name' => $t['name'], 'colours' => $t['colours']], SF_THEMES),
     'business'    => ['name' => (string)$business['name'], 'logo' => $logo_url, 'currency' => $currency,
                       'tagline' => (string)($business['tagline'] ?? ''), 'base' => shop_base_host(),
-                      'address' => (string)($business['address'] ?? ''), 'owner' => is_owner()],
+                      'address' => (string)($business['address'] ?? ''), 'owner' => is_owner(), 'city' => $city_example],
     'today'       => date('Y-m-d'),
     'visible'     => (bool)(int)$business['landing_enabled'],
 ];
@@ -136,8 +151,8 @@ $samples_url = 'https://fonts.googleapis.com/css2?family=' . implode('&family=',
 ?>
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
+<head><meta charset="utf-8">
+    
     <?= errors_script_tag() ?>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="robots" content="noindex, nofollow">
@@ -281,9 +296,9 @@ $samples_url = 'https://fonts.googleapis.com/css2?family=' . implode('&family=',
                         <p class="st-help">nfelia.com/shops lists paid shops by city and by what they sell, each with a link to its shop.</p>
                         <div class="st-field" data-seo-city-row>
                             <label class="st-label" for="st-seo-city">City</label>
-                            <input id="st-seo-city" type="text" maxlength="60" autocomplete="off" list="st-cities" data-seo="city" placeholder="Lagos">
+                            <input id="st-seo-city" type="text" maxlength="60" autocomplete="off" list="st-cities" data-seo="city" placeholder="<?= e($city_example) ?>">
                             <datalist id="st-cities">
-                                <?php foreach (NG_CITIES as $city_name): ?><option value="<?= e($city_name) ?>"><?php endforeach; ?>
+                                <?php foreach ($city_choices as $city_name): ?><option value="<?= e($city_name) ?>"><?php endforeach; ?>
                             </datalist>
                         </div>
                         <p class="st-help">Publish to put these live.</p>

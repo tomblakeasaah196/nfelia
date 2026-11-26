@@ -16,8 +16,15 @@
  *
  * Orders and quote requests post to the shop's own address (/checkout and
  * /quote-request); previews never send them.
+ *
+ * Titles, descriptions, the canonical address and the structured data come
+ * from app/helpers/shop_seo.php (loaded here too, as Shop Studio's previews
+ * draw this page from other controllers). Only live pages have a canonical
+ * address and data; pages of trial and closed shops, previews and private
+ * pages are noindex.
  */
 require_once __DIR__ . '/parts/helpers.php';
+require_once BASE_PATH . '/app/helpers/shop_seo.php';
 
 $kind      = $page['kind'];
 $look      = $theme['def'];
@@ -97,24 +104,38 @@ $ctx = [
     'reviews'   => $reviews,
 ];
 
-// Words for search engines and link previews
-$headline = $hero['headline'] !== '' ? $hero['headline'] : (string)$business['name'];
-$summary  = $hero['text'] !== '' ? $hero['text'] : ($sections['about']['text'] ?: (string)($business['tagline'] ?? ''));
-$summary  = trim(preg_replace('/\s+/u', ' ', $summary) ?? '');
-$seo_title = $business['name'] . ($headline !== $business['name'] ? ' — ' . $headline : '');
+// Words for search engines and link previews, and the shop's data for
+// them (app/helpers/shop_seo.php). Only live shops have an address to give
+// as canonical: Shop Studio's previews and the look previews have none.
+$seo       = $settings['seo'];
+$city      = shop_city($business, $settings);
+$in_city   = $city !== '' ? ' in ' . $city : '';
+$kind_name = shop_category_name($business);
+$order_how = $wa !== '' ? 'online or on WhatsApp' : 'online';
+$headline  = $hero['headline'] !== '' ? $hero['headline'] : (string)$business['name'];
+$summary   = $hero['text'] !== '' ? $hero['text'] : ($sections['about']['text'] ?: (string)($business['tagline'] ?? ''));
+$summary   = trim(preg_replace('/\s+/u', ' ', $summary) ?? '');
+$own_words = $summary !== '' || $seo['description'] !== '';
+// The home page: the headline the owner wrote, else what the shop is and where
+$seo_title = match (true) {
+    $headline !== $business['name'] => $business['name'] . ' — ' . $headline,
+    $kind_name !== ''               => $business['name'] . ' — ' . $kind_name . $in_city,
+    $city !== ''                    => $business['name'] . ', ' . $city,
+    default                         => (string)$business['name'],
+};
 if ($summary === '') {
     $count = count($catalogue['items']);
-    $summary = $business['name'] . ($count ? ': ' . $count . ' item' . ($count === 1 ? '' : 's') . ' to order online or on WhatsApp.' : '.');
+    $summary = $business['name'] . $in_city . ($count ? ': ' . $count . ' item' . ($count === 1 ? '' : 's') . ' to order ' . $order_how . '.' : '.');
 }
-$seo_desc = mb_strlen($summary) > 158 ? rtrim(mb_substr($summary, 0, 155)) . '…' : $summary;
+$seo_desc = shop_seo_clip($summary);
 // The owner's own words for Google, from Shop Studio, come first
-$seo = $settings['seo'];
 if ($seo['title'] !== '') {
     $seo_title = $seo['title'];
 }
 if ($seo['description'] !== '') {
     $seo_desc = $seo['description'];
 }
+$shop_desc = $own_words ? $seo_desc : '';   // the shop's description in its data, whatever the page
 $og_image = $business['logo_path'] && !str_ends_with((string)$business['logo_path'], '.svg')
     ? sf_media_url((string)$business['logo_path'])
     : APP_URL . '/og-image.php?biz=' . (int)$business['id'];
@@ -125,72 +146,37 @@ $icon_from = preg_match('#^uploads/(logos/\d+/[A-Za-z0-9_-][A-Za-z0-9_.-]*\.(?:p
 $icons = $icon_from !== ''
     ? array_combine(STOREFRONT_ICON_SIZES, array_map(fn($size) => sf_media_url('uploads/cache/icon/' . $size . '/' . $icon_from . '.png'), STOREFRONT_ICON_SIZES))
     : [32 => APP_URL . '/favicon-32x32.png', 180 => APP_URL . '/apple-touch-icon.png'];
-$og_size  = null;
-$og_type  = 'business.business';
-$canonical = $shop_url;
+$og_size   = null;
+$og_type   = 'business.business';
+$og_locale = shop_og_locale($business);
+$canonical = $is_live ? $shop_url : null;
+$price_meta = null;
 
-$socials = array_filter([
-    'instagram' => $contact['instagram'] ? 'https://instagram.com/' . $contact['instagram'] : null,
-    'facebook'  => $contact['facebook'] ? 'https://facebook.com/' . $contact['facebook'] : null,
-    'tiktok'    => $contact['tiktok'] ? 'https://tiktok.com/@' . $contact['tiktok'] : null,
-    'twitter'   => $contact['twitter'] ? 'https://x.com/' . $contact['twitter'] : null,
-]);
+$socials = shop_socials($contact);
 
-$ld = [
-    '@context' => 'https://schema.org',
-    '@type'    => 'LocalBusiness',
-    'name'     => (string)$business['name'],
-    'url'      => $shop_url,
-];
-if ($summary !== '')              { $ld['description'] = $seo_desc; }
-if ($business['logo_path'])       { $ld['logo'] = $ld['image'] = sf_media_url((string)$business['logo_path']); }
-// Only what the owner shows on the page goes into Google's data (W3)
-if ($business['phone'] && !empty($contact['show_phone']))     { $ld['telephone'] = (string)$business['phone']; }
-if ($business['email'] && !empty($contact['show_email']))     { $ld['email'] = (string)$business['email']; }
 // The map shows the address too, and says exactly where the shop is
 $location = $sections['location'];
 $map_on   = $location['on'] && $location['lat'] !== null;
-if ($business['address'] && (!empty($contact['show_address']) || $map_on)) { $ld['address'] = ['@type' => 'PostalAddress', 'streetAddress' => (string)$business['address'], 'addressCountry' => 'NG']; }
-if ($seo['city'] !== '')          { $ld['address'] = ($ld['address'] ?? ['@type' => 'PostalAddress', 'addressCountry' => 'NG']) + ['addressLocality' => $seo['city']]; }
-if ($map_on)                      { $ld['geo'] = ['@type' => 'GeoCoordinates', 'latitude' => $location['lat'], 'longitude' => $location['lng']]; }
-if ($catalogue['min_price'] !== null) {
-    $prices = array_filter(array_column($catalogue['items'], 'price'), fn($p) => $p > 0);
-    $ld['priceRange'] = sf_money(min($prices), $currency) . (max($prices) > min($prices) ? ' – ' . sf_money(max($prices), $currency) : '');
-}
-// Opening hours, when the owner has set booking hours
-if (!empty($business['booking_settings'])) {
-    $ld_hours = [];
-    foreach (booking_settings($business)['hours'] as $key => $open) {
-        if ($open) {
-            $ld_hours[] = ['@type' => 'OpeningHoursSpecification', 'dayOfWeek' => 'https://schema.org/' . BOOKING_DAYS[$key], 'opens' => $open['open'], 'closes' => $open['close']];
-        }
-    }
-    if ($ld_hours) {
-        $ld['openingHoursSpecification'] = $ld_hours;
-    }
-}
-if ($socials)                     { $ld['sameAs'] = array_values($socials); }
-if ($catalogue['items']) {
-    $ld['hasOfferCatalog'] = [
-        '@type' => 'OfferCatalog',
-        'name'  => 'Products and services',
-        'numberOfItems' => count($catalogue['items']),
-        'itemListElement' => array_map(fn($item) => [
-            '@type'    => $item['is_service'] ? 'Service' : 'Product',
-            'name'     => $item['name'],
-            'url'      => $shop_url . sf_product_path($item),
-            'category' => $item['category'],
-            'offers'   => [
-                '@type' => 'Offer',
-                'price' => number_format($item['price'], 2, '.', ''),
-                'priceCurrency' => business_currency_code($business),
-                'availability'  => $item['sold_out'] ? 'https://schema.org/OutOfStock' : 'https://schema.org/InStock',
-            ],
-        ], array_slice($catalogue['items'], 0, 10)),
-    ];
-}
-if ($quote_on) {
-    $ld['potentialAction'] = ['@type' => 'QuoteAction', 'target' => $shop_url . '/contact#sf-quote', 'name' => 'Ask for a quote'];
+
+// The shop's data: the site (its name in Google), the shop itself, and on
+// each page what the page is about, linked by @id
+$list_title = $sections['catalogue']['title'] !== '' ? $sections['catalogue']['title'] : $labels['catalogue'];
+$trail = [[(string)$business['name'], $shop_url]];
+$shop_node = fn(bool $list, int $max = 20) => shop_ld_business($business, $shop_url, [
+    'description' => $shop_desc,
+    'sections'    => $sections,
+    'catalogue'   => $catalogue,
+    'currency'    => $currency,
+    'city'        => $city,
+    'socials'     => $socials,
+    'list'        => $list,
+    'list_max'    => $max,
+    'list_url'    => $list_on ? '/shop' : '',
+]);
+$graph = [];
+
+if ($kind === 'shop') {
+    $graph = [shop_ld_website($business, $shop_url), $shop_node(true)];
 }
 
 // A product's page speaks for the product
@@ -199,73 +185,61 @@ if ($kind === 'product') {
     $canonical = $shop_url . sf_product_path($item);
     $seo_title = $item['name'] . ' — ' . $business['name'];
     $og_type   = 'product';
-    $price_text = $item['price'] > 0 ? sf_money($item['price'], $currency) . sf_unit_text($item['unit']) : '';
+    $low        = sf_lowest_price($item);
+    $offer_price = $low > 0 ? $low : $item['price'];
+    $price_text = $item['price'] <= 0 ? ''
+        : ($low > 0 && $low != $item['price'] ? 'from ' . sf_money($low, $currency) : sf_money($item['price'], $currency) . sf_unit_text($item['unit']));
     $about_item = trim(preg_replace('/\s+/u', ' ', $item['description']) ?? '');
     $seo_desc = $about_item !== ''
-        ? (mb_strlen($about_item) > 158 ? rtrim(mb_substr($about_item, 0, 155)) . '…' : $about_item)
-        : $item['name'] . ($price_text !== '' ? ', ' . $price_text : '') . ', from ' . $business['name'] . '. Order online or on WhatsApp.';
-    $item_images = [];
+        ? shop_seo_clip($about_item)
+        : shop_seo_clip($item['name'] . ($price_text !== '' ? ': ' . $price_text : '') . ' at ' . $business['name'] . $in_city . '. '
+            . ($item['booking'] ? 'Book a time online' . ($wa !== '' ? ' or ask on WhatsApp' : '') : 'Order ' . $order_how) . '.');
+    if ($item['price'] > 0) {
+        $price_meta = number_format($offer_price, 2, '.', '');
+    }
     foreach ($item['images'] as $rel) {
-        if (sf_image_size($rel)) {
-            $item_images[] = sf_media_url($rel);
-            if ($og_size === null && ($og = sf_og_image($rel))) {
-                [$og_image, $og_w, $og_h] = $og;
-                $og_size = [$og_w, $og_h];
-            }
+        if (sf_image_size($rel) && ($og = sf_og_image($rel))) {
+            [$og_image, $og_w, $og_h] = $og;
+            $og_size = [$og_w, $og_h];
+            break;
         }
     }
-    $product_ld = [
-        '@context' => 'https://schema.org',
-        '@type'    => $item['is_service'] ? 'Service' : 'Product',
-        'name'     => $item['name'],
-        'url'      => $canonical,
-    ];
-    if ($about_item !== '')    { $product_ld['description'] = mb_substr($about_item, 0, 5000); }
-    if ($item_images)          { $product_ld['image'] = $item_images; }
-    if ($item['category'] !== '') { $product_ld['category'] = $item['category']; }
-    if ($item['is_service'])   { $product_ld['provider'] = ['@type' => 'LocalBusiness', 'name' => (string)$business['name'], 'url' => $shop_url]; }
-    if ($item['price'] > 0) {
-        $product_ld['offers'] = [
-            '@type'         => 'Offer',
-            'url'           => $canonical,
-            'price'         => number_format($item['price'], 2, '.', ''),
-            'priceCurrency' => business_currency_code($business),
-            // Only when the shop shows sold out (shop_sold_out); otherwise as before
-            'availability'  => $item['sold_out'] ? 'https://schema.org/OutOfStock' : 'https://schema.org/InStock',
-            'seller'        => ['@type' => 'Organization', 'name' => (string)$business['name'], 'url' => $shop_url],
-        ];
+    $product_ld = shop_ld_product($business, $item, $canonical, $shop_url);   // the owner's own code (SKU) is never shown on the shop, so it stays private
+    if ($list_on) {
+        $trail[] = [$list_title, $shop_url . '/shop'];
     }
-    $ld = [$product_ld, [
-        '@context' => 'https://schema.org',
-        '@type'    => 'BreadcrumbList',
-        'itemListElement' => [
-            ['@type' => 'ListItem', 'position' => 1, 'name' => (string)$business['name'], 'item' => $shop_url],
-            ['@type' => 'ListItem', 'position' => 2, 'name' => $item['name'], 'item' => $canonical],
-        ],
-    ]];
+    $trail[] = [$item['name'], $canonical];
+    $graph = array_values(array_filter([shop_ld_website($business, $shop_url), $shop_node(false), $product_ld,
+                                        shop_ld_breadcrumbs($trail, $canonical . '#breadcrumb')]));
 }
 
 // The full list and the contact page speak for the shop, at their own address
 if ($kind === 'catalogue') {
     $canonical = $shop_url . '/shop';
-    $list_title = $sections['catalogue']['title'] !== '' ? $sections['catalogue']['title'] : $labels['catalogue'];
     $seo_title = $list_title . ' — ' . $business['name'];
     $count     = count($catalogue['items']);
-    $seo_desc  = 'Everything ' . $business['name'] . ' sells' . ($count ? ': ' . $count . ' item' . ($count === 1 ? '' : 's') . ', to order online or on WhatsApp.' : '.');
-    if ($ld) { $ld['url'] = $canonical; }
+    $cats      = array_slice($catalogue['categories'], 0, 3);
+    $seo_desc  = shop_seo_clip('Everything ' . $business['name'] . ' sells'
+        . ($count ? ': ' . $count . ' item' . ($count === 1 ? '' : 's') . ($cats ? ', including ' . shop_seo_list($cats) : '') . '. Order ' . $order_how . '.' : '.'));
+    $trail[]   = [$list_title, $canonical];
+    $graph     = [shop_ld_website($business, $shop_url), $shop_node(true, 100), shop_ld_breadcrumbs($trail, $canonical . '#breadcrumb')];
 }
 if ($kind === 'contact') {
     $canonical = $shop_url . '/contact';
     $seo_title = ($quote_on ? ($sections['quote']['title'] !== '' ? $sections['quote']['title'] : $labels['quote']) : 'Contact') . ' — ' . $business['name'];
-    $seo_desc  = 'Reach ' . $business['name'] . ($wa !== '' ? ' on WhatsApp' : '') . ($quote_on ? ', or tell us what you need and we reply with a price' : '') . '.';
+    $seo_desc  = shop_seo_clip('Reach ' . $business['name'] . $in_city . ($wa !== '' ? ' on WhatsApp' : '')
+        . ($quote_on ? ', or tell us what you need and we reply with a price' : '') . '.' . ($map_on ? ' See the address and get directions.' : ''));
+    $trail[]   = ['Contact', $canonical];
+    $graph     = [shop_ld_website($business, $shop_url), $shop_node(false), shop_ld_breadcrumbs($trail, $canonical . '#breadcrumb')];
 }
 
 // News: the list, and each post as an article
 if ($kind === 'news') {
     $canonical = $shop_url . '/news';
     $seo_title = 'News and offers — ' . $business['name'];
-    $seo_desc  = 'The latest news and offers from ' . $business['name'] . '.';
-    $ld        = null;
+    $seo_desc  = 'The latest news and offers from ' . $business['name'] . $in_city . '.';
+    $trail[]   = ['News and offers', $canonical];
+    $graph     = [shop_ld_website($business, $shop_url), $shop_node(false), shop_ld_breadcrumbs($trail, $canonical . '#breadcrumb')];
 }
 if ($kind === 'post') {
     $post      = $page['post'];
@@ -277,40 +251,41 @@ if ($kind === 'post') {
         [$og_image, $og_w, $og_h] = $og;
         $og_size = [$og_w, $og_h];
     }
-    $ld = [[
-        '@context'         => 'https://schema.org',
+    $posting = [
         '@type'            => 'BlogPosting',
+        '@id'              => $canonical . '#post',
         'headline'         => mb_substr((string)$post['title'], 0, 110),
         'description'      => $seo_desc,
+        'url'              => $canonical,
         'datePublished'    => date('c', strtotime((string)$post['published_at'])),
         'dateModified'     => date('c', strtotime((string)$post['updated_at'])),
         'mainEntityOfPage' => $canonical,
-        'author'           => ['@type' => 'Organization', 'name' => (string)$business['name'], 'url' => $shop_url],
-        'publisher'        => ['@type' => 'Organization', 'name' => (string)$business['name'], 'url' => $shop_url]
-                              + ($business['logo_path'] ? ['logo' => ['@type' => 'ImageObject', 'url' => sf_media_url((string)$business['logo_path'])]] : []),
-    ] + ($post['image_path'] && sf_image_size((string)$post['image_path']) ? ['image' => [sf_media_url((string)$post['image_path'])]] : []), [
-        '@context' => 'https://schema.org',
-        '@type'    => 'BreadcrumbList',
-        'itemListElement' => [
-            ['@type' => 'ListItem', 'position' => 1, 'name' => (string)$business['name'], 'item' => $shop_url],
-            ['@type' => 'ListItem', 'position' => 2, 'name' => 'News', 'item' => $shop_url . '/news'],
-            ['@type' => 'ListItem', 'position' => 3, 'name' => (string)$post['title'], 'item' => $canonical],
-        ],
-    ]];
+        'inLanguage'       => 'en',
+        'author'           => shop_ld_ref($business, $shop_url),
+        'publisher'        => shop_ld_ref($business, $shop_url),
+        'isPartOf'         => ['@id' => shop_ld_id($shop_url, 'website')],
+    ];
+    if ($post['image_path'] && sf_image_size((string)$post['image_path'])) {
+        $posting['image'] = [sf_media_url((string)$post['image_path'])];
+    }
+    $trail[] = ['News and offers', $shop_url . '/news'];
+    $trail[] = [(string)$post['title'], $canonical];
+    $graph   = [shop_ld_website($business, $shop_url), $shop_node(false), $posting, shop_ld_breadcrumbs($trail, $canonical . '#breadcrumb')];
 }
 
-// A booking page belongs to its product's page
+// A booking page is a step towards booking, never a page for search
+// engines (noindex, and robots.txt keeps them out of /book/)
 if ($kind === 'book') {
-    $canonical = $shop_url . sf_product_path($page['item']);
+    $canonical = null;
     $seo_title = 'Book ' . $page['item']['name'] . ' — ' . $business['name'];
     $seo_desc  = 'Pick a free time for ' . $page['item']['name'] . ' and book it with ' . $business['name'] . '.';
-    $ld        = null;
+    $graph     = [];
 }
 
 // Order, review and booking pages belong to one shopper: no address to share, no data
 if ($private) {
     $canonical = null;
-    $ld        = null;
+    $graph     = [];
     $seo_title = match ($kind) {
         'order'   => 'Order ' . $page['order']['order_number'],
         'booking' => 'Booking ' . $page['booking']['booking_number'],
@@ -318,6 +293,12 @@ if ($private) {
     } . ' — ' . $business['name'];
     $seo_desc  = ($kind === 'booking' ? 'Your booking with ' : 'Your order from ') . $business['name'] . '.';
 }
+// Previews (Shop Studio, the looks at setup) are no page of the shop yet:
+// no address of their own, no data
+if (!$is_live) {
+    $canonical = null;
+}
+$ld = $is_live && $graph ? ['@context' => 'https://schema.org', '@graph' => array_values($graph)] : null;
 
 // What storefront.js needs: the catalogue for the product sheet and the bag,
 // bank accounts for checkout, and where to send things
@@ -389,8 +370,8 @@ $asset = fn(string $path) => APP_URL . '/' . $path . '?v=' . (@filemtime(BASE_PA
 ?>
 <!DOCTYPE html>
 <html lang="en" class="<?= e($theme['classes'] . ($cover ? ' has-cover' : '') . ($backdrop !== '' ? ' has-backdrop' : '') . ($is_live ? '' : ' is-preview')) ?>" prefix="og: https://ogp.me/ns#">
-<head>
-    <meta charset="UTF-8">
+<head><meta charset="utf-8">
+    
     <?= errors_script_tag() ?>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title><?= e($seo_title) ?></title>
@@ -421,11 +402,11 @@ $asset = fn(string $path) => APP_URL . '/' . $path . '?v=' . (@filemtime(BASE_PA
     <meta property="article:published_time" content="<?= e(date('c', strtotime((string)$page['post']['published_at']))) ?>">
     <meta property="article:modified_time" content="<?= e(date('c', strtotime((string)$page['post']['updated_at']))) ?>">
     <?php endif; ?>
-    <?php if ($kind === 'product' && $page['item']['price'] > 0): ?>
-    <meta property="product:price:amount" content="<?= e(number_format($page['item']['price'], 2, '.', '')) ?>">
+    <?php if ($price_meta !== null): ?>
+    <meta property="product:price:amount" content="<?= e($price_meta) ?>">
     <meta property="product:price:currency" content="<?= e(business_currency_code($business)) ?>">
     <?php endif; ?>
-    <meta property="og:locale" content="en_NG">
+    <meta property="og:locale" content="<?= e($og_locale) ?>">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="<?= e($seo_title) ?>">
     <meta name="twitter:description" content="<?= e($seo_desc) ?>">

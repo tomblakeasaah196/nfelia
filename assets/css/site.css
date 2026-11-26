@@ -1,0 +1,267 @@
+/* Nfelia — the site's own pages (views/site): features, pricing, help, the
+   blog, the country pages. Built on home.css: its tokens, buttons, header,
+   footer, phone frames, ticks and questions. This file adds only what those
+   pages need besides. Same system: 8px grid, borders before shadows, one
+   breakpoint at 768px, motion on transform and opacity only. */
+
+/* ---------- Header: the menu on phones ---------- */
+.nav-menu { position: relative; }
+.nav-menu summary {
+    list-style: none; cursor: pointer; display: grid; place-items: center;
+    width: 44px; height: 44px; border-radius: var(--radius-s); border: 1px solid var(--line); color: var(--ink);
+}
+.nav-menu summary::-webkit-details-marker { display: none; }
+.nav-menu summary svg { width: 22px; height: 22px; }
+.nav-menu[open] summary { border-color: var(--burgundy); color: var(--burgundy); }
+.nav-menu-panel {
+    position: absolute; right: 0; top: calc(100% + 8px); z-index: 50; min-width: 240px;
+    display: grid; padding: 8px; background: #fff; border: 1px solid var(--line); border-radius: var(--radius-m); box-shadow: var(--shadow);
+    /* a phone on its side: the menu scrolls inside itself, so its last link stays reachable */
+    max-height: calc(100vh - 88px); max-height: calc(100dvh - 88px); overflow-y: auto; overscroll-behavior: contain;
+}
+/* The open menu sits above the floating WhatsApp button (.wa, z-index 60) */
+.site-header { z-index: 70; }
+.nav-menu-panel a { display: flex; align-items: center; min-height: 44px; padding: 0 12px; border-radius: var(--radius-s); text-decoration: none; font-weight: 600; }
+.nav-menu-panel a:hover { background: var(--burgundy-tint); color: var(--burgundy); }
+.nav-menu-panel .linkish { display: flex; align-items: center; min-height: 44px; padding: 0 12px; border-radius: var(--radius-s); font-weight: 600; text-align: left; }
+.nav-menu-panel .linkish:hover { background: var(--burgundy-tint); color: var(--burgundy); }
+.linkish { background: none; border: 0; padding: 12px 0; font: inherit; cursor: pointer; color: inherit; }
+.nav-links .linkish { font-weight: 600; font-size: .875rem; color: var(--ink-2); }
+@media (max-width: 767.98px) {
+    .header-actions .signin-link { display: none; }
+    .site-header .wrap { gap: 12px; }
+}
+@media (min-width: 768px) {
+    .nav-links { display: flex; }
+    .nav-menu { display: none; }
+}
+/* The page you are on */
+.nav-links a[aria-current], .nav-menu-panel a[aria-current] { color: var(--burgundy); }
+.nav-links a[aria-current] { box-shadow: inset 0 -2px var(--burgundy); }
+
+/* Tooltips only where there is a real hover: a tap leaves :hover stuck on touch screens */
+@media (hover: none) { [data-tip]::after { content: none; } }
+
+/* Keyboard focus: burgundy on the light pages (gold is too faint on white), gold on the dark bands */
+:focus-visible { outline-color: var(--burgundy); }
+.setup-type input:focus-visible + .setup-type-box { outline-color: var(--burgundy); }
+.site-footer :focus-visible, .cta-band :focus-visible, .final :focus-visible { outline-color: var(--gold); }
+
+/* ---------- Breadcrumbs ---------- */
+.crumbs ol { list-style: none; display: flex; flex-wrap: wrap; gap: 4px 0; padding-top: 16px; padding-bottom: 0; margin: 0 auto; font-size: .875rem; color: var(--ink-2); }
+.crumbs li { display: inline-flex; align-items: center; }
+.crumbs li + li::before { content: "/"; margin: 0 8px; color: #B9A9B0; }
+.crumbs a { color: var(--ink-2); text-decoration: none; min-height: 44px; display: inline-flex; align-items: center; }
+.crumbs a:hover { color: var(--burgundy); text-decoration: underline; }
+.crumbs [aria-current] { color: var(--ink); font-weight: 600; }
+
+/* ---------- Page top ---------- */
+.page-hero { padding: 24px 0 56px; overflow-x: clip; }
+.page-hero-grid { display: grid; gap: 40px; align-items: center; }
+.kicker { font-weight: 600; font-size: .875rem; letter-spacing: .06em; text-transform: uppercase; color: var(--burgundy); margin-bottom: 12px; }
+.page-hero h1 { font-size: clamp(2.25rem, 3.4vw + 1rem, 3.5rem); line-height: 1.1; letter-spacing: -0.02em; max-width: 18ch; }
+.page-lead { margin-top: 20px; font-size: 1.1875rem; line-height: 1.55; color: var(--ink-2); max-width: 42ch; }
+.page-hero-visual { max-width: 460px; width: 100%; margin: 0 auto; }
+.page-hero.is-plain { padding-bottom: 32px; }
+.page-hero.is-plain h1 { max-width: 24ch; }
+
+/* ---------- Phone screens ---------- */
+.screens { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+.screens .screen { margin: 0; }
+.screens .screen:nth-child(2) { margin-top: 40px; }
+.screens figcaption { margin-top: 12px; text-align: center; font-size: .875rem; font-weight: 600; color: var(--ink-2); }
+.screens > .screen:only-child { grid-column: 1 / -1; justify-self: center; width: min(240px, 100%); }
+
+/* ---------- Sections ---------- */
+.page-section { padding: 56px 0; }
+.page-section.tint { background: var(--ledger); }
+.page-section.rose { background: var(--burgundy-tint); }
+/* minmax(0, …): a wide table or a no-wrap line scrolls in its own box instead of widening the page */
+.split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 40px; align-items: center; }
+.split-copy > * + * { margin-top: 16px; }
+.split-copy h2 { font-size: clamp(1.75rem, 1.8vw + 1rem, 2.25rem); line-height: 1.15; letter-spacing: -0.01em; }
+.split-copy p { color: var(--ink-2); font-size: 1.0625rem; }
+/* One size for every section heading on the site's pages (the landing page keeps its own) */
+.site-page .section-head h2 { font-size: clamp(1.75rem, 1.8vw + 1rem, 2.25rem); line-height: 1.15; letter-spacing: -0.01em; }
+.split-copy .ticks li { font-weight: 400; }
+.split-copy .ticks strong { font-weight: 600; }
+
+/* ---------- Cards ---------- */
+.cards { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; }
+.card {
+    display: flex; flex-direction: column; gap: 8px; height: 100%; padding: 24px; text-decoration: none;
+    background: #fff; border: 1px solid var(--line); border-radius: var(--radius-m);
+    transition: border-color var(--motion-150) ease, transform var(--motion-200) var(--ease-out);
+}
+.card:hover { border-color: var(--burgundy); transform: translateY(-2px); }
+.card-icon { width: 44px; height: 44px; border-radius: var(--radius-s); display: grid; place-items: center; background: var(--burgundy-tint); color: var(--burgundy); margin-bottom: 8px; }
+.card-icon svg { width: 22px; height: 22px; }
+.card h3 { font-size: 1.1875rem; line-height: 1.25; }
+.card p { color: var(--ink-2); font-size: .9375rem; line-height: 1.5; }
+.card-more { margin-top: auto; padding-top: 8px; color: var(--burgundy); }
+.card-more svg { width: 20px; height: 20px; }
+.cards-compact .card { padding: 16px 20px; }
+.cards-compact .card h3 { font-size: 1.0625rem; }
+@media (min-width: 560px) { .cards { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 960px) { .cards { grid-template-columns: repeat(3, 1fr); } .cards.cards-2 { grid-template-columns: repeat(2, 1fr); } }
+
+/* ---------- Steps (numbered) ---------- */
+.page-section .steps, .prose .steps { list-style: none; margin: 0; padding: 0; counter-reset: step; display: grid; gap: 16px; }
+.page-section .steps li, .prose .steps li { counter-increment: step; display: flex; gap: 16px; align-items: flex-start; }
+.page-section .steps li::before, .prose .steps li::before {
+    content: counter(step); flex: none; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center;
+    background: var(--burgundy); color: #fff; font: 700 1rem/1 var(--font-display);
+}
+.page-section .steps h3, .prose .steps h3 { font-size: 1.0625rem; line-height: 1.3; margin: 8px 0 4px; }
+.page-section .steps p, .prose .steps p { color: var(--ink-2); }
+
+/* ---------- Articles: help, the blog, legal pages ---------- */
+/* An article is one grid: its header, then "On this page", then the text.
+   On phones they stack in that order; from 1024px the list moves into a
+   column beside the text and stays in view (see below). */
+.article-wrap { display: grid; grid-template-columns: minmax(0, 1fr); gap: 32px; padding-top: 24px; padding-bottom: 64px; }
+.article-head { margin-bottom: 32px; }
+.article-wrap > .article-head { margin-bottom: 0; }
+.article-head h1 { font-size: clamp(2rem, 2.6vw + 1rem, 3rem); line-height: 1.12; letter-spacing: -0.015em; max-width: 24ch; }
+.article-head .page-lead { max-width: 60ch; }
+.meta { margin-top: 16px; font-size: .875rem; color: var(--ink-2); }
+.prose { max-width: 38em; font-size: 1.0625rem; line-height: 1.7; }   /* about 74 characters a line */
+.prose > * + * { margin-top: 1.1em; }
+.prose h2 { font-size: clamp(1.5rem, 1.2vw + 1rem, 1.875rem); line-height: 1.2; margin-top: 2em; letter-spacing: -0.01em; scroll-margin-top: 96px; }
+.prose h3 { font-size: 1.25rem; line-height: 1.3; margin-top: 1.6em; scroll-margin-top: 96px; }
+.prose a { color: var(--burgundy); text-underline-offset: 3px; }
+.prose a:hover { color: var(--burgundy-deep); }
+.prose ul, .prose ol { padding-left: 1.4em; }
+.prose li + li { margin-top: .4em; }
+.prose li::marker { color: var(--burgundy); }
+.prose strong { color: var(--ink); }
+.prose blockquote { margin-left: 0; padding: 16px 20px; border-left: 4px solid var(--gold); background: var(--ledger); border-radius: 0 var(--radius-s) var(--radius-s) 0; }
+.prose .note { padding: 16px 20px; border: 1px solid var(--line); border-radius: var(--radius-m); background: var(--burgundy-tint); }
+.prose .note strong:first-child { display: block; margin-bottom: 4px; }
+.prose figure { margin: 2em 0; }
+.prose figure .phone { max-width: 280px; margin: 0 auto; }
+.prose figcaption { margin-top: 12px; font-size: .875rem; color: var(--ink-2); text-align: center; }
+.prose .screens { max-width: 560px; }
+.prose code { font-size: .9em; background: var(--ledger); padding: 2px 6px; border-radius: 4px; }
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+/* A table wider than its box shows a soft shadow at the edge that scrolls */
+.prose .table-scroll {
+    background:
+        linear-gradient(90deg, #fff 30%, rgba(255,255,255,0)) left / 24px 100% no-repeat local,
+        linear-gradient(270deg, #fff 30%, rgba(255,255,255,0)) right / 24px 100% no-repeat local,
+        radial-gradient(farthest-side at 0 50%, rgba(31,10,20,.12), transparent) left / 12px 100% no-repeat scroll,
+        radial-gradient(farthest-side at 100% 50%, rgba(31,10,20,.12), transparent) right / 12px 100% no-repeat scroll;
+}
+.table-scroll[tabindex]:focus-visible { outline-offset: 4px; }
+.prose table { width: 100%; border-collapse: collapse; font-size: .9375rem; line-height: 1.5; }
+.prose th, .prose td { text-align: left; padding: 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.prose th { font-weight: 600; background: var(--ledger); }
+/* Amounts line up: right-aligned, figures of one width */
+.prose .num, .compare .num { text-align: right; font-variant-numeric: tabular-nums; }
+.prose .template { padding: 20px; border: 1px dashed var(--burgundy); border-radius: var(--radius-m); background: #fff; font-size: 1rem; white-space: pre-line; }
+
+/* On this page: a short list of the article's sections */
+.toc { padding: 20px; border: 1px solid var(--line); border-radius: var(--radius-m); background: #fff; font-size: .9375rem; }
+.toc h2 { font: 600 .875rem/1.4 var(--font-body); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-2); margin: 0 0 8px; }
+.toc ol { margin: 0; padding-left: 1.2em; display: grid; gap: 0; }
+.toc ol a { color: var(--ink); text-decoration: none; display: flex; align-items: center; min-height: 44px; padding: 4px 0; }
+.toc ol a:hover { color: var(--burgundy); text-decoration: underline; }
+.article-aside { display: grid; gap: 24px; align-content: start; }
+@media (min-width: 1024px) {
+    .article-wrap.has-aside { grid-template-columns: minmax(0, 1fr) 300px; column-gap: 64px; row-gap: 32px; }
+    /* The list beside the text: beside the header and the text of an article,
+       beside the one block of a hub or the questions page */
+    .article-wrap.has-aside > .article-aside { grid-column: 2; grid-row: 1; position: sticky; top: 96px; align-self: start; }
+    .article-wrap.has-aside > .article-head + .article-aside { grid-row: 1 / span 2; }
+}
+
+/* ---------- Help centre and blog lists ---------- */
+.list-group + .list-group { margin-top: 40px; }
+.list-group h2 { font-size: 1.375rem; margin-bottom: 16px; }
+.link-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.link-list li { border-bottom: 1px solid var(--line); }
+.link-list a { display: flex; flex-direction: column; gap: 2px; padding: 16px 0; text-decoration: none; }
+.link-list a strong { font-size: 1.0625rem; }
+.link-list a span { color: var(--ink-2); font-size: .9375rem; }
+.link-list a:hover strong { color: var(--burgundy); text-decoration: underline; }
+.post-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; }
+.post-list .card time { font-size: .8125rem; color: var(--ink-2); }
+@media (min-width: 768px) { .post-list { grid-template-columns: repeat(2, 1fr); } }
+
+/* ---------- Pricing ---------- */
+.price-card .ticks li { font-weight: 400; }
+.price-note { max-width: 760px; margin: 24px auto 0; text-align: center; color: var(--ink-2); font-size: .9375rem; }
+.compare { max-width: 860px; margin: 0 auto; }
+.compare table { width: 100%; border-collapse: collapse; font-size: .9375rem; }
+.compare th, .compare td { padding: 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.compare thead th { background: var(--ledger); font-weight: 600; }
+.compare td:first-child { font-weight: 600; }
+/* On a cream section a table needs its own white surface, or its header row disappears */
+.page-section.tint .compare table { background: #fff; border: 1px solid var(--line); border-radius: var(--radius-m); border-collapse: separate; border-spacing: 0; overflow: hidden; }
+.page-section.tint .compare thead th { background: var(--gold-soft); }
+.page-section.tint .compare tbody tr:last-child > * { border-bottom: 0; }
+/* About: three columns that need room; on a phone the table scrolls instead of squeezing */
+.about-countries table { min-width: 560px; }
+
+/* ---------- Facts (about, contact, countries) ---------- */
+.facts { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; }
+.facts li { padding: 20px; border: 1px solid var(--line); border-radius: var(--radius-m); background: #fff; }
+.facts strong { display: block; font: 700 1.5rem/1.2 var(--font-display); color: var(--burgundy); }
+.facts span { color: var(--ink-2); font-size: .9375rem; }
+@media (min-width: 768px) { .facts { grid-template-columns: repeat(3, 1fr); } }
+.contact-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.contact-list a { display: flex; gap: 16px; align-items: center; padding: 16px 20px; border: 1px solid var(--line); border-radius: var(--radius-m); text-decoration: none; background: #fff; }
+.contact-list a:hover { border-color: var(--burgundy); }
+.contact-list svg { width: 24px; height: 24px; color: var(--burgundy); flex: none; }
+.contact-list strong { display: block; }
+.contact-list span { color: var(--ink-2); font-size: .9375rem; }
+
+/* ---------- Closing call ---------- */
+.cta-band { background: var(--burgundy); color: #fff; padding: 64px 0; text-align: center; }
+.cta-band h2 { color: #fff; font-size: clamp(1.875rem, 2vw + 1rem, 2.5rem); line-height: 1.15; max-width: 24ch; margin: 0 auto; }
+.cta-band p { margin: 16px auto 0; max-width: 52ch; color: rgba(255,255,255,.86); font-size: 1.0625rem; }
+.cta-band .hero-actions { justify-content: center; }
+
+/* ---------- Read next ---------- */
+.related { padding: 56px 0; background: var(--ledger); border-top: 1px solid var(--line); }
+.related h2 { font-size: 1.5rem; margin-bottom: 24px; }
+.related .card-icon { display: none; }   /* a compact list: titles line up whatever the page */
+
+/* "Who it helps": each trade is a link, as tall as a finger */
+.fits strong a { display: inline-flex; align-items: center; min-height: 44px; margin: -12px 0; }
+
+/* ---------- Footer additions ---------- */
+.footer-grid-wide { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 16px; }
+.footer-grid-wide .footer-brand { grid-column: 1 / -1; }
+.footer-contact { margin-top: 16px !important; }
+.footer-countries { margin-top: 32px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; font-size: .875rem; }
+.footer-countries span { color: rgba(255,255,255,.6); }
+.footer-countries a { min-height: 44px; display: inline-flex; align-items: center; }
+.footer-countries a[aria-current] { color: #fff; font-weight: 600; }
+.footer-bottom .legal a { min-height: 44px; display: inline-flex; align-items: center; }
+@media (min-width: 1024px) {
+    .footer-grid-wide { grid-template-columns: 1.4fr repeat(4, 1fr); column-gap: 32px; }
+    .footer-grid-wide .footer-brand { grid-column: auto; }
+}
+
+/* The landing page's "Sound familiar?" grid: one column on phones that never widens the page */
+@media (max-width: 767.98px) { .see-grid { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---------- Wider screens ---------- */
+@media (min-width: 768px) {
+    .page-hero { padding: 40px 0 72px; }
+    .page-hero.has-visual .page-hero-grid { grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: 56px; }
+    .page-section { padding: 80px 0; }
+    .split { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 64px; }
+    .split.flip .split-copy { order: 2; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .card { transition: none; }
+    .card:hover { transform: none; }
+}
+
+/* ---------- Footer: Nfelia's own profiles ---------- */
+.footer-follow { margin-top: 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 0 16px; color: rgba(255,255,255,.6); }
+.footer-follow a { min-height: 44px; display: inline-flex; align-items: center; color: rgba(255,255,255,.82); text-decoration: none; }
+.footer-follow a:hover { color: #fff; text-decoration: underline; }

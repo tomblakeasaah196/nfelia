@@ -143,10 +143,19 @@ function planner_money(float $amount, string $symbol): string {
     return $symbol . number_format($amount, $dec);
 }
 
+/**
+ * What to call someone: their first word, but a title keeps the word after
+ * it ("Mr Palmas", not "Mr"). A title alone is no name, so ''.
+ */
 function planner_first_name(?string $name): string {
-    $name = trim((string)$name);
-    if ($name === '') return '';
-    return explode(' ', $name)[0];
+    $parts = preg_split('/\s+/u', trim((string)$name), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+    if (!$parts) return '';
+    $titles = ['mr', 'mrs', 'ms', 'miss', 'mx', 'dr', 'prof', 'sir', 'madam', 'madame', 'mme', 'mlle', 'm',
+               'chief', 'alhaji', 'alhaja', 'engr', 'eng', 'barr', 'hon', 'pastor', 'rev', 'evang', 'pr', 'me'];
+    if (in_array(mb_strtolower(rtrim($parts[0], '.')), $titles, true)) {
+        return isset($parts[1]) ? $parts[0] . ' ' . $parts[1] : '';
+    }
+    return $parts[0];
 }
 
 function planner_initials(?string $name): string {

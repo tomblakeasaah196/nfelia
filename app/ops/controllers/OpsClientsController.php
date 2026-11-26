@@ -6,6 +6,7 @@
  *   GET  clients/{id}             one client: plan, payments, people, use, shop, errors, tickets, notes
  *   POST clients/{id}/plan        activate a month, extend the trial, suspend                     clients.act
  *   POST clients/{id}/credit      "Shop by Nfelia" on the shop's footer, or not                   clients.act
+ *   POST clients/{id}/ai          adding items from a photo: on or off, and photos a week         clients.ai
  *   POST clients/{id}/notes       a note for the team                                             clients
  *   POST clients/{id}/view-as     open their Nfelia read-only, with a reason (they are told)      clients.view_as
  */
@@ -117,8 +118,9 @@ class OpsClientsController
         $history = ops_can('audit') ? $all("SELECT a.*, s.full_name, NULL AS business_name FROM ops_audit a LEFT JOIN ops_staff s ON s.id = a.staff_id WHERE a.business_id = ? ORDER BY a.id DESC LIMIT 15", [$b['id']]) : null;
         $books   = ops_can('exports') ? $all("SELECT id, status, charge, created_at FROM records_books WHERE business_id = ? AND kind = 'book' AND status <> 'cancelled' ORDER BY id DESC LIMIT 5", [$b['id']]) : null;
         $asks    = ops_can('requests') ? $all("SELECT id, name, organisation, label, status, created_at FROM record_requests WHERE business_id = ? AND status <> 'unconfirmed' ORDER BY id DESC LIMIT 5", [$b['id']]) : null;
+        $ai      = product_ai_state($db, (int)$b['id']) + ['month' => product_ai_month($db, (int)$b['id']), 'key' => product_ai_key() !== ''];
 
-        ops_render('clients/show', compact('b', 'people', 'use', 'payments', 'plan_log', 'reviews', 'referred_by', 'referred', 'errors', 'tickets', 'notes', 'views', 'history', 'books', 'asks')
+        ops_render('clients/show', compact('b', 'people', 'use', 'payments', 'plan_log', 'reviews', 'referred_by', 'referred', 'errors', 'tickets', 'notes', 'views', 'history', 'books', 'asks', 'ai')
                    + ['plans' => OPS_PLAN_STATES], $b['name']);
     }
 
@@ -193,6 +195,39 @@ class OpsClientsController
         ops_audit('client.credit', $b['name'] . ': ' . $said, ['business' => (int)$b['id'], 'type' => 'business', 'id' => (int)$b['id']]);
         ops_flash('success', $said . '.');
         ops_redirect('clients/' . $b['id'] . '#shop');
+    }
+
+    /**
+     * Adding items from a photo (app/helpers/product_ai.php): on or off, and
+     * how many photos a week. Each photo costs Nfelia money, so Admins only.
+     * The owner is told when it comes on.
+     */
+    public function ai(string $id): void
+    {
+        $this->need('clients.ai');
+        $b     = $this->client((int)$id);
+        $on    = ($_POST['on'] ?? '') === '1' ? 1 : 0;
+        $limit = (int)($_POST['limit'] ?? $b['ai_weekly_limit']);
+        if ($limit < 1 || $limit > 1000) {
+            ops_flash('error', 'Photos a week: a number from 1 to 1000.');
+            ops_redirect('clients/' . $b['id'] . '#ai');
+        }
+        $this->db->prepare("UPDATE businesses SET ai_enabled = ?, ai_weekly_limit = ? WHERE id = ?")->execute([$on, $limit, $b['id']]);
+
+        $was  = (int)$b['ai_enabled'];
+        $said = match (true) {
+            $on && !$was => 'Switched AI on, with ' . $limit . ' photos a week',
+            !$on && $was => 'Switched AI off',
+            $on          => 'AI stays on, now with ' . $limit . ' photos a week',
+            default      => 'AI stays off; ' . $limit . ' photos a week when it is on',
+        };
+        if ($on && !$was) {
+            notify('account.ai_on', (int)$b['id'], ['limit' => $limit], ['dedupe' => 'ai_on:' . date('Y-m-d')]);
+        }
+        ops_audit('client.ai', $b['name'] . ': ' . $said, ['business' => (int)$b['id'], 'type' => 'business', 'id' => (int)$b['id'],
+                                                         'data' => ['on' => $on, 'limit' => $limit, 'was' => ['on' => $was, 'limit' => (int)$b['ai_weekly_limit']]]]);
+        ops_flash('success', $said . '.' . ($on && !$was ? ' ' . $b['name'] . ' has been told.' : ''));
+        ops_redirect('clients/' . $b['id'] . '#ai');
     }
 
     public function note(string $id): void

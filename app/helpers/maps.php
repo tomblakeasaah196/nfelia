@@ -232,16 +232,19 @@ function maps_picture(int $business_id, float $lat, float $lng, int $zoom, bool 
     $point = maps_coord($lng) . ',' . maps_coord($lat);
     foreach (array_unique([$style, 'osm-bright']) as $try) {
         // As Geoapify's own examples write it: separators as they are, the
-        // colour's # as %23
+        // colour's # as %23, its hex in small letters (#CA861A is refused:
+        // "marker[0][2] does not match any of the allowed types")
         $query = 'style=' . $try . '&width=' . $w . '&height=' . $h . '&scaleFactor=2'
                . '&center=lonlat:' . $point . '&zoom=' . $zoom
-               . '&marker=lonlat:' . $point . ';type:material;color:%23' . substr($accent, 1) . ';size:x-large'
+               . '&marker=lonlat:' . $point . ';type:material;color:%23' . strtolower(substr($accent, 1)) . ';size:x-large'
                . '&apiKey=' . rawurlencode(maps_key());
         $answer = maps_http_get(maps_tiles_url() . '/v1/staticmap?' . $query, 6000000);
         if ($answer && $answer[0] === 200 && ($image = @imagecreatefromstring($answer[1]))) {
             break;
         }
-        error_log('[Nfelia] Map picture failed (' . $try . '): ' . ($answer[0] ?? 'no answer'));
+        // Geoapify says why in its JSON ("message"); keep it with the status
+        $said = $answer ? trim((string)(json_decode($answer[1], true)['message'] ?? '')) : '';
+        error_log('[Nfelia] Map picture failed (' . $try . '): ' . ($answer[0] ?? 'no answer') . ($said !== '' ? ': ' . mb_substr($said, 0, 200) : ''));
     }
     if (!$image) {
         @touch($failed);

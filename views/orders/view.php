@@ -75,7 +75,7 @@ if ($email_bounced && $wa_phone !== '') {
 $event_icons = ['created' => 'plus', 'confirmed' => 'check', 'payment' => 'money', 'receipt' => 'receipt', 'ready' => 'delivery', 'done' => 'check',
                 'whatsapp' => 'whatsapp', 'refund' => 'refund', 'refund_asked' => 'refund', 'refund_details' => 'refund', 'kept' => 'money',
                 'kept_used' => 'money', 'unkept' => 'money', 'lines' => 'edit', 'edited' => 'edit', 'cancelled' => 'cancel', 'turned_down' => 'cancel',
-                'when' => 'clock', 'pay_by' => 'clock', 'dated' => 'clock', 'email' => 'send', 'preparing' => 'clock'];
+                'when' => 'clock', 'address' => 'pin', 'pay_by' => 'clock', 'dated' => 'clock', 'email' => 'send', 'preparing' => 'clock'];
 ?>
 <div class="nf-order">
 <div class="nf-cols is-doc">
@@ -386,7 +386,17 @@ $event_icons = ['created' => 'plus', 'confirmed' => 'check', 'payment' => 'money
         <?php if ($countdown && !in_array($countdown['label'], ['Deliver today', 'Deliver tomorrow', 'Ready today', 'Ready tomorrow'], true)): ?>
             <p class="nf-when"><span class="nf-tag <?= $tone_cls[$countdown['tone']] ?? '' ?>"><?= e($countdown['label']) ?></span></p>
         <?php endif; ?>
-        <dl class="nf-kv">
+        <?php
+        // The pencil opens the day and the address together, from New until it is done
+        $can_place = !in_array($stage['key'], ['done', 'cancelled', 'turned_down'], true) && ($invoice || $is_delivery);
+        $from_client = $is_delivery && empty($order['delivery_address']) && !empty($customer['address']);
+        ?>
+        <div class="nf-place<?= $can_place ? ' has-edit' : '' ?>" x-data="{ editing: false }">
+        <?php if ($can_place): ?>
+            <button type="button" class="nf-icon-btn nf-place-edit" x-show="!editing" @click="editing = true; $nextTick(() => $refs.first.focus())"
+                    aria-label="<?= $is_delivery ? 'Edit the delivery day and address' : 'Edit the pickup day' ?>" title="<?= $is_delivery ? 'Edit day and address' : 'Edit the day' ?>"><?= nav_icon('edit') ?></button>
+        <?php endif; ?>
+        <dl class="nf-kv" x-show="!editing">
             <div><dt><?= $is_delivery ? 'Deliver' : 'Ready' ?></dt><dd><?= $when ? e(date('D j M', strtotime($when))) : 'Not set' ?></dd></div>
             <?php if ($is_delivery): ?>
                 <div><dt>Address</dt><dd><?= e($order['delivery_address'] ?: 'Not given') ?></dd></div>
@@ -396,15 +406,27 @@ $event_icons = ['created' => 'plus', 'confirmed' => 'check', 'payment' => 'money
                 <?php if (!empty($delivery['rider_name'])): ?><div><dt>Rider</dt><dd><?= e($delivery['rider_name']) ?></dd></div><?php endif; ?>
             <?php endif; ?>
         </dl>
-        <?php if ($invoice && !in_array($stage['key'], ['done', 'cancelled', 'turned_down'], true)): ?>
-            <form class="nf-payby" method="POST" action="<?= APP_URL ?>/orders/when/<?= $oid ?>"><?= $csrf ?>
-                <label for="nf-when-d"><?= $is_delivery ? 'Change the delivery day' : 'Change the pickup day' ?></label>
-                <span class="nf-payby-row">
-                    <input id="nf-when-d" type="date" name="deliver_by" value="<?= e($when ?? '') ?>" required>
-                    <button class="nf-btn nf-btn-ghost">Save</button>
-                </span>
+        <?php if ($can_place): ?>
+            <form class="nf-form is-flat" method="POST" action="<?= APP_URL ?>/orders/delivery/<?= $oid ?>" x-show="editing" x-cloak><?= $csrf ?>
+                <?php if ($invoice): ?>
+                    <label><?= $is_delivery ? 'Delivery day' : 'Pickup day' ?>
+                        <input type="date" name="deliver_by" value="<?= e($when ?? '') ?>" x-ref="first"<?= $when ? ' required' : '' ?>>
+                    </label>
+                <?php else: ?>
+                    <p class="nf-help">You pick the day when you confirm the order.</p>
+                <?php endif; ?>
+                <?php if ($is_delivery): ?>
+                    <label>Address<?php if ($from_client): ?> <small>From <?= e($first) ?>’s details. Check it, then save.</small><?php endif; ?>
+                        <textarea name="delivery_address" rows="2" maxlength="500" required placeholder="Street, area, landmark"<?= $invoice ? '' : ' x-ref="first"' ?>><?= e($order['delivery_address'] ?: ($from_client ? $customer['address'] : '')) ?></textarea>
+                    </label>
+                <?php endif; ?>
+                <div class="nf-fold-do">
+                    <button class="nf-btn nf-btn-primary"><?= nav_icon('check') ?>Save</button>
+                    <button type="button" class="nf-btn nf-btn-ghost" @click="editing = false">Cancel</button>
+                </div>
             </form>
         <?php endif; ?>
+        </div>
         <?php if ($delivery && $is_delivery && !in_array($delivery['status'], ['signed_off', 'failed'], true)): ?>
             <div class="nf-fold-do">
                 <button type="button" class="nf-btn nf-btn-ghost" data-copy="<?= e(APP_URL . '/sign/' . $delivery['signoff_token']) ?>"><?= nav_icon('link') ?>Copy sign-off link</button>

@@ -16,18 +16,27 @@ $flash = get_flash();
 ?>
 <!DOCTYPE html>
 <html lang="en-NG">
-<head>
-    <meta charset="UTF-8">
+<head><meta charset="utf-8">
+    
     <?= errors_script_tag() ?>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Start free: Nfelia</title>
-    <meta name="description" content="Create your Nfelia account. Free for <?= (int)TRIAL_DAYS ?> days, no card needed.">
+    <title>Sign up free: your website, invoices and stock | Nfelia</title>
+    <meta name="description" content="Create your Nfelia account. Free for <?= (int)TRIAL_DAYS ?> days, no card needed. Get your own website, plus invoices, receipts, debts and stock, all on your phone.">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="<?= APP_URL ?>/register">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="<?= APP_URL ?>/register">
+    <meta property="og:title" content="Start your free trial of Nfelia">
+    <meta property="og:description" content="Your own website, plus invoices, receipts, debts and stock, all on your phone. Free for <?= (int)TRIAL_DAYS ?> days, no card needed.">
+    <meta property="og:image" content="<?= APP_URL ?>/assets/img/nfelia-og-banner.png">
+    <meta property="og:site_name" content="Nfelia">
+    <meta property="og:locale" content="en_NG">
     <meta name="theme-color" content="#8B004A">
 <?php require BASE_PATH . '/views/partials/pwa_head.php'; ?>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700&family=Plus+Jakarta+Sans:wght@400;600&display=swap">
-    <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/home.css?v=6">
+    <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/home.css?v=<?= (int)@filemtime(BASE_PATH . '/assets/css/home.css') ?>">
 </head>
 <body class="auth-page">
     <header class="auth-top">

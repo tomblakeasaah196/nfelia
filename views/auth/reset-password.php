@@ -5,12 +5,13 @@
 ?>
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
+<head><meta charset="utf-8">
+    
     <?= errors_script_tag() ?>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <!-- The URL carries the reset token: never send it to the font/CSS hosts. -->
     <meta name="referrer" content="no-referrer">
+    <meta name="robots" content="noindex, nofollow">
     <title>Establish New Access — Nfelia</title>
     <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/public.css?v=<?= @filemtime(BASE_PATH . '/assets/css/public.css') ?>">
     <style>body { background-color: #F2EFE7; color: #1B0A11; } </style>

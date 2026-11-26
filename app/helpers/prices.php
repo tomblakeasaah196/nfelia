@@ -186,12 +186,15 @@ function prices_country(PDO $db, string $iso = 'NG'): ?array
     return $stmt->fetch() ?: null;
 }
 
-/** "₦10,000", "15,000 FCFA", in a country's money. */
+/** "₦10,000", "GH₵100", "KSh 1,500", "15,000 FCFA", in a country's money, as people there write it. */
 function prices_money(float $amount, ?array $country): string
 {
     $symbol = (string)($country['currency_symbol'] ?? '₦');
     $n = number_format($amount, fmod($amount, 1.0) != 0.0 ? 2 : 0);
-    return preg_match('/^\p{L}{2,}$/u', $symbol) ? $n . ' ' . $symbol : $symbol . $n;
+    if (in_array(strtoupper($symbol), ['FCFA', 'CFA', 'XAF', 'XOF'], true)) {
+        return $n . ' ' . $symbol;   // CFA francs come after the amount
+    }
+    return preg_match('/^\p{L}{2,}$/u', $symbol) ? $symbol . ' ' . $n : $symbol . $n;
 }
 
 /* ═══════════════════════════════════════════════════════════════════

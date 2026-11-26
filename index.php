@@ -37,10 +37,14 @@ require_once __DIR__ . '/app/helpers/shop_links.php';
 require_once __DIR__ . '/app/helpers/storefront.php';
 require_once __DIR__ . '/app/helpers/brand.php';
 require_once __DIR__ . '/app/helpers/maps.php';
+require_once __DIR__ . '/app/helpers/product_ai.php';
 require_once __DIR__ . '/app/helpers/cloudflare.php';
 require_once __DIR__ . '/app/helpers/shop_orders.php';
 require_once __DIR__ . '/app/helpers/bookings.php';
 require_once __DIR__ . '/app/helpers/seo.php';
+require_once __DIR__ . '/app/helpers/site.php';
+require_once __DIR__ . '/app/helpers/llms.php';
+require_once __DIR__ . '/app/helpers/indexnow.php';
 require_once __DIR__ . '/app/helpers/theme.php';
 require_once __DIR__ . '/app/helpers/nav.php';
 require_once __DIR__ . '/app/helpers/signin.php';
@@ -126,23 +130,75 @@ if ($shop_label !== null) {
 }
 
 // --- BEING FOUND ---
-// robots.txt, the sitemaps and the shop directory are the same for everyone:
-// no session, no cookie, cacheable.
-$seo_path = trim($_GET['url'] ?? '', '/');
-if (in_array($seo_path, ['robots.txt', 'sitemap.xml', 'sitemap-pages.xml'], true)) {
+// robots.txt, the sitemaps, llms.txt, the IndexNow key, the shop directory
+// and the site's own pages are the same for everyone: no session, no
+// cookie, cacheable (app/helpers/seo.php, llms.php, indexnow.php, site.php).
+$seo_url  = (string)($_GET['url'] ?? '');
+$seo_path = trim($seo_url, '/');
+$seo_files = [
+    'robots.txt'        => 'text/plain',
+    'llms.txt'          => 'text/plain',
+    'llms-full.txt'     => 'text/plain',
+    'sitemap.xml'       => 'application/xml',
+    'sitemap-pages.xml' => 'application/xml',
+    'sitemap-help.xml'  => 'application/xml',
+    'sitemap-blog.xml'  => 'application/xml',
+    'sitemap-shops.xml' => 'application/xml',
+];
+if (isset($seo_files[$seo_path])) {
+    // Made first, sent after: a failure is a plain 500, never half a file
+    $seo_body = match ($seo_path) {
+        'robots.txt'    => main_robots(),
+        'llms.txt'      => llms_txt(),
+        'llms-full.txt' => llms_full_txt(),
+        'sitemap.xml'   => main_sitemap_index(get_db()),
+        default         => main_sitemap($seo_path === 'sitemap-shops.xml' ? get_db() : null, substr($seo_path, 8, -4)),   // sitemap-<name>.xml: only the shops need the database
+    };
     header('Cache-Control: public, max-age=3600, s-maxage=3600');
-    if ($seo_path === 'robots.txt') {
-        header('Content-Type: text/plain; charset=utf-8');
-        echo main_robots();
-    } else {
-        header('Content-Type: application/xml; charset=utf-8');
-        echo $seo_path === 'sitemap.xml' ? main_sitemap_index(get_db()) : main_pages_sitemap(get_db());
+    header('Content-Type: ' . $seo_files[$seo_path] . '; charset=utf-8');
+    if ($seo_path === 'llms-full.txt') {
+        header('X-Robots-Tag: noindex');   // read by assistants; search shows the pages themselves
     }
+    echo $seo_body;
     exit;
+}
+if (indexnow_serve_key_file($seo_path)) {
+    exit;
+}
+// One address per page: /features/ and /Features go to /features, and
+// /shops/Lagos/ to /shops/lagos, with a 301 so search engines keep one copy.
+if ($seo_path !== '' && in_array($_SERVER['REQUEST_METHOD'] ?? 'GET', ['GET', 'HEAD'], true)) {
+    $seo_lower = strtolower($seo_path);
+    $seo_page  = site_page_by_path($seo_lower);
+    $seo_canon = $seo_page && $seo_page['view'] !== null ? $seo_page['path']
+               : (preg_match('#^shops(?:/[a-z0-9-]{1,60}){0,2}$#', $seo_lower) ? '/' . $seo_lower : null);
+    if ($seo_canon !== null && '/' . ltrim($seo_url, '/') !== $seo_canon) {
+        $seo_query = $_GET;
+        unset($seo_query['url']);
+        header('Cache-Control: public, max-age=3600, s-maxage=3600');
+        header('Location: ' . APP_URL . $seo_canon . ($seo_query ? '?' . http_build_query($seo_query) : ''), true, 301);
+        exit;
+    }
 }
 if (preg_match('#^shops(?:/([a-z0-9-]{1,60}))?(?:/([a-z0-9-]{1,60}))?$#', $seo_path, $m)) {
     require __DIR__ . '/views/directory/index.php';
     exit;
+}
+// The site's own pages (app/helpers/site.php): features, pricing, help,
+// the blog, the country pages. The landing page itself comes further down.
+if ($seo_path !== '' && ($site_page = site_page_by_path($seo_path)) && $site_page['view'] !== null) {
+    site_render($site_page);
+    exit;
+}
+// A mistyped or old address in one of those sections (/help/…, /gh/…) is
+// a plain 404, not the sign-in page: no page of the app lives there.
+if ($seo_path !== '') {
+    $seo_first = strtolower(explode('/', $seo_path)[0]);
+    foreach (site_pages() as $seo_section) {
+        if ($seo_section['path'] !== '/' && explode('/', ltrim($seo_section['path'], '/'))[0] === $seo_first) {
+            not_found();
+        }
+    }
 }
 
 // Start session
@@ -219,6 +275,14 @@ if ($controller === 'verify') {
     exit;
 }
 
+// nfelia.com/book: anyone books a meeting with the Nfelia team, and Ops looks
+// after it (app/controllers/MeetingBookController.php, app/ops/meetings.php).
+if ($controller === 'book') {
+    require_once __DIR__ . '/app/controllers/MeetingBookController.php';
+    (new MeetingBookController())->handle((string)$action, $param);
+    exit;
+}
+
 // ---- ROUTE TABLE ----
 // Public routes (no auth required)
 $public_routes = ['login', 'register', 'verify', 'forgot-password', 'reset-password', 'recovery-sent', 'login-link', 'signin', 'biz', 'doc', 'sign', 'public-feedback', 'public', 'delivery', 'verify-email', 'deed'];
@@ -233,6 +297,12 @@ if (in_array($controller, $public_routes)) {
     // AJAX endpoints (including Paystack Webhooks)
     dispatch_ajax($action, $param);
 } else {
+    // An address that is no page of the app (a typo, an old link, a bad
+    // /shops/… path) is a plain 404 for everyone, not a trip to sign-in:
+    // search engines must not read it as the sign-in page
+    if (!isset(app_routes()[$controller])) {
+        not_found();
+    }
     // Authenticated routes — check session first
     require_once __DIR__ . '/app/middleware/auth_check.php';
     require_once __DIR__ . '/app/middleware/subscription_check.php';
@@ -371,7 +441,50 @@ function dispatch_public(string $controller, string $action, ?string $param): vo
 }
  
 function dispatch_app(string $controller, string $action, ?string $param): void {
-    $map = [
+    $map = app_routes();
+
+    $class = $map[$controller] ?? null;
+    if (!$class) { not_found(); return; }
+
+    $controller_default_methods = [
+        'user-guide'      => 'guide',
+        'contact-support' => 'contact',
+        'landing-page'    => 'settings',
+        'admin'           => 'dashboard',
+        'countries'       => 'index',
+        'momo'            => 'checkout',
+    ];
+
+    if ($action === 'index' && isset($controller_default_methods[$controller])) {
+        $action = $controller_default_methods[$controller];
+    }
+
+    // For single-segment POST routes (like /logout)
+    if ($action === 'index' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $action = $controller;
+    }
+
+    $ctrl = route_controller($class);
+    if (!$ctrl) { not_found(); return; }
+
+    // Automatically translates hyphenated URLs to snake_case methods
+    $method = str_replace('-', '_', $action);
+    $method = $method ?: 'index';
+
+    if (route_callable($ctrl, $method, $param)) {
+        $ctrl->$method($param);
+    } else {
+        not_found();
+    }
+}
+
+/**
+ * The app's own pages, behind sign-in: the first part of the address → its
+ * controller. index.php asks it before the sign-in check too, so an address
+ * that is no page of the app is a plain 404, never a trip to the sign-in page.
+ */
+function app_routes(): array {
+    return [
         // Core Modules
         'dashboard'       => 'DashboardController',
         'products'        => 'ProductController',
@@ -416,42 +529,8 @@ function dispatch_app(string $controller, string $action, ?string $param): void 
         'contact-support' => 'SupportController',
         'support'         => 'SupportController'
     ];
- 
-    $class = $map[$controller] ?? null;
-    if (!$class) { not_found(); return; }
-    
-    $controller_default_methods = [
-        'user-guide'      => 'guide',
-        'contact-support' => 'contact',
-        'landing-page'    => 'settings',
-        'admin'           => 'dashboard',
-        'countries'       => 'index',
-        'momo'            => 'checkout',
-    ];
-    
-    if ($action === 'index' && isset($controller_default_methods[$controller])) {
-        $action = $controller_default_methods[$controller];
-    }
-    
-    // For single-segment POST routes (like /logout)
-    if ($action === 'index' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-        $action = $controller;
-    }
-
-    $ctrl = route_controller($class);
-    if (!$ctrl) { not_found(); return; }
-    
-    // Automatically translates hyphenated URLs to snake_case methods
-    $method = str_replace('-', '_', $action);
-    $method = $method ?: 'index';
- 
-    if (route_callable($ctrl, $method, $param)) {
-        $ctrl->$method($param);
-    } else {
-        not_found();
-    }
 }
- 
+
 function dispatch_ajax(string $action, ?string $param): void {
     header('Content-Type: application/json');
 

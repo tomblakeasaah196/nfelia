@@ -75,6 +75,8 @@ function nav_icon(string $name): string
         'minus'     => '<path d="M5 12h14"/>',
         'filter'    => '<path d="M4 5h16l-6.2 7.4V19l-3.6-1.8v-4.8Z"/>',
         'sign'      => '<path d="M3.5 20.5h17"/><path d="M4.5 16.5c1.8-2.6 3.3-6.5 5-6.5 1.4 0-.6 5.2 1.2 5.2 1.6 0 2.6-3.7 4-3.7 1.2 0 .4 2.6 1.8 2.6.9 0 1.7-.6 2.5-1.4"/>',
+        'sparkle'   => '<path d="M10.5 3.5 12.2 8.3 17 10l-4.8 1.7-1.7 4.8-1.7-4.8L4 10l4.8-1.7Z"/><path d="M18 14.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8Z"/>',
+        'camera'    => '<path d="M3.5 8.5a2 2 0 0 1 2-2h2.3l1.5-2.2h5.4l1.5 2.2h2.3a2 2 0 0 1 2 2v9.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2Z"/><circle cx="12" cy="13" r="3.6"/>',
     ];
     // width/height are a fallback; page CSS sizes each icon and overrides them.
     return '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">'

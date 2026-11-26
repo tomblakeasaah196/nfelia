@@ -66,7 +66,7 @@ $status_tag = function (array $b): string {
         <?php elseif ($offer['access'] === 'trial'): ?>
             <b><?= e($price) ?></b> for one book. Or pay for a month of Nfelia (<?= e($month) ?>), and a book every month is free.
         <?php else: ?>
-            Your plan has ended, but your records are safe with us. Get them all in one book for <b><?= e($price) ?></b>, or pay for a month (<?= e($month) ?>) and your book is free.
+            Your plan has ended. We keep your records for 12 months from then, and email you before anything is deleted. Get them all in one book for <b><?= e($price) ?></b>, or pay for a month (<?= e($month) ?>) and your book is free.
         <?php endif; ?>
         </p>
 

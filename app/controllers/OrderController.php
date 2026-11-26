@@ -323,6 +323,29 @@ class OrderController
         $this->back($order, "success", "Day saved. It is on your Tasks & Calendar.", "delivery");
     }
 
+    /** POST orders/delivery/{id}: the day and, for a delivery, the address, from the pencil on Delivery. */
+    public function delivery($id = null)
+    {
+        $this->post_only("orders/view/" . (int) $id);
+        $order = $this->order_or_back($id);
+        $day = trim((string) ($_POST["deliver_by"] ?? ""));
+        $invoice = order_invoice($this->db, $this->biz_id, $order);
+        $saved = [];
+        try {
+            if ($day !== "" && $invoice && $day !== (string) ($invoice["deliver_by"] ?? "")) {
+                order_set_when($this->db, $this->biz_id, (int) $order["id"], $day, $this->user_id());
+                $saved[] = "Day saved. It is on your Tasks & Calendar.";
+            }
+            if ($order["fulfillment_type"] === "delivery" && isset($_POST["delivery_address"])
+                && order_set_address($this->db, $this->biz_id, (int) $order["id"], (string) $_POST["delivery_address"], $this->user_id())) {
+                $saved[] = "Address saved.";
+            }
+        } catch (DomainException $e) {
+            $this->back($order, "error", $e->getMessage(), "delivery");
+        }
+        $this->back($order, $saved ? "success" : "info", $saved ? implode(" ", $saved) : "Nothing changed.", "delivery");
+    }
+
     /* ──────────────────────────────────────────
      *  MONEY
      *──────────────────────────────────────────*/

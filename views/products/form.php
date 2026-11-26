@@ -8,9 +8,12 @@
  * stays in reach at the bottom. Pictures go up with a progress bar (the
  * script at the end). Renders inside views/layouts/app.php.
  *
+ * With AI on for the business, the photo screen comes first on a new item,
+ * and "Fill from a photo" opens it from the form (views/products/ai_photo.php).
+ *
  * Available from controller:
  *   $user, $business, $product (array or empty), $editing (bool), $categories_list,
- *   $product_images, $variant_groups
+ *   $product_images, $variant_groups, $ai (product_ai_state()), $ai_first (open the photo screen first)
  */
 $currency  = $business['currency_symbol'] ?? '₦';
 $biz_cat   = $business['category'] ?? 'other';
@@ -30,6 +33,9 @@ $p_threshold   = $product['low_stock_threshold'] ?? '5';
 $p_unit        = $product['unit'] ?? 'pcs';
 $p_service     = !empty($product['is_service']);
 $p_image       = $product['image_path'] ?? '';
+$p_on_shop     = (string)($product['on_shop'] ?? '1') === '1';   // a new item goes on the shop unless they say
+$ai_on         = !empty($ai['on']);
+$ai_first      = $ai_on && !empty($ai_first);
 
 // Suggested categories based on business type
 $cat_suggestions = match($biz_cat) {
@@ -97,7 +103,9 @@ $js_price  = fn($v) => ($v === '' || $v === null) ? "''" : (string)(float)$v;
 <div class="nf-page nf-oform nf-iform">
 <h1 class="sr-only"><?= $editing ? 'Edit ' . $p_name : 'Add an item' ?></h1>
 
-<form method="POST" enctype="multipart/form-data" id="catalogue-form" data-no-spin
+<?php if ($ai_on) require BASE_PATH . '/views/products/ai_photo.php'; ?>
+
+<form method="POST" enctype="multipart/form-data" id="catalogue-form" data-no-spin<?= $ai_first ? ' hidden' : '' ?>
       action="<?= APP_URL ?>/products/<?= $editing ? 'edit/' . (int)$product['id'] : 'create' ?>"
       x-data="{
           isService: <?= $p_service ? 'true' : 'false' ?>,
@@ -179,9 +187,24 @@ $js_price  = fn($v) => ($v === '' || $v === null) ? "''" : (string)(float)$v;
         </label>
     </section>
 
+    <!-- On the shop, or only in the catalogue. The hidden 0 is sent when the switch is off. -->
+    <section class="nf-sec" aria-labelledby="nf-if-shop-h">
+        <h2 id="nf-if-shop-h">Your shop</h2>
+        <input type="hidden" name="on_shop" value="0">
+        <label class="nf-switch"><input type="checkbox" role="switch" name="on_shop" value="1"<?= $p_on_shop ? ' checked' : '' ?>>
+            <span><b>Show on my shop</b><small>Off: it stays in your catalogue and on invoices, quotes and orders, but your shop doesn't show it.</small></span></label>
+        <?php if ($editing && isset($product['is_active']) && !(int)$product['is_active']): ?>
+            <p class="nf-help">It is hidden now, so your shop leaves it out either way. Show it again from its page.</p>
+        <?php endif; ?>
+    </section>
+
     <!-- What it is -->
     <section class="nf-sec" aria-labelledby="nf-if-about-h">
         <h2 id="nf-if-about-h">About it</h2>
+        <?php if ($ai_on): ?>
+        <button type="button" class="nf-ai-fill" @click="window.dispatchEvent(new CustomEvent('nf-ai-open'))"><?= nav_icon('sparkle') ?>
+            <span><b>Fill from a photo</b><small>Its name, description and category, written for you</small></span></button>
+        <?php endif; ?>
         <label>Name
             <input type="text" name="name" value="<?= $p_name ?>" required placeholder="<?= e($name_hint) ?>" autocomplete="off">
         </label>

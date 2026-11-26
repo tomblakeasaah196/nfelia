@@ -555,6 +555,12 @@ dialog.sheet::backdrop { background: rgba(31, 10, 20, .55); }
 .sheet-body { padding: 20px 24px 28px; display: grid; gap: 16px; font-size: 1rem; }
 .sheet-body h3 { font: 600 1rem/1.4 var(--font-body); }
 .sheet-body p { color: var(--ink-2); }
+/* The Terms and Privacy dialogs: the same words as /terms and /privacy */
+.legal-sheet h3 { margin-top: 8px; }
+.legal-sheet h4 { margin: 0; font: 600 1rem/1.4 var(--font-body); color: var(--ink); }
+.legal-sheet ul { margin: 0; padding-left: 1.25em; color: var(--ink-2); }
+.legal-sheet li + li, .legal-sheet li > ul { margin-top: .4em; }
+.legal-sheet a { color: var(--burgundy); }
 
 /* ---------- Get the app ---------- */
 [data-app][hidden] { display: none !important; }

@@ -13,10 +13,13 @@ $services  = ($business_type ?? '') === 'service';
 $low       = (int)($summary['low_stock_count'] ?? 0);
 $out       = (int)($summary['out_of_stock_count'] ?? 0);
 $svc_count = (int)($summary['services_count'] ?? 0);
+$off_shop  = (int)($summary['off_shop_count'] ?? 0);
 $keep      = ['q' => $search, 'category' => $category, 'stock' => $stock_status, 'active' => $active_filter, 'sort' => $sort !== 'newest' ? $sort : ''];
 $filters   = ['' => 'All', 'low' => 'Running low', 'out' => 'Out of stock', 'restock' => 'Low or out', 'in_stock' => 'In stock'];
 if ($svc_count > 0 || $services) $filters['service'] = 'Services';
-$counts    = ['low' => $low, 'out' => $out, 'restock' => $low + $out, 'service' => $svc_count];
+if ($off_shop > 0 || $stock_status === 'offshop') $filters['offshop'] = 'Not on your shop';
+$counts    = ['low' => $low, 'out' => $out, 'restock' => $low + $out, 'service' => $svc_count, 'offshop' => $off_shop];
+$csrf      = '<input type="hidden" name="csrf_token" value="' . e($_SESSION['csrf_token'] ?? '') . '">';
 $sorts     = ['newest' => 'Newest first', 'oldest' => 'Oldest first', 'name_asc' => 'A to Z', 'name_desc' => 'Z to A',
               'stock_asc' => 'Least in stock', 'stock_desc' => 'Most in stock', 'price_asc' => 'Cheapest first', 'price_desc' => 'Dearest first'];
 ?>
@@ -26,10 +29,15 @@ $sorts     = ['newest' => 'Newest first', 'oldest' => 'Oldest first', 'name_asc'
     <a class="nf-btn nf-btn-primary" href="<?= APP_URL ?>/products/create"><?= nav_icon('plus') ?>Add item</a>
 </div>
 
-<?php if (!$services): ?>
-<section class="nf-money" aria-label="Stock you hold">
+<?php if (!$services):
+    $at_cost   = (float)($summary['total_stock_value'] ?? 0);
+    $at_sell   = (float)($summary['total_sell_value'] ?? 0);
+    $margin    = $at_sell - $at_cost;
+?>
+<div class="nf-money-row">
+<section class="nf-money" aria-label="Stock you hold, at cost">
     <p class="nf-money-k">Stock you hold, at cost</p>
-    <p class="nf-money-v"><?= planner_money((float)($summary['total_stock_value'] ?? 0), $currency) ?></p>
+    <p class="nf-money-v"><?= planner_money($at_cost, $currency) ?></p>
     <p class="nf-money-sub">
         <?= (int)($summary['total_products'] ?? 0) ?> item<?= (int)($summary['total_products'] ?? 0) === 1 ? '' : 's' ?>.
         <?php if ($low + $out > 0): ?>
@@ -39,6 +47,23 @@ $sorts     = ['newest' => 'Newest first', 'oldest' => 'Oldest first', 'name_asc'
         <?php endif; ?>
     </p>
 </section>
+<section class="nf-money" aria-label="Stock you hold, at selling price">
+    <p class="nf-money-k">At selling price</p>
+    <p class="nf-money-v"><?= planner_money($at_sell, $currency) ?></p>
+    <p class="nf-money-sub">What it brings in if it all sells.</p>
+</section>
+<section class="nf-money" aria-label="Projected margin">
+    <p class="nf-money-k">Projected margin</p>
+    <p class="nf-money-v<?= $margin > 0 ? ' is-in' : ($margin < 0 ? ' is-owed' : '') ?>"><?= $margin < 0 ? '−' : '' ?><?= planner_money(abs($margin), $currency) ?></p>
+    <p class="nf-money-sub">
+        <?php if ($at_sell > 0): ?>
+            <?= round($margin / $at_sell * 100) ?>% of the selling price<?= $margin < 0 ? ', a loss' : '' ?>.
+        <?php else: ?>
+            Add selling prices to see it.
+        <?php endif; ?>
+    </p>
+</section>
+</div>
 <?php endif; ?>
 
 <form class="nf-find" method="GET" action="<?= APP_URL ?>/products" role="search">
@@ -96,7 +121,9 @@ $sorts     = ['newest' => 'Newest first', 'oldest' => 'Oldest first', 'name_asc'
                 [$tag, $tag_cls] = [stock_count($qty, $p['unit']) . ' in stock', ''];
             }
             $line = implode(' · ', array_filter([$p['category'] ?? '', $p['sku'] ?? '']));
+            $shown = (int)$p['is_active'] && (int)$p['on_shop'];
         ?>
+            <div class="nf-shoprow">
             <a class="nf-item is-wrap<?= !$p['is_active'] ? ' is-off' : '' ?>" href="<?= APP_URL ?>/products/view/<?= (int)$p['id'] ?>" data-prefetch>
                 <span class="nf-face is-square" aria-hidden="true">
                     <?php if (!empty($p['image_path'])): ?>
@@ -114,8 +141,18 @@ $sorts     = ['newest' => 'Newest first', 'oldest' => 'Oldest first', 'name_asc'
                     <span class="nf-tag <?= $tag_cls ?>"><?= e($tag) ?></span>
                 </span>
             </a>
+            <?php /* Show on my shop, in one tap. A hidden item is off the shop whatever this says. */ ?>
+            <form class="nf-shopsw" method="POST" action="<?= APP_URL ?>/products/toggle-shop/<?= (int)$p['id'] ?>">
+                <?= $csrf ?><input type="hidden" name="on" value="<?= $shown ? '0' : '1' ?>">
+                <label title="<?= $p['is_active'] ? 'Show on my shop' : 'Hidden: show it again from its page first' ?>">
+                    <input type="checkbox" role="switch" onchange="nfShopSwitch(this)"<?= $shown ? ' checked' : '' ?><?= $p['is_active'] ? '' : ' disabled' ?>
+                           aria-label="Show <?= e($p['name']) ?> on my shop">
+                    <small aria-hidden="true">Shop</small></label>
+            </form>
+            </div>
         <?php endforeach; ?>
     </div>
+    <?php require BASE_PATH . '/views/products/shop_switch.php'; ?>
 
     <?php $pager = ['path' => 'products', 'params' => $keep, 'page' => $page, 'pages' => $total_pages];
           require BASE_PATH . '/views/partials/pager.php'; ?>

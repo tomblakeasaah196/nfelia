@@ -63,9 +63,12 @@ $tab_roots       = ['dashboard' => 'home', 'orders' => 'orders', 'invoices' => '
 $is_tab_root     = isset($tab_roots[$current_url]);
 // Below a tab's first page the bar shows Back: to the section's list when
 // it has one, otherwise to More, where the rest of the app is listed.
+// On a computer the sidebar stands in for More, so Back shows there only
+// on a detail page, going back to its list.
 $list_sections = ['invoices', 'receipts', 'quotations', 'customers', 'products', 'suppliers', 'deliveries',
                   'debts', 'expenses', 'orders', 'tasks', 'admin', 'countries', 'deed'];
-$back_url = APP_URL . '/' . (str_contains($current_url, '/') && in_array($current_section, $list_sections, true) ? $current_section : 'more');
+$back_to_list = str_contains($current_url, '/') && in_array($current_section, $list_sections, true);
+$back_url = APP_URL . '/' . ($back_to_list ? $current_section : 'more');
 
 // Locked (app/middleware/auth_check.php): the page shows only an outline of
 // the app behind the lock, never the business.
@@ -198,7 +201,7 @@ $flash = get_flash();
             <?php if ($is_tab_root): ?>
                 <a class="nf-ab-biz lg:hidden" href="<?= APP_URL ?>/dashboard"><?= $avatar ?><span class="nf-ab-title"><?= e($business['name']) ?></span></a>
             <?php else: ?>
-                <a class="nf-icon-btn lg:hidden" href="<?= e($back_url) ?>" aria-label="Back" data-back><?= nav_icon('back') ?></a>
+                <a class="nf-icon-btn<?= $back_to_list ? '' : ' lg:hidden' ?>" href="<?= e($back_url) ?>" aria-label="Back" data-back><?= nav_icon('back') ?></a>
                 <span class="nf-ab-title lg:hidden"><?= e($title ?? '') ?></span>
             <?php endif; ?>
             <span class="nf-ab-title hidden lg:block"><?= e($title ?? 'Home') ?></span>

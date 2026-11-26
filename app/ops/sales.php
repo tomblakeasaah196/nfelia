@@ -29,6 +29,7 @@ const LEAD_STAGES = [
 const LEAD_SOURCES = [
     'website' => 'Home page message', 'signup' => 'Signed up, stalled', 'trial' => 'Trial ending', 'manual' => 'We reached out',
     'referral' => 'Referred', 'event' => 'Event or market', 'social' => 'Social media', 'walk_in' => 'Walked in or called',
+    'booking' => 'Booked a meeting',   // nfelia.com/book (app/ops/meetings.php)
 ];
 const LEAD_OPEN = ['new', 'contacted', 'demo', 'trial'];
 

@@ -2,7 +2,8 @@
 /**
  * One client (detail): $b, $people, $use, $payments, $plan_log, $reviews, $referred_by, $referred,
  * $errors (null: role can't), $tickets (null: role can't), $notes, $views, $history (null: role can't), $plans,
- * $books (their Records Books; null: role can't), $asks (requests for their records; null: role can't).
+ * $books (their Records Books; null: role can't), $asks (requests for their records; null: role can't),
+ * $ai (product_ai_state(), with 'month' from product_ai_month() and 'key': the server has GEMINI_API_KEY).
  */
 $act    = ops_can('clients.act');
 $owner  = array_values(array_filter($people, fn($p) => $p['role'] === 'owner'))[0] ?? ($people[0] ?? null);
@@ -164,6 +165,30 @@ $day    = fn(?string $d) => $d ? date('j M Y', strtotime($d)) : '—';
             <?php endif; ?>
         </div></section>
 
+        <section class="ops-card" id="ai"><div class="ops-card-body">
+            <h2>AI writer</h2>
+            <p class="small muted">Add items from a photo: Gemini writes the name, description and category. Each photo costs Nfelia less than $0.001.</p>
+            <dl class="ops-facts" style="margin-top:10px">
+                <dt>Status</dt><dd><?= $ai['enabled'] ? 'On' : 'Off' ?><?= $ai['enabled'] && !$ai['key'] ? ' (no GEMINI_API_KEY on the server, so they can’t use it yet)' : '' ?></dd>
+                <dt>This week</dt><dd class="num"><?= (int)$ai['used'] ?> of <?= (int)$ai['limit'] ?> used<?= $ai['enabled'] ? ', starts again ' . e(date('D j M', strtotime($ai['resets']))) : '' ?></dd>
+                <?php if ($ai['month']['ok'] || $ai['month']['failed']): ?>
+                <dt>30 days</dt><dd class="num"><?= (int)$ai['month']['ok'] ?> photo<?= $ai['month']['ok'] === 1 ? '' : 's' ?><?= $ai['month']['failed'] ? ', ' . (int)$ai['month']['failed'] . ' not read' : '' ?>, about $<?= e(number_format($ai['month']['cost'], 2)) ?></dd>
+                <?php endif; ?>
+            </dl>
+            <?php if (ops_can('clients.ai')): ?>
+            <form method="post" action="<?= e(ops_url('clients/' . (int)$b['id'] . '/ai')) ?>" style="margin-top:12px">
+                <?= ops_csrf_field() ?>
+                <input type="hidden" name="on" value="0">
+                <label class="ops-check"><input type="checkbox" name="on" value="1"<?= $ai['enabled'] ? ' checked' : '' ?>><span>Let them add items from a photo</span></label>
+                <div class="ops-field" style="margin-top:10px"><label for="ai-limit">Photos a week</label>
+                    <input class="ops-input num" id="ai-limit" name="limit" type="number" min="1" max="1000" required value="<?= (int)$ai['limit'] ?>" style="max-width:120px">
+                    <span class="hint">From Monday. Only photos that come back with a name count.</span></div>
+                <button class="ops-btn ops-btn-secondary ops-btn-sm" type="submit">Save AI settings</button>
+            </form>
+            <p class="small muted" style="margin-top:8px">Admins only. The owner is told when it comes on, and it goes in the audit log.</p>
+            <?php endif; ?>
+        </div></section>
+
         <?php if ($books !== null): ?>
         <section class="ops-card" id="records"><div class="ops-card-body">
             <h2>Records Books</h2>
@@ -195,6 +220,14 @@ $day    = fn(?string $d) => $d ? date('j M Y', strtotime($d)) : '—';
         <section class="ops-card"><div class="ops-card-body">
             <h2>Viewed as</h2>
             <ul class="ops-plain"><?php foreach ($views as $v): ?><li><span><?= e(($v['full_name'] ?? 'Someone') . ': ' . $v['reason']) ?></span> <span class="muted"><?= e(ops_ago($v['started_at'])) ?></span></li><?php endforeach; ?></ul>
+        </div></section>
+        <?php endif; ?>
+
+        <?php if (ops_can('clients.wipe')): ?>
+        <section class="ops-card ops-danger" id="fresh-start"><div class="ops-card-body">
+            <h2>Fresh start</h2>
+            <p class="small muted">When they ask, wipe their sales, stock, products or contacts so they can start their books again. A copy is kept for 30 days. Admins only.</p>
+            <a class="ops-btn ops-btn-secondary ops-btn-sm" style="margin-top:10px" href="<?= e(ops_url('clients/' . (int)$b['id'] . '/wipe')) ?>">Wipe their data…</a>
         </div></section>
         <?php endif; ?>
 
