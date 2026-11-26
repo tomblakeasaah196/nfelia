@@ -102,6 +102,11 @@ class AuthController {
 
         // CSRF Check using helper
         csrf_verify();
+        // A bot signing strangers up (app/helpers/bot_guard.php)
+        if ($why = bot_guard_check('register')) {
+            flash('error', $why);
+            $this->back_to_register();
+        }
 
         $biz_name         = trim($_POST['business_name'] ?? '');
         $full_name        = trim($_POST['full_name'] ?? '');
@@ -302,6 +307,10 @@ class AuthController {
     public function forgot_password() {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             csrf_verify();
+            if ($why = bot_guard_check('forgot-password')) {
+                flash('error', $why);
+                redirect('forgot-password');
+            }
             $this->send_account_link('reset');
         }
 
@@ -320,6 +329,10 @@ class AuthController {
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             csrf_verify();
+            if ($why = bot_guard_check('login-link')) {
+                flash('error', $why);
+                redirect(signin_url($_POST['next'] ?? '', 'login-link'));
+            }
             $this->send_account_link('signin');
         }
 
