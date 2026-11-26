@@ -61,7 +61,11 @@ foreach ($reports as $r) {
 
     if ($directive === '' || !$ours($document)
         || preg_match('#^(chrome|moz|safari(-web)?|ms-browser)-extension#i', $blocked . ' ' . $source)
-        || preg_match('#webkit-masked-url|^about:|^chrome://#i', $blocked . ' ' . $source)) {
+        || preg_match('#webkit-masked-url|^about:|^chrome://#i', $blocked . ' ' . $source)
+        // Instagram's and Facebook's own browsers add their script to every
+        // page they open (pcm.js); a developer's tools load from localhost.
+        // Neither is Nfelia's page asking for anything.
+        || preg_match('#^https?://connect\.facebook\.net/[^/]+/pcm\.js|^https?://(localhost|127\.0\.0\.1)(:\d+)?(/|$)#i', $blocked)) {
         continue;
     }
     // "inline" and "eval" are the browser's words for script in the page itself;
