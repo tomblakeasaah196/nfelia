@@ -63,15 +63,17 @@ foreach ($all_products as $p) {
                          'service' => (bool)$p['is_service'], 'thumb' => $thumb, 'mode' => (string)($p['booking_mode'] ?? 'none'),
                          // Stage's planner: how many guests its words say it holds
                          'guests' => sf_event_guests(['name' => (string)$p['name'], 'description' => (string)($p['description'] ?? '')])['guests'],
-                         'shop' => (int)$p['on_shop'] === 1];
+                         'shop' => (int)$p['on_shop'] === 1,
+                         'category' => trim((string)$p['category']),
+                         // Pinned to the top of the shop (Order on your shop): 1 first
+                         'pin' => $p['pin_rank'] !== null && (int)$p['on_shop'] === 1 ? (int)$p['pin_rank'] : null];
 }
 $product_list = array_values(array_filter($catalogue_list, fn($p) => $p['shop']));
 // Shea's skin finder: the skin types it offers until the owner sets their
 // own, the steps, and our guess at each product's step (storefront_routines)
-// (in the shop's order: by each category's first product, as storefront_catalogue)
-$by_id = $products;
-usort($by_id, fn($a, $b) => (int)$a['id'] <=> (int)$b['id']);
-$categories = array_values(array_unique(array_filter(array_map(fn($p) => trim((string)$p['category']), $by_id), 'strlen')));
+// (in the shop's order, as storefront_catalogue: the owner's, then by each
+// category's first product)
+$categories = shop_categories($product_list, shop_category_order($business));
 $finder = [
     'skins' => storefront_skins(['categories' => $categories], ['skins' => []]),
     'steps' => array_map(fn($step) => $step['name'], SF_ROUTINE_STEPS),
@@ -105,6 +107,8 @@ $studio = [
         'visibility' => APP_URL . '/landing-page/visibility',
         'soldOut'    => APP_URL . '/landing-page/sold-out',
         'onShop'     => APP_URL . '/landing-page/on-shop',
+        'pin'        => APP_URL . '/landing-page/pin',
+        'catOrder'   => APP_URL . '/landing-page/category-order',
         'preview'    => APP_URL . '/landing-page/preview',
         'check'      => APP_URL . '/shop-setup/check',
         'products'   => APP_URL . '/products/create',
@@ -134,6 +138,8 @@ $studio = [
     'products'    => $product_list,
     'catalogue'   => $catalogue_list,
     'finder'      => $finder,
+    // Order on your shop: the categories in the shop's order, and how many pins
+    'order'       => ['categories' => $categories, 'max' => SHOP_MAX_PINS],
     'themes'      => array_map(fn($t) => ['name' => $t['name'], 'colours' => $t['colours']], SF_THEMES),
     'business'    => ['name' => (string)$business['name'], 'logo' => $logo_url, 'currency' => $currency,
                       'tagline' => (string)($business['tagline'] ?? ''), 'base' => shop_base_host(),

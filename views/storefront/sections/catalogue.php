@@ -14,9 +14,9 @@ $searchable = count($items) >= (in_array($settings['look'], ['volt', 'market'], 
 $categories = $catalogue['categories'];
 $render     = 'sf_item_' . $style;
 
-// Packages read best from the smallest up
+// Packages read best from the smallest up, after any the owner pinned
 if ($style === 'package') {
-    usort($items, fn($a, $b) => [$a['price'] <= 0, $a['price'], $a['name']] <=> [$b['price'] <= 0, $b['price'], $b['name']]);
+    usort($items, fn($a, $b) => [$a['pin'] === null, $a['pin'], $a['price'] <= 0, $a['price'], $a['name']] <=> [$b['pin'] === null, $b['pin'], $b['price'] <= 0, $b['price'], $b['name']]);
 }
 
 // Volt pulls services out into its repair-desk ticket

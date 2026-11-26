@@ -141,6 +141,15 @@ $sorts     = ['newest' => 'Newest first', 'oldest' => 'Oldest first', 'name_asc'
                     <span class="nf-tag <?= $tag_cls ?>"><?= e($tag) ?></span>
                 </span>
             </a>
+            <?php /* Pin to the top of my shop (pin.php): only what the shop shows */ ?>
+            <?php if ($shown): $at = $p['pin_rank'] !== null ? (int)$p['pin_rank'] : 0; ?>
+            <form class="nf-pinsw" method="POST" action="<?= APP_URL ?>/products/toggle-pin/<?= (int)$p['id'] ?>" data-pin="<?= (int)$p['id'] ?>" data-at="<?= $at ?>"
+                  onsubmit="event.preventDefault(); nfPin(this, this.elements.on.value === '1');">
+                <?= $csrf ?><input type="hidden" name="on" value="<?= $at ? '0' : '1' ?>">
+                <button type="submit" class="nf-pinbtn" aria-pressed="<?= $at ? 'true' : 'false' ?>" aria-label="Pin <?= e($p['name']) ?> to the top of my shop"
+                        title="<?= $at ? 'Pinned to the top of your shop, number ' . $at . '. Tap to unpin.' : 'Pin to the top of your shop' ?>"><?= nav_icon('pushpin') ?><small><?= $at ?: '' ?></small></button>
+            </form>
+            <?php else: ?><span class="nf-pinsw nf-pinsw--none" aria-hidden="true"></span><?php endif; ?>
             <?php /* Show on my shop, in one tap. A hidden item is off the shop whatever this says. */ ?>
             <form class="nf-shopsw" method="POST" action="<?= APP_URL ?>/products/toggle-shop/<?= (int)$p['id'] ?>">
                 <?= $csrf ?><input type="hidden" name="on" value="<?= $shown ? '0' : '1' ?>">
@@ -153,6 +162,7 @@ $sorts     = ['newest' => 'Newest first', 'oldest' => 'Oldest first', 'name_asc'
         <?php endforeach; ?>
     </div>
     <?php require BASE_PATH . '/views/products/shop_switch.php'; ?>
+    <?php require BASE_PATH . '/views/products/pin.php'; ?>
 
     <?php $pager = ['path' => 'products', 'params' => $keep, 'page' => $page, 'pages' => $total_pages];
           require BASE_PATH . '/views/partials/pager.php'; ?>
@@ -187,6 +197,9 @@ $sorts     = ['newest' => 'Newest first', 'oldest' => 'Oldest first', 'name_asc'
 
 <?php if (!empty($products)): ?>
     <div class="nf-list nf-more-list">
+        <?php if (in_array(strtolower(auth_user()['role'] ?? ''), ['owner', 'admin'], true)): /* Shop Studio is theirs (LandingPageController) */ ?>
+        <a class="nf-row" href="<?= APP_URL ?>/landing-page?open=order"><span class="nf-tile-ic"><?= nav_icon('pushpin') ?></span>Order on your shop: categories and pins<span class="end"><?= nav_icon('chevron') ?></span></a>
+        <?php endif; ?>
         <a class="nf-row" href="<?= APP_URL ?>/products/setup"><span class="nf-tile-ic"><?= nav_icon('plus') ?></span>Add many items at once<span class="end"><?= nav_icon('chevron') ?></span></a>
         <a class="nf-row" href="<?= APP_URL ?>/products/export" download data-no-prefetch><span class="nf-tile-ic"><?= nav_icon('download') ?></span>Download the list as a spreadsheet<span class="end"><?= nav_icon('chevron') ?></span></a>
     </div>

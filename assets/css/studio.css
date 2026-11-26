@@ -220,6 +220,14 @@ p, h1, h2, h3, ul { margin: 0; }
 .st-pick__name { flex: 1; min-width: 0; font-weight: 600; line-height: 1.3; }
 .st-pick__price { font-size: 13px; color: var(--st-muted); white-space: nowrap; }
 .st-pick input { width: 20px; height: 20px; margin: 0; accent-color: var(--accent-text); }
+/* Order on your shop (studio.js, orderField): categories first to last, then the pins */
+.st-order { padding-top: 16px; border-top: 1px solid var(--st-line); }
+.st-order__sub { margin-top: 6px; font-size: 13px; font-weight: 700; }
+.st-order__cat { padding-left: 12px; }
+.st-order__n { flex-shrink: 0; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--st-tint); font-size: 13px; font-weight: 700; color: var(--accent-text); }
+.st-order__cat .st-slide__text { font-weight: 600; font-size: 15px; }
+.st-order__badge { flex-shrink: 0; display: grid; place-items: center; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; background: var(--accent); color: var(--on-accent); font-size: 12px; font-weight: 700; }
+.st-order__badge[hidden] { display: none; }
 .st-faq { display: flex; flex-direction: column; gap: 12px; }
 .st-faq__item { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--st-line); border-radius: 12px; }
 .st-faq__actions { display: flex; justify-content: flex-end; }

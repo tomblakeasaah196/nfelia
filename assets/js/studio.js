@@ -1033,6 +1033,129 @@
         return box;
     }
 
+    /* "Order on your shop": the categories first to last, and up to 8 items
+       pinned to the top. Both are saved at once (no Publish), like the ticks
+       in "Everything you sell", and the pins are the same as the pin on each
+       row of the Catalogue. Everything not placed follows by category, with
+       what sells most first (storefront.php, shop_sort_items). */
+    function pinsFromServer(ids) {
+        D.catalogue.forEach(function (p) {
+            var at = ids.indexOf(p.id);
+            p.pin = at === -1 ? null : at + 1;
+        });
+    }
+    function orderField(only) {
+        var box = el('div', { class: 'st-field st-order', id: 'st-order' });
+        box.appendChild(el('span', { class: 'st-label' }, 'Order on your shop'));
+        box.appendChild(el('span', { class: 'st-field__hint' }, 'It changes at once, with no need to publish. Whatever you don\'t place follows, with what sells most first.'));
+
+        var cats = D.order.categories;
+        if (cats.length > 1) {
+            box.appendChild(el('span', { class: 'st-order__sub' }, 'Categories, first to last'));
+            var ol = el('ol', { class: 'st-slides__list st-order__cats' });
+            cats.forEach(function (name, i) {
+                var li = el('li', { class: 'st-slide st-order__cat' });
+                li.appendChild(el('span', { class: 'st-order__n', 'aria-hidden': 'true' }, String(i + 1)));
+                li.appendChild(el('span', { class: 'st-slide__text' }, name));
+                var up = el('button', { type: 'button', class: 'st-section__move', 'aria-label': 'Move ' + name + ' up', disabled: i === 0, 'data-cat-move': i + ':-1' });
+                up.appendChild(icon(ICON.up));
+                up.addEventListener('click', function () { moveCategory(i, -1); });
+                var down = el('button', { type: 'button', class: 'st-section__move', 'aria-label': 'Move ' + name + ' down', disabled: i === cats.length - 1, 'data-cat-move': i + ':1' });
+                down.appendChild(icon(ICON.down));
+                down.addEventListener('click', function () { moveCategory(i, 1); });
+                li.appendChild(up);
+                li.appendChild(down);
+                ol.appendChild(li);
+            });
+            box.appendChild(ol);
+        }
+
+        var products = only ? D.products.filter(only) : D.products;
+        box.appendChild(el('span', { class: 'st-order__sub' }, 'Pinned to the top'));
+        box.appendChild(el('span', { class: 'st-field__hint' }, 'Tick up to ' + D.order.max + ', in the order you want them first. Untick one to let it go back to its place.'));
+        if (!products.length) {
+            box.appendChild(el('p', { class: 'st-help' }, only ? 'Nothing here can be booked yet.' : 'Nothing is on your shop yet.'));
+            return box;
+        }
+        var find = null;
+        if (products.length > 12) {
+            find = el('input', { type: 'text', class: 'st-order__find', placeholder: 'Find an item', 'aria-label': 'Find an item to pin', autocomplete: 'off' });
+            box.appendChild(find);
+        }
+        var list = el('ul', { class: 'st-picks' });
+        var rows = [];
+        function paint() {
+            rows.forEach(function (r) {
+                r.input.checked = r.p.pin !== null;
+                r.badge.textContent = r.p.pin !== null ? String(r.p.pin) : '';
+                r.badge.hidden = r.p.pin === null;
+            });
+        }
+        products.forEach(function (p) {
+            var li = el('li');
+            var label = el('label', { class: 'st-pick' });
+            var input = el('input', { type: 'checkbox', value: String(p.id) });
+            input.addEventListener('change', function () {
+                var on = input.checked;
+                var pinned = D.catalogue.filter(function (c) { return c.pin !== null; }).length;
+                if (on && pinned >= D.order.max) {
+                    input.checked = false;
+                    toast('You can pin up to ' + D.order.max + '. Untick one first.');
+                    return;
+                }
+                input.disabled = true;
+                api(D.urls.pin, { id: p.id, on: on }).then(function (json) {
+                    pinsFromServer(json.pins);
+                    paint();
+                    reloadPreview();
+                    toast(json.message);
+                }).catch(function (err) {
+                    if (err.json && err.json.pins) { pinsFromServer(err.json.pins); }
+                    paint();
+                    say(err.message, true);
+                }).then(function () { input.disabled = false; });
+            });
+            label.appendChild(input);
+            if (p.thumb) { label.appendChild(el('img', { src: p.thumb, alt: '', loading: 'lazy' })); } else { label.appendChild(el('span', { class: 'st-pick__ph' })); }
+            label.appendChild(el('span', { class: 'st-pick__name' }, p.name));
+            var badge = el('span', { class: 'st-order__badge', 'aria-label': 'Pinned' });
+            label.appendChild(badge);
+            label.appendChild(el('span', { class: 'st-pick__price' }, p.price));
+            li.appendChild(label);
+            list.appendChild(li);
+            rows.push({ p: p, input: input, badge: badge, li: li });
+        });
+        paint();
+        if (find) {
+            find.addEventListener('input', function () {
+                var q = find.value.trim().toLowerCase();
+                rows.forEach(function (r) { r.li.hidden = q !== '' && r.p.name.toLowerCase().indexOf(q) === -1; });
+            });
+        }
+        box.appendChild(list);
+        return box;
+    }
+    function moveCategory(i, step) {
+        var before = D.order.categories.slice();
+        var cats = before.slice();
+        var j = i + step;
+        if (j < 0 || j >= cats.length) { return; }
+        cats.splice(j, 0, cats.splice(i, 1)[0]);
+        D.order.categories = cats;
+        renderEditor();
+        // Keep the focus on the row that moved, so it can move again
+        var again = $('[data-cat-move="' + j + ':' + step + '"]:not([disabled])', editorEl) || $('[data-cat-move^="' + j + ':"]:not([disabled])', editorEl);
+        if (again) { again.focus(); }
+        api(D.urls.catOrder, { categories: cats }).then(function (json) {
+            reloadPreview();
+            toast(json.message);
+        }).catch(function (err) {
+            D.order.categories = before;
+            renderEditor();
+            say(err.message, true);
+        });
+    }
+
     function renderEditor() {
         var s = sectionAt(editing);
         var def = D.types[editing];
@@ -1102,6 +1225,7 @@
             case 'catalogue':
                 editorEl.appendChild(field('Title', textInput(s, 'title', f.title, labelFor('catalogue'))));
                 editorEl.appendChild(shopItems());
+                editorEl.appendChild(orderField());
                 break;
             case 'about':
                 editorEl.appendChild(field('Title', textInput(s, 'title', f.title, labelFor('about'))));
@@ -1146,6 +1270,7 @@
                 bookingHelp.appendChild(el('a', { href: D.urls.bookings }, 'Booking hours'));
                 bookingHelp.appendChild(document.createTextNode('.'));
                 editorEl.appendChild(bookingHelp);
+                editorEl.appendChild(orderField(function (p) { return p.mode !== 'none'; }));
                 break;
             case 'reviews':
                 editorEl.appendChild(field('Title', textInput(s, 'title', f.title, 'What customers say')));
@@ -2050,4 +2175,18 @@
     renderAll();
     updatePublish();
     updateHistoryButtons();
+
+    // /landing-page?open=order (from the Catalogue): straight to "Order on
+    // your shop", in the list's editor or else the bookings' one
+    if (/[?&]open=order(&|$)/.test(location.search)) {
+        var orderIn = ['catalogue', 'booking'].filter(function (t) { return sectionAt(t); })[0];
+        if (orderIn) {
+            selectTab($('[data-tab="sections"]'));
+            panel.classList.add('is-tall');
+            $('[data-expand]').setAttribute('aria-expanded', 'true');
+            openEditor(orderIn);
+            var orderBox = $('#st-order', editorEl);
+            if (orderBox) { orderBox.scrollIntoView({ block: 'start' }); }
+        }
+    }
 })();

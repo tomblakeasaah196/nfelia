@@ -62,12 +62,22 @@ $filter  = (string)($move_filter ?? '');
 
 <?php if ($product['is_active']): ?>
 <!-- Show on my shop, in one tap (views/products/shop_switch.php) -->
-<form class="nf-card nf-pv-shop" method="POST" action="<?= APP_URL ?>/products/toggle-shop/<?= $pid ?>">
+<div class="nf-card nf-pv-shop">
+<form method="POST" action="<?= APP_URL ?>/products/toggle-shop/<?= $pid ?>">
     <?= $csrf ?><input type="hidden" name="on" value="<?= (int)$product['on_shop'] ? '0' : '1' ?>">
     <label class="nf-switch"><input type="checkbox" role="switch" onchange="nfShopSwitch(this)"<?= (int)$product['on_shop'] ? ' checked' : '' ?>>
         <span><b>Show on my shop</b><small>Off: it stays here and on invoices, quotes and orders, but your shop doesn't show it.</small></span></label>
 </form>
+<?php if ((int)$product['on_shop']): $at = $product['pin_rank'] !== null ? (int)$product['pin_rank'] : 0; /* pin.php */ ?>
+<form method="POST" action="<?= APP_URL ?>/products/toggle-pin/<?= $pid ?>" data-pin="<?= $pid ?>" data-at="<?= $at ?>">
+    <?= $csrf ?><input type="hidden" name="on" value="<?= $at ? '0' : '1' ?>">
+    <label class="nf-switch"><input type="checkbox" role="switch" onchange="nfPin(this.form, this.checked)"<?= $at ? ' checked' : '' ?>>
+        <span><b>Pin to the top of my shop</b><small data-pin-note><?= $at ? 'Number ' . $at . ' of up to 8. It shows before everything else on your shop.' : 'Show it before everything else on your shop. Up to 8 items.' ?></small></span></label>
+</form>
+<?php endif; ?>
+</div>
 <?php require BASE_PATH . '/views/products/shop_switch.php'; ?>
+<?php require BASE_PATH . '/views/products/pin.php'; ?>
 <?php endif; ?>
 
 <!-- Edit, Hide, Clone, Remove. Their forms sit below, so the tiles stay one row. -->
