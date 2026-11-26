@@ -242,31 +242,53 @@ function webpush_send(array $sub, array $message, string $urgency = 'normal', in
     ];
     // A newer message about the same thing replaces an older one still
     // waiting for a phone that is off, and a retry never doubles up.
-    if (!empty($message['tag']) && preg_match('/^[A-Za-z0-9_-]{1,32}$/', (string)$message['tag'])) {
-        $headers[] = 'Topic: ' . $message['tag'];
-    }
+    $topic = webpush_topic((string)($message['tag'] ?? ''));
 
-    $ch = curl_init($sub['endpoint']);
-    curl_setopt_array($ch, [
-        CURLOPT_POST           => true,
-        CURLOPT_POSTFIELDS     => $body,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_CONNECTTIMEOUT => 5,
-        CURLOPT_TIMEOUT        => 10,
-        CURLOPT_PROTOCOLS      => push_endpoint_is_test((string)$sub['endpoint']) ? CURLPROTO_HTTP | CURLPROTO_HTTPS : CURLPROTO_HTTPS,
-        CURLOPT_HTTPHEADER     => $headers,
-    ]);
-    $answer = curl_exec($ch);
-    $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-    if ($answer === false || $status === 0) {
-        $detail = 'curl ' . curl_errno($ch) . ': ' . curl_error($ch);
-        $status = 0;
-    } elseif ($status < 200 || $status >= 300) {
-        $text = trim(preg_replace('/\s+/', ' ', strip_tags((string)$answer)) ?? '');
-        $detail = $text !== '' ? mb_substr($text, 0, 160) : null;
+    $post = function (bool $with_topic) use ($sub, $body, $headers, $topic, &$detail): array {
+        $ch = curl_init($sub['endpoint']);
+        curl_setopt_array($ch, [
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => $body,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_TIMEOUT        => 10,
+            CURLOPT_PROTOCOLS      => push_endpoint_is_test((string)$sub['endpoint']) ? CURLPROTO_HTTP | CURLPROTO_HTTPS : CURLPROTO_HTTPS,
+            CURLOPT_HTTPHEADER     => $with_topic && $topic !== null ? [...$headers, 'Topic: ' . $topic] : $headers,
+        ]);
+        $answer = curl_exec($ch);
+        $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        $detail = null;
+        if ($answer === false || $status === 0) {
+            $detail = 'curl ' . curl_errno($ch) . ': ' . curl_error($ch);
+            $status = 0;
+        } elseif ($status < 200 || $status >= 300) {
+            $text = trim(preg_replace('/\s+/', ' ', strip_tags((string)$answer)) ?? '');
+            $detail = $text !== '' ? mb_substr($text, 0, 160) : null;
+        }
+        curl_close($ch);
+        return [$status, (string)$answer];
+    };
+
+    [$status, $answer] = $post(true);
+    // Apple's push service refused tags like "booking-12" as a Topic
+    // (BadWebPushTopic, 26 Nov 2026), and so lost every alert that had one.
+    // Should any service still refuse the Topic, the alert goes again at once
+    // without it: replacing an older alert is a nicety, the alert is not.
+    if ($status === 400 && $topic !== null && stripos($answer, 'Topic') !== false) {
+        [$status, $answer] = $post(false);
     }
-    curl_close($ch);
     return $status;
+}
+
+/**
+ * The Topic header for a message's tag: always 22 characters of the
+ * URL-safe Base64 alphabet (RFC 8030 §5.4 allows 32), made from the tag, so
+ * the same tag always gives the same Topic and a newer alert about the same
+ * thing still replaces the older one. Null when there is no tag.
+ */
+function webpush_topic(string $tag): ?string {
+    if ($tag === '') return null;
+    return rtrim(strtr(base64_encode(substr(hash('sha256', $tag, true), 0, 16)), '+/', '-_'), '=');
 }
 
 /* ═══════════════════════════════════════════════════════════════════

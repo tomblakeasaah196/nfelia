@@ -53,9 +53,17 @@ function ops_log_sources(): array
     if ($ini !== '' && $ini !== 'syslog') {
         $paths[] = $ini;
     }
+    // Only Nfelia's own logs. The hosting account's shared ~/error_log (a
+    // bare "error_log" resolves there when the cron runs from the home
+    // folder) carries every other site's lines: HOD Lekki's mail sync, JBS
+    // HQ's crons. Those are not Nfelia's to fix.
+    $base = rtrim((string)(@realpath(BASE_PATH) ?: BASE_PATH), '/\\') . DIRECTORY_SEPARATOR;
     $out = [];
     foreach ($paths as $p) {
         $real = @realpath($p) ?: $p;
+        if (!str_starts_with($real, $base)) {
+            continue;
+        }
         if (!isset($out[$real]) && is_file($real) && is_readable($real)) {
             $out[$real] = $real;
         }
@@ -309,7 +317,9 @@ function ops_health(PDO $db): array
     $e = $db->query("
         SELECT SUM(first_seen_at > NOW() - INTERVAL 1 DAY AND kind <> 'slow') AS new_day,
                SUM(status = 'open' AND level IN ('fatal', 'error') AND kind <> 'slow' AND last_seen_at > NOW() - INTERVAL 1 DAY) AS open_errors,
-               SUM(kind = 'slow' AND last_seen_at > NOW() - INTERVAL 1 DAY) AS slow,
+               -- Slow pages someone has looked into and marked are not news;
+               -- one that is slow again opens again (app/helpers/errors.php).
+               SUM(kind = 'slow' AND status = 'open' AND last_seen_at > NOW() - INTERVAL 1 DAY) AS slow,
                SUM(regressed_at > NOW() - INTERVAL 1 DAY) AS back
         FROM error_groups
     ")->fetch();
@@ -363,7 +373,26 @@ function ops_health(PDO $db): array
     if (is_file($backup_log) && ($lines = @file($backup_log, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES))) {
         $last = (string)end($lines);
     }
-    if ($last === '') {
+    // Since 4 Nov 2026 the server's backups are JBS HQ's (backups:run): every
+    // night an encrypted dump of the database, every week the uploaded
+    // files, each kept here for 7 days and sent to Google Drive, where HQ
+    // checks it. They land in this same folder, with no backup.log.
+    $newest = function (string $pattern): int {
+        $t = 0;
+        foreach (glob($pattern) ?: [] as $f) {
+            $t = max($t, (int)@filemtime($f));
+        }
+        return $t;
+    };
+    $hq_db    = $last === '' ? $newest($backup_dir . '/nfelia_db_*.sql.gz.enc') : 0;
+    $hq_files = $last === '' ? $newest($backup_dir . '/nfelia_files_*.tar.gz.enc') : 0;
+    if ($hq_db > 0) {
+        $db_h    = (time() - $hq_db) / 3600;
+        $files_d = $hq_files ? (time() - $hq_files) / 86400 : 999;
+        $add('backup', 'Server', 'Backups', $db_h > 72 ? 'bad' : ($db_h > 36 || $files_d > 9 ? 'warn' : 'ok'),
+             'Database saved ' . ($db_h < 1 ? 'under an hour' : round($db_h) . ' hours') . ' ago; photos and files '
+             . ($hq_files ? round($files_d) . ' days ago' : 'not yet') . '. Encrypted and sent to Google Drive by JBS HQ (HQ › System health).');
+    } elseif ($last === '') {
         $add('backup', 'Server', 'Backups', 'bad', 'No backup has been recorded at ' . $backup_log . '. Set up bin/backup.sh (docs/ops/RUNBOOK.md, Backups).');
     } else {
         $when = strtotime(substr($last, 0, 25)) ?: 0;

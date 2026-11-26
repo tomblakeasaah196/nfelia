@@ -31,6 +31,14 @@ RewriteRule .* - [F,L]
 # --- Redirect old domain (nfelia.lpc.cm) to new domain (nfelia.com) ---
 RewriteCond %{HTTP_HOST} ^(www\.)?nfelia\.lpc\.cm$ [NC]
 RewriteRule ^(.*)$ https://nfelia.com/$1 [R=301,L]
+
+# --- One address: www.nfelia.com goes to nfelia.com ---
+# Every page loads its scripts and styles from APP_URL (https://nfelia.com),
+# so a page served on www is a second copy of the site, cross-site to its own
+# files. .well-known/ stays where it is, for certificate checks.
+RewriteCond %{HTTP_HOST} ^www\.nfelia\.com$ [NC]
+RewriteCond %{REQUEST_URI} !^/\.well-known/
+RewriteRule ^(.*)$ https://nfelia.com/$1 [R=301,L]
    
 # Allow standalone error pages to bypass the views block below
 RewriteRule ^views/(404|500)\.php$ - [L]
@@ -106,7 +114,13 @@ RewriteRule ^(.*)$ index.php?url=$1 [QSA,L]
     # page at the edge; blob: is the cropper reading the photo just chosen;
     # maps.geoapify.com draws the map in Shop Studio where owners place their
     # shop's pin (shoppers get a picture of it from uploads/maps/ instead).
-    Header always set Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://nfelia.com https://fonts.gstatic.com; img-src 'self' data: blob: https://nfelia.com https://*.nfelia.com https://i.ytimg.com https://maps.geoapify.com; media-src 'self' blob:; connect-src 'self' blob:; frame-src 'self' https://www.youtube-nocookie.com; worker-src 'self'; manifest-src 'self'; form-action 'self'; frame-ancestors 'self'; base-uri 'self'; object-src 'none'; report-uri /api/csp"
+    # https://nfelia.com is named for the shops: a page at name.nfelia.com
+    # takes its stylesheet, script, fonts and photos from the main address
+    # and sends its script errors there ('self' is the shop's own address).
+    # Reports go to the main address too, as a shop's address has no /api.
+    # mailto:, tel: and sms: are the contact links on a shop, tapped inside
+    # Shop Studio's preview, which Safari checks against frame-src.
+    Header always set Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://nfelia.com https://cdnjs.cloudflare.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://nfelia.com https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://nfelia.com https://fonts.gstatic.com; img-src 'self' data: blob: https://nfelia.com https://*.nfelia.com https://i.ytimg.com https://maps.geoapify.com; media-src 'self' blob: https://nfelia.com; connect-src 'self' blob: https://nfelia.com; frame-src 'self' https://www.youtube-nocookie.com mailto: tel: sms:; worker-src 'self'; manifest-src 'self' https://nfelia.com; form-action 'self'; frame-ancestors 'self'; base-uri 'self'; object-src 'none'; report-uri https://nfelia.com/api/csp"
     # Nothing in Nfelia uses these browser features; saying so stops any
     # script that slips in from asking for them.
     Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=(), interest-cohort=()"

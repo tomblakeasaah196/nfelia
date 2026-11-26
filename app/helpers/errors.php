@@ -36,9 +36,14 @@ function errors_install(string $source): void
     $GLOBALS['nf_errors'] = ['source' => $source, 'started' => (float)($_SERVER['REQUEST_TIME_FLOAT'] ?? microtime(true))];
     if (PHP_SAPI === 'cli') {
         // The cron's own error_log() lines go where the web's do, so the
-        // log reader finds them (the cron's output goes nowhere).
+        // log reader finds them (the cron's output goes nowhere). The host's
+        // CLI setting is a bare "error_log", a file in whatever folder the
+        // cron starts in: the home folder, which every site's crons on the
+        // account share. So anything not already inside Nfelia is replaced.
         @ini_set('log_errors', '1');
-        if (!ini_get('error_log') && defined('LOG_PATH') && (is_dir(LOG_PATH) || @mkdir(LOG_PATH, 0755, true))) {
+        $ini = (string)ini_get('error_log');
+        $ours = $ini !== '' && str_starts_with($ini, '/') && defined('BASE_PATH') && str_starts_with($ini, rtrim(BASE_PATH, '/') . '/');
+        if (!$ours && defined('LOG_PATH') && (is_dir(LOG_PATH) || @mkdir(LOG_PATH, 0755, true))) {
             @ini_set('error_log', LOG_PATH . '/php_errors.log');
         }
         set_exception_handler(function (Throwable $e) {
@@ -91,11 +96,22 @@ function errors_on_shutdown(): void
     $ctx = $GLOBALS['nf_errors'] ?? [];
     if (PHP_SAPI !== 'cli' && empty($ctx['not_slow']) && isset($ctx['started'])) {
         $ms = (int)round((microtime(true) - $ctx['started']) * 1000);
-        if ($ms >= ERRORS_SLOW_MS) {
+        // Time spent waiting on another company's service (the map search)
+        // is not Nfelia's page being slow: only our own share counts.
+        $waited = (int)($ctx['waited_ms'] ?? 0);
+        if ($ms - $waited >= ERRORS_SLOW_MS) {
             $req = errors_request();
             errors_capture(['kind' => 'slow', 'level' => 'slow', 'duration_ms' => $ms,
                             'message' => 'Took ' . number_format($ms / 1000, 1) . ' s: ' . $req['method'] . ' /' . $req['route']]);
         }
+    }
+}
+
+/** This request waited this long on an outside service (errors_on_shutdown leaves it out of "slow"). */
+function errors_waited(float $seconds): void
+{
+    if ($seconds > 0) {
+        $GLOBALS['nf_errors']['waited_ms'] = (int)($GLOBALS['nf_errors']['waited_ms'] ?? 0) + (int)round($seconds * 1000);
     }
 }
 
