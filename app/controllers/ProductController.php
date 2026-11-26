@@ -585,6 +585,35 @@ class ProductController {
     }
 
     /* ──────────────────────────────────────────
+     *  PIN TO THE TOP OF THE SHOP — POST /products/toggle-pin/{id} {on}
+     *  The same pins as Shop Studio's "Order on your shop" (shop_pin): at
+     *  most 8, first pinned shows first. Saved at once, no Publish.
+     * ────────────────────────────────────────── */
+    public function toggle_pin($id = null) {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { http_response_code(405); exit; }
+        csrf_verify();
+
+        $product = $this->find_product($id);
+        if (!$product) {
+            if (is_ajax()) { json_response(['success' => false, 'message' => 'That item isn’t in your catalogue any more.'], 404); }
+            not_found(); return;
+        }
+        $on = isset($_POST['on']) ? $_POST['on'] === '1' : $product['pin_rank'] === null;
+        try {
+            $done = shop_pin($this->db, (int)$this->biz_id, (int)$id, $on);
+        } catch (DomainException $e) {
+            if (is_ajax()) { json_response(['success' => false, 'message' => $e->getMessage()], 422); }
+            flash('error', $e->getMessage());
+            redirect(back_path('products/view/' . (int)$id));
+        }
+        if (is_ajax()) {
+            json_response(['success' => true, 'pinned' => $done['pinned'], 'pins' => $done['pins'], 'message' => $done['message']]);
+        }
+        flash('success', $done['message']);
+        redirect(back_path('products/view/' . (int)$id));
+    }
+
+    /* ──────────────────────────────────────────
      *  AI — a name, description and category from
      *  a photo (AJAX, from the photo screen;
      *  app/helpers/product_ai.php). The photo is a

@@ -1257,7 +1257,7 @@ function storefront_catalogue(array $business, array $settings): array {
 
     $stmt = $db->prepare("
         SELECT id, name, description, category, image_path, sell_price, unit, is_service, stock_qty, created_at, updated_at,
-               booking_mode, booking_minutes, booking_capacity, deposit_type, deposit_value, caution_fee, stay_rates
+               booking_mode, booking_minutes, booking_capacity, deposit_type, deposit_value, caution_fee, stay_rates, pin_rank
         FROM products
         WHERE business_id = ? AND deleted_at IS NULL AND is_active = 1 AND on_shop = 1
         ORDER BY name ASC
@@ -1302,8 +1302,6 @@ function storefront_catalogue(array $business, array $settings): array {
 
     $breaks = storefront_breaks($settings);
     $items = [];
-    $categories = [];   // in the order their first product was added
-    $first_id = [];
     $updated = null;
     foreach ($rows as $row) {
         $pid = (int)$row['id'];
@@ -1325,6 +1323,7 @@ function storefront_catalogue(array $business, array $settings): array {
             'variants'    => $groups,
             'booking'     => booking_info($row),   // null unless people book it
             'sold_out'    => shop_sold_out($business, $row),
+            'pin'         => $row['pin_rank'] !== null ? (int)$row['pin_rank'] : null,   // pinned to the top: 1 first
         ];
         $item += sf_item_details($item);
         // Each step cheaper than the last, and than the price itself: a price
@@ -1338,15 +1337,13 @@ function storefront_catalogue(array $business, array $settings): array {
             }
         }
         $items[] = $item;
-        if ($item['category'] !== '') {
-            $first_id[$item['category']] = min($first_id[$item['category']] ?? PHP_INT_MAX, $pid);
-        }
         if ($updated === null || $row['updated_at'] > $updated) {
             $updated = $row['updated_at'];
         }
     }
-    asort($first_id);
-    $categories = array_keys($first_id);
+    // The owner's order (Shop Studio › Order on your shop), then what sells
+    $categories = shop_categories($items, shop_category_order($business));
+    $items = shop_sort_items($items, $categories, shop_popularity($db, $bid));
 
     $stmt = $db->prepare("
         SELECT id, kind, bank_name, account_name, account_number, is_default
@@ -1369,6 +1366,197 @@ function storefront_catalogue(array $business, array $settings): array {
         'has_services' => (bool)array_filter($items, fn($i) => $i['is_service']),
         'bookable'     => array_values(array_filter($items, fn($i) => $i['booking'] !== null)),
     ];
+}
+
+/*
+ * ── The order a shop shows what it sells ─────────────────────────────────
+ * Every list on a shop (its catalogue, its bookings, its category tiles and
+ * rings) takes one order, so the owner sets it once:
+ *   1. pinned items, in the order they were pinned (products.pin_rank, at
+ *      most SHOP_MAX_PINS), from Shop Studio's "Order on your shop" or the
+ *      pin on a Catalogue row;
+ *   2. then by category, in the owner's order (businesses.category_order);
+ *      categories the owner hasn't placed follow in the order their first
+ *      product was added, and items with no category come last;
+ *   3. inside a category, what was booked or ordered most in the last
+ *      SHOP_POPULAR_DAYS days first, then the newest.
+ * An owner who sets nothing still gets their bestsellers first.
+ */
+const SHOP_MAX_PINS     = 8;
+const SHOP_POPULAR_DAYS = 90;
+
+/**
+ * The owner's categories, first to last, as they named them. Read from the
+ * business row when it carries them, else from the database (the sitemap's
+ * shops are a shorter row).
+ */
+function shop_category_order(array $business): array {
+    if (!array_key_exists('category_order', $business)) {
+        $stmt = get_db()->prepare("SELECT category_order FROM businesses WHERE id = ?");
+        $stmt->execute([(int)($business['id'] ?? 0)]);
+        $business['category_order'] = $stmt->fetchColumn();
+    }
+    $list = json_decode((string)($business['category_order'] ?? ''), true);
+    return is_array($list) ? array_values(array_filter($list, fn($c) => is_string($c) && $c !== '')) : [];
+}
+
+/**
+ * The categories of these items in the shop's order: the owner's first
+ * (matched ignoring case, so "Gel-X" and "gel-x" are one place), then the
+ * rest in the order their first product was added.
+ */
+function shop_categories(array $items, array $order): array {
+    $first = [];
+    foreach ($items as $item) {
+        $c = (string)($item['category'] ?? '');
+        if ($c !== '') {
+            $first[$c] = min($first[$c] ?? PHP_INT_MAX, (int)$item['id']);
+        }
+    }
+    $rank = [];
+    foreach ($order as $i => $name) {
+        $rank[mb_strtolower(trim($name))] ??= $i;
+    }
+    $names = array_keys($first);
+    usort($names, fn($a, $b) => [$rank[mb_strtolower($a)] ?? PHP_INT_MAX, $first[$a]]
+                            <=> [$rank[mb_strtolower($b)] ?? PHP_INT_MAX, $first[$b]]);
+    return array_map('strval', $names);
+}
+
+/**
+ * Items in the shop's order (above): pinned first, then by category, then
+ * by how many times each was booked or ordered ($popular: id => count),
+ * then the newest. Items need id, category, created_at and pin.
+ */
+function shop_sort_items(array $items, array $categories, array $popular): array {
+    $at = array_flip($categories);
+    $key = fn(array $i) => [
+        $i['pin'] === null ? 1 : 0, $i['pin'] ?? 0,
+        $i['category'] === '' ? 1 : 0, $at[$i['category']] ?? PHP_INT_MAX,
+        -($popular[$i['id']] ?? 0),
+    ];
+    usort($items, fn($a, $b) => [...$key($a), $b['created_at'], $b['id']] <=> [...$key($b), $a['created_at'], $a['id']]);
+    return $items;
+}
+
+/**
+ * How many times each product was booked or ordered in the last
+ * SHOP_POPULAR_DAYS days: id => count. An order counts once however many it
+ * held; declined, rejected and cancelled ones don't count.
+ */
+function shop_popularity(PDO $db, int $business_id): array {
+    $since = date('Y-m-d H:i:s', strtotime('-' . SHOP_POPULAR_DAYS . ' days'));
+    $count = [];
+    $stmt = $db->prepare("
+        SELECT oi.product_id, COUNT(DISTINCT o.id) AS n
+        FROM orders o
+        JOIN order_items oi ON oi.order_id = o.id
+        WHERE o.business_id = ? AND o.created_at >= ? AND o.status NOT IN ('rejected', 'cancelled') AND oi.product_id IS NOT NULL
+        GROUP BY oi.product_id
+    ");
+    $stmt->execute([$business_id, $since]);
+    foreach ($stmt->fetchAll() as $row) {
+        $count[(int)$row['product_id']] = (int)$row['n'];
+    }
+    $stmt = $db->prepare("
+        SELECT product_id, COUNT(*) AS n
+        FROM bookings
+        WHERE business_id = ? AND created_at >= ? AND status NOT IN ('declined', 'cancelled') AND product_id IS NOT NULL
+        GROUP BY product_id
+    ");
+    $stmt->execute([$business_id, $since]);
+    foreach ($stmt->fetchAll() as $row) {
+        $count[(int)$row['product_id']] = ($count[(int)$row['product_id']] ?? 0) + (int)$row['n'];
+    }
+    return $count;
+}
+
+/**
+ * The shop's pinned items, first to last: [id, …].
+ */
+function shop_pins(PDO $db, int $business_id): array {
+    $stmt = $db->prepare("SELECT id FROM products WHERE business_id = ? AND pin_rank IS NOT NULL ORDER BY pin_rank, id");
+    $stmt->execute([$business_id]);
+    return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+}
+
+/**
+ * Pin an item to the top of the shop (after those already pinned) or unpin
+ * it. Only what the shop shows can be pinned, and at most SHOP_MAX_PINS: a
+ * pin left on an item since hidden, taken off the shop or removed is let go
+ * first, so the eight are always eight the shopper sees. Throws
+ * DomainException with words for the owner when it can't be done.
+ *   ['pinned' => bool, 'pins' => [id, …], 'message' => string]
+ */
+function shop_pin(PDO $db, int $business_id, int $product_id, bool $on): array {
+    $db->beginTransaction();
+    try {
+        // One change at a time per shop, so two taps can't both take the 8th place
+        $db->prepare("SELECT id FROM businesses WHERE id = ? FOR UPDATE")->execute([$business_id]);
+        $stmt = $db->prepare("SELECT name, is_active, on_shop, pin_rank FROM products WHERE id = ? AND business_id = ? AND deleted_at IS NULL");
+        $stmt->execute([$product_id, $business_id]);
+        $product = $stmt->fetch();
+        if (!$product) {
+            throw new DomainException('That item isn’t in your catalogue any more. Reload the page.');
+        }
+        $db->prepare("UPDATE products SET pin_rank = NULL
+                      WHERE business_id = ? AND pin_rank IS NOT NULL AND (deleted_at IS NOT NULL OR is_active = 0 OR on_shop = 0)")
+           ->execute([$business_id]);
+        $pins = array_values(array_diff(shop_pins($db, $business_id), [$product_id]));
+        if ($on) {
+            if (!(int)$product['is_active'] || !(int)$product['on_shop']) {
+                throw new DomainException($product['name'] . ' isn’t on your shop. Switch on Show on my shop first, then pin it.');
+            }
+            if ($product['pin_rank'] === null && count($pins) >= SHOP_MAX_PINS) {
+                throw new DomainException('You have pinned ' . SHOP_MAX_PINS . ' already. Unpin one first, then pin this.');
+            }
+            if ($product['pin_rank'] !== null) {
+                $pins = shop_pins($db, $business_id);   // already pinned: it keeps its place
+            } else {
+                $pins[] = $product_id;
+            }
+        }
+        $db->prepare("UPDATE products SET pin_rank = NULL WHERE business_id = ? AND pin_rank IS NOT NULL")->execute([$business_id]);
+        $set = $db->prepare("UPDATE products SET pin_rank = ? WHERE id = ? AND business_id = ?");
+        foreach ($pins as $i => $id) {
+            $set->execute([$i + 1, $id, $business_id]);
+        }
+        $db->commit();
+    } catch (Throwable $e) {
+        $db->rollBack();
+        throw $e;
+    }
+    $place = array_search($product_id, $pins, true);
+    return [
+        'pinned'  => $on,
+        'pins'    => $pins,
+        'message' => $on
+            ? $product['name'] . ' is pinned to the top of your shop' . ($place > 0 ? ', number ' . ($place + 1) : '') . '.'
+            : $product['name'] . ' is no longer pinned. It shows in its usual place.',
+    ];
+}
+
+/**
+ * Save the owner's order of categories, first to last. Names are kept as
+ * typed (trimmed, each once ignoring case, at most 60).
+ */
+function shop_set_category_order(PDO $db, int $business_id, array $names): array {
+    $seen = [];
+    $list = [];
+    foreach ($names as $name) {
+        $name = is_string($name) ? trim(preg_replace('/\s+/u', ' ', $name) ?? '') : '';
+        if ($name === '' || mb_strlen($name) > 100 || isset($seen[mb_strtolower($name)])) {
+            continue;
+        }
+        $seen[mb_strtolower($name)] = true;
+        $list[] = $name;
+        if (count($list) >= 60) {
+            break;
+        }
+    }
+    $db->prepare("UPDATE businesses SET category_order = ? WHERE id = ?")
+       ->execute([$list ? json_encode($list, JSON_UNESCAPED_UNICODE) : null, $business_id]);
+    return $list;
 }
 
 /**

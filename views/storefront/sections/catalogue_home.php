@@ -25,7 +25,7 @@ if ($look['hero'] === 'stays' || $look['hero'] === 'planner') {
     if (!$items) {
         return;
     }
-    $categories = array_values(array_unique(array_filter(array_column($items, 'category'), 'strlen')));
+    $categories = array_values(array_intersect($categories, array_column($items, 'category')));
     $all_count  = count($catalogue['items']);
 }
 if (!$items) {

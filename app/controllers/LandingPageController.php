@@ -21,6 +21,8 @@
  * POST /landing-page/visibility        switch the whole shop on or off
  * POST /landing-page/sold-out          show items with no stock left as sold out, or not
  * POST /landing-page/on-shop           a product on the shop or off it (Show on my shop)
+ * POST /landing-page/pin               an item pinned to the top of the shop, or not
+ * POST /landing-page/category-order    the shop's categories, first to last
  *
  * Every POST checks the CSRF token, sent as the X-CSRF-Token header or a
  * csrf_token field. The shop link itself is changed through ShopSetupController.
@@ -59,7 +61,7 @@ class LandingPageController {
         // Every item on sale, for "Everything you sell" to tick on or off the
         // shop; the other lists pick from those on it
         $stmt = $this->db->prepare("
-            SELECT id, name, description, sell_price, is_service, image_path, category, booking_mode, on_shop
+            SELECT id, name, description, sell_price, is_service, image_path, category, booking_mode, on_shop, pin_rank
             FROM products
             WHERE business_id = ? AND deleted_at IS NULL AND is_active = 1
             ORDER BY name ASC
@@ -358,6 +360,40 @@ class LandingPageController {
         }
         storefront_purge($this->biz_id);
         json_response(['ok' => true, 'on' => (bool)$on, 'message' => $said]);
+    }
+
+    /**
+     * POST /landing-page/pin {id, on}: an item pinned to the top of the shop
+     * (after those already pinned, at most SHOP_MAX_PINS) or unpinned. The
+     * same pin as on the Catalogue's rows, so it is saved at once and needs
+     * no Publish. Answers with the pins, first to last.
+     */
+    public function pin() {
+        $this->require_post();
+        $in = $this->input();
+        try {
+            $done = shop_pin($this->db, $this->biz_id, (int)($in['id'] ?? 0), sf_bool($in['on'] ?? false));
+        } catch (DomainException $e) {
+            json_response(['error' => $e->getMessage(), 'pins' => shop_pins($this->db, $this->biz_id)], 422);
+        }
+        storefront_purge($this->biz_id);
+        json_response(['ok' => true] + $done);
+    }
+
+    /**
+     * POST /landing-page/category-order {categories: [name, …]}: the shop's
+     * categories, first to last. Saved at once, like the pins.
+     */
+    public function category_order() {
+        $this->require_post();
+        $names = $this->input()['categories'] ?? null;
+        if (!is_array($names)) {
+            json_response(['error' => 'Nothing to save.'], 422);
+        }
+        $list = shop_set_category_order($this->db, $this->biz_id, $names);
+        storefront_purge($this->biz_id);
+        json_response(['ok' => true, 'categories' => $list,
+                       'message' => $list ? $list[0] . ' shows first on your shop now.' : 'Your categories are back in their usual order.']);
     }
 
     /* ── Helpers ── */
