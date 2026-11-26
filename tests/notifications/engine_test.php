@@ -31,6 +31,8 @@ $sample = [
     'device' => 'Chrome on Android', 'staff' => 'Sam from Nfelia', 'new_email' => 'new@example.test', 'business' => "Ada's Hair & Co", 'payment_id' => 1,
     'contact' => '08030000000', 'count' => 4, 'book_id' => 1, 'what' => 'Invoice ADA-INV-0400',
     'user_id' => 22, 'kind' => 'order', 'number' => 'ORD-0700',
+    // account.wiped and account.ai_on (live since 27-28 Oct)
+    'parts' => 'sales, invoices and customers', 'numbers' => true, 'limit' => 20,
 ];
 $money = fn($a) => notify_money_text((float)$a, '₦');
 set_error_handler(function ($no, $str) { throw new ErrorException($str, 0, $no); });
@@ -62,9 +64,13 @@ eq($problems, [], count(notify_events()) . ' events: topic, audience, lock-scree
 
 // Every link's page exists: the controller is routed and has that method.
 $index = file_get_contents(BASE_PATH . '/index.php');
-preg_match('/function dispatch_app.*?\$map = \[(.*?)\];.*?\$controller_default_methods = \[(.*?)\];/s', $index, $m);
-preg_match_all("/'([a-z-]+)'\s*=>\s*'(\w+)'/", $m[1], $routes, PREG_SET_ORDER);
-preg_match_all("/'([a-z-]+)'\s*=>\s*'(\w+)'/", $m[2], $defaults, PREG_SET_ORDER);
+// The route map is app_routes() (since 28 Oct; the public site reads it
+// too), or a $map inside dispatch_app() before that.
+preg_match('/function app_routes\(\)[^{]*\{\s*return \[(.*?)\n    \];/s', $index, $r)
+    || preg_match('/function dispatch_app.*?\$map = \[(.*?)\];/s', $index, $r);
+preg_match('/function dispatch_app.*?\$controller_default_methods = \[(.*?)\];/s', $index, $m);
+preg_match_all("/'([a-z-]+)'\s*=>\s*'(\w+)'/", $r[1] ?? '', $routes, PREG_SET_ORDER);
+preg_match_all("/'([a-z-]+)'\s*=>\s*'(\w+)'/", $m[1] ?? '', $defaults, PREG_SET_ORDER);
 $routes = array_column($routes, 2, 1);
 $defaults = array_column($defaults, 2, 1);
 $dead = [];
