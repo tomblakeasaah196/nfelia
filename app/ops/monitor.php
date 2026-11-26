@@ -317,7 +317,9 @@ function ops_health(PDO $db): array
     $e = $db->query("
         SELECT SUM(first_seen_at > NOW() - INTERVAL 1 DAY AND kind <> 'slow') AS new_day,
                SUM(status = 'open' AND level IN ('fatal', 'error') AND kind <> 'slow' AND last_seen_at > NOW() - INTERVAL 1 DAY) AS open_errors,
-               SUM(kind = 'slow' AND last_seen_at > NOW() - INTERVAL 1 DAY) AS slow,
+               -- Slow pages someone has looked into and marked are not news;
+               -- one that is slow again opens again (app/helpers/errors.php).
+               SUM(kind = 'slow' AND status = 'open' AND last_seen_at > NOW() - INTERVAL 1 DAY) AS slow,
                SUM(regressed_at > NOW() - INTERVAL 1 DAY) AS back
         FROM error_groups
     ")->fetch();
