@@ -39,10 +39,3 @@ CREATE TABLE IF NOT EXISTS `ai_uses` (
   PRIMARY KEY (`id`),
   KEY `idx_ai_uses_business` (`business_id`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- So php db/migrate.php skips this file once GitHub is back.
-CREATE TABLE IF NOT EXISTS schema_migrations (
-    version     VARCHAR(255) NOT NULL PRIMARY KEY,
-    applied_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-INSERT IGNORE INTO schema_migrations (version) VALUES ('20261102090000_product_ai_and_shop_switch');

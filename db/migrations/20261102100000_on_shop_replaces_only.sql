@@ -34,6 +34,3 @@ WHERE storefront_published LIKE '%"only"%' OR storefront_draft LIKE '%"only"%';
 
 UPDATE businesses SET featured_product_ids = NULL
 WHERE storefront_published IS NULL AND featured_product_ids IS NOT NULL;
-
--- So php db/migrate.php skips this file once GitHub is back.
-INSERT IGNORE INTO schema_migrations (version) VALUES ('20261102100000_on_shop_replaces_only');
