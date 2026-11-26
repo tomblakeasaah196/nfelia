@@ -291,6 +291,7 @@ eq($grace->status, 200, 'the composer opens');
 ok(str_contains($grace->body, 'How is Nfelia going for {business}?') && str_contains($grace->body, 'value="book" selected'),
    'starting from "Checking in" fills the subject, the message and the "Book a session" button');
 ok(str_contains($grace->body, 'srcdoc="') && str_contains($grace->body, 'Hi Ada,'), 'and shows the email as it will arrive, filled in for the owner');
+ok(str_contains($grace->body, '<b>How is Nfelia going for Ada'), 'with its subject filled in above it');
 ok(!str_contains($grace->body, 'value="polish"'), 'Polish is offered only with GEMINI_API_KEY on the server');
 $sam->get(o('clients/2/email'));
 eq($sam->status, 200, 'Support can email a client');

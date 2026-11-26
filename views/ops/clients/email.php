@@ -2,7 +2,8 @@
 /**
  * Email someone at a client (OpsClientsController::email_form): $b, $people
  * (who can be written to), $person (picked, or the owner), $draft (to,
- * subject, body, button), $vars (ops_email_vars() for $person, or null),
+ * subject, body, button), $mail (ops_email_vars() for $person, or null;
+ * not $vars, which ops_render() keeps for itself),
  * $preview (the email as it will arrive, or null), $suggestion (a polished
  * subject and body, or null), $polish_ready, $from, $reply_to, $copies,
  * $sent (earlier emails, from the notes).
@@ -33,8 +34,7 @@ $buttons = ops_email_buttons();
     <span style="display:block;margin-top:4px">{first_name} and {business} are filled in for whoever it goes to.</span>
 </p>
 
-<div class="ops-detail">
-    <div class="ops-detail-main">
+<div class="ops-stack" style="display:flex;flex-direction:column;gap:16px">
         <form method="post" action="<?= e(ops_url($base)) ?>" class="ops-card" id="compose"><div class="ops-card-body">
             <?= ops_csrf_field() ?>
             <div class="ops-field">
@@ -89,16 +89,14 @@ $buttons = ops_email_buttons();
             </form>
         </div></section>
         <?php endif; ?>
-    </div>
 
-    <aside class="ops-detail-side">
         <section class="ops-card" id="preview"><div class="ops-card-body">
             <h2>As it will arrive</h2>
             <?php if ($preview): ?>
-                <p class="small muted" style="margin:0 0 8px"><b><?= e($vars['subject'] ?: '(no subject yet)') ?></b><br>
+                <p class="small muted" style="margin:0 0 8px"><b><?= e(($mail['subject'] ?? '') ?: '(no subject yet)') ?></b><br>
                     From <?= e($from) ?> · to <?= e($person['email']) ?></p>
                 <iframe title="Preview of the email" sandbox="" srcdoc="<?= e($preview) ?>"
-                        style="width:100%;height:640px;border:1px solid var(--ops-line, #E8E4DA);border-radius:8px;background:#F2EFE7"></iframe>
+                        style="width:100%;max-width:680px;height:720px;display:block;border:1px solid var(--ops-line, #E8E4DA);border-radius:8px;background:#F2EFE7"></iframe>
             <?php else: ?>
                 <p class="muted">Write a message and press Update the preview to see it in Nfelia's design.</p>
             <?php endif; ?>
@@ -113,6 +111,5 @@ $buttons = ops_email_buttons();
                 <?php endforeach; ?></ul>
             <?php else: ?><p class="muted">None yet.</p><?php endif; ?>
         </div></section>
-    </aside>
 </div>
 <?php endif; ?>
