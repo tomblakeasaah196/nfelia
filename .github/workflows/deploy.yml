@@ -57,6 +57,9 @@ jobs:
       - name: Every business sees its own colour, not Nfelia's (no database needed)
         run: php tests/theme/colours_test.php
 
+      - name: The bot guard on sign-up and the account-link forms (no database needed)
+        run: php tests/auth/bot_guard_test.php
+
       - name: No server-specific collation may be pinned
         run: |
           set -euo pipefail
@@ -227,6 +230,9 @@ jobs:
             echo "PAYSTACK_SECRET_KEY=sk_test_ci_only"
             # No calls to Have I Been Pwned from the test copy
             echo "PASSWORD_BREACH_CHECK=off"
+            # The test client posts a form the moment it has it; the bot
+            # guard's time check has its own test (tests/auth/bot_guard_test.php)
+            echo "FORM_MIN_SECONDS=0"
             # The stand-in push service (push_sink.php): only real push
             # services and these are ever called (app/helpers/webpush.php).
             echo "PUSH_TEST_ENDPOINTS=http://127.0.0.1:8098/"

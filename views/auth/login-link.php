@@ -57,6 +57,7 @@
                     <p class="mt-2 text-[11px] text-brand-plum/60 leading-relaxed">The link works once and expires after 15 minutes. Not sure which address you used? Try each one.</p>
                 </div>
 
+                <?= bot_guard_fields('login-link') ?>
                 <button type="submit" class="w-full bg-brand-burgundy text-brand-white text-xs font-bold py-4 uppercase tracking-widest hover:bg-brand-gold transition-colors mt-4">
                     Email Me a Link
                 </button>

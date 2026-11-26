@@ -87,6 +87,7 @@ $flash = get_flash();
                         <input id="ref_code" type="text" name="ref_code" maxlength="20" value="<?= e($ref) ?>" placeholder="NF-XXX-YYYY" autocapitalize="characters">
                     </div>
                 </details>
+                <?= bot_guard_fields('register') ?>
                 <button type="submit" class="btn btn-primary">Create my account</button>
                 <p class="terms-note">By creating an account you agree to our
                     <button type="button" class="linkish" data-dialog="terms">Terms</button> and
