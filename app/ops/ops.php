@@ -54,8 +54,8 @@ const OPS_ROLES = [
  */
 const OPS_PERMISSIONS = [
     'admin'   => ['*'],
-    'support' => ['clients', 'clients.act', 'clients.view_as', 'support', 'errors', 'exports'],
-    'sales'   => ['clients', 'sales', 'campaigns'],
+    'support' => ['clients', 'clients.act', 'clients.view_as', 'clients.email', 'support', 'errors', 'exports'],
+    'sales'   => ['clients', 'clients.email', 'sales', 'campaigns'],
 ];
 
 /* ═══════════════════════════════════════════════════════════════════

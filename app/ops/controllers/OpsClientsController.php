@@ -9,7 +9,11 @@
  *   POST clients/{id}/ai          adding items from a photo: on or off, and photos a week         clients.ai
  *   POST clients/{id}/notes       a note for the team                                             clients
  *   POST clients/{id}/view-as     open their Nfelia read-only, with a reason (they are told)      clients.view_as
+ *   GET  clients/{id}/email       write an email to someone there, with a preview                 clients.email
+ *   POST clients/{id}/email       preview it, polish it (Gemini), take the polish, or send it     clients.email
  */
+require_once BASE_PATH . '/app/ops/client_email.php';
+
 class OpsClientsController
 {
     private const PAGE = 30;
@@ -268,6 +272,92 @@ class OpsClientsController
         ops_audit('client.view_as', 'Opened ' . $b['name'] . ' as ' . $owner['full_name'] . ' (read-only): ' . $reason,
                   ['business' => (int)$b['id'], 'type' => 'business', 'id' => (int)$b['id'], 'data' => ['reason' => $reason]]);
         ops_redirect(APP_URL . '/support-view/' . $token);
+    }
+
+    /**
+     * Email someone at this client (app/ops/client_email.php). The draft and
+     * a polished suggestion live in the session between steps, so nothing
+     * typed is lost; ?start= begins from one of OPS_EMAIL_STARTS.
+     */
+    public function email_form(string $id): void
+    {
+        $b      = $this->client((int)$id);
+        $people = ops_email_people($this->db, (int)$b['id']);
+        $state  = $_SESSION['ops_email'][(int)$b['id']] ?? [];
+        $start  = (string)($_GET['start'] ?? '');
+        if (isset(OPS_EMAIL_STARTS[$start])) {
+            $s = OPS_EMAIL_STARTS[$start];
+            $state = ['draft' => ['to' => (int)($state['draft']['to'] ?? 0), 'subject' => $s['subject'], 'body' => $s['body'], 'button' => $s['button']]];
+            $_SESSION['ops_email'][(int)$b['id']] = $state;
+        }
+        $draft  = ($state['draft'] ?? []) + ['to' => 0, 'subject' => '', 'body' => '', 'button' => 'none'];
+        $person = $this->email_person($people, (int)$draft['to']);
+        $vars   = $person ? ops_email_vars($draft, $person, $b, $this->me) : null;
+        $preview = $vars && trim($draft['body']) !== '' ? render_email('ops_client_message', $vars, []) : null;
+
+        $stmt = $this->db->prepare("SELECT n.body, n.created_at, s.full_name FROM ops_notes n LEFT JOIN ops_staff s ON s.id = n.staff_id
+                                    WHERE n.subject_type = 'business' AND n.subject_id = ? AND n.body LIKE 'Emailed %' ORDER BY n.id DESC LIMIT 10");
+        $stmt->execute([$b['id']]);
+
+        ops_render('clients/email', [
+            'b' => $b, 'people' => $people, 'person' => $person, 'draft' => $draft, 'vars' => $vars, 'preview' => $preview,
+            'suggestion' => $state['suggestion'] ?? null, 'polish_ready' => ops_email_polish_ready(),
+            'from' => ops_email_from_name($this->me), 'reply_to' => ops_email_reply_to(), 'copies' => ops_email_copies(),
+            'sent' => $stmt->fetchAll(),
+        ], 'Email ' . $b['name']);
+    }
+
+    public function email(string $id): void
+    {
+        $b      = $this->client((int)$id);
+        $back   = 'clients/' . $b['id'] . '/email';
+        $people = ops_email_people($this->db, (int)$b['id']);
+        $state  = $_SESSION['ops_email'][(int)$b['id']] ?? [];
+        $draft  = [
+            'to'      => (int)($_POST['to'] ?? 0),
+            'subject' => trim(preg_replace('/[\r\n\t]+/', ' ', (string)($_POST['subject'] ?? '')) ?? ''),
+            'body'    => str_replace("\r\n", "\n", (string)($_POST['body'] ?? '')),
+            'button'  => (string)($_POST['button'] ?? 'none'),
+        ];
+        $do = (string)($_POST['do'] ?? 'preview');
+        $suggestion = null;
+
+        if ($do === 'use' && !empty($state['suggestion'])) {
+            $draft['subject'] = $state['suggestion']['subject'];
+            $draft['body']    = $state['suggestion']['body'];
+            ops_flash('success', 'The polished version is in. Change anything you like before sending.');
+        } elseif ($do === 'polish') {
+            if (mb_strlen(trim($draft['body'])) < 10) {
+                ops_flash('error', 'Write a few lines first, then polish them.');
+            } else {
+                [$suggestion, $problem] = ops_email_polish($draft['subject'], $draft['body']);
+                if ($problem) ops_flash('error', $problem);
+            }
+        } elseif ($do === 'send') {
+            $person = $this->email_person($people, $draft['to']);
+            $problem = ops_email_problem($draft) ?? ($person ? null : 'Pick who it goes to.');
+            if ($problem) {
+                ops_flash('error', $problem);
+            } else {
+                [$ok, $said] = ops_email_send($this->db, $draft, $person, $b, $this->me);
+                ops_flash($ok ? 'success' : 'error', $said);
+                if ($ok) {
+                    unset($_SESSION['ops_email'][(int)$b['id']]);
+                    ops_redirect('clients/' . $b['id'] . '#notes');
+                }
+            }
+        }
+        $_SESSION['ops_email'][(int)$b['id']] = ['draft' => $draft, 'suggestion' => $suggestion];
+        ops_redirect($back . ($suggestion ? '#polish' : '#preview'));
+    }
+
+    /** The person picked, or the first one (the owner); null when nobody there has an email. */
+    private function email_person(array $people, int $user_id): ?array
+    {
+        foreach ($people as $p) {
+            if ((int)$p['id'] === $user_id) return $p;
+        }
+        return $people[0] ?? null;
     }
 
     /* ── Shared ───────────────────────────────────────────── */

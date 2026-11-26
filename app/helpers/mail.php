@@ -133,9 +133,10 @@ function render_email(string $template, array $vars = [], array $business = []):
  * @param array  $headers    Extra headers, name => value
  * @param string $from_name  The name the inbox shows, still from MAIL_FROM_ADDRESS
  * @param string $reply_to   Where a reply goes, when not to MAIL_FROM_ADDRESS
+ * @param array  $bcc        Addresses that get a copy the recipient doesn't see (Ops emails to a client)
  * @return bool
  */
-function send_mail(string $to_email, string $to_name, string $subject, string $body, bool $is_html = false, array $headers = [], string $from_name = '', string $reply_to = ''): bool {
+function send_mail(string $to_email, string $to_name, string $subject, string $body, bool $is_html = false, array $headers = [], string $from_name = '', string $reply_to = '', array $bcc = []): bool {
     $GLOBALS['nf_mail_bounced'] = null;
     $mail = new PHPMailer(true);
     $smtp = new NfeliaSMTP();
@@ -176,6 +177,11 @@ function send_mail(string $to_email, string $to_name, string $subject, string $b
             $mail->addReplyTo($reply_to, $from_name);
         }
         $mail->addAddress($to_email, $to_name);
+        foreach ($bcc as $copy) {
+            if (is_string($copy) && filter_var($copy, FILTER_VALIDATE_EMAIL) && strcasecmp($copy, $to_email) !== 0) {
+                $mail->addBCC($copy);
+            }
+        }
 
         // e.g. List-Unsubscribe on campaign emails (app/ops/sales.php)
         foreach ($headers as $name => $value) {

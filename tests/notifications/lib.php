@@ -228,7 +228,8 @@ function t_parse_mail(string $raw): array
     }
     $text = trim(preg_replace('/\s+/u', ' ', html_entity_decode(strip_tags($html), ENT_QUOTES, 'UTF-8')));
     return ['to' => $header('To'), 'subject' => iconv_mime_decode($header('Subject'), 0, 'UTF-8'), 'html' => $html, 'text' => $text,
-            'unsubscribe' => $header('List-Unsubscribe'), 'unsubscribe_post' => $header('List-Unsubscribe-Post')];
+            'unsubscribe' => $header('List-Unsubscribe'), 'unsubscribe_post' => $header('List-Unsubscribe-Post'),
+            'rcpt' => $header('X-Sink-Rcpt'), 'reply_to' => $header('Reply-To'), 'from' => $header('From')];
 }
 
 /* ── HTTP (the running app) ──────────────────────────────── */

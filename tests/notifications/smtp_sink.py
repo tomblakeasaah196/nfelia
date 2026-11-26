@@ -26,7 +26,7 @@ class H(socketserver.StreamRequestHandler):
         self.loop()
 
     def loop(self):
-        data, msg, authing = False, [], False
+        data, msg, authing, rcpts = False, [], False, []
         for line in self.rfile:
             t = line.decode("latin-1").rstrip("\r\n")
             if authing:
@@ -38,8 +38,9 @@ class H(socketserver.StreamRequestHandler):
                     with LOCK:
                         n = len([f for f in os.listdir(OUT) if f.endswith(".eml")]) + 1
                         with open(os.path.join(OUT, f"{n}.eml"), "w", encoding="latin-1") as f:
-                            f.write("\n".join(msg))
-                    data, msg = False, []
+                            # Every address it was given, Bcc ones too, which no header shows
+                            f.write("X-Sink-Rcpt: " + ", ".join(rcpts) + "\n" + "\n".join(msg))
+                    data, msg, rcpts = False, [], []
                     self.w("250 ok")
                 else:
                     msg.append(t[1:] if t.startswith("..") else t)
@@ -76,6 +77,7 @@ class H(socketserver.StreamRequestHandler):
                 elif to.lower().endswith(".denied"):
                     self.w("550 5.7.1 Relaying denied")
                 else:
+                    rcpts.append(to)
                     self.w("250 ok")
             elif u.startswith("DATA"):
                 data = True
