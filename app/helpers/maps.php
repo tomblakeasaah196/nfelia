@@ -87,6 +87,9 @@ function maps_http_get(string $url, int $max_bytes = 2000000): ?array {
     }
     curl_exec($ch);
     $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    if (function_exists('errors_waited')) {
+        errors_waited((float)curl_getinfo($ch, CURLINFO_TOTAL_TIME));
+    }
     curl_close($ch);
     return $status > 0 ? [$status, $body, $location] : null;
 }
@@ -105,6 +108,16 @@ function maps_geocode(string $address, string $country = ''): array {
     if (preg_match('/^[a-z]{2}$/i', $country)) {
         $query['filter'] = 'countrycode:' . strtolower($country);
     }
+    // The map service takes 3 to 4 seconds on a long address (seen 26 Nov
+    // 2026), and owners press Find again while they place the pin: an
+    // address found once is answered from here for 30 days.
+    $cache = BASE_PATH . '/storage/cache/geocode/' . sha1(strtolower($country) . '|' . mb_strtolower($address)) . '.json';
+    if (is_file($cache) && filemtime($cache) > time() - 30 * 86400) {
+        $kept = json_decode((string)@file_get_contents($cache), true);
+        if (is_array($kept) && $kept) {
+            return $kept;
+        }
+    }
     $answer = maps_http_get(maps_api_url() . '/v1/geocode/search?' . http_build_query($query), 500000);
     if (!$answer || $answer[0] !== 200) {
         error_log('[Nfelia] Address lookup failed: ' . ($answer[0] ?? 'no answer'));
@@ -116,6 +129,9 @@ function maps_geocode(string $address, string $country = ''): array {
             $found[] = ['lat' => round((float)$place['lat'], 6), 'lng' => round((float)$place['lon'], 6),
                         'label' => mb_substr((string)($place['formatted'] ?? $address), 0, 200)];
         }
+    }
+    if ($found && (is_dir(dirname($cache)) || @mkdir(dirname($cache), 0755, true))) {
+        @file_put_contents($cache, json_encode($found), LOCK_EX);
     }
     return $found;
 }

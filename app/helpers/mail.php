@@ -50,7 +50,9 @@ class NfeliaSMTP extends SMTP
         if ($this->status !== '') {
             return str_starts_with($this->status, '5.1.');
         }
-        return (bool)preg_match('/no such (user|mailbox|address|recipient)|(user|recipient|mailbox) (unknown|not found)|unknown (user|recipient)|does ?n[o’\']?t exist/i', $this->answer);
+        // cPanel's own mail server gives no 5.1.x and says "The mail server
+        // could not deliver mail to … The account or domain may not exist".
+        return (bool)preg_match('/no such (user|mailbox|address|recipient)|(user|recipient|mailbox) (unknown|not found)|unknown (user|recipient)|does ?n[o’\']?t exist|account or domain may not exist/i', $this->answer);
     }
 }
 
