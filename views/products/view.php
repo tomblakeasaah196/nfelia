@@ -46,7 +46,7 @@ $filter  = (string)($move_filter ?? '');
             <p class="nf-pv-price is-none">No price yet<small>Your shop shows “Ask for the price”</small></p>
         <?php endif; ?>
         <p class="nf-pv-tags">
-            <?php if (!$product['is_active']): ?><span class="nf-tag is-line">Hidden</span><?php endif; ?>
+            <?php if (!$product['is_active']): ?><span class="nf-tag is-line">Hidden</span><?php elseif (!(int)$product['on_shop']): ?><span class="nf-tag is-line">Not on your shop</span><?php endif; ?>
             <span class="nf-tag <?= $stock_cls ?>"><?= e($stock_tag) ?></span>
             <?php if ($product['category']): ?><span class="nf-tag is-line"><?= e($product['category']) ?></span><?php endif; ?>
             <?php if ($product['sku']): ?><span class="nf-tag is-line" title="Item code"><?= e($product['sku']) ?></span><?php endif; ?>
@@ -59,6 +59,16 @@ $filter  = (string)($move_filter ?? '');
         <p class="nf-help">Hidden: it isn't on your shop, and it doesn't come up when you add items to an invoice, quote or order. Its stock and history stay.</p>
     <?php endif; ?>
 </section>
+
+<?php if ($product['is_active']): ?>
+<!-- Show on my shop, in one tap (views/products/shop_switch.php) -->
+<form class="nf-card nf-pv-shop" method="POST" action="<?= APP_URL ?>/products/toggle-shop/<?= $pid ?>">
+    <?= $csrf ?><input type="hidden" name="on" value="<?= (int)$product['on_shop'] ? '0' : '1' ?>">
+    <label class="nf-switch"><input type="checkbox" role="switch" onchange="nfShopSwitch(this)"<?= (int)$product['on_shop'] ? ' checked' : '' ?>>
+        <span><b>Show on my shop</b><small>Off: it stays here and on invoices, quotes and orders, but your shop doesn't show it.</small></span></label>
+</form>
+<?php require BASE_PATH . '/views/products/shop_switch.php'; ?>
+<?php endif; ?>
 
 <!-- Edit, Hide, Clone, Remove. Their forms sit below, so the tiles stay one row. -->
 <div class="nf-do">

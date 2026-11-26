@@ -667,7 +667,11 @@ ok($page->status === 200 && str_contains($page->body, '>Sold out<') && !str_cont
 ok(str_contains($page->body, 'schema.org/OutOfStock') && !str_contains($page->body, 'schema.org/InStock'), 'and tells search engines it is out of stock');
 ok(str_contains($page->body, '"sold":true'), 'the bag is told too, so the sheet and "order again" leave it out');
 $home = $shopper->get('');
-ok(str_contains($home->body, 'schema.org/OutOfStock') && str_contains($home->body, 'schema.org/InStock'), 'the front page lists it out of stock, the rest in stock');
+// Since 28 Oct the front page names its products only (an OfferCatalog of
+// names and links, as Google asks of shops); each product's own page says
+// whether it is in stock, as checked above (app/helpers/shop_seo.php).
+ok(str_contains($home->body, '"OfferCatalog"') && !str_contains($home->body, 'schema.org/OutOfStock') && !str_contains($home->body, 'schema.org/InStock'),
+   'the front page lists the products by name; stock is told on each product\'s page');
 ok(!str_contains($home->body, 'data-add="301"'), 'and has no Add button for it');
 
 $refused = shop_order($shopper, [301 => 1], '08065550002');

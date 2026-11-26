@@ -162,18 +162,25 @@
         var label = btn.querySelector('span') || btn;
         var was = label.textContent;
         var done = function (ok) {
-            label.textContent = ok ? 'Copied' : 'Could not copy';
-            setTimeout(function () { label.textContent = was; }, 1600);
+            label.textContent = ok === true ? 'Copied' : ok;
+            setTimeout(function () { label.textContent = was; }, ok === true ? 1600 : 4000);
         };
-        if (navigator.clipboard && window.isSecureContext) {
-            navigator.clipboard.writeText(text).then(function () { done(true); }, function () { done(false); });
-        } else {
-            source.classList.remove('sr-only');
+        // The older way, when the browser refuses the clipboard: a field on
+        // screen is left selected for Ctrl+C; a hidden one is shown only to copy.
+        var fallback = function () {
+            var hidden = source.classList.contains('sr-only');
+            if (hidden) source.classList.remove('sr-only');
+            source.focus();
             source.select();
             var ok = false;
             try { ok = document.execCommand('copy'); } catch (err) { ok = false; }
-            source.classList.add('sr-only');
-            done(ok);
+            if (hidden) source.classList.add('sr-only');
+            done(ok ? true : (hidden ? 'Could not copy' : 'Press Ctrl+C'));
+        };
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(text).then(function () { done(true); }, fallback);
+        } else {
+            fallback();
         }
     });
 

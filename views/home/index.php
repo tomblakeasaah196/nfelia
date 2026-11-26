@@ -169,17 +169,56 @@ $cards = [
     ],
 ];
 
+// The questions in "Questions people ask", as [question, answer (HTML)].
+// The section below shows them, and the page's schema repeats them word
+// for word, so search engines and AI assistants quote what people read.
+$faqs = [
+    ['Is the website really free? Is it a real website?',
+     'Yes. It comes with Nfelia at no extra cost: no designer, no setup fee. It lives at yourname.nfelia.com (like ivieluxe.nfelia.com), in one of 10 designs made for Nigerian businesses, and you change the words, colours and photos from your phone. A .com address of your own is not part of Nfelia for now.'],
+    ['Do you take a cut of my sales?',
+     'No. Customers pay into your own bank account by transfer, and the money is yours. Nfelia takes no commission; you only pay the monthly price.'],
+    ['Will people find my website on Google?',
+     'Yes, once you subscribe. During the free trial your website works for anyone with the link, but we keep it off Google until your first payment. You can also list it in the Nfelia shop directory, by city and by what you sell.'],
+    ['Do I need a laptop or a lot of data?',
+     'No laptop needed. Nfelia opens in the browser on any smartphone, and you can add it to your home screen so it opens like an app, with no app store download. It needs a little data, like WhatsApp does, and pages you have already opened still open when the network drops. Use a laptop too if you like; your records are the same on both.'],
+    ['Will it remind me?',
+     'Yes. On mornings with something planned, Nfelia emails you the day at 7am: deliveries, appointments and money due. Any task can also remind you at the time you choose, by email and on your phone. On iPhone, add Nfelia to your Home Screen first (tap Share, then Add to Home Screen).'],
+    ['What happens after the 14 days?',
+     'You decide. Pay ' . $naira($plan_price) . ' a month to keep creating invoices and receipts and to keep your website open. If you stop, your website shows a “closed for now” page with your WhatsApp button, and we keep your records for 12 months so you can download them or come back. We email you before anything is deleted.'],
+    ['How do I pay?',
+     'Online with Paystack, the payment service many Nigerian businesses already use.'],
+    ['Can my staff use it? What if someone is not honest?',
+     'Each staff member gets their own login for ' . $naira($seat_price) . ' a month. Every sale reduces your stock, so missing goods show up quickly, and only you can add or remove staff.'],
+    ['Is my business information safe? Can I take it with me?',
+     'Your records belong to you. We never sell your data or contact your customers. Every month you pay for comes with your <a href="#records-book">Records Book</a>: all your records in one Excel workbook, in your colours, that anyone can check is genuine. Your plain copy (every record as CSV files) is free whenever you ask, whatever your plan, and invoices, receipts and your profit report download as PDF whenever Nfelia is open for you.'],
+    ['I\'m a fashion designer. Where do I keep measurements?',
+     'Save each client\'s measurements in the notes on their customer profile, next to their quotes, deposits and balances. A proper measurement book is coming soon.'],
+    ['I\'m not good with computers. Can I still use it?',
+     'Yes. If you can send a WhatsApp message, you can send an invoice on Nfelia. We help you set up for free, and we are one WhatsApp message away if you get stuck.'],
+];
+
+// What search engines and AI assistants read (app/helpers/site.php): the
+// same organisation, website and app as every other page of the site, this
+// page's questions, and the same page in the other countries (hreflang).
+$home_page = site_page('home');
+$GLOBALS['site_faqs']  = $faqs;
+$GLOBALS['site_nodes'] = [];
+
 $flash = get_flash();
 ?>
 <!DOCTYPE html>
 <html lang="en-NG">
-<head>
-    <meta charset="UTF-8">
+<head><meta charset="utf-8">
+    
     <?= errors_script_tag() ?>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nfelia: your own website, invoices, debts and stock for Nigerian businesses</title>
-    <meta name="description" content="Your own website at yourname.nfelia.com, plus invoices, receipts, debts and stock. All on your phone. Free for 14 days, then <?= $naira($plan_price) ?> a month.">
+    <title><?= e($home_page['title'] ?? 'Nfelia: website, invoices, debts and stock in Nigeria') ?></title>
+    <meta name="description" content="Your own website at yourname.nfelia.com, plus invoices, receipts, debts and stock. All on your phone. Free for <?= (int)TRIAL_DAYS ?> days, then <?= $naira($plan_price) ?> a month.">
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
     <link rel="canonical" href="<?= APP_URL ?>/">
+<?php foreach ($home_page ? site_alternates($home_page) : [] as $lang => $href): ?>
+    <link rel="alternate" hreflang="<?= e($lang) ?>" href="<?= e($href) ?>">
+<?php endforeach; ?>
     <meta name="theme-color" content="#8B004A">
 
     <meta property="og:type" content="website">
@@ -192,53 +231,36 @@ $flash = get_flash();
     <meta property="og:site_name" content="Nfelia">
     <meta property="og:locale" content="en_NG">
     <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Nfelia: the thread that holds your business together">
+    <meta name="twitter:description" content="Know who owes you, what you sold and made. Oh, and your own website comes free.">
+    <meta name="twitter:image" content="<?= APP_URL ?>/assets/img/nfelia-og-banner.png">
 
 <?php require BASE_PATH . '/views/partials/pwa_head.php'; ?>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700&family=Caveat:wght@600&family=Plus+Jakarta+Sans:wght@400;600&display=swap">
-    <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/home.css?v=6">
+    <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/home.css?v=<?= (int)@filemtime(BASE_PATH . '/assets/css/home.css') ?>">
+    <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/site.css?v=<?= (int)@filemtime(BASE_PATH . '/assets/css/site.css') ?>">
+    <link rel="alternate" type="text/plain" title="Nfelia for AI assistants" href="<?= APP_URL ?>/llms.txt">
     <?php if ($hero_img): ?>
     <link rel="preload" as="image" imagesrcset="<?= $img ?>/hero-640.webp 640w, <?= $img ?>/hero-1024.webp 1024w" imagesizes="(min-width: 960px) 492px, 92vw" fetchpriority="high">
     <?php endif; ?>
     <script>document.documentElement.classList.add('js');</script>
 
-    <script type="application/ld+json">
-    <?= json_encode([
-        '@context' => 'https://schema.org',
-        '@type' => 'SoftwareApplication',
-        'name' => 'Nfelia',
-        'applicationCategory' => 'BusinessApplication',
-        'operatingSystem' => 'Web, Android, iOS',
-        'description' => 'Your own website, plus invoices, receipts, debts, stock and profit tracking for small businesses in Nigeria.',
-        'offers' => ['@type' => 'Offer', 'price' => (string)$plan_price, 'priceCurrency' => 'NGN'],
-        'publisher' => ['@type' => 'Organization', 'name' => 'JBS Praxis'],
-    ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>
-    </script>
+<?php if ($home_page): ?>
+    <script type="application/ld+json"><?= json_encode(site_schema($home_page), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?></script>
+<?php endif; ?>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
 
-<header class="site-header" data-header>
-    <div class="wrap">
-        <a class="brand" href="<?= APP_URL ?>/" aria-label="Nfelia home">
-            <img src="<?= APP_URL ?>/assets/img/nfelia-mark-email.png" alt="" width="55" height="40">
-            <span>NFELIA</span>
-        </a>
-        <nav class="nav-links" aria-label="Page sections">
-            <a href="#website">Your website</a>
-            <a href="#how">How it works</a>
-            <a href="#pricing">Pricing</a>
-            <a href="#questions">Questions</a>
-            <button type="button" class="linkish" data-dialog="get-app">Get the app</button>
-        </nav>
-        <div class="header-actions">
-            <a class="signin-link" href="<?= APP_URL ?>/login">Sign in</a>
-            <a class="btn btn-primary btn-sm" href="<?= APP_URL ?>/register">Start free</a>
-        </div>
-    </div>
-</header>
+<?php
+// The header every public page shares, with "Get the app" (its dialog is
+// on this page, below)
+$nav_get_app = true;
+require BASE_PATH . '/views/site/_header.php';
+?>
 
 <?php if ($flash): ?>
 <div class="flash <?= $flash['type'] === 'error' ? 'is-error' : '' ?>" role="status"><p><?= e($flash['message']) ?></p></div>
@@ -557,50 +579,12 @@ $flash = get_flash();
             <h2 id="faq-title">Questions people ask</h2>
         </div>
         <div class="faq-list" data-reveal>
+            <?php foreach ($faqs as [$question, $answer_html]): ?>
             <details>
-                <summary>Is the website really free? Is it a real website?</summary>
-                <p>Yes. It comes with Nfelia at no extra cost: no designer, no setup fee. It lives at yourname.nfelia.com (like ivieluxe.nfelia.com), in one of 10 designs made for Nigerian businesses, and you change the words, colours and photos from your phone. A .com address of your own is not part of Nfelia for now.</p>
+                <summary><?= e($question) ?></summary>
+                <p><?= $answer_html ?></p>
             </details>
-            <details>
-                <summary>Do you take a cut of my sales?</summary>
-                <p>No. Customers pay into your own bank account by transfer, and the money is yours. Nfelia takes no commission; you only pay the monthly price.</p>
-            </details>
-            <details>
-                <summary>Will people find my website on Google?</summary>
-                <p>Yes, once you subscribe. During the free trial your website works for anyone with the link, but we keep it off Google until your first payment. You can also list it in the Nfelia shop directory, by city and by what you sell.</p>
-            </details>
-            <details>
-                <summary>Do I need a laptop or a lot of data?</summary>
-                <p>No laptop needed. Nfelia opens in the browser on any smartphone, and you can add it to your home screen so it opens like an app, with no app store download. It needs a little data, like WhatsApp does, and pages you have already opened still open when the network drops. Use a laptop too if you like; your records are the same on both.</p>
-            </details>
-            <details>
-                <summary>Will it remind me?</summary>
-                <p>Yes. On mornings with something planned, Nfelia emails you the day at 7am: deliveries, appointments and money due. Any task can also remind you at the time you choose, by email and on your phone. On iPhone, add Nfelia to your Home Screen first (tap Share, then Add to Home Screen).</p>
-            </details>
-            <details>
-                <summary>What happens after the 14 days?</summary>
-                <p>You decide. Pay <?= $naira($plan_price) ?> a month to keep creating invoices and receipts and to keep your website open. If you stop, nothing is deleted: your records stay safe, and your website shows a “closed for now” page with your WhatsApp button until you come back.</p>
-            </details>
-            <details>
-                <summary>How do I pay?</summary>
-                <p>Online with Paystack, the payment service many Nigerian businesses already use.</p>
-            </details>
-            <details>
-                <summary>Can my staff use it? What if someone is not honest?</summary>
-                <p>Each staff member gets their own login for <?= $naira($seat_price) ?> a month. Every sale reduces your stock, so missing goods show up quickly, and only you can add or remove staff.</p>
-            </details>
-            <details>
-                <summary>Is my business information safe? Can I take it with me?</summary>
-                <p>Your records belong to you. We never sell your data or contact your customers. Every month you pay for comes with your <a href="#records-book">Records Book</a>: all your records in one Excel workbook, in your colours, that anyone can check is genuine. Your plain copy (every record as CSV files) is free whenever you ask, whatever your plan, and invoices, receipts and your profit report download as PDF any time.</p>
-            </details>
-            <details>
-                <summary>I'm a fashion designer. Where do I keep measurements?</summary>
-                <p>Save each client's measurements in the notes on their customer profile, next to their quotes, deposits and balances. A proper measurement book is coming soon.</p>
-            </details>
-            <details>
-                <summary>I'm not good with computers. Can I still use it?</summary>
-                <p>Yes. If you can send a WhatsApp message, you can send an invoice on Nfelia. We help you set up for free, and we are one WhatsApp message away if you get stuck.</p>
-            </details>
+            <?php endforeach; ?>
         </div>
     </div>
 </section>
@@ -617,48 +601,18 @@ $flash = get_flash();
             <a class="btn btn-light" href="<?= APP_URL ?>/register">Start free for 14 days</a>
             <a class="btn btn-ghost-light" href="<?= e($wa_link($wa_messages[1][2])) ?>" target="_blank" rel="noopener"><?= nf_icon('whatsapp') ?>Ask us on WhatsApp</a>
         </div>
+        <p>Prefer to talk it through? <a href="<?= APP_URL ?>/book" style="color:inherit;font-weight:600">Book a free call with our team</a>.</p>
     </div>
 </section>
 
 </main>
 
-<footer class="site-footer">
-    <div class="wrap">
-        <div class="footer-grid">
-            <div>
-                <a class="brand" href="<?= APP_URL ?>/" aria-label="Nfelia home">
-                    <img src="<?= APP_URL ?>/assets/img/nfelia-mark-email.png" alt="" width="55" height="40">
-                    <span>NFELIA</span>
-                </a>
-                <p class="footer-about">Your own website, plus invoices, debts, stock and profit, for small businesses in Nigeria.</p>
-            </div>
-            <div>
-                <h3>Nfelia</h3>
-                <ul>
-                    <li><a href="<?= APP_URL ?>/register">Start free</a></li>
-                    <li><a href="<?= APP_URL ?>/login">Sign in</a></li>
-                    <li><button type="button" class="linkish" data-dialog="get-app">Get the app</button></li>
-                    <li><a href="#pricing">Pricing</a></li>
-                    <li><button type="button" class="linkish" data-dialog="feedback">Send feedback</button></li>
-                </ul>
-            </div>
-            <div>
-                <h3>Talk to us</h3>
-                <ul>
-                    <li><a href="<?= e($wa_link()) ?>" target="_blank" rel="noopener">WhatsApp: +234 816 978 9106</a></li>
-                    <li><a href="tel:+2348169789106">Call: +234 816 978 9106</a></li>
-                </ul>
-            </div>
-        </div>
-        <div class="footer-bottom">
-            <span>&copy; <?= date('Y') ?> Nfelia. Powered by JBS Praxis.</span>
-            <span class="legal">
-                <button type="button" class="linkish" data-dialog="terms">Terms</button>
-                <button type="button" class="linkish" data-dialog="privacy">Privacy</button>
-            </span>
-        </div>
-    </div>
-</footer>
+<?php
+// The footer every public page shares, with "Send feedback" (its dialog is
+// in _dialogs.php, below). Terms and Privacy are pages of their own now.
+$foot_feedback = true;
+require BASE_PATH . '/views/site/_footer.php';
+?>
 
 <!-- Floating WhatsApp: pick a ready-made message -->
 <div class="wa" data-wa>
@@ -748,5 +702,6 @@ $flash = get_flash();
 
 <script src="<?= APP_URL ?>/assets/js/home.js?v=7" defer></script>
 <script src="<?= APP_URL ?>/assets/js/wa.js?v=<?= (int)@filemtime(BASE_PATH . '/assets/js/wa.js') ?>" defer></script>
+<script src="<?= APP_URL ?>/assets/js/site.js?v=<?= (int)@filemtime(BASE_PATH . '/assets/js/site.js') ?>" defer></script>
 </body>
 </html>

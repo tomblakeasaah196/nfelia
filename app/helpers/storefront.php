@@ -301,8 +301,9 @@ function storefront_section_types(): array {
             'fields' => ['title' => ['kind' => 'line', 'max' => 50, 'label' => 'Title'],
                          'products' => ['kind' => 'products', 'max' => 8, 'label' => 'Products to show']]],
         'catalogue' => ['name' => 'Everything you sell', 'hint' => 'Your products and services on your shop\'s own page, with a search and a filter by category. Your home page shows your categories, with a link to it.', 'pin' => null, 'switch' => true, 'on' => true, 'available' => true,
-            'fields' => ['title' => ['kind' => 'line', 'max' => 50, 'label' => 'Title'],
-                         'only' => ['kind' => 'products', 'max' => 500, 'label' => 'Only show these']]],
+            // Which products it shows is each product's Show on my shop
+            // (products.on_shop), ticked here in Studio or in the Catalogue
+            'fields' => ['title' => ['kind' => 'line', 'max' => 50, 'label' => 'Title']]],
         'about' => ['name' => 'About us', 'hint' => '', 'pin' => null, 'switch' => true, 'on' => true, 'available' => true,
             'fields' => ['title' => ['kind' => 'line', 'max' => 50, 'label' => 'Title'],
                          'text' => ['kind' => 'text', 'max' => 2000, 'label' => 'Your story']]],
@@ -378,7 +379,6 @@ function storefront_default_look(array $business): string {
  */
 function storefront_settings_from_legacy(array $business): array {
     $rfq      = json_decode((string)($business['rfq_fields'] ?? ''), true) ?: [];
-    $featured = json_decode((string)($business['featured_product_ids'] ?? ''), true) ?: [];
     $about    = trim((string)($business['about_text'] ?? ''));
     $youtube  = trim((string)($business['youtube_url'] ?? ''));
     $hero     = (string)($business['hero_image_path'] ?? '');
@@ -393,9 +393,10 @@ function storefront_settings_from_legacy(array $business): array {
             ['type' => 'hero', 'on' => true, 'headline' => trim((string)($business['tagline'] ?? '')) ?: (string)$business['name'],
              'text' => '', 'button' => '', 'badge' => '', 'image' => $hero, 'slides' => $hero !== '' ? [$hero] : []],
             // The old screen's "featured products" chose what the shop
-            // showed at all, so they become the catalogue's list
+            // showed at all: that became each product's Show on my shop
+            // (20261102100000_on_shop_replaces_only.sql)
             ['type' => 'featured', 'on' => !in_array('featured', storefront_looks()[storefront_default_look($business)]['off'], true), 'title' => '', 'products' => []],
-            ['type' => 'catalogue', 'on' => true, 'title' => '', 'only' => is_array($featured) ? $featured : []],
+            ['type' => 'catalogue', 'on' => true, 'title' => ''],
             ['type' => 'about', 'on' => $about !== '', 'title' => '', 'text' => $about],
             ['type' => 'video', 'on' => sf_youtube_id($youtube) !== null, 'title' => '', 'url' => $youtube],
             ['type' => 'delivery', 'on' => true, 'title' => '', 'text' => (string)($business['delivery_info'] ?? ''), 'show_bank' => true],
@@ -526,50 +527,112 @@ function sf_clean_seo(array $raw, array $business): array {
         'title'       => sf_clean_line($raw['title'] ?? null, 70),
         'description' => sf_clean_line(preg_replace('/\s+/u', ' ', is_string($raw['description'] ?? null) ? $raw['description'] : '') ?? '', 170),
         'directory'   => sf_bool($raw['directory'] ?? false),
-        'city'        => array_key_exists('city', $raw) ? $city : sf_guess_city((string)($business['address'] ?? '')),
+        // A shop's first guess comes from its address, among its own country's cities
+        'city'        => array_key_exists('city', $raw) ? $city : sf_guess_city((string)($business['address'] ?? ''), sf_country_iso($business)),
     ];
 }
 
 /**
- * Cities people search for, for the directory and the city picker.
+ * Cities people search for, in each country Nfelia sells in, for the
+ * directory and the city picker. A shop picks from its own country's list
+ * (sf_cities), and only these get /shops/{city} pages. No two cities in
+ * all the lists share a slug, so a city page needs no country in its path.
  */
 const NG_CITIES = ['Aba', 'Abakaliki', 'Abeokuta', 'Abuja', 'Ado-Ekiti', 'Akure', 'Asaba', 'Awka', 'Bauchi', 'Benin City',
     'Calabar', 'Enugu', 'Gombe', 'Ibadan', 'Ijebu-Ode', 'Ikeja', 'Ilorin', 'Jos', 'Kaduna', 'Kano', 'Katsina', 'Lafia', 'Lagos',
     'Lekki', 'Lokoja', 'Maiduguri', 'Makurdi', 'Minna', 'Nnewi', 'Ogbomoso', 'Onitsha', 'Osogbo', 'Owerri', 'Port Harcourt',
     'Sokoto', 'Umuahia', 'Uyo', 'Warri', 'Yenagoa', 'Yola', 'Zaria'];
+const GH_CITIES = ['Accra', 'Ashaiman', 'Bolgatanga', 'Cape Coast', 'Ho', 'Kasoa', 'Koforidua', 'Kumasi', 'Obuasi', 'Sunyani',
+    'Takoradi', 'Tamale', 'Tarkwa', 'Techiman', 'Tema', 'Wa', 'Winneba'];
+const KE_CITIES = ['Bungoma', 'Eldoret', 'Embu', 'Garissa', 'Kakamega', 'Kericho', 'Kiambu', 'Kilifi', 'Kisii', 'Kisumu', 'Kitale',
+    'Kitengela', 'Lamu', 'Machakos', 'Malindi', 'Meru', 'Mombasa', 'Nairobi', 'Naivasha', 'Nakuru', 'Nanyuki', 'Narok', 'Nyeri',
+    'Ruiru', 'Thika'];
+const CM_CITIES = ['Bafoussam', 'Bamenda', 'Bertoua', 'Buea', 'Douala', 'Dschang', 'Ebolowa', 'Edéa', 'Foumban', 'Garoua',
+    'Kribi', 'Kumba', 'Kumbo', 'Limbe', 'Maroua', 'Ngaoundéré', 'Nkongsamba', 'Yaoundé'];
+const SF_CITIES = ['NG' => NG_CITIES, 'GH' => GH_CITIES, 'KE' => KE_CITIES, 'CM' => CM_CITIES];
+
+/** Places in a country's list that are part of a bigger city, and count as it. */
+const SF_CITY_PARTS = ['NG' => ['Ikeja' => 'Lagos', 'Lekki' => 'Lagos']];
+
+/** Parts of a city an address may name instead of the city, by country. */
+const SF_CITY_AREAS = [
+    'NG' => ['victoria island' => 'Lagos', 'ikoyi' => 'Lagos', 'yaba' => 'Lagos', 'surulere' => 'Lagos', 'ajah' => 'Lagos',
+             'idumota' => 'Lagos', 'lagos island' => 'Lagos', 'computer village' => 'Lagos'],
+    'GH' => ['east legon' => 'Accra', 'airport residential' => 'Accra', 'cantonments' => 'Accra', 'labone' => 'Accra',
+             'spintex' => 'Accra', 'dansoman' => 'Accra', 'adabraka' => 'Accra', 'achimota' => 'Accra', 'kaneshie' => 'Accra'],
+    'KE' => ['westlands' => 'Nairobi', 'kilimani' => 'Nairobi', 'kileleshwa' => 'Nairobi', 'lavington' => 'Nairobi',
+             'parklands' => 'Nairobi', 'eastleigh' => 'Nairobi', 'upper hill' => 'Nairobi', 'embakasi' => 'Nairobi',
+             'kasarani' => 'Nairobi', 'nyali' => 'Mombasa'],
+    'CM' => ['bonapriso' => 'Douala', 'bonanjo' => 'Douala', 'bonamoussadi' => 'Douala', 'makepe' => 'Douala', 'deido' => 'Douala',
+             'bastos' => 'Yaoundé', 'biyem-assi' => 'Yaoundé', 'mvog-mbi' => 'Yaoundé', 'nlongkak' => 'Yaoundé'],
+];
+
+/** A country's cities (its ISO code: 'NG', 'GH'...), or none for a country Nfelia has no list for. */
+function sf_cities(string $iso): array {
+    return SF_CITIES[strtoupper($iso)] ?? [];
+}
 
 /**
- * A city named in an address ("Bodija, Ibadan" → "Ibadan"), or ''. Parts
- * of Lagos (Ikeja, Lekki) count as Lagos.
+ * The country a business is in, as an ISO code, for its cities: the one
+ * its shop's data and llms.txt name (shop_country(), from
+ * businesses.country_id, else its money; Nigeria when neither says). A row
+ * from seo_live_shops() carries it already, as country_iso.
  */
-function sf_guess_city(string $address): string {
-    $text = strtolower($address);
-    foreach (NG_CITIES as $city) {
-        if (preg_match('/\b' . preg_quote(strtolower($city), '/') . '\b/', $text)) {
-            return in_array($city, ['Ikeja', 'Lekki'], true) ? 'Lagos' : $city;
+function sf_country_iso(array $business): string {
+    if (!empty($business['country_iso'])) {
+        return strtoupper((string)$business['country_iso']);
+    }
+    require_once __DIR__ . '/shop_seo.php';
+    return shop_country($business)['iso'];
+}
+
+/** A city's name as the lists compare it: lower case, without accents ("Yaoundé" and "yaounde" are the same). */
+function sf_city_fold(string $text): string {
+    return strtr(mb_strtolower(trim($text)), ['é' => 'e', 'è' => 'e', 'ê' => 'e', 'ë' => 'e', 'à' => 'a', 'â' => 'a',
+                                               'î' => 'i', 'ï' => 'i', 'ô' => 'o', 'û' => 'u', 'ü' => 'u', 'ç' => 'c']);
+}
+
+/**
+ * A city named in an address ("Bodija, Ibadan" → "Ibadan"), or '', among
+ * the cities of the business's country (Nigeria when not given, as
+ * elsewhere). Parts of a city count as the city: Ikeja, Lekki or Yaba as
+ * Lagos, East Legon as Accra, Westlands as Nairobi, Bastos as Yaoundé.
+ */
+function sf_guess_city(string $address, string $iso = 'NG'): string {
+    $iso  = strtoupper($iso);
+    $text = sf_city_fold($address);
+    foreach (sf_cities($iso) as $city) {
+        if (preg_match('/\b' . preg_quote(sf_city_fold($city), '/') . '\b/', $text)) {
+            return SF_CITY_PARTS[$iso][$city] ?? $city;
         }
     }
-    foreach (['victoria island', 'ikoyi', 'yaba', 'surulere', 'ajah', 'idumota', 'lagos island', 'computer village'] as $area) {
+    foreach (SF_CITY_AREAS[$iso] ?? [] as $area => $city) {
         if (str_contains($text, $area)) {
-            return 'Lagos';
+            return $city;
         }
     }
     return '';
 }
 
+/** A city's part of a directory address: "Benin City" → benin-city, "Yaoundé" → yaounde. */
 function sf_city_slug(string $city): string {
-    return $city === '' ? '' : sf_product_slug($city);
+    return $city === '' ? '' : sf_product_slug(sf_city_fold($city));
 }
 
 /**
- * The directory's spelling of a city from NG_CITIES, or '' for anything
- * else. Only these get /shops/{city} pages, so a typed city can't make an
- * indexable page of its own (W17); the shop still shows what was typed.
+ * The directory's spelling of a city from the business's own country's
+ * list (Nigeria when not given), or '' for anything else: "yaounde" →
+ * "Yaoundé" for a shop in Cameroon, '' for one in Ghana. Only these get
+ * /shops/{city} pages, so a typed city can't make an indexable page of its
+ * own (W17), nor a shop in one country a page for a city in another; the
+ * shop still shows what was typed.
  */
-function sf_known_city(?string $city): string {
-    foreach (NG_CITIES as $known) {
-        if (strcasecmp($known, trim((string)$city)) === 0) {
-            return in_array($known, ['Ikeja', 'Lekki'], true) ? 'Lagos' : $known;
+function sf_known_city(?string $city, string $iso = 'NG'): string {
+    $iso   = strtoupper($iso);
+    $typed = sf_city_fold((string)$city);
+    foreach (sf_cities($iso) as $known) {
+        if (sf_city_fold($known) === $typed) {
+            return SF_CITY_PARTS[$iso][$known] ?? $known;
         }
     }
     return '';
@@ -1182,8 +1245,10 @@ function shop_sold_out(array $business, array $product): bool {
 
 /**
  * The products a shop shows, with their photos and choices, its categories
- * and its bank accounts. Products the owner switched off or deleted never
- * appear; when the catalogue section lists products, only those do. Each
+ * and its bank accounts. Products the owner hid, took off the shop (Show
+ * on my shop, which Studio's "Everything you sell" ticks too) or deleted
+ * never appear. The catalogue section's old "only" list no longer narrows
+ * it: products.on_shop says, so the Catalogue and Studio always agree. Each
  * says whether it is sold out (shop_sold_out).
  */
 function storefront_catalogue(array $business, array $settings): array {
@@ -1194,16 +1259,11 @@ function storefront_catalogue(array $business, array $settings): array {
         SELECT id, name, description, category, image_path, sell_price, unit, is_service, stock_qty, created_at, updated_at,
                booking_mode, booking_minutes, booking_capacity, deposit_type, deposit_value, caution_fee, stay_rates
         FROM products
-        WHERE business_id = ? AND deleted_at IS NULL AND is_active = 1
+        WHERE business_id = ? AND deleted_at IS NULL AND is_active = 1 AND on_shop = 1
         ORDER BY name ASC
         LIMIT " . (int)MAX_PRODUCTS);
     $stmt->execute([$bid]);
     $rows = $stmt->fetchAll();
-
-    $only = sf_section($settings, 'catalogue')['only'] ?? [];
-    if ($only) {
-        $rows = array_values(array_filter($rows, fn($r) => in_array((int)$r['id'], $only, true)));
-    }
 
     $images = [];
     $stmt = $db->prepare("

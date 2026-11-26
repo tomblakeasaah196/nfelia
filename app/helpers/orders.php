@@ -717,6 +717,49 @@ function order_set_when(PDO $db, int $biz, int $order_id, string $date, int $use
 }
 
 /**
+ * Where a delivery goes, at any stage before it is done (New included):
+ * the order, its delivery note while the rider hasn't finished, and the
+ * client's own address when they have none yet. On the Log. Returns false
+ * when the address didn't change.
+ */
+function order_set_address(PDO $db, int $biz, int $order_id, string $address, int $user_id): bool {
+    $address = trim($address);
+    if ($address === '') {
+        throw new DomainException('Type where it goes.');
+    }
+    if (mb_strlen($address) > 500) {
+        throw new DomainException('Keep the address under 500 characters.');
+    }
+    return order__tx($db, function () use ($db, $biz, $order_id, $address, $user_id) {
+        $order = order__lock($db, $biz, $order_id);
+        if (($order['fulfillment_type'] ?? '') !== 'delivery') {
+            throw new DomainException('This order is a pickup, so it has no delivery address.');
+        }
+        $stage = order_stage($order, order__delivery($db, $biz, $order))['key'];
+        if (in_array($stage, ['done', 'cancelled', 'turned_down'], true)) {
+            throw new DomainException($stage === 'done' ? 'This order is already done.' : 'This order is closed.');
+        }
+        $was = trim((string)($order['delivery_address'] ?? ''));
+        if ($address === $was) {
+            return false;
+        }
+        $db->prepare("UPDATE orders SET delivery_address = ? WHERE id = ? AND business_id = ?")
+           ->execute([$address, $order_id, $biz]);
+        $db->prepare("
+            UPDATE deliveries SET delivery_address = ?
+            WHERE business_id = ? AND (order_id = ? OR id = ?) AND deleted_at IS NULL AND status IN ('pending_dispatch','dispatched','in_transit')
+        ")->execute([$address, $biz, $order_id, (int)($order['delivery_id'] ?? 0)]);
+        if (!empty($order['customer_id'])) {
+            $db->prepare("UPDATE customers SET address = ? WHERE id = ? AND business_id = ? AND (address IS NULL OR TRIM(address) = '')")
+               ->execute([$address, (int)$order['customer_id'], $biz]);
+        }
+        order_log($db, $biz, $order_id, 'address', ($was === '' ? 'Delivery address set: ' : 'Delivery address changed to: ') . $address, $user_id,
+                  ['from' => $was !== '' ? $was : null, 'to' => $address]);
+        return true;
+    });
+}
+
+/**
  * The day it really happened, for an order typed in late or on the wrong
  * day (owners and admins): the order and its invoice move to $date, and
  * each payment in $paid_on (payment id => day) to its own day, with its

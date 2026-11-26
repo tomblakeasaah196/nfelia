@@ -707,7 +707,7 @@
             case 'announcement': return s.text ? short(s.text, 60) : D.types.announcement.hint;
             case 'hero': return short(s.headline || D.business.tagline || D.business.name, 60);
             case 'featured': return s.products.length ? s.products.length + ' picked' : 'Your newest, once you have six or more';
-            case 'catalogue': return s.only.length ? 'Only ' + s.only.length + ' of your products' : 'Everything you sell';
+            case 'catalogue': return shopCountText();
             case 'about': return s.text ? short(s.text, 60) : 'Tell people who you are';
             case 'video': return s.url ? 'A YouTube video' : 'Add a YouTube link';
             case 'delivery': return s.text ? short(s.text, 60) : 'Say how you deliver';
@@ -742,7 +742,9 @@
         head.appendChild(sw);
         announceBox.appendChild(head);
         announceBox.appendChild(el('p', { class: 'st-help' }, 'One line across the top of every page of your shop, like a sale or a delivery note.'));
-        var message = textInput(s, 'text', D.types.announcement.fields.text, 'Free delivery in Lagos this week');
+        // The example names a city of the shop's own country (D.business.city)
+        var message = textInput(s, 'text', D.types.announcement.fields.text,
+            D.business.city ? 'Free delivery in ' + D.business.city + ' this week' : 'Free delivery this week');
         message.setAttribute('data-announce-text', '');
         // Writing a message means it should show
         message.addEventListener('input', function () {
@@ -963,6 +965,74 @@
         return box;
     }
 
+    /* "Everything you sell": each product ticked when it is on the shop. A
+       tick is the product's Show on my shop, the same switch as in the
+       Catalogue, so it is saved at once (no Publish) and the preview redraws.
+       The other lists pick from the products on the shop (D.products). */
+    function shopCountText() {
+        var n = D.catalogue.filter(function (p) { return p.shop; }).length;
+        if (!D.catalogue.length || n === D.catalogue.length) { return 'Everything you sell'; }
+        return n ? n + ' of your ' + D.catalogue.length + ' products' : 'None of your products yet';
+    }
+    function shopItems() {
+        var box = el('div', { class: 'st-field' });
+        box.appendChild(el('span', { class: 'st-label' }, 'On your shop'));
+        box.appendChild(el('span', { class: 'st-field__hint' }, 'Tick what your shop shows. It changes at once, with no need to publish, and it is the same as Show on my shop in your Catalogue.'));
+        if (!D.catalogue.length) {
+            var none = el('p', { class: 'st-help' }, 'You have no products yet. ');
+            none.appendChild(el('a', { href: D.urls.products }, 'Add your first product'));
+            box.appendChild(none);
+            return box;
+        }
+        var all = el('button', { type: 'button', class: 'st-btn st-btn--quiet st-btn--sm' }, 'Tick them all');
+        var list = el('ul', { class: 'st-picks' });
+        var inputs = [];
+        function done(message) {
+            D.products = D.catalogue.filter(function (p) { return p.shop; });
+            all.hidden = D.catalogue.every(function (p) { return p.shop; });
+            renderSections();
+            reloadPreview();
+            toast(message);
+        }
+        D.catalogue.forEach(function (p) {
+            var li = el('li');
+            var label = el('label', { class: 'st-pick' });
+            var input = el('input', { type: 'checkbox', value: String(p.id) });
+            input.checked = p.shop;
+            input.addEventListener('change', function () {
+                var on = input.checked;
+                input.disabled = true;
+                api(D.urls.onShop, { id: p.id, on: on }).then(function (json) {
+                    p.shop = !!json.on;
+                    input.checked = p.shop;
+                    done(json.message);
+                }).catch(function (err) {
+                    input.checked = p.shop;
+                    say(err.message, true);
+                }).then(function () { input.disabled = false; });
+            });
+            inputs.push(input);
+            label.appendChild(input);
+            if (p.thumb) { label.appendChild(el('img', { src: p.thumb, alt: '', loading: 'lazy' })); } else { label.appendChild(el('span', { class: 'st-pick__ph' })); }
+            label.appendChild(el('span', { class: 'st-pick__name' }, p.name));
+            label.appendChild(el('span', { class: 'st-pick__price' }, p.price + (p.service ? ' · service' : '')));
+            li.appendChild(label);
+            list.appendChild(li);
+        });
+        all.hidden = D.catalogue.every(function (p) { return p.shop; });
+        all.addEventListener('click', function () {
+            all.disabled = true;
+            api(D.urls.onShop, { all: true, on: true }).then(function (json) {
+                D.catalogue.forEach(function (p) { p.shop = true; });
+                inputs.forEach(function (input) { input.checked = true; });
+                done(json.message);
+            }).catch(function (err) { say(err.message, true); }).then(function () { all.disabled = false; });
+        });
+        box.appendChild(all);
+        box.appendChild(list);
+        return box;
+    }
+
     function renderEditor() {
         var s = sectionAt(editing);
         var def = D.types[editing];
@@ -1031,7 +1101,7 @@
                 break;
             case 'catalogue':
                 editorEl.appendChild(field('Title', textInput(s, 'title', f.title, labelFor('catalogue'))));
-                editorEl.appendChild(picks(s, 'only', 500, 'Leave them all empty to show everything you sell. Tick some to show only those.'));
+                editorEl.appendChild(shopItems());
                 break;
             case 'about':
                 editorEl.appendChild(field('Title', textInput(s, 'title', f.title, labelFor('about'))));

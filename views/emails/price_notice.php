@@ -75,7 +75,7 @@ $h = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES);
 </table>
 <?php endif; ?>
 <p style="margin:0 0 16px;font-size:16px;line-height:1.5;color:#5B4650;">
-    Your records are always yours, whatever you decide. If this is hard for your business right now, reply to this email and tell us. We read every reply.
+    Your records are yours, whatever you decide, and your plain copy is free to download from Your records. If this is hard for your business right now, reply to this email and tell us. We read every reply.
 </p>
 <?php else: ?>
 <p style="margin:0 0 16px;font-size:16px;line-height:1.5;color:#5B4650;">There is nothing for you to do. Questions? Reply to this email.</p>

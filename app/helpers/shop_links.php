@@ -353,6 +353,11 @@ function shop_visibility(?array $subscription): string {
  */
 function shop_whatsapp_digits(array $business): string {
     $raw    = trim((string)($business['whatsapp'] ?? '')) ?: trim((string)($business['phone'] ?? ''));
+    // Outside Nigeria a local number (024…, 0712…) takes the shop's own
+    // country code, so its WhatsApp buttons open the right chat
+    if (!empty($business['id']) && business_dial_code($business) !== '234') {
+        return wa_digits($raw, $business);
+    }
     $digits = preg_replace('/\D/', '', $raw);
     if (str_starts_with($digits, '00')) {
         $digits = substr($digits, 2);

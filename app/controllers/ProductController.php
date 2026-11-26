@@ -16,8 +16,9 @@ class ProductController {
         $this->biz_id = auth_business_id();
 
         // Any change to products changes the shop page: once this request
-        // is answered, Cloudflare drops its copy of the shop (cloudflare.php)
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        // is answered, Cloudflare drops its copy of the shop (cloudflare.php).
+        // Reading a photo (ai_describe) changes nothing.
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && !str_starts_with(trim((string)($_GET['url'] ?? ''), '/'), 'products/ai-describe')) {
             storefront_purge((int)$this->biz_id);
         }
     }
@@ -76,6 +77,9 @@ class ProductController {
             case 'service':
                 $where[] = "p.is_service = 1";
                 break;
+            case 'offshop':     // in the catalogue, but Show on my shop is off
+                $where[] = "p.is_active = 1 AND p.on_shop = 0";
+                break;
         }
 
         $where_sql = implode(' AND ', $where);
@@ -114,9 +118,11 @@ class ProductController {
             SELECT
                 COUNT(*)                                                          AS total_products,
                 SUM(CASE WHEN is_service = 0 THEN stock_qty * cost_price ELSE 0 END) AS total_stock_value,
+                SUM(CASE WHEN is_service = 0 THEN stock_qty * sell_price ELSE 0 END) AS total_sell_value,
                 SUM(CASE WHEN is_service = 0 AND is_active = 1 AND stock_qty <= low_stock_threshold AND stock_qty > 0 THEN 1 ELSE 0 END) AS low_stock_count,
                 SUM(CASE WHEN is_service = 0 AND is_active = 1 AND stock_qty <= 0 THEN 1 ELSE 0 END) AS out_of_stock_count,
-                SUM(CASE WHEN is_service = 1 THEN 1 ELSE 0 END)                  AS services_count
+                SUM(CASE WHEN is_service = 1 THEN 1 ELSE 0 END)                  AS services_count,
+                SUM(CASE WHEN is_active = 1 AND on_shop = 0 THEN 1 ELSE 0 END)   AS off_shop_count
             FROM products
             WHERE business_id = ? AND deleted_at IS NULL
         ");
@@ -158,6 +164,7 @@ class ProductController {
             $threshold   = (float)($_POST['low_stock_threshold'] ?? 5);
             $unit        = trim($_POST['unit'] ?? 'pcs');
             $is_service  = !empty($_POST['is_service']) ? 1 : 0;
+            $on_shop     = ($_POST['on_shop'] ?? '1') === '1' ? 1 : 0;
 
             // Validation
             $errors = [];
@@ -181,6 +188,7 @@ class ProductController {
                 $product   = $_POST;
                 $editing   = false;
                 $categories_list = $this->get_categories();
+                $ai        = product_ai_state($this->db, (int)$this->biz_id);
                 $title     = "Add to catalogue";
                 $view_file = BASE_PATH . '/views/products/form.php';
                 require_once BASE_PATH . '/views/layouts/app.php';
@@ -189,14 +197,14 @@ class ProductController {
 
             // Insert
             $stmt = $this->db->prepare("
-                INSERT INTO products (business_id, name, sku, category, description, sell_price, cost_price, stock_qty, low_stock_threshold, unit, is_service)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO products (business_id, name, sku, category, description, sell_price, cost_price, stock_qty, low_stock_threshold, unit, is_service, on_shop)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
             $stmt->execute([
                 $this->biz_id, $name, '', $category ?: null, $description ?: null,
                 $sell_price, $cost_price,
                 $is_service ? 0 : $stock_qty,
-                $threshold, $unit, $is_service
+                $threshold, $unit, $is_service, $on_shop
             ]);
             $product_id = (int)$this->db->lastInsertId();
 
@@ -228,12 +236,15 @@ class ProductController {
             redirect('products/view/' . $product_id);
         }
 
-        // GET — show empty form
+        // GET — show empty form, or the photo screen first when AI is on
+        // for the business (views/products/ai_photo.php)
         $product   = [];
         $editing   = false;
         $categories_list = $this->get_categories();
         $product_images = [];
         $variant_groups = [];
+        $ai        = product_ai_state($this->db, (int)$this->biz_id);
+        $ai_first  = $ai['on'];
         $title     = "Add to catalogue";
         $view_file = BASE_PATH . '/views/products/form.php';
         require_once BASE_PATH . '/views/layouts/app.php';
@@ -262,6 +273,8 @@ class ProductController {
             $threshold   = (float)($_POST['low_stock_threshold'] ?? 5);
             $unit        = trim($_POST['unit'] ?? 'pcs');
             $is_service  = !empty($_POST['is_service']) ? 1 : 0;
+            // A form from before the switch sends nothing: it stays as it was
+            $on_shop     = isset($_POST['on_shop']) ? (($_POST['on_shop'] === '1') ? 1 : 0) : (int)$product['on_shop'];
 
             // "Auto-generate" switches the SKU box off, so it sends nothing:
             // make one, as on create, rather than saving it empty
@@ -288,6 +301,9 @@ class ProductController {
                 $product   = array_merge($product, $_POST);
                 $editing   = true;
                 $categories_list = $this->get_categories();
+                $product_images = $this->get_product_images((int)$id);
+                $variant_groups = $this->get_variant_groups((int)$id);
+                $ai        = product_ai_state($this->db, (int)$this->biz_id);
                 $title     = "Edit — " . $product['name'];
                 $view_file = BASE_PATH . '/views/products/form.php';
                 require_once BASE_PATH . '/views/layouts/app.php';
@@ -314,14 +330,14 @@ class ProductController {
                     UPDATE products SET
                         name = ?, sku = ?, category = ?, description = ?,
                         sell_price = ?, cost_price = ?,
-                        low_stock_threshold = ?, unit = ?, is_service = ?,
+                        low_stock_threshold = ?, unit = ?, is_service = ?, on_shop = ?,
                         stock_qty = CASE WHEN ? = 1 THEN 0 ELSE stock_qty END
                     WHERE id = ? AND business_id = ?
                 ");
                 $stmt->execute([
                     $name, $sku, $category ?: null, $description ?: null,
                     $sell_price, $cost_price,
-                    $threshold, $unit, $is_service,
+                    $threshold, $unit, $is_service, $on_shop,
                     $is_service,
                     $id, $this->biz_id
                 ]);
@@ -357,6 +373,7 @@ class ProductController {
         $categories_list = $this->get_categories();
         $product_images = $this->get_product_images((int)$id);
         $variant_groups = $this->get_variant_groups((int)$id);
+        $ai        = product_ai_state($this->db, (int)$this->biz_id);
         $title     = "Edit — " . $product['name'];
         $view_file = BASE_PATH . '/views/products/form.php';
         require_once BASE_PATH . '/views/layouts/app.php';
@@ -528,9 +545,79 @@ class ProductController {
             json_response(['status' => $new_status ? 'active' : 'inactive']);
         }
         flash('success', $new_status
-            ? $product['name'] . ' is back on your shop and in your item lists.'
+            ? $product['name'] . ((int)$product['on_shop'] ? ' is back on your shop and in your item lists.' : ' is back in your item lists. Show on my shop is off, so your shop still leaves it out.')
             : $product['name'] . ' is hidden. It is off your shop and out of the item lists for invoices, quotes and orders.');
         redirect('products/view/' . (int)$id);
+    }
+
+    /* ──────────────────────────────────────────
+     *  SHOW ON MY SHOP — on or off (AJAX from the
+     *  Catalogue's switches, or a plain form)
+     *  Off, it stays in the catalogue and on
+     *  invoices, quotes and orders; only the shop
+     *  leaves it out. 'on' says which, so a
+     *  second tap can't undo the first.
+     * ────────────────────────────────────────── */
+    public function toggle_shop($id = null) {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { http_response_code(405); exit; }
+        csrf_verify();
+
+        $product = $this->find_product($id);
+        if (!$product) {
+            if (is_ajax()) { json_response(['success' => false, 'message' => 'That item isn’t in your catalogue any more.'], 404); }
+            not_found(); return;
+        }
+
+        $on = isset($_POST['on']) ? ($_POST['on'] === '1' ? 1 : 0) : ((int)$product['on_shop'] ? 0 : 1);
+        $this->db->prepare("UPDATE products SET on_shop = ? WHERE id = ? AND business_id = ?")
+                  ->execute([$on, $id, $this->biz_id]);
+
+        $said = match (true) {
+            !$on                     => $product['name'] . ' is off your shop. You can still put it on invoices, quotes and orders.',
+            !$product['is_active']   => $product['name'] . ' will be on your shop once you show it again: it is hidden.',
+            default                  => $product['name'] . ' is on your shop now.',
+        };
+        if (is_ajax()) {
+            json_response(['success' => true, 'on_shop' => $on, 'message' => $said]);
+        }
+        flash('success', $said);
+        redirect(back_path('products/view/' . (int)$id));
+    }
+
+    /* ──────────────────────────────────────────
+     *  AI — a name, description and category from
+     *  a photo (AJAX, from the photo screen;
+     *  app/helpers/product_ai.php). The photo is a
+     *  new one, or one the item already has
+     *  (image_id), when it is being edited.
+     * ────────────────────────────────────────── */
+    public function ai_describe() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { http_response_code(405); exit; }
+        csrf_verify();
+
+        $path = null;
+        if (!empty($_POST['image_id'])) {
+            $stmt = $this->db->prepare("SELECT image_path FROM product_images WHERE id = ? AND business_id = ?");
+            $stmt->execute([(int)$_POST['image_id'], $this->biz_id]);
+            $rel  = (string)$stmt->fetchColumn();
+            $path = $rel !== '' && !str_contains($rel, '..') ? BASE_PATH . '/' . $rel : null;
+        } elseif (($_FILES['photo']['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK && is_uploaded_file($_FILES['photo']['tmp_name'])) {
+            $path = $_FILES['photo']['tmp_name'];
+        }
+        $jpeg = $path !== null && is_file($path) ? product_ai_photo($path) : null;
+        if ($jpeg === null) {
+            json_response(['success' => false, 'message' => 'We couldn’t open that photo. Try a JPG or PNG photo of the item.'], 422);
+        }
+
+        // Gemini may take two tries; the person sees "still working" meanwhile
+        @set_time_limit(75);
+        try {
+            $item = product_ai_describe($this->db, (int)$this->biz_id, (int)(auth_user()['id'] ?? 0) ?: null, $jpeg, (string)($_POST['lang'] ?? 'en'));
+        } catch (DomainException $e) {
+            json_response(['success' => false, 'message' => $e->getMessage(), 'state' => product_ai_state($this->db, (int)$this->biz_id)],
+                          in_array($e->getCode(), [403, 422, 429, 502], true) ? $e->getCode() : 422);
+        }
+        json_response(['success' => true] + $item);
     }
 
     /* ──────────────────────────────────────────
@@ -751,8 +838,8 @@ class ProductController {
         if (!$product) { not_found(); return; }
 
         $stmt = $this->db->prepare("
-            INSERT INTO products (business_id, name, sku, category, description, sell_price, cost_price, stock_qty, low_stock_threshold, unit, is_service)
-            VALUES (?, ?, '', ?, ?, ?, ?, 0, ?, ?, ?)
+            INSERT INTO products (business_id, name, sku, category, description, sell_price, cost_price, stock_qty, low_stock_threshold, unit, is_service, on_shop)
+            VALUES (?, ?, '', ?, ?, ?, ?, 0, ?, ?, ?, ?)
         ");
         $stmt->execute([
             $this->biz_id,
@@ -763,7 +850,8 @@ class ProductController {
             $product['cost_price'],
             $product['low_stock_threshold'],
             $product['unit'],
-            $product['is_service']
+            $product['is_service'],
+            $product['on_shop']
         ]);
         $new_id = (int)$this->db->lastInsertId();
         $sku = $this->generate_sku($product['name'] . ' Copy', $new_id);

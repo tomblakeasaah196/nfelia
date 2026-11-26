@@ -416,7 +416,7 @@ function records_sheets(): array
             'about' => 'What you sell, at what price, and how much is in stock.',
             'noun'  => ['product or service', 'products and services'],
             'sql'   => "SELECT p.id, p.sku, p.name, p.category, p.is_service, p.unit, p.sell_price AS price, p.cost_price AS cost, p.stock_qty AS stock,
-                               p.low_stock_threshold AS low_at, p.booking_mode, IF(p.is_active = 1, 'On sale', 'Hidden') AS state, p.description, p.created_at AS added
+                               p.low_stock_threshold AS low_at, p.booking_mode, IF(p.is_active = 1, IF(p.on_shop = 1, 'On sale', 'Not on the shop'), 'Hidden') AS state, p.description, p.created_at AS added
                         FROM products p WHERE p.business_id = ? AND p.deleted_at IS NULL ORDER BY p.category, p.name, p.id",
             'cols'  => [['Name', 'name', 'text', 30], ['SKU', 'sku', 'text', 12], ['Category', 'category', 'text', 16], ['Kind', 'is_service', 'kind', 10],
                         ['Unit', 'unit', 'text', 9], ['Price', 'price', 'money', 14], ['Cost', 'cost', 'money', 14], ['Margin', 'margin', 'formula_money', 14],

@@ -21,6 +21,8 @@
  *   GET  /news              the shop's news and offers
  *   GET  /news/{id}-{title} one post
  *   GET  /robots.txt, /sitemap.xml   for search engines (paid shops only)
+ *   GET  /llms.txt          for AI assistants (paid shops only, shop_llms_txt)
+ *   GET  /{key}.txt         the IndexNow key file (app/helpers/indexnow.php)
  *
  * Anything else is a 404.
  *
@@ -36,6 +38,13 @@
  * everything else are marked no-store. Order and review links keep working
  * when the shop is closed or switched off: the shopper already ordered.
  */
+require_once __DIR__ . '/../helpers/shop_seo.php';
+// IndexNow tells search engines about changed pages; the shop still works
+// without it
+if (is_file(__DIR__ . '/../helpers/indexnow.php')) {
+    require_once __DIR__ . '/../helpers/indexnow.php';
+}
+
 class StorefrontController extends PublicController
 {
     /** The shop this request is for, so its notices wear its colour (notice()). */
@@ -43,6 +52,10 @@ class StorefrontController extends PublicController
 
     public function handle(string $label, string $path): void
     {
+        // IndexNow's key file, the same on every host Nfelia serves
+        if (function_exists('indexnow_serve_key_file') && indexnow_serve_key_file($path)) {
+            exit;
+        }
         header('Cache-Control: no-store');
         $valid    = (bool)preg_match('/^[a-z0-9-]{1,63}$/', $label);
         $business = $valid ? shop_find_by_name($label) : null;
@@ -81,6 +94,9 @@ class StorefrontController extends PublicController
         if ($path === 'robots.txt' && (!$business || !(int)$business['landing_enabled'])) {
             $this->plain("User-agent: *\nDisallow: /\n", 'text/plain');
         }
+        if ($path === 'llms.txt' && (!$business || !(int)$business['landing_enabled'])) {
+            $this->plain_missing();
+        }
 
         // Names waiting for review, retired names and shops whose owner
         // switched the page off all look the same from outside.
@@ -101,6 +117,15 @@ class StorefrontController extends PublicController
                 return;
             }
             $this->plain(shop_sitemap($this->db, $business), 'application/xml');
+        }
+        // AI assistants: what a paid shop sells and how to buy. Trial and
+        // closed shops have nothing to say.
+        if ($path === 'llms.txt') {
+            if ($visibility !== 'live' || !in_array($method, ['GET', 'HEAD'], true)) {
+                $this->plain_missing();
+            }
+            header('X-Robots-Tag: noindex');   // for assistants, not a page in search results
+            $this->plain(shop_llms_txt($business), 'text/plain');
         }
 
         if (preg_match('#^news(?:/(\d{1,10})(?:-([a-z0-9-]{0,80}))?)?$#', $path, $m) && in_array($method, ['GET', 'HEAD'], true)) {
@@ -176,9 +201,12 @@ class StorefrontController extends PublicController
     }
 
     /**
-     * A renamed shop's old address: pages go to the new one (302, so nothing
-     * is remembered once the hold ends); an order from a page opened before
-     * the rename is told to reload rather than lost in a redirect.
+     * A renamed shop's old address: pages go to the new one; an order from a
+     * page opened before the rename is told to reload rather than lost in a
+     * redirect. A 301, so search engines move what they know to the new
+     * address during the hold (a 302 tells them to keep showing the old
+     * one); max-age=0 keeps browsers from remembering it once the hold ends
+     * and the name can be someone else's.
      */
     private function moved(array $holder, string $path, string $method): void
     {
@@ -187,7 +215,7 @@ class StorefrontController extends PublicController
             json_response(['error' => 'This shop has a new address: ' . $target . '. Reload the page and try again.'], 410);
         }
         header('Cache-Control: public, max-age=0, s-maxage=300');
-        header('Location: ' . $target, true, 302);
+        header('Location: ' . $target, true, 301);
         exit;
     }
 
@@ -400,6 +428,19 @@ class StorefrontController extends PublicController
         exit;
     }
 
+    /**
+     * A plain-text 404, for files only paid shops have (/llms.txt).
+     */
+    private function plain_missing(): void
+    {
+        http_response_code(404);
+        header('Cache-Control: public, max-age=0, s-maxage=300');
+        header('Content-Type: text/plain; charset=utf-8');
+        header('X-Robots-Tag: noindex, nofollow');
+        echo "Not found\n";
+        exit;
+    }
+
     /* ── Bookings ────────────────────────────────────── */
 
     /**
@@ -449,6 +490,8 @@ class StorefrontController extends PublicController
             header('Location: ' . shop_url($business['subdomain'], $canonical), true, 301);
             exit;
         }
+        // A step towards booking, never a page for search results (as its meta says)
+        header('X-Robots-Tag: ' . ($visibility === 'live' ? 'noindex, follow' : 'noindex, nofollow'));
         $booking_settings = booking_settings($business);
         storefront_render($business, $settings, 'live', $visibility, [
             'kind' => 'book', 'item' => $item, 'settings' => $booking_settings, 'window' => booking_window($booking_settings),

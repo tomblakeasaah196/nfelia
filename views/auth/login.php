@@ -12,12 +12,21 @@ $splash = ($_GET['source'] ?? '') === 'pwa';
 ?>
 <!DOCTYPE html>
 <html lang="en-NG"<?= $splash ? ' class="nf-splashing"' : '' ?>>
-<head>
-    <meta charset="UTF-8">
+<head><meta charset="utf-8">
+    
     <?= errors_script_tag() ?>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign in: Nfelia</title>
-    <meta name="description" content="Sign in to your Nfelia business account.">
+    <title>Sign in to Nfelia</title>
+    <meta name="description" content="Sign in to Nfelia to see who owes you, send invoices and receipts, check your stock and profit, and look after the orders from your own website.">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="<?= APP_URL ?>/login">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="<?= APP_URL ?>/login">
+    <meta property="og:title" content="Sign in to Nfelia">
+    <meta property="og:description" content="Sign in to Nfelia to see who owes you, send invoices and receipts, check your stock and profit, and look after the orders from your own website.">
+    <meta property="og:image" content="<?= APP_URL ?>/assets/img/nfelia-og-banner.png">
+    <meta property="og:site_name" content="Nfelia">
+    <meta property="og:locale" content="en_NG">
     <meta name="theme-color" content="<?= $splash ? '#6E0039' : '#8B004A' ?>" data-theme-color="#8B004A">
 <?php if ($splash) require BASE_PATH . '/views/partials/nf_splash_head.php'; ?>
 <?php require BASE_PATH . '/views/partials/pwa_head.php'; ?>

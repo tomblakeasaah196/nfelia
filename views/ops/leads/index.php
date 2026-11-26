@@ -135,7 +135,7 @@ $card = function (array $l) use ($when) {
             </div>
             <div class="ops-row">
                 <div class="ops-field"><label for="nl-source">How you met</label>
-                    <select class="ops-select" id="nl-source" name="source"><?php foreach (LEAD_SOURCES as $k => $label): if (in_array($k, ['website', 'signup', 'trial'], true)) continue; ?><option value="<?= e($k) ?>"><?= e($label) ?></option><?php endforeach; ?></select></div>
+                    <select class="ops-select" id="nl-source" name="source"><?php foreach (LEAD_SOURCES as $k => $label): if (in_array($k, ['website', 'signup', 'trial', 'booking'], true)) continue; ?><option value="<?= e($k) ?>"><?= e($label) ?></option><?php endforeach; ?></select></div>
                 <div class="ops-field"><label for="nl-stage">Where it is</label>
                     <select class="ops-select" id="nl-stage" name="stage"><?php foreach (['new', 'contacted', 'demo', 'trial', 'lost'] as $k): ?><option value="<?= $k ?>"<?= $k === 'contacted' ? ' selected' : '' ?>><?= e(LEAD_STAGES[$k]['label']) ?></option><?php endforeach; ?></select></div>
             </div>

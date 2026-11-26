@@ -37,12 +37,15 @@
  *    app/helpers/billing.php decides what is open).
  *
  * 7. The Nfelia Ops monitor (app/ops/monitor.php): the server log read into
- *    Ops → Errors, health checks, the 8am summary to the Ops team.
+ *    Ops → Errors, health checks, the 8am summary to the Ops team; meeting
+ *    reminders (app/ops/meetings.php); copies of what a fresh start wiped,
+ *    deleted after 30 days (app/ops/wipe.php).
  *
  * 8. Records Books waiting to be made, kept files past their year, and
  *    requests for a record nobody answered (app/helpers/records.php); a
  *    price change's notices, with what is left of the hour's mail after
- *    campaigns (app/helpers/prices.php).
+ *    campaigns (app/helpers/prices.php); once a day, IndexNow told what is
+ *    new or changed on nfelia.com and the paid shops (app/helpers/indexnow.php).
  *
  * 9. Phone notifications and emails still waiting, retried (what the
  *    monitor queued goes out in this same run). Reminders and morning plans
@@ -412,6 +415,25 @@ try {
     errors_report_throwable($e, ['job' => 'Cron: Ops sales']);
 }
 
+// Meetings booked at nfelia.com/book: reminders a day and an hour before,
+// and Sales told when one is close with no Meet link yet (app/ops/meetings.php).
+try {
+    require_once __DIR__ . '/../app/ops/meetings.php';
+    $done += meetings_cron($db, $now);
+} catch (Throwable $e) {
+    $done['errors']++;
+    errors_report_throwable($e, ['job' => 'Cron: meetings']);
+}
+
+// Copies of what a fresh start wiped, deleted after 30 days (app/ops/wipe.php).
+try {
+    require_once __DIR__ . '/../app/ops/wipe.php';
+    $done += wipe_cron($db);
+} catch (Throwable $e) {
+    $done['errors']++;
+    errors_report_throwable($e, ['job' => 'Cron: wipe copies']);
+}
+
 /* ── 8. Records Books, and price notices ──────────────────── */
 
 try {
@@ -446,6 +468,26 @@ $sent = notify_flush();
 $done['outbox_sent']    = $sent['sent'] + $flushed['sent'];
 $done['outbox_retry']   = $sent['retry'] + $flushed['retry'];
 $done['outbox_gave_up'] = $sent['failed'] + $flushed['failed'];
+
+/* ── 9b. IndexNow: search engines hear what changed ────────── */
+
+// Once a day, from 05:00: new, changed and removed pages of nfelia.com and
+// of every paid shop go to IndexNow (app/helpers/indexnow.php). It keeps its
+// own record of what it sent and skips at once on a day it has already run,
+// so this costs nothing on the other runs; what could not be sent goes the
+// next day. Never on a local or test copy. After the lock and the outbox:
+// it calls an outside service, which must not hold up the next run or the
+// reminders. The file is looked for first, so a deploy that has not
+// uploaded it yet does not stop the whole run.
+if ($hour >= 5 && is_file(__DIR__ . '/../app/helpers/indexnow.php')) {
+    try {
+        require_once __DIR__ . '/../app/helpers/indexnow.php';
+        $done += indexnow_tick($db);
+    } catch (Throwable $e) {
+        $done['errors']++;
+        errors_report_throwable($e, ['job' => 'Cron: IndexNow']);
+    }
+}
 
 // Once a day: read alerts go after six months, everything after a year,
 // and the record of sends after a month.
