@@ -1983,7 +1983,7 @@
     if (bookForm && S.booking) {
         var B = S.booking;
         var cal = { month: B.first.slice(0, 7), cache: {} };
-        var pick = { date: '', time: '', timeLabel: '', checkin: '', checkout: '' };
+        var pick = { date: '', time: '', timeLabel: '', checkin: '', checkout: '', with: [] };
         var grid = $('[data-cal-grid]', bookForm);
         var calWait = $('[data-cal-wait]', bookForm);
         var timesBox = $('[data-times]', bookForm);
@@ -1999,9 +1999,21 @@
             return pick.date && (B.mode !== 'slot' || pick.time) ? 1 : 0;
         };
         var depositFor = function (total) {
-            if (B.deposit.type === 'percent') { return Math.round(total * Math.min(100, B.deposit.value)) / 100; }
-            if (B.deposit.type === 'fixed') { return Math.min(B.deposit.value, total); }
-            return 0;
+            var own = 0;
+            if (B.deposit.type === 'percent') { own = Math.round(total * Math.min(100, B.deposit.value)) / 100; }
+            if (B.deposit.type === 'fixed') { own = total > 0 ? Math.min(B.deposit.value, total) : B.deposit.value; }
+            if (!pick.with.length) { return own; }
+            // Several services in one visit: one deposit, the highest of theirs (booking_combine)
+            own = B.deposit.type === 'percent' ? Math.round(B.price * Math.min(100, B.deposit.value)) / 100
+                : B.deposit.type === 'fixed' ? (B.price > 0 ? Math.min(B.deposit.value, B.price) : B.deposit.value) : 0;
+            return added().reduce(function (top, x) { return Math.max(top, x.deposit); }, own);
+        };
+        // Services added to this visit (booking_extras), and the query that asks for their times
+        var added = function () { return (B.extras || []).filter(function (x) { return pick.with.indexOf(x.id) !== -1; }); };
+        var withQ = function () { return pick.with.length ? '&with=' + pick.with.join(',') : ''; };
+        var durationText = function (m) {
+            var h = Math.floor(m / 60), r = m % 60;
+            return [h ? plural(h, 'hour') : '', r ? plural(r, 'minute') : ''].filter(Boolean).join(' ');
         };
         // A longer stay pays the cheapest night it reaches (booking_night_price)
         var nightPrice = function (n) {
@@ -2039,9 +2051,11 @@
             calWait.hidden = false;
             calWait.textContent = 'Finding free days…';
             grid.textContent = '';
-            fetch(B.urls.free + '?month=' + m, { credentials: 'omit' })
+            var q = withQ();
+            fetch(B.urls.free + '?month=' + m + q, { credentials: 'omit' })
                 .then(function (r) { return r.json(); })
                 .then(function (json) {
+                    if (q !== withQ()) { return; }   // the services changed while it loaded
                     cal.cache[m] = json.days || {};
                     if (cal.month === m) { drawCal(); }
                 })
@@ -2055,10 +2069,11 @@
             $('[data-times-none]', timesBox).hidden = true;
             $('[data-times-title]', timesBox).textContent = 'Free times on ' + dayText(d);
             list.appendChild(el('p', { class: 'sf-cal__wait' }, 'Finding free times…'));
-            fetch(B.urls.free + '?date=' + d, { credentials: 'omit' })
+            var q = withQ();
+            fetch(B.urls.free + '?date=' + d + q, { credentials: 'omit' })
                 .then(function (r) { return r.json(); })
                 .then(function (json) {
-                    if (pick.date !== d) { return; }
+                    if (pick.date !== d || q !== withQ()) { return; }
                     var times = json.times || [];
                     list.textContent = '';
                     $('[data-times-none]', timesBox).hidden = times.length > 0;
@@ -2080,8 +2095,14 @@
                 text = dayText(pick.date) + (B.mode === 'slot' ? (pick.time ? ' at ' + pick.timeLabel : '. Now pick a time.') : '');
             }
             $('[data-book-picked]', bookForm).textContent = text;
-            var each = B.mode === 'nights' ? nightPrice(units()) : B.price;
+            var each = B.mode === 'nights' ? nightPrice(units()) : B.price + added().reduce(function (sum, x) { return sum + x.price; }, 0);
             var total = Math.round(each * units() * 100) / 100;
+            var services = $('[data-book-services]', bookForm);
+            if (services) {
+                var minutes = added().reduce(function (sum, x) { return sum + x.minutes; }, B.minutes);
+                services.hidden = !pick.with.length;
+                services.textContent = pick.with.length ? [B.name].concat(added().map(function (x) { return x.name; })).join(' + ') + ' · ' + durationText(minutes) + ' · one deposit' : '';
+            }
             $('[data-book-total]', bookForm).textContent = units() ? money(total) : '—';
             var rate = $('[data-book-rate]', bookForm);
             if (rate) {
@@ -2124,6 +2145,31 @@
                 updatePicked();
             });
         }
+        // Another service added or taken off: the visit's length changes, so
+        // its free days and times are asked for again
+        var addons = $('[data-addons]', bookForm);
+        if (addons) {
+            var addonSum = $('[data-addons-sum]', bookForm);
+            addons.addEventListener('change', function (e) {
+                var box = e.target.closest('[data-addon]');
+                if (!box) { return; }
+                var id = +box.value;
+                if (box.checked && pick.with.length >= (B.max || 4)) {
+                    box.checked = false;
+                    bookError.textContent = 'You can add up to ' + (B.max || 4) + ' more services to one visit.';
+                    return;
+                }
+                pick.with = box.checked ? pick.with.concat([id]) : pick.with.filter(function (x) { return x !== id; });
+                bookError.textContent = '';
+                var minutes = added().reduce(function (sum, x) { return sum + x.minutes; }, B.minutes);
+                addonSum.hidden = !pick.with.length;
+                addonSum.textContent = pick.with.length ? plural(pick.with.length + 1, 'service') + ' in one visit, ' + durationText(minutes) + '. Pick a day for them all.' : '';
+                cal.cache = {};
+                loadMonth(cal.month);
+                if (pick.date) { pick.time = ''; loadTimes(pick.date); }
+                updatePicked();
+            });
+        }
         $('[data-cal-prev]', bookForm).addEventListener('click', function () { loadMonth(shiftMonth(cal.month, -1)); });
         $('[data-cal-next]', bookForm).addEventListener('click', function () { loadMonth(shiftMonth(cal.month, 1)); });
 
@@ -2155,6 +2201,7 @@
             } else {
                 fd.append('date', pick.date);
                 if (pick.time) { fd.append('time', pick.time); }
+                if (pick.with.length) { fd.append('with', pick.with.join(',')); }
             }
             var bank = $('input[name="bank_id"]:checked', bookForm);
             if (channel === 'site' && bank) {
@@ -2200,7 +2247,7 @@
             }
             var wa = $('[data-book-done-wa]', done);
             if (channel === 'whatsapp' && S.wa) {
-                var msg = 'Hello ' + S.name + ', I would like to book ' + S.items[String(B.id)].name + ' for ' + json.when + '. My booking number is ' + json.booking_number + '.'
+                var msg = 'Hello ' + S.name + ', I would like to book ' + (json.service || B.name) + ' for ' + json.when + '. My booking number is ' + json.booking_number + '.'
                         + (json.booking_url ? ' Details: ' + json.booking_url : '');
                 wa.href = 'https://wa.me/' + S.wa + '?text=' + encodeURIComponent(msg);
                 wa.hidden = false;

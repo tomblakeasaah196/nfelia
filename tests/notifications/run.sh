@@ -14,6 +14,7 @@
 #   bash tests/notifications/run.sh docs/sign        signatures and verify codes on documents (tests/docs/)
 #   bash tests/notifications/run.sh reports/money    money out, cash in and cash out, on every screen (tests/reports/)
 #   bash tests/notifications/run.sh shop/order       the order a shop shows what it sells: pins, categories, best sellers (tests/shop/)
+#   bash tests/notifications/run.sh shop/visit       several services in one appointment, one deposit (tests/shop/)
 #
 # Phones and inboxes are stood in for by push_sink.php and smtp_sink.py,
 # started here on NF_PUSH_PORT (8098) and NF_SMTP_PORT (2525, which the

@@ -959,8 +959,19 @@ p, h1, h2, h3, figure, dl, dd { margin: 0; }
 .sf-times { display: flex; flex-direction: column; gap: 10px; }
 .sf-times__list { display: flex; flex-wrap: wrap; gap: 8px; }
 .sf-times__list .sf-choice span { min-width: 88px; justify-content: center; }
+/* Another service in the same visit (book.php, data-addons) */
+.sf-addons { border: 1.5px dashed var(--sf-field); border-radius: var(--sf-r-field); }
+.sf-addons[open] { padding-bottom: 12px; }
+.sf-addons__toggle { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 14px; font-weight: 700; color: var(--sf-accent-text); cursor: pointer; list-style: none; }
+.sf-addons__toggle::-webkit-details-marker { display: none; }
+.sf-addons[open] .sf-addons__toggle svg { transform: rotate(45deg); }
+.sf-addons .sf-field__hint { padding: 0 14px 10px; }
+.sf-addons__list { padding: 0 12px; }
+.sf-addons__sum { font-size: 15px; font-weight: 700; }
+.sf-addons__sum[hidden] { display: none; }
 
 .sf-when { gap: 8px; }
+.sf-when__lines { margin: 0; padding-left: 20px; font-size: 16px; }
 .sf-when__date, .sf-when__place { display: flex; align-items: flex-start; gap: 10px; font-size: 16px; }
 .sf-when__date { font-weight: 700; }
 .sf-when svg { flex-shrink: 0; margin-top: 2px; color: var(--sf-accent-text); }

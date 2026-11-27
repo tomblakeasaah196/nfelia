@@ -363,6 +363,11 @@ if ($kind === 'book') {
         'first'    => $page['window'][0],
         'last'     => $page['window'][1],
         'urls'     => ['free' => '/book/' . $page['item']['id'] . '/free', 'submit' => '/book/' . $page['item']['id']],
+        // Services to add to the same visit, each with its own deposit (the visit pays the highest)
+        'name'     => $page['item']['name'],
+        'extras'   => array_map(fn($x) => ['id' => $x['id'], 'name' => $x['name'], 'price' => $x['price'], 'minutes' => $x['booking']['minutes'],
+                                           'deposit' => booking_deposit($x['booking'], (float)$x['price'])], $page['extras'] ?? []),
+        'max'      => BOOKING_MAX_EXTRAS,
     ];
 }
 

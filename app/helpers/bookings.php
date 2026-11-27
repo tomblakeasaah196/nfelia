@@ -171,6 +171,87 @@ function booking_deposit(array $info, float $total): float {
     };
 }
 
+/* ──────────────────────────────────────────
+ *  SEVERAL SERVICES IN ONE APPOINTMENT
+ *  A time-slot booking can take other time-slot services with it (Acrylic
+ *  and Gel toes, one visit). It stays one booking: one time, as long as
+ *  the services added up (one after another, so one person is never booked
+ *  twice), one total, and the highest of their deposits (one deposit, as
+ *  the salon that asked for it wanted). Each service is a booking_items row.
+ * ────────────────────────────────────────── */
+
+const BOOKING_MAX_EXTRAS = 4;      // up to 5 services in one appointment
+const BOOKING_MAX_MINUTES = 720;   // as long as a single service can be
+
+/**
+ * What can be added to a booking of $item: the shop's other time-slot
+ * services, in the shop's order. [] for stays and whole days.
+ */
+function booking_extras(array $catalogue, array $item): array {
+    if (($item['booking']['mode'] ?? '') !== 'slot') {
+        return [];
+    }
+    return array_values(array_filter($catalogue['bookable'], fn($i) => $i['id'] !== $item['id'] && $i['booking']['mode'] === 'slot'));
+}
+
+/**
+ * The ids a shopper added ("12,14", [12, 14] or one id), each once, at
+ * most BOOKING_MAX_EXTRAS, without $main_id.
+ */
+function booking_parse_extras(mixed $raw, int $main_id): array {
+    $ids = is_array($raw) ? $raw : explode(',', (string)$raw);
+    $ids = array_values(array_unique(array_filter(array_map('intval', $ids), fn($id) => $id > 0 && $id !== $main_id)));
+    return array_slice($ids, 0, BOOKING_MAX_EXTRAS);
+}
+
+/**
+ * One appointment for $item and the services added to it ($extra_ids, from
+ * booking_extras). Returns the booking info to check times with (its
+ * minutes added up), the price and deposit to charge, the name it goes by,
+ * and its lines; null when an added service can't be booked any more.
+ *   ['info', 'price', 'deposit', 'name', 'items' => [[id, name, price, minutes, deposit], …]]
+ * The deposit is worked out on the prices; booking_deposit() is not asked
+ * again on the total.
+ */
+function booking_combine(array $catalogue, array $item, array $extra_ids): ?array {
+    $can = array_column(booking_extras($catalogue, $item), null, 'id');
+    $services = [$item];
+    foreach ($extra_ids as $id) {
+        if (!isset($can[$id])) {
+            return null;
+        }
+        $services[] = $can[$id];
+    }
+    $items = array_map(fn($s) => [
+        'id'      => (int)$s['id'],
+        'name'    => (string)$s['name'],
+        'price'   => (float)$s['price'],
+        'minutes' => (int)$s['booking']['minutes'],
+        'deposit' => booking_deposit($s['booking'], (float)$s['price']),
+    ], $services);
+    $info = $item['booking'];
+    $info['minutes'] = min(BOOKING_MAX_MINUTES, array_sum(array_column($items, 'minutes')));
+    return [
+        'info'    => $info,
+        'price'   => round(array_sum(array_column($items, 'price')), 2),
+        'deposit' => max(array_column($items, 'deposit')),
+        'name'    => mb_substr(implode(' + ', array_column($items, 'name')), 0, 255),
+        'items'   => $items,
+    ];
+}
+
+/**
+ * A booking's services, for the pages that show it: its booking_items, or
+ * the one service it was booked for.
+ *   [['name', 'price', 'minutes'], …]
+ */
+function booking_lines(PDO $db, array $booking): array {
+    $stmt = $db->prepare("SELECT product_name AS name, unit_price AS price, minutes FROM booking_items WHERE booking_id = ? ORDER BY sort_order, id");
+    $stmt->execute([(int)$booking['id']]);
+    $rows = $stmt->fetchAll();
+    return $rows ?: [['name' => (string)$booking['product_name'], 'price' => (float)$booking['unit_price'], 'minutes' => 0]];
+}
+
 /**
  * "2 hours", "45 minutes", "1 hour 30 minutes".
  */

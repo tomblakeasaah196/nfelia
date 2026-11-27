@@ -1468,6 +1468,19 @@ function shop_popularity(PDO $db, int $business_id): array {
     foreach ($stmt->fetchAll() as $row) {
         $count[(int)$row['product_id']] = ($count[(int)$row['product_id']] ?? 0) + (int)$row['n'];
     }
+    // Services added to someone else's visit (booking_items): the first is the booking's own, counted above
+    $stmt = $db->prepare("
+        SELECT bi.product_id, COUNT(*) AS n
+        FROM booking_items bi
+        JOIN bookings b ON b.id = bi.booking_id
+        WHERE b.business_id = ? AND b.created_at >= ? AND b.status NOT IN ('declined', 'cancelled')
+          AND bi.product_id IS NOT NULL AND bi.product_id <> b.product_id
+        GROUP BY bi.product_id
+    ");
+    $stmt->execute([$business_id, $since]);
+    foreach ($stmt->fetchAll() as $row) {
+        $count[(int)$row['product_id']] = ($count[(int)$row['product_id']] ?? 0) + (int)$row['n'];
+    }
     return $count;
 }
 

@@ -473,11 +473,11 @@ class StorefrontController extends PublicController
         }
 
         if ($free && in_array($method, ['GET', 'HEAD'], true)) {
-            $this->booking_free($business, $item);
+            $this->booking_free($business, $item, $catalogue);
             return;
         }
         if ($method === 'POST' && $path === 'book/' . $id) {
-            $this->place_booking($business, $item);
+            $this->place_booking($business, $item, $catalogue);
             return;
         }
         if (!in_array($method, ['GET', 'HEAD'], true) || $free) {
@@ -495,25 +495,31 @@ class StorefrontController extends PublicController
         $booking_settings = booking_settings($business);
         storefront_render($business, $settings, 'live', $visibility, [
             'kind' => 'book', 'item' => $item, 'settings' => $booking_settings, 'window' => booking_window($booking_settings),
+            'extras' => booking_extras($catalogue, $item),   // other services to add to the same visit
         ], $catalogue);
     }
 
     /**
      * Free days of a month (?month=2026-10) or free times of a day
-     * (?date=2026-10-18), as JSON. Never cached: they change with every
-     * booking.
+     * (?date=2026-10-18), as JSON, for the service with any added to it
+     * (&with=12,14: the visit is as long as them all). Never cached: they
+     * change with every booking.
      */
-    private function booking_free(array $business, array $item): void
+    private function booking_free(array $business, array $item, array $catalogue): void
     {
         $month = (string)($_GET['month'] ?? '');
         $date  = (string)($_GET['date'] ?? '');
+        $visit = booking_combine($catalogue, $item, booking_parse_extras($_GET['with'] ?? '', $item['id']));
+        if ($visit === null) {
+            json_response(['error' => 'One of the services you added can\'t be booked any more. Reload the page.'], 409);
+        }
         if (preg_match('/^\d{4}-\d{2}$/', $month)) {
-            json_response(['month' => $month, 'days' => booking_month($this->db, $business, $item, $item['booking'], $month)]);
+            json_response(['month' => $month, 'days' => booking_month($this->db, $business, $item, $visit['info'], $month)]);
         }
         if ($item['booking']['mode'] === 'slot' && booking_valid_date($date)) {
             json_response(['date' => $date, 'times' => array_map(
                 fn($t) => ['t' => $t, 'label' => booking_time_text($t)],
-                booking_slots($this->db, $business, $item['booking'], $date)
+                booking_slots($this->db, $business, $visit['info'], $date)
             )]);
         }
         json_response(['error' => 'Ask for a month (month=2026-10) or a day (date=2026-10-18).'], 422);
@@ -582,10 +588,17 @@ class StorefrontController extends PublicController
      * owner confirms it. Prices come from the products table, never from the
      * page.
      */
-    private function place_booking(array $business, array $item): void
+    private function place_booking(array $business, array $item, array $catalogue): void
     {
         $bid     = (int)$business['id'];
-        $info    = $item['booking'];
+        // Services added to the same visit (booking_combine): one time as
+        // long as them all, their prices added up, the highest deposit
+        $visit   = booking_combine($catalogue, $item, booking_parse_extras($_POST['with'] ?? '', $item['id']));
+        if ($visit === null) {
+            json_response(['error' => 'One of the services you added can\'t be booked any more. Reload the page and pick again.'], 409);
+        }
+        $several = count($visit['items']) > 1;
+        $info    = $visit['info'];
         $channel = ($_POST['channel'] ?? '') === 'whatsapp' ? 'whatsapp' : 'site';
         $name    = trim((string)($_POST['customer_name'] ?? ''));
         $phone   = trim((string)($_POST['customer_phone'] ?? ''));
@@ -635,9 +648,9 @@ class StorefrontController extends PublicController
                 json_response(['error' => $slot['error']], 409);
             }
             // A longer stay may pay less a night; the caution fee is paid with the booking, refundable
-            $unit    = booking_night_price($info, (float)$item['price'], (int)$slot['units']);
+            $unit    = $several ? $visit['price'] : booking_night_price($info, (float)$item['price'], (int)$slot['units']);
             $total   = round($unit * $slot['units'], 2);
-            $deposit = booking_deposit($info, $total);
+            $deposit = $several ? $visit['deposit'] : booking_deposit($info, $total);
             $caution = $info['caution'];
 
             // ADA-BKG-008, carrying on from the old BKG-0007 numbers
@@ -652,10 +665,17 @@ class StorefrontController extends PublicController
                                       unit_price, total, deposit_due, caution_fee, currency_code, customer_id, customer_name, customer_phone,
                                       customer_email, customer_note, channel, payment_method, payment_proof_path)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ")->execute([$bid, $item['id'], mb_substr($item['name'], 0, 150), $number, $token, $info['mode'], $slot['starts_at'], $slot['ends_at'],
+            ")->execute([$bid, $item['id'], $visit['name'], $number, $token, $info['mode'], $slot['starts_at'], $slot['ends_at'],
                          $slot['units'], $unit, $total, $deposit, $caution, business_currency_code($business), $customer_id, $name, $phone,
                          $email ?: null, $note ?: null, $channel, $method, $proof]);
             $booking_id = (int)$this->db->lastInsertId();
+            if ($several) {
+                $line = $this->db->prepare("INSERT INTO booking_items (booking_id, business_id, product_id, product_name, minutes, unit_price, deposit, sort_order)
+                                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+                foreach ($visit['items'] as $i => $service) {
+                    $line->execute([$booking_id, $bid, $service['id'], mb_substr($service['name'], 0, 150), $service['minutes'], $service['price'], $service['deposit'], $i + 1]);
+                }
+            }
             $this->db->commit();
         } catch (\Throwable $e) {
             if ($this->db->inTransaction()) {
@@ -667,23 +687,23 @@ class StorefrontController extends PublicController
         }
 
         $booking = ['booking_number' => $number, 'public_token' => $token, 'kind' => $info['mode'], 'starts_at' => $slot['starts_at'],
-                    'ends_at' => $slot['ends_at'], 'units' => $slot['units'], 'product_name' => $item['name']];
+                    'ends_at' => $slot['ends_at'], 'units' => $slot['units'], 'product_name' => $visit['name']];
         $when = booking_when($booking);
         $url  = booking_url($business, $booking);
         notify('booking.new', $bid, [
-            'booking_id' => $booking_id, 'booking_number' => $number, 'item' => $item['name'], 'when' => $when,
+            'booking_id' => $booking_id, 'booking_number' => $number, 'item' => $visit['name'], 'when' => $when,
             'customer' => $name, 'phone' => $phone, 'deposit' => (float)$deposit, 'caution' => (float)$caution,
         ], ['business' => $business, 'dedupe' => (string)$booking_id]);
         if ($email !== '' && $url) {
             $symbol = (string)($business['currency_symbol'] ?? '');
             $vars = ['state' => 'received', 'first_name' => mail_first_name($name), 'shop_name' => (string)$business['name'],
-                     'booking_number' => $number, 'service' => $item['name'], 'when' => $when, 'booking_url' => $url,
+                     'booking_number' => $number, 'service' => $visit['name'], 'when' => $when, 'booking_url' => $url,
                      'total' => sf_money($total, $symbol), 'deposit' => $deposit > 0 ? sf_money($deposit, $symbol) : '',
                      'caution' => $caution > 0 ? sf_money($caution, $symbol) : '', 'message' => ''];
             notify_email($bid, $email, $name, 'Your booking ' . $number . ' with ' . $business['name'], 'booking_update', $vars,
                          'booking:' . $booking_id . ':received', 'shopper.booking');
         }
-        json_response(['success' => true, 'booking_number' => $number, 'booking_url' => $url, 'when' => $when,
+        json_response(['success' => true, 'booking_number' => $number, 'booking_url' => $url, 'when' => $when, 'service' => $visit['name'],
                        'total' => $total, 'deposit' => $deposit, 'caution' => $caution, 'channel' => $channel]);
     }
 
