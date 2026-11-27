@@ -355,7 +355,8 @@ ok(str_contains($lola->body, 'October offer'), 'a lead\'s page shows the campaig
 $lola->post(o('campaigns'), ['name' => 'November', 'subject' => 'Hi {first_name}', 'body' => 'Something new for {business}.', 'leads' => ['contacted'], 'clients' => ['active']]);
 $next = ops_campaign_people(get_db(), ['leads' => ['contacted'], 'clients' => ['active']]);
 ok(!isset($next[$first['email']]) && !isset($next[$second['email']]) && !isset($next['funmi@mamaput.test']), 'the next campaign leaves out everyone who unsubscribed');
-ok(notify_email(null, $first['email'], 'x', 'Your receipt', 'notification', ['message' => 'x']) !== null, 'account emails still go to them');
+ok(notify_email(null, $first['email'], 'x', 'Your receipt', 'notification',
+                ['headline' => 'Your receipt', 'message' => 'x', 'button' => 'Open it', 'open_url' => APP_URL]) !== null, 'account emails still go to them');
 
 /* ── Who may do what ────────────────────────────────────────── */
 
@@ -452,16 +453,7 @@ foreach ([[80, 'Quiet Shop', 3], [81, 'Busy Shop', 3], [82, 'Brand New Shop', 1]
     exec_sql("INSERT INTO subscriptions (business_id, country_id, plan, status, user_seats, trial_ends_at) VALUES (?, 1, 'trial', 'trial', 1, CURDATE() + INTERVAL 10 DAY)", [$id]);
 }
 exec_sql("INSERT INTO customers (business_id, full_name, phone) VALUES (81, 'First Customer', '08011112222')");
-$outbox_before = (int)q("SELECT COALESCE(MAX(id), 0) FROM notify_outbox");
 cron_at('11:00');
-foreach (rows("SELECT id, event, channel, status, recipient, last_error, LEFT(payload, 160) AS p FROM notify_outbox WHERE id > ? OR status <> 'sent'", [$outbox_before]) as $r) {
-    echo '    [outbox] ' . json_encode($r, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "
-";
-}
-foreach (rows("SELECT * FROM error_groups WHERE title LIKE 'Undefined variable%'") as $r) {
-    echo '    [error] ' . mb_substr(json_encode($r, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), 0, 900) . "
-";
-}
 $idle = rows("SELECT * FROM leads WHERE business_id = 80")[0] ?? [];
 eq([$idle['source'] ?? '', $idle['stage'] ?? '', $idle['name'] ?? '', $idle['email'] ?? '', $idle['phone'] ?? ''],
    ['idle', 'new', 'Owner 80', 'owner@idle80.test', '080700080'], 'set up 3 days ago with nothing added: a New lead, with the owner\'s contact');
