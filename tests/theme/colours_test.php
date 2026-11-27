@@ -58,7 +58,7 @@ function ok(bool $cond, string $what): void
 const NFELIA_OWN = [
     'views/auth/', 'views/onboarding/', 'views/home/', 'views/ops/', 'views/directory/', 'views/verify/',
     'views/500.php', 'views/partials/nf_splash.php', 'assets/js/home.js',
-    'views/emails/welcome.php', 'views/emails/verification.php', 'views/emails/signin_link.php',
+    'views/emails/welcome.php', 'views/emails/welcome_fr.php', 'views/emails/verification.php', 'views/emails/signin_link.php',
     'views/emails/password_reset.php', 'views/emails/password_changed.php', 'views/emails/subscription_activated.php',
     'views/emails/price_notice.php', 'views/emails/ops_',
 ];

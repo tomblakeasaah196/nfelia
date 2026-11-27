@@ -3,12 +3,13 @@
  * Nfelia — Email Base Layout
  * Variables available: $biz_name, $biz_color, $biz_on, $biz_text, $biz_soft, $biz_link (render_email()),
  * $biz_logo, $biz_tagline, $biz_email, $inner_content,
- * $is_platform (true for Nfelia's own emails: Nfelia mark, "Powered by JBS Praxis")
+ * $is_platform (true for Nfelia's own emails: Nfelia mark, "Powered by JBS Praxis"),
+ * $lang ('fr' for Nfelia's French emails to owners in Cameroon; English otherwise)
  * All email clients have poor CSS support — use table-based layout, inline styles only.
  */
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<?= ($lang ?? 'en') === 'fr' ? 'fr' : 'en' ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -100,8 +101,13 @@
                                 </tr>
                                 <tr>
                                     <td colspan="2" style="padding-top:16px;font-size:9px;color:#c0b8b4;border-top:1px solid #E8E4DA;margin-top:12px;">
+                                        <?php if (($lang ?? 'en') === 'fr' && !empty($is_platform)): ?>
+                                        &copy; <?= date('Y') ?> Nfelia. Cet e-mail vous a été envoyé par l'équipe Nfelia.
+                                        Si vous ne l'attendiez pas, vous pouvez l'ignorer.
+                                        <?php else: ?>
                                         &copy; <?= date('Y') ?> Nfelia. <?php if (!empty($is_platform)): ?>This email was sent by the Nfelia team.<?php else: ?>This email was sent from <?= htmlspecialchars($biz_name, ENT_QUOTES) ?>'s workspace on Nfelia.<?php endif; ?>
                                         If you did not expect this, you may safely ignore it.
+                                        <?php endif; ?>
                                     </td>
                                 </tr>
                             </table>

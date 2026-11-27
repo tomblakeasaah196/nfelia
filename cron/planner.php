@@ -415,6 +415,20 @@ try {
     errors_report_throwable($e, ['job' => 'Cron: Ops sales']);
 }
 
+// New owners on their free trial: a getting-started email from Customer
+// Support on days 1, 3 and 7, until they use Nfelia, in French for owners
+// in Cameroon (app/helpers/getting_started.php). Mid-morning, once a day:
+// each email has its own outbox key, so the hour's other runs send nothing.
+if ($hour === 10) {
+    try {
+        require_once __DIR__ . '/../app/helpers/getting_started.php';
+        $done['getting_started'] = getting_started_run($db, $now);
+    } catch (Throwable $e) {
+        $done['errors']++;
+        errors_report_throwable($e, ['job' => 'Cron: getting started']);
+    }
+}
+
 // Meetings booked at nfelia.com/book: reminders a day and an hour before,
 // and Sales told when one is close with no Meet link yet (app/ops/meetings.php).
 try {
