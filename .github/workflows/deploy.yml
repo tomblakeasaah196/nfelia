@@ -60,6 +60,9 @@ jobs:
       - name: The bot guard on sign-up and the account-link forms (no database needed)
         run: php tests/auth/bot_guard_test.php
 
+      - name: The deploy swaps in only changed files, each in one step (no database needed)
+        run: php tests/deploy/sync_test.php
+
       - name: No server-specific collation may be pinned
         run: |
           set -euo pipefail

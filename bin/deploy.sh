@@ -65,10 +65,16 @@ echo "[deploy] post-pull HEAD: $(git rev-parse HEAD)"
 git log -1 --pretty='[deploy] commit: %h %s (%an)'
 
 # --- 2. Copy the tree into the docroot, honouring .deployignore ------------
-# rsync is not installed on this cPanel host, so we stream through tar.
-# NOTE: this does NOT do rsync's --delete. A file removed from the repo
-# lingers in the docroot and must be deleted by hand. Runtime files (.env,
-# .htaccess, uploads/, storage/) are safe because they are never copied.
+# rsync is not installed on this cPanel host, so the release is streamed
+# through tar into a staging folder, and bin/deploy_sync.php copies into the
+# docroot only the files whose content changed, each written under a
+# temporary name and renamed over the old one in one step. Untarring
+# straight over the docroot rewrote every file in place, and a request
+# could read one half-written: on 27 Nov 2026 a page crashed on
+# lib/PHPMailer/src/SMTP.php mid-deploy ("Unclosed '{'").
+# NOTE: there is no --delete. A file removed from the repo lingers in the
+# docroot and must be deleted by hand. Runtime files (.env, uploads/,
+# storage/) are safe because .deployignore leaves them out.
 if [ ! -f "$REPO/.deployignore" ]; then
     echo "[deploy] $REPO/.deployignore missing — aborting" >&2
     exit 1
@@ -77,12 +83,33 @@ if [ ! -d "$DEPLOYPATH" ]; then
     echo "[deploy] docroot $DEPLOYPATH does not exist — aborting" >&2
     exit 1
 fi
-# --no-overwrite-dir is load-bearing: without it the archive's "." member
-# copies the repo root's 0700 mode onto the docroot, LiteSpeed (group
-# nobody) can no longer enter it, and every page returns 403.
+STAGE="$HOME/.deploy-nfelia-stage"
+rm -rf "$STAGE"
+mkdir -p "$STAGE"
 tar cf - --exclude-from="$REPO/.deployignore" -C "$REPO" . \
-  | ( cd "$DEPLOYPATH" && tar xpf - --no-overwrite-dir )
-echo "[deploy] tar -> $DEPLOYPATH done"
+  | ( cd "$STAGE" && tar xpf - )
+echo "[deploy] tar -> $STAGE (staged)"
+
+# --- Origin lock (docs/ops/SECURITY.md §5) ---------------------------------
+# The repo's .htaccess carries placeholders; the real value lives in the
+# docroot .env as EDGE_TOKEN and in Cloudflare's request-header rule. With a
+# usable token the block is armed; without one it is removed, the site stays
+# open as before, and the log says so. Never fails the deploy. Done on the
+# staged copy, so the live .htaccess is only replaced when it really changes
+# and never sits unarmed for a moment.
+EDGE_TOKEN="$(grep -E '^EDGE_TOKEN=' "$DEPLOYPATH/.env" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '\r"'"'"' ' || true)"
+if printf '%s' "$EDGE_TOKEN" | grep -Eq '^[A-Za-z0-9_-]{24,128}$'; then
+    sed -i -e "s/__EDGE_TOKEN__/$EDGE_TOKEN/g" -e "s/__EDGE_ARMED__/armed/g" "$STAGE/.htaccess"
+    echo "[deploy] origin lock ARMED (EDGE_TOKEN from .env; Cloudflare must send X-Nfelia-Edge)"
+else
+    sed -i '/# nf-edge-lock-begin/,/# nf-edge-lock-end/d' "$STAGE/.htaccess"
+    echo "[deploy] origin lock OFF: no usable EDGE_TOKEN in .env (letters, digits, - and _, 24 to 128 long)"
+fi
+
+# Folders are made when missing and never re-moded: the docroot's own mode
+# keeps LiteSpeed (group nobody) able to enter it, or every page is a 403.
+"$PHP" "$REPO/bin/deploy_sync.php" "$STAGE" "$DEPLOYPATH"
+rm -rf "$STAGE"
 
 # The release now live, for Nfelia Ops (errors are tagged with it, and a
 # problem fixed in one release that comes back in a later one says so).
@@ -95,22 +122,8 @@ echo "[deploy] release $(cut -d' ' -f1 "$DEPLOYPATH/storage/release")"
 # run there, long caching for the images) is laid down from the repo on
 # every deploy instead.
 mkdir -p "$DEPLOYPATH/uploads"
-cp "$REPO/bin/uploads.htaccess" "$DEPLOYPATH/uploads/.htaccess"
+cp "$REPO/bin/uploads.htaccess" "$DEPLOYPATH/uploads/.htaccess.deploy-$$" && mv -f "$DEPLOYPATH/uploads/.htaccess.deploy-$$" "$DEPLOYPATH/uploads/.htaccess"
 echo "[deploy] uploads/.htaccess refreshed"
-
-# --- Origin lock (docs/ops/SECURITY.md §5) ---------------------------------
-# The repo's .htaccess carries placeholders; the real value lives in the
-# docroot .env as EDGE_TOKEN and in Cloudflare's request-header rule. With a
-# usable token the block is armed; without one it is removed, the site stays
-# open as before, and the log says so. Never fails the deploy.
-EDGE_TOKEN="$(grep -E '^EDGE_TOKEN=' "$DEPLOYPATH/.env" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '\r"'"'"' ' || true)"
-if printf '%s' "$EDGE_TOKEN" | grep -Eq '^[A-Za-z0-9_-]{24,128}$'; then
-    sed -i -e "s/__EDGE_TOKEN__/$EDGE_TOKEN/g" -e "s/__EDGE_ARMED__/armed/g" "$DEPLOYPATH/.htaccess"
-    echo "[deploy] origin lock ARMED (EDGE_TOKEN from .env; Cloudflare must send X-Nfelia-Edge)"
-else
-    sed -i '/# nf-edge-lock-begin/,/# nf-edge-lock-end/d' "$DEPLOYPATH/.htaccess"
-    echo "[deploy] origin lock OFF: no usable EDGE_TOKEN in .env (letters, digits, - and _, 24 to 128 long)"
-fi
 
 # Normalise permissions. tar xp preserves the archive's modes, and the
 # archive carries whatever umask was in force when the repo was cloned.

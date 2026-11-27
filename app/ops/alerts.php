@@ -38,13 +38,13 @@ function ops_alert(PDO $db, string $kind, string $title, string $body, string $u
             }
             $told++;
             $alert_id = (int)$db->lastInsertId();
-            if ($email) {
+            if ($email && ops_alert_outbox()) {
                 notify_email(null, (string)$person['email'], (string)$person['full_name'], 'Urgent: ' . $title, 'ops_message', [
                     'headline' => $title, 'message' => $body, 'button' => 'Open it in Nfelia Ops', 'url' => ops_url('alerts/open/' . $alert_id),
                     'note' => 'You get this because your Ops role includes it.',
                 ], 'ops-alert:' . $alert_id, 'ops.' . $kind);
             }
-            if ($push && (int)$person['alert_push']) {
+            if ($push && (int)$person['alert_push'] && ops_alert_outbox()) {
                 notify_queue($db, [
                     'staff_id' => (int)$person['id'], 'event' => 'ops.' . $kind, 'channel' => 'push', 'urgency' => 'high', 'ttl' => 6 * 3600,
                     'payload'  => ['title' => $title, 'body' => $body, 'url' => ops_url('alerts/open/' . $alert_id), 'tag' => 'ops-' . $kind . '-' . md5($dedupe)],
@@ -57,6 +57,24 @@ function ops_alert(PDO $db, string $kind, string $title, string $body, string $u
     return $told;
 }
 
+/**
+ * The outbox (app/helpers/notify.php), loaded if this page died before
+ * getting to it: a crash while the app was still starting (a file read
+ * half-written during a deploy, 27 Nov 2026) used to lose its own alert to
+ * "Call to undefined function notify_queue()". The bell row is written
+ * either way; this is for the phone and email.
+ */
+function ops_alert_outbox(): bool
+{
+    if (!function_exists('notify_queue')) {
+        $file = dirname(__DIR__) . '/helpers/notify.php';
+        if (is_file($file)) {
+            require_once $file;
+        }
+    }
+    return function_exists('notify_queue') && function_exists('notify_email');
+}
+
 /** An alert to one person (an error given to them), bell and phone. */
 function ops_alert_one(PDO $db, int $staff_id, string $kind, string $title, string $body, string $url, string $dedupe): void
 {
@@ -65,7 +83,7 @@ function ops_alert_one(PDO $db, int $staff_id, string $kind, string $title, stri
         $add->execute([$staff_id, $kind, mb_substr($title, 0, 255), mb_substr($body, 0, 500), mb_substr($url, 0, 255), mb_substr($dedupe, 0, 150)]);
         $alert_id = $add->rowCount() === 1 ? (int)$db->lastInsertId() : 0;
         $person = $alert_id ? ops_staff_by_id($staff_id) : null;
-        if ($person && (int)$person['alert_push']) {
+        if ($person && (int)$person['alert_push'] && ops_alert_outbox()) {
             notify_queue($db, [
                 'staff_id' => $staff_id, 'event' => 'ops.' . $kind, 'channel' => 'push', 'ttl' => 6 * 3600,
                 'payload'  => ['title' => $title, 'body' => $body, 'url' => ops_url('alerts/open/' . $alert_id), 'tag' => 'ops-' . $kind . '-' . md5($url)],
