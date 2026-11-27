@@ -113,6 +113,19 @@ eq($h->to(), 'dashboard', 'saving the shop goes Home');
 $h->follow();
 ok(str_contains($h->body, '14 days left of your free trial'), 'where the owner sees the trial\'s days left');
 
+/* ══ Get started ═══════════════════════════════════════════════ */
+section('Home shows a new owner where to start, and ticks it off');
+ok(str_contains($h->body, 'Get started') && str_contains($h->body, '0 of 5 done'), 'a new owner sees "Get started", nothing done yet');
+ok(str_contains($h->body, 'Add what you sell') && str_contains($h->body, 'Put your shop online') && str_contains($h->body, 'Get alerts on your phone'),
+   'what to sell, a customer, a first sale, the shop and phone alerts');
+exec_sql("INSERT INTO customers (business_id, full_name, phone) VALUES (?, 'Ngozi Eze', '08031110000')", [$biz['id']]);
+$h->get('dashboard');
+ok(str_contains($h->body, '1 of 5 done') && str_contains($h->body, 'Done: Add a customer'), 'adding a customer ticks it off by itself');
+$h->post('dashboard/hide-first-steps');
+eq($h->to(), 'dashboard', '"hide this" goes back Home');
+$h->get('dashboard');
+ok(!str_contains($h->body, 'Get started'), 'where the card is gone for this person');
+
 /* ══ Hair & Beauty elsewhere ═══════════════════════════════════ */
 section('Hair & Beauty has its own words outside onboarding');
 require_once BASE_PATH . '/app/helpers/records.php';

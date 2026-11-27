@@ -53,6 +53,39 @@ if ($deliveries_open > 0) {
     <div class="nf-results" id="nf-omni" hidden></div>
 </div>
 
+<?php if (!empty($first_steps)):
+    $done_n = count(array_filter($first_steps, fn($s) => $s['done']));
+    $all_n  = count($first_steps); ?>
+<section class="nf-card is-flush" aria-labelledby="nf-start-h" id="get-started">
+    <div class="nf-card-h"><h2 id="nf-start-h">Get started</h2><span class="nf-card-note" style="padding:0"><?= $done_n ?> of <?= $all_n ?> done</span></div>
+    <div style="padding:0 16px">
+        <div class="nf-thread<?= $done_n ? '' : ' is-empty' ?>" style="--done: <?= (int)round($done_n / $all_n * 100) ?>%" role="img"
+             aria-label="<?= $done_n ?> of <?= $all_n ?> steps done"><i></i></div>
+    </div>
+    <div class="nf-items">
+        <?php foreach ($first_steps as $s): ?>
+            <?php if ($s['done']): ?>
+                <div class="nf-item" aria-label="Done: <?= e($s['title']) ?>">
+                    <span class="nf-face is-square is-in"><?= nav_icon('check') ?></span>
+                    <span class="nf-item-main"><b style="text-decoration:line-through;opacity:.6"><?= e($s['title']) ?></b></span>
+                </div>
+            <?php else: ?>
+                <a class="nf-item" href="<?= APP_URL ?>/<?= e($s['url']) ?>">
+                    <span class="nf-face is-square"><?= nav_icon('plus') ?></span>
+                    <span class="nf-item-main"><b><?= e($s['title']) ?></b><small><?= e($s['hint']) ?></small></span>
+                    <span class="nf-go"><?= nav_icon('chevron') ?></span>
+                </a>
+            <?php endif; ?>
+        <?php endforeach; ?>
+    </div>
+    <form method="post" action="<?= APP_URL ?>/dashboard/hide-first-steps" class="nf-card-note">
+        <?= csrf_field() ?>
+        Stuck? <a class="nf-link" href="https://nfelia.com/book">Book a free session with us</a>, or
+        <button type="submit" class="nf-link" style="background:none;border:0;padding:0;cursor:pointer;font:inherit">hide this</button>.
+    </form>
+</section>
+<?php endif; ?>
+
 <div class="nf-cols">
     <div>
         <?php if ($is_boss): ?>
