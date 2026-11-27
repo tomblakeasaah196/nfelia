@@ -454,7 +454,7 @@ foreach ([[80, 'Quiet Shop', 3], [81, 'Busy Shop', 3], [82, 'Brand New Shop', 1]
 exec_sql("INSERT INTO customers (business_id, full_name, phone) VALUES (81, 'First Customer', '08011112222')");
 $outbox_before = (int)q("SELECT COALESCE(MAX(id), 0) FROM notify_outbox");
 cron_at('11:00');
-foreach (rows("SELECT id, event, channel, status, recipient, last_error, LEFT(payload, 160) AS p FROM notify_outbox WHERE id > ? OR (status <> 'sent' AND updated_at > NOW() - INTERVAL 1 MINUTE)", [$outbox_before]) as $r) {
+foreach (rows("SELECT id, event, channel, status, recipient, last_error, LEFT(payload, 160) AS p FROM notify_outbox WHERE id > ? OR status <> 'sent'", [$outbox_before]) as $r) {
     echo '    [outbox] ' . json_encode($r, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "
 ";
 }
