@@ -2,7 +2,8 @@
 /**
  * Email someone at a client (OpsClientsController::email_form): $b, $people
  * (who can be written to), $person (picked, or the owner), $draft (to,
- * subject, body, button), $mail (ops_email_vars() for $person, or null;
+ * subject, body, button), $signer (ops_email_signer(): first name, name,
+ * title), $me_name, $mail (ops_email_vars() for $person, or null;
  * not $vars, which ops_render() keeps for itself),
  * $preview (the email as it will arrive, or null), $suggestion (a polished
  * subject and body, or null), $polish_ready, $from, $reply_to, $copies,
@@ -18,6 +19,9 @@ $buttons = ops_email_buttons();
         <h1 class="ops-break">Email <?= e($b['name']) ?></h1>
         <p>Write it in your own words: it goes out in Nfelia's design, from <b><?= e($from) ?></b>. Replies come to <b><?= e($reply_to) ?></b><?php if ($copies): ?>,
            and <?= e(implode(', ', $copies)) ?> gets a copy they don't see<?php endif; ?>. It is kept in the client's notes.</p>
+        <?php if ($signer[1] !== $me_name): ?>
+        <p class="small muted">You sign as <b><?= e($signer[1]) ?>, <?= e($signer[2]) ?></b>: the client never sees your own name. The notes and the audit log keep that it was you.</p>
+        <?php endif; ?>
     </div>
 </div>
 

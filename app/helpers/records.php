@@ -672,8 +672,9 @@ function records_tell_ready(PDO $db, array $book, array $business): void
     $biz = (int)$book['business_id'];
     if ($book['charge'] === 'team') {
         $staff = $book['staff_id'] ? ops_staff_by_id((int)$book['staff_id']) : null;
+        require_once __DIR__ . '/ops_persona.php';
         notify('records.team_built', $biz, [
-            'book_id' => (int)$book['id'], 'staff' => $staff['full_name'] ?? 'The Nfelia team', 'reason' => (string)$book['reason'], 'sent' => (int)$book['send_to_owner'],
+            'book_id' => (int)$book['id'], 'staff' => ops_public_actor($staff['full_name'] ?? null), 'reason' => (string)$book['reason'], 'sent' => (int)$book['send_to_owner'],
         ], ['dedupe' => 'book:' . $book['id']]);
         return;
     }

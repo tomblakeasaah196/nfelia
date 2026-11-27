@@ -320,6 +320,23 @@ eq(count(audit_rows('client.email')), 1, 'and in the audit log');
 $grace->post(o('clients/2/email'), $letter);
 eq(count(array_filter(mails_to('ada@adashair.test'), fn($m) => $m['subject'] === 'Hello from Nfelia')), 1, 'pressing Send again by mistake sends nothing more');
 
+// The founder signs as Simi, Customer Support (app/helpers/ops_persona.php): clients never see his name
+exec_sql("INSERT INTO ops_staff (full_name, email, password_hash, role, is_active) SELECT 'Tom-Blake Founder', 'founder@nfelia.test', password_hash, 'admin', 1 FROM ops_staff WHERE id = 1");
+$founder = as_ops('founder@nfelia.test');
+$founder->get(o('clients/2/email'));
+ok(str_contains($founder->body, 'Simi from Nfelia') && str_contains($founder->body, 'You sign as <b>Simi, Customer Support</b>'), 'the founder sees he signs as Simi, Customer Support');
+$founder->post(o('clients/2/email'), ['to' => ADA, 'subject' => 'A note from support', 'body' => "Hi {first_name},\n\nWe are here if you need us.", 'button' => 'none', 'do' => 'send']);
+$from_founder = array_values(array_filter(mails_to('ada@adashair.test'), fn($m) => $m['subject'] === 'A note from support'))[0] ?? ['from' => '', 'text' => '', 'html' => ''];
+ok(str_contains($from_founder['from'], 'Simi from Nfelia'), 'his email is from "Simi from Nfelia"');
+ok(str_contains($from_founder['text'], 'Simi') && str_contains($from_founder['text'], 'Customer Support'), 'and signed Simi, Customer Support');
+ok(!str_contains($from_founder['from'] . $from_founder['html'], 'Tom-Blake'), 'his own name is nowhere in it');
+ok((bool)rows("SELECT 1 FROM ops_notes n JOIN ops_staff s ON s.id = n.staff_id WHERE s.email = 'founder@nfelia.test' AND n.body LIKE '%Signed as Simi, Customer Support.%'"),
+   'the note keeps that it was him, signing as Simi');
+require_once BASE_PATH . '/app/helpers/ops_persona.php';
+eq([ops_public_actor('Tom-Blake Founder'), ops_public_actor('Sam Support')], ['Customer Support', 'Sam Support'],
+   'a notice about something he did says "Customer Support"; anyone else is named');
+exec_sql("UPDATE ops_staff SET is_active = 0 WHERE email = 'founder@nfelia.test'");
+
 exec_sql("INSERT INTO users (business_id, full_name, email, password_hash, role, is_active) VALUES (2, 'Gone Away', 'gone@adashair.invalid', 'x', 'staff', 1)");
 $gone = (int)q("SELECT id FROM users WHERE email = 'gone@adashair.invalid'");
 $grace->post(o('clients/2/email'), ['to' => $gone, 'subject' => 'Are you there?', 'body' => 'Checking that this address works.', 'button' => 'none', 'do' => 'send']);

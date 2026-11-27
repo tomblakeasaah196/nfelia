@@ -54,7 +54,8 @@ function view_as_start(string $token): ?string
     ];
     csrf_regenerate();
 
-    notify('security.view_as', (int)$view['business_id'], ['staff' => $view['staff_name'], 'reason' => $view['reason']],
+    require_once __DIR__ . '/ops_persona.php';
+    notify('security.view_as', (int)$view['business_id'], ['staff' => ops_public_actor($view['staff_name']), 'reason' => $view['reason']],
            ['users' => [(int)$view['user_id']], 'dedupe' => 'view-as:' . $view['id']]);
     return null;
 }
