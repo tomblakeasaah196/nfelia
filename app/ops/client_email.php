@@ -72,10 +72,28 @@ function ops_email_fill(string $text, array $person, array $business): string
     return strtr($text, ['{first_name}' => $first !== '' ? $first : 'there', '{business}' => (string)($business['name'] ?: 'your business')]);
 }
 
-/** The writer as the inbox shows them: "Tom-Blake from Nfelia". */
+/**
+ * Who the client sees the email is from, and its signature: [first name,
+ * full name, title]. Someone who signs as another person (the founder signs
+ * as Simi, Customer Support: app/helpers/ops_persona.php) shows that name
+ * everywhere in the email.
+ */
+function ops_email_signer(array $staff): array
+{
+    require_once BASE_PATH . '/app/helpers/ops_persona.php';
+    $full = trim((string)($staff['full_name'] ?? ''));
+    if ($as = ops_public_persona($full)) {
+        return [$as[0], $as[0], $as[1]];
+    }
+    $first = preg_split('/\s+/u', $full)[0] ?? '';
+    $title = match ($staff['role'] ?? '') { 'support' => 'Customer Support', 'sales' => 'Sales', default => 'Nfelia' };
+    return [$first, $full !== '' ? $full : 'The Nfelia team', $title];
+}
+
+/** The writer as the inbox shows them: "Simi from Nfelia". */
 function ops_email_from_name(array $staff): string
 {
-    $first = preg_split('/\s+/u', trim((string)($staff['full_name'] ?? '')))[0] ?? '';
+    $first = ops_email_signer($staff)[0];
     return ($first !== '' ? $first . ' from ' : '') . 'Nfelia';
 }
 
@@ -86,14 +104,14 @@ function ops_email_from_name(array $staff): string
 function ops_email_vars(array $draft, array $person, array $business, array $staff): array
 {
     $button = ops_email_buttons()[$draft['button'] ?? 'none'] ?? ops_email_buttons()['none'];
-    $role   = match ($staff['role'] ?? '') { 'admin' => 'Nfelia', 'support' => 'Nfelia Support', 'sales' => 'Nfelia Sales', default => 'Nfelia' };
+    [, $writer, $title] = ops_email_signer($staff);
     return [
         'subject'      => ops_email_fill(trim((string)$draft['subject']), $person, $business),
         'body'         => ops_email_fill(trim((string)$draft['body']), $person, $business),
         'button_text'  => $button['text'],
         'button_url'   => $button['url'],
-        'writer'       => trim((string)($staff['full_name'] ?? '')) ?: 'The Nfelia team',
-        'writer_role'  => $role,
+        'writer'       => $writer,
+        'writer_role'  => $title,
         'reply_to'     => ops_email_reply_to(),
     ];
 }
@@ -149,7 +167,8 @@ function ops_email_send(PDO $db, array $draft, array $person, array $business, a
     $copies = ops_email_copies();
     $note = "Emailed {$person['full_name']} <{$person['email']}>: {$vars['subject']}\n\n{$vars['body']}"
           . ($vars['button_text'] ? "\n\n[Button: {$vars['button_text']}]" : '')
-          . "\n\nReplies go to " . ops_email_reply_to() . ($copies ? '; a copy went to ' . implode(', ', $copies) : '') . '.';
+          . "\n\nReplies go to " . ops_email_reply_to() . ($copies ? '; a copy went to ' . implode(', ', $copies) : '') . '.'
+          . ($vars['writer'] !== trim((string)($staff['full_name'] ?? '')) ? ' Signed as ' . $vars['writer'] . ', ' . $vars['writer_role'] . '.' : '');
     $db->prepare("INSERT INTO ops_notes (subject_type, subject_id, staff_id, body) VALUES ('business', ?, ?, ?)")
        ->execute([(int)$business['id'], (int)$staff['id'], mb_substr($note, 0, 4000)]);
     ops_audit('client.email', 'Emailed ' . $business['name'] . ' (' . $person['email'] . '): ' . $vars['subject'],

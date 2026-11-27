@@ -303,6 +303,7 @@ class OpsClientsController
             'b' => $b, 'people' => $people, 'person' => $person, 'draft' => $draft, 'mail' => $vars, 'preview' => $preview,
             'suggestion' => $state['suggestion'] ?? null, 'polish_ready' => ops_email_polish_ready(),
             'from' => ops_email_from_name($this->me), 'reply_to' => ops_email_reply_to(), 'copies' => ops_email_copies(),
+            'signer' => ops_email_signer($this->me), 'me_name' => (string)($this->me['full_name'] ?? ''),
             'sent' => $stmt->fetchAll(),
         ], 'Email ' . $b['name']);
     }
