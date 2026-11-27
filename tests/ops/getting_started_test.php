@@ -54,6 +54,17 @@ $shop  = trial_business(13, 'Shopless', 'Sola Shop', 7, 1);                     
 product(13);
 
 /* ══ The 10:00 run ═════════════════════════════════════════════ */
+/** The getting-started emails to one address (the cron's other emails, like the morning summary, aside). */
+function simi_to(string $address): array
+{
+    return array_values(array_filter(mails_to($address), fn($m) => str_contains($m['from'], 'Simi')));
+}
+/** Getting-started emails queued for one business. */
+function queued_for(int $business): int
+{
+    return (int)q("SELECT COUNT(*) FROM notify_outbox WHERE business_id = ? AND event LIKE 'onboarding.%'", [$business]);
+}
+
 section('At 10:00, each new owner gets the next step that matters');
 $getting_started = fn(): int => (int)q("SELECT COUNT(*) FROM notify_outbox WHERE event LIKE 'onboarding.%'");
 cron_at('09:55');
@@ -62,7 +73,7 @@ $ran = cron_at('10:00');
 ok(str_contains($ran, 'getting_started=4'), 'the 10:00 run queues four (' . $ran . ')');
 deliver();
 
-$m = mails_to($mamie)[0] ?? ['subject' => '', 'text' => '', 'html' => '', 'from' => '', 'reply_to' => ''];
+$m = simi_to($mamie)[0] ?? ['subject' => '', 'text' => '', 'html' => '', 'from' => '', 'reply_to' => ''];
 eq($m['subject'], 'Commencez par ce que vous vendez', 'day 1, nothing added, in Cameroon: in French, start with what you sell');
 ok(str_contains($m['text'], 'Bonjour Mamie') && str_contains($m['text'], 'Mamie Coiffure'), 'to her first name, about her business');
 ok(str_contains($m['html'], '/products/create') && str_contains($m['text'], 'Ajouter ce que je vends'), 'with a button to add products');
@@ -72,24 +83,24 @@ ok(str_contains($m['text'], 'Répondez simplement à cet e-mail') && str_contain
    && str_contains($m['html'], '<html lang="fr">'), 'the footers are in French too');
 ok(!str_contains($m['text'], 'Just reply to this email'), 'with no English left in');
 
-$m = mails_to($chef)[0] ?? ['subject' => '', 'text' => '', 'html' => '', 'from' => ''];
+$m = simi_to($chef)[0] ?? ['subject' => '', 'text' => '', 'html' => '', 'from' => ''];
 eq($m['subject'], 'Can we help you get started?', 'day 3, in Nigeria: an offer of a free session, in English');
 ok(str_contains($m['text'], 'Hi Chef') && str_contains($m['html'], APP_URL . '/book'), 'with the booking link');
 ok(str_contains($m['from'], 'Simi from Nfelia') && str_contains($m['text'], 'Customer Support'), 'from Simi, Customer Support');
 ok(str_contains($m['text'], 'This email was sent by the Nfelia team'), 'in Nfelia\'s own frame');
 
-$m = mails_to($late)[0] ?? ['subject' => '', 'html' => '', 'text' => ''];
+$m = simi_to($late)[0] ?? ['subject' => '', 'html' => '', 'text' => ''];
 eq($m['subject'], 'Terminez la configuration de Douala Styles sur Nfelia', 'day 7, never set up, signed up from Cameroon: finish setting up, in French');
 ok(str_contains($m['html'], '/onboarding/step1') && str_contains($m['text'], 'réservez une courte séance'), 'with the setup link and the offer of a session');
 
-eq(mails_to($shop)[0]['subject'] ?? '', 'Your shop can be online today', 'day 7, selling things with no shop: put the shop online');
-ok(str_contains(mails_to($shop)[0]['html'] ?? '', '/landing-page'), 'with the shop link');
+eq(simi_to($shop)[0]['subject'] ?? '', 'Your shop can be online today', 'day 7, selling things with no shop: put the shop online');
+ok(str_contains(simi_to($shop)[0]['html'] ?? '', '/landing-page'), 'with the shop link');
 
-ok(!mails_to($busy), 'nothing to a business that already sells with Nfelia');
-ok(!mails_to($asked), 'nothing to one written to from Ops in the last 3 days');
-ok(!mails_to($two), 'nothing on day 2');
-ok(!mails_to($out), 'nothing to an owner who opted out');
-ok(!mails_to('kola@kolaprints.test'), 'nothing to a trial that started today');
+eq([queued_for(9), count(simi_to($busy))], [0, 0], 'nothing to a business that already sells with Nfelia');
+eq([queued_for(10), count(simi_to($asked))], [0, 0], 'nothing to one written to from Ops in the last 3 days');
+eq([queued_for(11), count(simi_to($two))], [0, 0], 'nothing on day 2');
+eq([queued_for(12), count(simi_to($out))], [0, 0], 'nothing to an owner who opted out');
+eq(queued_for(3), 0, 'nothing to a trial that started today');
 
 eq(array_column(rows("SELECT body FROM ops_notes WHERE subject_type = 'business' AND subject_id = 6"), 'body'),
    ['Getting-started email, day 1 (in French): Commencez par ce que vous vendez'], 'Ops sees what went, on the client\'s page');
