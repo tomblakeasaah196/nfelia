@@ -64,9 +64,12 @@ function bot_guard_fields(string $form): string
           . '<label>Company website <input type="text" name="company_website" value="" tabindex="-1" autocomplete="off"></label>'
           . '</div>';
     if (turnstile_enabled()) {
+        // Two guarded forms on one page (sign-up and its feedback dialog) load the script once
+        static $script = false;
         $html .= '<div class="cf-turnstile" data-sitekey="' . htmlspecialchars(turnstile_site_key(), ENT_QUOTES, 'UTF-8') . '"'
                . ' data-action="' . htmlspecialchars($form, ENT_QUOTES, 'UTF-8') . '" data-size="flexible" data-theme="auto" style="margin:12px 0"></div>'
-               . '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>';
+               . ($script ? '' : '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>');
+        $script = true;
     }
     return $html;
 }

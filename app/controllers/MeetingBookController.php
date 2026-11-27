@@ -71,6 +71,11 @@ class MeetingBookController
         if (trim((string)($_POST['website'] ?? '')) !== '') {   // a field people never see: a robot filled it
             redirect('book');
         }
+        // Too quick for a person, or Turnstile says no (app/helpers/bot_guard.php)
+        if ($why = bot_guard_check('book')) {
+            flash('error', $why);
+            redirect($back . '#details');
+        }
         $f = [
             'name'          => mb_substr(trim((string)($_POST['name'] ?? '')), 0, 120),
             'email'         => strtolower(trim((string)($_POST['email'] ?? ''))),

@@ -384,6 +384,64 @@ eq($lola->status, 403, 'which Sales cannot open');
 $grace->get(o('leads'));
 eq($grace->status, 200, 'Admins see everything');
 
+/* ── Only real leads from the home page ─────────────────────── */
+
+section('The home page form: spam is held, bots are turned away, real people become leads');
+
+$leads_before  = (int)q("SELECT COUNT(*) FROM leads");
+$alerts_before = (int)q("SELECT COUNT(*) FROM ops_alerts WHERE kind = 'lead'");
+$spam = [
+    ['Joanna Riggs', '', 'Hi, I just visited nfelia.com and wondered if you\'d ever thought about having an engaging video to explain what you do?'],
+    ['Alisia Minnick', '08012345678', 'Hi Enlist your site in GoogleSearchIndex so it can be visible in web search results! Add it now: https://searchregister.net'],
+    ['Apple', '86571154135', 'Ciao, volevo sapere il tuo prezzo.'],
+    ['Mishra', 'seo@agency.test', 'Would you be interested in improving your website rankings and organic traffic? We provide SEO services.'],
+    ['Kola Bot', '08012345678', 'METRYTRH1473728MAVNGHJTH'],
+];
+// One network sends 5 messages an hour at most (the 'prospect' limit): this test is one network
+$fresh = fn() => exec_sql("DELETE FROM auth_throttle WHERE bucket = 'prospect'");
+foreach ($spam as [$name, $contact, $message]) {
+    $fresh();
+    $visitor->get('');
+    $visitor->post('public-feedback', ['enterprise' => $name, 'contact' => $contact ?: 'spam@pitch.test', 'message' => $message]);
+}
+eq((int)q("SELECT COUNT(*) FROM leads"), $leads_before, 'pitches, a fake search index, a bot named Apple and gibberish make no lead');
+eq((int)q("SELECT COUNT(*) FROM ops_alerts WHERE kind = 'lead'"), $alerts_before, 'and tell nobody');
+eq((int)q("SELECT COUNT(*) FROM general_feedback WHERE spam_reason IS NOT NULL"), 5, 'but each is kept, held as spam');
+eq((int)q("SELECT COUNT(*) FROM general_feedback WHERE enterprise_name = 'Apple' AND spam_reason = 'named after a famous company'"), 1,
+   'with the reason: a famous company\'s name');
+
+$visitor->get('');
+$visitor->post('public-feedback', ['enterprise' => 'Ngono Boutique', 'contact' => '', 'message' => 'Bonjour, c\'est combien par mois?']);
+eq((int)q("SELECT COUNT(*) FROM general_feedback WHERE enterprise_name = 'Ngono Boutique'"), 0, 'a message with no way to reply is not sent');
+$visitor->get('');
+ok(str_contains($visitor->body, 'so we can reply to you'), 'and the person is asked for a number or an email');
+
+$visitor->post('public-feedback', ['enterprise' => 'Robot Shop', 'contact' => '08099990000', 'message' => 'Hello, price please', 'company_website' => 'http://robot.test']);
+eq((int)q("SELECT COUNT(*) FROM general_feedback WHERE enterprise_name = 'Robot Shop'"), 0, 'a bot that fills in the hidden field is turned away');
+
+$fresh();
+$visitor->get('');
+$visitor->post('public-feedback', ['enterprise' => 'Ngono Boutique', 'contact' => '+237677000000', 'message' => 'Bonjour, je veux utiliser Nfelia pour ma boutique à Douala. C\'est combien par mois?']);
+$real = (int)q("SELECT id FROM leads WHERE business_name = 'Ngono Boutique'");
+ok($real > 0, 'a real message, in French, still becomes a lead');
+
+$lola->get(o('leads'));
+ok(str_contains($lola->body, '5 messages held as spam'), 'Leads says how many are held');
+$lola->get(o('leads/held'));
+eq($lola->status, 200, 'Sales opens the held messages');
+ok(str_contains($lola->body, 'Alisia Minnick') && str_contains($lola->body, 'has a link to another site'), 'each with why it was held');
+$held = (int)q("SELECT id FROM general_feedback WHERE enterprise_name = 'Kola Bot'");
+$lola->post(o("leads/held/{$held}"), ['decision' => 'real']);
+$unheld = (int)q("SELECT id FROM leads WHERE business_name = 'Kola Bot'");
+ok($unheld > 0 && ops_to($lola) === "leads/{$unheld}", '"It\'s real" makes it a lead and opens it');
+eq((int)q("SELECT COUNT(*) FROM general_feedback WHERE id = ? AND spam_reason IS NULL AND reviewed_at IS NOT NULL", [$held]), 1, 'and it is no longer held');
+$other = (int)q("SELECT id FROM general_feedback WHERE enterprise_name = 'Apple'");
+$lola->post(o("leads/held/{$other}"), ['decision' => 'spam']);
+$lola->get(o('leads'));
+ok(str_contains($lola->body, '3 messages held as spam'), '"Leave as spam" takes it off the count');
+$sam->get(o('leads/held'));
+eq($sam->status, 403, 'Support cannot see them');
+
 $errs = rows("SELECT title, file, line FROM error_groups WHERE level IN ('fatal', 'error', 'warning') AND kind <> 'slow'");
 eq($errs, [], 'and none of it left an error behind');
 
