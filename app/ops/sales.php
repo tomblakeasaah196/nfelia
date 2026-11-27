@@ -60,6 +60,63 @@ function ops_lead_note(PDO $db, int $lead_id, ?int $staff_id, string $body): voi
 }
 
 /**
+ * Why a message from the home page looks like spam, or null when it looks
+ * like a person who might use Nfelia. A held message is kept (Ops › Leads ›
+ * Held as spam), but makes no lead and tells nobody; one click there makes
+ * it a lead when it was real.
+ *
+ * Built from the 39 messages that form had received by 27 Nov 2026, every
+ * one spam: marketing pitches (SEO, explainer videos, Instagram growth,
+ * virtual assistants), fake "add your site to Google's search index"
+ * offers, a crypto scam, and bots named Apple, Google, Nokia or FBI asking
+ * "your price?" in a dozen languages or typing gibberish.
+ */
+function lead_spam_reason(string $name, string $contact, string $message): ?string
+{
+    $name = trim($name);
+    $text = ' ' . $message . ' ';
+    if (preg_match('/^(apple|google|nokia|aliexpress|ali express|alibaba|fbi|cia|nasa|wal-?mart|wallmart|amazon|microsoft|facebook|meta|instagram|samsung|paypal|tesla|netflix|ebay|whatsapp|tiktok|test)$/i', $name)) {
+        return 'named after a famous company';
+    }
+    // A link, or a website other than ours
+    $others = preg_replace('/\b(?:https?:\/\/)?(?:www\.)?nfelia\.com\S*/i', ' ', $text);
+    if (preg_match('/https?:\/\/|\bwww\.|\b[a-z0-9-]+\.(?:com|net|org|live|pro|io|co|info|biz|xyz|site|online|ph|me|app|ly|link|shop|store|top|click|ru|cn)\b/i', $others)) {
+        return 'has a link to another site';
+    }
+    if (preg_match('/\b(seo|search engines?|search index|search results|backlinks?|guest posts?|rankings?|organic traffic|website traffic|web traffic|explainer videos?|engaging video|video to (?:explain|advertise)|virtual assistant|lead generation|contact form messag\w*|instagram (?:growth|presence|report)|grow your (?:instagram|followers)|crypto\w*|bitcoin|forex|binary options|telegra\.ph|casino|loan offer)\b/i', $message)) {
+        return 'reads like a sales pitch';
+    }
+    // Our own web address, written into our own form: "I just visited
+    // nfelia.com", "about nfelia.com specifically". A person who wants to use
+    // Nfelia writes about their business; nearly every pitch names the site.
+    if (preg_match('/\bnfelia\.com\b/i', $message)) {
+        return 'talks about nfelia.com, as pitches do';
+    }
+    // Keyboard mashing, or codes like METRYTRH1473728MAVNGHJTH
+    if (preg_match('/\b[a-z]{19,}\b/i', $message) || preg_match('/\b(?=[A-Z0-9]*\d)(?=[A-Z0-9]*[A-Z])[A-Z0-9]{14,}\b/', $message)
+        || preg_match('/\b[bcdfghjklmnpqrstvwxz]{7,}\b/i', $message)) {
+        return 'gibberish';
+    }
+    return null;
+}
+
+/**
+ * A message held as spam was real after all: it becomes a lead, as it
+ * would have on arrival. Returns the lead's id, or null.
+ */
+function ops_lead_from_held(PDO $db, int $feedback_id): ?int
+{
+    $stmt = $db->prepare("SELECT * FROM general_feedback WHERE id = ? AND spam_reason IS NOT NULL");
+    $stmt->execute([$feedback_id]);
+    $f = $stmt->fetch();
+    if (!$f) {
+        return null;
+    }
+    $db->prepare("UPDATE general_feedback SET spam_reason = NULL, reviewed_at = NOW() WHERE id = ?")->execute([$feedback_id]);
+    return ops_lead_from_website($feedback_id, (string)$f['enterprise_name'], (string)$f['contact_info'], (string)$f['message']);
+}
+
+/**
  * A message from the home page's form: a new lead (or a note on the one
  * already open for that email or phone), and Sales is told. Never throws.
  */

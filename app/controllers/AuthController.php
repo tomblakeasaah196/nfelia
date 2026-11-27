@@ -520,9 +520,20 @@ class AuthController {
         $message    = trim($_POST['message'] ?? '');
         $ip_address = client_ip() ?: null;
 
+        // A bot filling in the form (app/helpers/bot_guard.php)
+        if ($why = bot_guard_check('public-feedback')) {
+            flash('error', $why);
+            redirect('');
+        }
+
         // Basic Validation
         if (empty($enterprise) || empty($message)) {
             flash('error', 'Please add your business name and a message.');
+            redirect('');
+        }
+        // A way to reply: an email, or a phone or WhatsApp number
+        if (!filter_var($contact, FILTER_VALIDATE_EMAIL) && strlen(preg_replace('/\D/', '', $contact)) < 7) {
+            flash('error', 'Add your WhatsApp number, phone or email, so we can reply to you.');
             redirect('');
         }
 
@@ -535,16 +546,21 @@ class AuthController {
         $db = get_db();
 
         try {
+            // A pitch or a bot is kept, but held out of Leads (Ops › Leads ›
+            // Held as spam); the sender is thanked the same either way.
+            $spam = lead_spam_reason($enterprise, $contact, $message);
             $stmt = $db->prepare("
-                INSERT INTO general_feedback (enterprise_name, contact_info, message, ip_address) 
-                VALUES (?, ?, ?, ?)
+                INSERT INTO general_feedback (enterprise_name, contact_info, message, ip_address, spam_reason)
+                VALUES (?, ?, ?, ?, ?)
             ");
-            $stmt->execute([$enterprise, $contact, $message, $ip_address]);
+            $stmt->execute([$enterprise, $contact, $message, $ip_address, $spam]);
             $feedback_id = (int)$db->lastInsertId();
 
             // The Nfelia team hears about it, with the contact to reply on.
             // A lead for the Nfelia team's Sales, who are told (app/ops/sales.php).
-            ops_lead_from_website((int)$feedback_id, $enterprise, $contact, $message);
+            if ($spam === null) {
+                ops_lead_from_website((int)$feedback_id, $enterprise, $contact, $message);
+            }
 
             flash('success', 'Thank you. We got your message and will reply soon.');
             redirect('');

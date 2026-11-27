@@ -10,6 +10,8 @@
  *   POST leads/{id}/owner           who follows it up
  *   POST leads/{id}/follow-up       when to follow up, and about what (or done)
  *   POST leads/{id}/notes           a note (a call, a promise); "I contacted them" marks the contact
+ *   GET  leads/held                 home page messages held as spam (lead_spam_reason, app/ops/sales.php)
+ *   POST leads/held/{id}            "It's real": make it a lead; or leave it as spam
  */
 class OpsLeadsController
 {
@@ -75,11 +77,43 @@ class OpsLeadsController
         }
         $counts = $this->db->query("SELECT stage, COUNT(*) FROM leads GROUP BY stage")->fetchAll(PDO::FETCH_KEY_PAIR);
         $due_count = (int)$this->db->query("SELECT COUNT(*) FROM leads WHERE next_follow_up_at <= NOW() AND stage IN ('new', 'contacted', 'demo', 'trial')")->fetchColumn();
+        $held_count = (int)$this->db->query("SELECT COUNT(*) FROM general_feedback WHERE spam_reason IS NOT NULL AND reviewed_at IS NULL")->fetchColumn();
 
         ops_render('leads/index', [
             'mode' => $view, 'rows' => $rows, 'total' => $total, 'page' => $page, 'pages' => $pages, 'counts' => $counts, 'due_count' => $due_count,
+            'held_count' => $held_count,
             'filter' => compact('q', 'stage', 'source', 'owner') + ['due' => $due ? '1' : ''], 'sales' => $this->sales_team(),
         ], 'Leads');
+    }
+
+    /**
+     * Messages from the home page held as spam (lead_spam_reason): the
+     * newest first, the last 90 days. Each one can be made a lead (it was
+     * real) or left as spam (it leaves the count).
+     */
+    public function held(): void
+    {
+        $rows = $this->db->query("SELECT * FROM general_feedback WHERE spam_reason IS NOT NULL AND created_at > NOW() - INTERVAL 90 DAY
+                                  ORDER BY reviewed_at IS NOT NULL, id DESC LIMIT 200")->fetchAll();
+        ops_render('leads/held', ['rows' => $rows], 'Held as spam');
+    }
+
+    public function held_decide(string $id): void
+    {
+        $fid = (int)$id;
+        if (($_POST['decision'] ?? '') === 'real') {
+            $lead = ops_lead_from_held($this->db, $fid);
+            if ($lead) {
+                ops_audit('lead.unheld', 'A message held as spam was real: made lead #' . $lead, ['type' => 'lead', 'id' => $lead]);
+                ops_flash('success', 'It is a lead now, and Sales has been told.');
+                ops_redirect('leads/' . $lead);
+            }
+            ops_flash('error', 'That message is no longer held.');
+        } else {
+            $this->db->prepare("UPDATE general_feedback SET reviewed_at = NOW() WHERE id = ? AND spam_reason IS NOT NULL")->execute([$fid]);
+            ops_flash('success', 'Left as spam.');
+        }
+        ops_redirect('leads/held');
     }
 
     public function add(): void

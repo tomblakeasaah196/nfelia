@@ -46,9 +46,13 @@ same('the hidden field is always there', true, str_contains(bot_guard_fields('re
 same('the public site key is known without .env', '0x4AAAAAAGU4us5mWBtAdRDW', turnstile_site_key());
 
 $_ENV['TURNSTILE_SECRET_KEY'] = 'not-a-real-secret';
+$first = bot_guard_fields('register');
 same('with its secret, the widget and its script are on the form', true,
-     str_contains(bot_guard_fields('register'), 'class="cf-turnstile"') && str_contains(bot_guard_fields('register'), 'turnstile/v0/api.js'));
-same('and the widget names the form it is on', true, str_contains(bot_guard_fields('forgot-password'), 'data-action="forgot-password"'));
+     str_contains($first, 'class="cf-turnstile"') && str_contains($first, 'turnstile/v0/api.js'));
+$second = bot_guard_fields('forgot-password');
+same('and the widget names the form it is on', true, str_contains($second, 'data-action="forgot-password"'));
+same('a second form on the same page has its widget, without loading the script again', [true, false],
+     [str_contains($second, 'class="cf-turnstile"'), str_contains($second, 'turnstile/v0/api.js')]);
 same('a form sent without Turnstile\'s answer is asked to let it finish', true,
      str_starts_with((string)bot_guard_check('register', $person, $shown, $now), 'Please let the security check'));
 same('the secret never appears on the page', false, str_contains(bot_guard_fields('register'), 'not-a-real-secret'));

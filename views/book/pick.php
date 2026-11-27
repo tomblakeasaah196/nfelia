@@ -76,6 +76,7 @@ $day_label = fn(string $d) => (new DateTimeImmutable($d, meeting_tz()))->format(
                 </div>
                 <div class="bk-field"><label for="bk-note">What would you like to cover? <span>(optional)</span></label>
                     <textarea class="bk-textarea" id="bk-note" name="note" maxlength="2000"><?= e($form['note'] ?? '') ?></textarea></div>
+                <?= bot_guard_fields('book') ?>
                 <button class="bk-btn bk-btn-block" type="submit">Book <?= e(meeting_time_text($time)) ?></button>
                 <p class="bk-small" style="margin-top:12px">The time is yours as soon as you book. We'll email your Google Meet link shortly after.</p>
             <?php else: ?>

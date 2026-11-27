@@ -113,6 +113,8 @@ function ops_routes(): array
         // Sales: leads, the pipeline, follow-ups, campaigns
         ['GET',  'leads',                        'OpsLeadsController',   'index',            'sales'],
         ['POST', 'leads',                        'OpsLeadsController',   'add',              'sales'],
+        ['GET',  'leads/held',                   'OpsLeadsController',   'held',             'sales'],
+        ['POST', 'leads/held/(\d+)',             'OpsLeadsController',   'held_decide',      'sales'],
         ['GET',  'leads/(\d+)',                  'OpsLeadsController',   'show',             'sales'],
         ['POST', 'leads/(\d+)',                  'OpsLeadsController',   'update',           'sales'],
         ['POST', 'leads/(\d+)/stage',            'OpsLeadsController',   'stage',            'sales'],

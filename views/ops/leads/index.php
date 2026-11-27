@@ -31,7 +31,8 @@ $card = function (array $l) use ($when) {
     <div>
         <h1>Leads</h1>
         <p>Everyone who might use Nfelia: messages from the home page, sign-ups that stalled, trials ending, and people the team reached out to.
-           <?= $due_count ? '<b>' . $due_count . ' follow-up' . ($due_count === 1 ? '' : 's') . ' due now.</b>' : '' ?></p>
+           <?= $due_count ? '<b>' . $due_count . ' follow-up' . ($due_count === 1 ? '' : 's') . ' due now.</b>' : '' ?>
+           <a href="<?= e(ops_url('leads/held')) ?>"><?= (int)($held_count ?? 0) ?> message<?= (int)($held_count ?? 0) === 1 ? '' : 's' ?> held as spam</a></p>
     </div>
     <div class="ops-head-actions">
         <button type="button" class="ops-btn ops-btn-primary" data-ops-dialog="add-lead"><?= ops_icon('plus') ?> Add a lead</button>

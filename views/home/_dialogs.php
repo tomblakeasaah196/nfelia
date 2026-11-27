@@ -39,19 +39,21 @@
     </div>
     <form class="sheet-body" action="<?= APP_URL ?>/public-feedback" method="POST" data-validate>
         <?= csrf_field() ?>
-        <p>Tell us what would make Nfelia better for your business. We read every message, and our team may reply on the number you give. See <a href="<?= e(site_url('privacy')) ?>">how we use your details</a>.</p>
+        <p>Tell us what would make Nfelia better for your business. We read every message, and our team replies on the number or email you give. See <a href="<?= e(site_url('privacy')) ?>">how we use your details</a>.</p>
         <div class="field">
             <label for="fb-business">Business name</label>
             <input id="fb-business" type="text" name="enterprise" required autocomplete="organization" data-error="Add your business name.">
         </div>
         <div class="field">
-            <label for="fb-contact">WhatsApp or phone (optional)</label>
-            <input id="fb-contact" type="tel" name="contact" autocomplete="tel" placeholder="+234">
+            <label for="fb-contact">WhatsApp, phone or email</label>
+            <input id="fb-contact" type="text" name="contact" required autocomplete="tel" placeholder="+234… or you@example.com"
+                   data-error="Add your WhatsApp number, phone or email, so we can reply to you.">
         </div>
         <div class="field">
             <label for="fb-message">What should we add or fix?</label>
             <textarea id="fb-message" name="message" rows="4" required data-error="Write a short message so we know what to add or fix."></textarea>
         </div>
+        <?= bot_guard_fields('public-feedback') ?>
         <button type="submit" class="btn btn-primary">Send feedback</button>
     </form>
 </dialog>
