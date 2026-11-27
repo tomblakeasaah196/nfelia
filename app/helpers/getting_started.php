@@ -89,7 +89,8 @@ function getting_started_email(int $day, array $state, string $lang): ?array
         ];
     }
 
-    if ($day === 7 && !$state['shop']) {
+    // The shop, once there is something in it to show
+    if ($day === 7 && $state['sell'] && !$state['shop']) {
         return $fr ? [
             'subject' => 'Votre boutique peut être en ligne aujourd\'hui',
             'body' => "Bonjour {first_name},\n\n{business} a sa propre page sur Nfelia, prête à être partagée. Vos clients voient ce que vous vendez et commandent directement sur votre WhatsApp.\n\nIl suffit de quelques minutes : choisissez votre nom, votre style et ce que vous montrez. Ensuite, partagez le lien sur WhatsApp et Instagram.",
