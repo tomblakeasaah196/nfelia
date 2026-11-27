@@ -86,12 +86,33 @@ class DashboardController {
             }
         }
 
+        // "Get started": the first things that make Nfelia useful, until done
+        // or hidden (app/helpers/first_steps.php)
+        $first_steps = null;
+        if (is_boss()) {
+            require_once BASE_PATH . '/app/helpers/first_steps.php';
+            $steps = first_steps($this->db, ['id' => $this->biz_id] + $business, (int)$user['id'], is_owner());
+            if (first_steps_show($this->db, $steps, (int)$user['id'])) {
+                $first_steps = $steps;
+            }
+        }
+
         $hour = (int)$now->format('G');
         $greeting = $hour < 12 ? 'Good morning' : ($hour < 17 ? 'Good afternoon' : 'Good evening');
 
         $title     = "Home";
         $view_file = BASE_PATH . '/views/dashboard/index.php';
         require_once BASE_PATH . '/views/layouts/app.php';
+    }
+
+    /** POST dashboard/hide-first-steps: "Get started" no longer shows for this person. */
+    public function hide_first_steps() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            redirect('dashboard');
+        }
+        csrf_verify();
+        $this->db->prepare("UPDATE users SET first_steps_hidden_at = NOW() WHERE id = ?")->execute([(int)auth_user()['id']]);
+        redirect('dashboard');
     }
 
     /**
