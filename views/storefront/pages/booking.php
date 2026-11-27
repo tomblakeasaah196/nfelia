@@ -48,7 +48,15 @@ $waiting_on_wa = $booking['channel'] === 'whatsapp' && $status === 'pending';
         <?php endif; ?>
 
         <div class="sf-card sf-when">
-            <p class="sf-card__title"><?= e($booking['product_name']) ?></p>
+            <?php $lines = booking_lines(get_db(), $booking); ?>
+            <?php if (count($lines) > 1): /* several services in one visit */ ?>
+                <p class="sf-card__title"><?= count($lines) ?> services in one visit</p>
+                <ul class="sf-when__lines">
+                    <?php foreach ($lines as $line): ?><li><?= e($line['name']) ?></li><?php endforeach; ?>
+                </ul>
+            <?php else: ?>
+                <p class="sf-card__title"><?= e($booking['product_name']) ?></p>
+            <?php endif; ?>
             <p class="sf-when__date"><?= sf_icon('calendar', 20) ?><span><?= e($when) ?></span></p>
             <?php if (sf_short_address($business) !== ''): ?>
                 <p class="sf-when__place"><?= sf_icon('pin', 20) ?><span><?= e(sf_short_address($business)) ?></span></p>

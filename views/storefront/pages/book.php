@@ -14,7 +14,11 @@ $info    = $item['booking'];
 $banks   = $catalogue['banks'];
 $nights  = $info['mode'] === 'nights';
 $slot    = $info['mode'] === 'slot';
-$has_dep = $info['deposit_type'] !== 'none' && $info['deposit_value'] > 0;
+// Other services to add to the same visit (booking_extras): one time for
+// them all, one after another, and one deposit, the highest of theirs
+$extras  = $slot ? ($page['extras'] ?? []) : [];
+$has_dep = ($info['deposit_type'] !== 'none' && $info['deposit_value'] > 0)
+    || array_filter($extras, fn($x) => booking_deposit($x['booking'], (float)$x['price']) > 0);
 // A stay may ask for a refundable caution fee, paid with the booking
 $caution = $nights ? $info['caution'] : 0.0;
 $pay_now = $has_dep || $caution > 0;
@@ -48,6 +52,24 @@ $price_line = $item['price'] > 0 ? sf_money($item['price'], $currency) . ($night
             <input type="text" name="website" class="sf-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
             <fieldset class="sf-book__step">
                 <legend class="sf-book__legend"><span aria-hidden="true">1</span><?= $nights ? 'Your dates' : 'Pick a day' ?></legend>
+                <?php if ($extras): ?>
+                    <details class="sf-addons" data-addons>
+                        <summary class="sf-addons__toggle"><?= sf_icon('plus', 18) ?><span>Add another service to this visit</span></summary>
+                        <p class="sf-field__hint">Everything in one visit, one after another, and one deposit: the highest of them. Up to <?= BOOKING_MAX_EXTRAS ?> more.</p>
+                        <div class="sf-options sf-addons__list">
+                            <?php foreach ($extras as $extra): ?>
+                                <label class="sf-option sf-addon">
+                                    <input type="checkbox" value="<?= (int)$extra['id'] ?>" data-addon>
+                                    <span>
+                                        <strong><?= e($extra['name']) ?></strong>
+                                        <small><?= e(trim(($extra['price'] > 0 ? sf_money($extra['price'], $currency) . ' · ' : '') . booking_duration_text((int)$extra['booking']['minutes']))) ?></small>
+                                    </span>
+                                </label>
+                            <?php endforeach; ?>
+                        </div>
+                    </details>
+                    <p class="sf-addons__sum" data-addons-sum aria-live="polite" hidden></p>
+                <?php endif; ?>
                 <?php if ($nights): ?>
                     <p class="sf-field__hint">Tap the day you arrive, then the day you leave. Check-in from <?= e(booking_time_text($page['settings']['checkin'])) ?>, check-out by <?= e(booking_time_text($page['settings']['checkout'])) ?>.</p>
                 <?php endif; ?>
@@ -105,6 +127,7 @@ $price_line = $item['price'] > 0 ? sf_money($item['price'], $currency) . ($night
                     </div>
                 <?php endif; ?>
                 <p class="sf-total"><span>Total</span><strong data-book-total>—</strong></p>
+                <?php if ($extras): ?><p class="sf-orderline__meta" data-book-services hidden></p><?php endif; ?>
                 <?php if ($nights): ?><p class="sf-orderline__meta" data-book-rate></p><?php endif; ?>
                 <?php if ($pay_now): ?>
                     <?php if ($has_dep): ?><p class="sf-total sf-total--deposit"><span>Deposit to book</span><strong data-book-deposit>—</strong></p><?php endif; ?>

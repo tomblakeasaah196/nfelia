@@ -36,7 +36,16 @@ $labels = ['pending' => 'To confirm', 'confirmed' => 'Confirmed', 'declined' => 
     <div class="lg:col-span-2 space-y-6">
         <div class="bg-brand-white border border-brand-sand rounded-xl p-5 shadow-sm space-y-3">
             <p class="text-lg font-bold text-brand-plum"><?= e($when) ?></p>
+            <?php $lines = booking_lines(get_db(), $booking); /* several services in one visit: a line each */ ?>
+            <?php if (count($lines) > 1): ?>
+            <ul class="text-sm text-brand-plum/80 space-y-1">
+                <?php foreach ($lines as $line): ?>
+                <li class="flex justify-between gap-3"><span><?= e($line['name']) ?><?= $line['minutes'] ? ' · ' . e(booking_duration_text((int)$line['minutes'])) : '' ?></span><span class="font-semibold"><?= e(sf_money((float)$line['price'], $currency)) ?></span></li>
+                <?php endforeach; ?>
+            </ul>
+            <?php else: ?>
             <p class="text-sm text-brand-plum/80"><?= e($booking['product_name']) ?><?= $booking['kind'] === 'nights' ? ' · ' . (int)$booking['units'] . ' night' . ((int)$booking['units'] === 1 ? '' : 's') . ' × ' . e(sf_money((float)$booking['unit_price'], $currency)) : '' ?></p>
+            <?php endif; ?>
             <dl class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm pt-2 border-t border-brand-sand/60">
                 <dt class="text-brand-plum/50">Total</dt><dd class="font-bold text-brand-plum text-right"><?= e(sf_money((float)$booking['total'], $currency)) ?></dd>
                 <dt class="text-brand-plum/50">Deposit</dt><dd class="font-bold text-brand-plum text-right"><?= $booking['deposit_due'] > 0 ? e(sf_money((float)$booking['deposit_due'], $currency)) : 'None' ?></dd>
