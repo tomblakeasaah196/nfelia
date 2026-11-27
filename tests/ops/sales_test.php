@@ -355,7 +355,8 @@ ok(str_contains($lola->body, 'October offer'), 'a lead\'s page shows the campaig
 $lola->post(o('campaigns'), ['name' => 'November', 'subject' => 'Hi {first_name}', 'body' => 'Something new for {business}.', 'leads' => ['contacted'], 'clients' => ['active']]);
 $next = ops_campaign_people(get_db(), ['leads' => ['contacted'], 'clients' => ['active']]);
 ok(!isset($next[$first['email']]) && !isset($next[$second['email']]) && !isset($next['funmi@mamaput.test']), 'the next campaign leaves out everyone who unsubscribed');
-ok(notify_email(null, $first['email'], 'x', 'Your receipt', 'notification', ['message' => 'x']) !== null, 'account emails still go to them');
+ok(notify_email(null, $first['email'], 'x', 'Your receipt', 'notification',
+                ['headline' => 'Your receipt', 'message' => 'x', 'button' => 'Open it', 'open_url' => APP_URL]) !== null, 'account emails still go to them');
 
 /* ── Who may do what ────────────────────────────────────────── */
 
@@ -441,6 +442,27 @@ $lola->get(o('leads'));
 ok(str_contains($lola->body, '3 messages held as spam'), '"Leave as spam" takes it off the count');
 $sam->get(o('leads/held'));
 eq($sam->status, 403, 'Support cannot see them');
+
+section('An owner set up for 2 days with nothing added becomes a lead');
+
+foreach ([[80, 'Quiet Shop', 3], [81, 'Busy Shop', 3], [82, 'Brand New Shop', 1]] as [$id, $name, $days]) {
+    exec_sql("INSERT INTO businesses (id, name, slug, doc_prefix, email, country_id, onboarding_complete, onboarding_step, is_active, created_at)
+              VALUES (?, ?, ?, ?, ?, 1, 1, 5, 1, NOW() - INTERVAL {$days} DAY)", [$id, $name, "idle-{$id}", 'I' . $id, "shop@idle{$id}.test"]);
+    exec_sql("INSERT INTO users (id, business_id, role, full_name, email, phone, password_hash, is_email_verified, is_active) VALUES (?, ?, 'owner', ?, ?, ?, 'x', 1, 1)",
+             [$id * 10, $id, "Owner {$id}", "owner@idle{$id}.test", '0807000' . $id]);
+    exec_sql("INSERT INTO subscriptions (business_id, country_id, plan, status, user_seats, trial_ends_at) VALUES (?, 1, 'trial', 'trial', 1, CURDATE() + INTERVAL 10 DAY)", [$id]);
+}
+exec_sql("INSERT INTO customers (business_id, full_name, phone) VALUES (81, 'First Customer', '08011112222')");
+cron_at('11:00');
+$idle = rows("SELECT * FROM leads WHERE business_id = 80")[0] ?? [];
+eq([$idle['source'] ?? '', $idle['stage'] ?? '', $idle['name'] ?? '', $idle['email'] ?? '', $idle['phone'] ?? ''],
+   ['idle', 'new', 'Owner 80', 'owner@idle80.test', '080700080'], 'set up 3 days ago with nothing added: a New lead, with the owner\'s contact');
+eq(lead_notes((int)($idle['id'] ?? 0)), ['Set up Nfelia 3 days ago but has added nothing yet: no products, customers or sales.'], 'saying why');
+ok(!rows("SELECT 1 FROM leads WHERE business_id IN (81, 82)"), 'none for one that added a customer, or one set up yesterday');
+cron_at('11:05');
+eq((int)q("SELECT COUNT(*) FROM leads WHERE business_id = 80"), 1, 'the next run makes no second lead');
+$lola->get(o('leads?source=idle'));
+ok(str_contains($lola->body, 'Quiet Shop') && str_contains($lola->body, 'Set up, not using it'), 'Sales can list them by where they came from');
 
 $errs = rows("SELECT title, file, line FROM error_groups WHERE level IN ('fatal', 'error', 'warning') AND kind <> 'slow'");
 eq($errs, [], 'and none of it left an error behind');

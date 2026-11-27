@@ -61,6 +61,7 @@ function ops_routes(): array
 
         // Clients, and what the old founder admin page did
         ['GET',  'clients',                      'OpsClientsController', 'index',            'clients'],
+        ['GET',  'trials',                       'OpsClientsController', 'trials',           'clients'],
         ['GET',  'clients/(\d+)',                'OpsClientsController', 'show',             'clients'],
         ['POST', 'clients/(\d+)/plan',           'OpsClientsController', 'plan',             'clients'],
         ['POST', 'clients/(\d+)/credit',         'OpsClientsController', 'credit',           'clients'],

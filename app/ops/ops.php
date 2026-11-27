@@ -507,6 +507,7 @@ function ops_nav(array $staff): array
         ],
         'Clients' => [
             ['clients',    'Clients',      'shop',   null, 'clients'],
+            ['trials',     'Free trials',  'calendar', null, 'clients'],
             ['payments',   'Payments to check', 'chart', ops_can('clients.act', $staff) ? $count("SELECT COUNT(*) FROM subscription_payments WHERE status = 'pending_verification'") : null, 'clients.act'],
             ['shop-names', 'Shop names',   'target', ops_can('clients.act', $staff) ? $count("SELECT COUNT(*) FROM businesses WHERE subdomain_status = 'pending' AND subdomain_requested IS NOT NULL") : null, 'clients.act'],
             ['records',    'Records Books', 'download', null, 'exports'],

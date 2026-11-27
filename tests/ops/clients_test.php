@@ -346,6 +346,48 @@ ok(str_contains($grace->body, 'does not take email'), 'and says the address does
 ok(!rows("SELECT 1 FROM ops_notes WHERE subject_type = 'business' AND subject_id = 2 AND body LIKE 'Emailed Gone%'"), 'nothing is noted as emailed');
 exec_sql("DELETE FROM users WHERE id = ?", [$gone]);
 
+/* ── Free trials ─────────────────────────────────────────────── */
+
+section('Free trials: every trial on a board, by how far it has got');
+
+$trial = function (int $id, string $name, int $days_ago, int $setup, int $ends_in): void {
+    exec_sql("INSERT INTO businesses (id, name, slug, doc_prefix, email, country_id, onboarding_complete, onboarding_step, is_active, created_at)
+              VALUES (?, ?, ?, ?, ?, 1, ?, ?, 1, NOW() - INTERVAL {$days_ago} DAY)", [$id, $name, "trial-{$id}", 'T' . $id, "shop@trial{$id}.test", $setup, $setup ? 5 : 2]);
+    exec_sql("INSERT INTO users (id, business_id, role, full_name, email, password_hash, is_email_verified, is_active) VALUES (?, ?, 'owner', ?, ?, 'x', 1, 1)",
+             [$id * 10, $id, "Owner {$id}", "owner@trial{$id}.test"]);
+    exec_sql("INSERT INTO subscriptions (business_id, country_id, plan, status, user_seats, trial_ends_at) VALUES (?, 1, 'trial', 'trial', 1, CURDATE() + INTERVAL {$ends_in} DAY)", [$id]);
+};
+$trial(70, 'Halfway Hair', 1, 0, 13);
+$trial(71, 'Quiet Kitchen', 3, 1, 11);
+$trial(72, 'Started Studio', 4, 1, 10);
+exec_sql("INSERT INTO products (business_id, name, sell_price) VALUES (72, 'Portrait', 20000)");
+$trial(73, 'Busy Boutique', 12, 1, 2);
+exec_sql("INSERT INTO products (business_id, name, sell_price) VALUES (73, 'Ankara dress', 25000)");
+exec_sql("INSERT INTO orders (business_id, order_number, customer_name, customer_phone) VALUES (73, 'ORD-73', 'Walk-in', '0800')");
+/** One column of the board, as HTML. */
+$column = fn(string $body, string $label): string => preg_match('~<section class="ops-board-col" aria-label="' . preg_quote($label, '~') . '">(.*?)</section>~s', $body, $m) ? $m[1] : '';
+
+$grace->get(o('trials'));
+eq($grace->status, 200, 'the board opens');
+ok(str_contains($grace->body, 'href="' . e(ops_url('trials')) . '"') && str_contains($grace->body, 'Free trials'), 'from the menu, under Clients');
+ok(str_contains($column($grace->body, 'Not set up'), 'Halfway Hair') && str_contains($column($grace->body, 'Not set up'), 'Setup: step 2 of 4'),
+   'one still setting up is under Not set up, with its step');
+ok(str_contains($column($grace->body, 'Set up, not using it'), 'Quiet Kitchen') && str_contains($column($grace->body, 'Set up, not using it'), 'Day 3'),
+   'one set up with nothing added is under Set up, not using it');
+ok(str_contains($column($grace->body, 'Getting started'), 'Started Studio') && str_contains($column($grace->body, 'Getting started'), '1 item · 0 customers · 0 sales'),
+   'one with things added and no sale is under Getting started, with what it has');
+ok(str_contains($column($grace->body, 'Using it'), 'Busy Boutique') && str_contains($column($grace->body, 'Using it'), '<span class="ops-chip ops-chip-warn">2 days left</span>'),
+   'one selling is under Using it, its trial ending soon marked');
+ok(!str_contains($grace->body, 'Ada&#039;s Hair'), 'a paying client is not on it');
+ok(str_contains($grace->body, 'href="' . e(ops_url('clients/71')) . '"'), 'each opens the client');
+$lola->get(o('trials'));
+eq($lola->status, 200, 'Sales sees it too');
+exec_sql("DELETE FROM orders WHERE business_id = 73");
+exec_sql("DELETE FROM products WHERE business_id IN (72, 73)");
+exec_sql("DELETE FROM subscriptions WHERE business_id IN (70, 71, 72, 73)");
+exec_sql("DELETE FROM users WHERE business_id IN (70, 71, 72, 73)");
+exec_sql("DELETE FROM businesses WHERE id IN (70, 71, 72, 73)");
+
 /* ── The old founder admin page ─────────────────────────────── */
 
 section('The old /admin sends the Nfelia team to Ops; the Nfelia business is ordinary');

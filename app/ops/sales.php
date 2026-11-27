@@ -30,6 +30,7 @@ const LEAD_SOURCES = [
     'website' => 'Home page message', 'signup' => 'Signed up, stalled', 'trial' => 'Trial ending', 'manual' => 'We reached out',
     'referral' => 'Referred', 'event' => 'Event or market', 'social' => 'Social media', 'walk_in' => 'Walked in or called',
     'booking' => 'Booked a meeting',   // nfelia.com/book (app/ops/meetings.php)
+    'idle'    => 'Set up, not using it',   // a trial with nothing added after 2 days (app/ops/trials.php)
 ];
 const LEAD_OPEN = ['new', 'contacted', 'demo', 'trial'];
 
@@ -164,6 +165,10 @@ function ops_sales_cron(PDO $db, DateTimeImmutable $now): array
     foreach ($stalled as $b) {
         $done['leads_new'] += ops_lead_for_business($db, $b, 'signup', 'new', 'Signed up but has not finished setting up.');
     }
+
+    // Set up 2 days or more ago, and nothing added since (app/ops/trials.php).
+    require_once __DIR__ . '/trials.php';
+    $done['leads_new'] += ops_trial_idle_leads($db);
 
     // A free trial ending within 3 days.
     $trials = $db->query("
