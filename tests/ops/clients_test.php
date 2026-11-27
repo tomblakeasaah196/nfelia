@@ -369,7 +369,7 @@ $column = fn(string $body, string $label): string => preg_match('~<section class
 
 $grace->get(o('trials'));
 eq($grace->status, 200, 'the board opens');
-ok(str_contains($grace->body, 'href="' . o('trials') . '"') && str_contains($grace->body, 'Free trials'), 'from the menu, under Clients');
+ok(str_contains($grace->body, 'href="' . e(ops_url('trials')) . '"') && str_contains($grace->body, 'Free trials'), 'from the menu, under Clients');
 ok(str_contains($column($grace->body, 'Not set up'), 'Halfway Hair') && str_contains($column($grace->body, 'Not set up'), 'Setup: step 2 of 4'),
    'one still setting up is under Not set up, with its step');
 ok(str_contains($column($grace->body, 'Set up, not using it'), 'Quiet Kitchen') && str_contains($column($grace->body, 'Set up, not using it'), 'Day 3'),
@@ -379,7 +379,7 @@ ok(str_contains($column($grace->body, 'Getting started'), 'Started Studio') && s
 ok(str_contains($column($grace->body, 'Using it'), 'Busy Boutique') && str_contains($column($grace->body, 'Using it'), '<span class="ops-chip ops-chip-warn">2 days left</span>'),
    'one selling is under Using it, its trial ending soon marked');
 ok(!str_contains($grace->body, 'Ada&#039;s Hair'), 'a paying client is not on it');
-ok(str_contains($grace->body, 'href="' . o('clients/71') . '"'), 'each opens the client');
+ok(str_contains($grace->body, 'href="' . e(ops_url('clients/71')) . '"'), 'each opens the client');
 $lola->get(o('trials'));
 eq($lola->status, 200, 'Sales sees it too');
 exec_sql("DELETE FROM orders WHERE business_id = 73");
