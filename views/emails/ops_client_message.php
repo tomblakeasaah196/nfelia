@@ -3,7 +3,8 @@
  * views/emails/ops_client_message.php — an email someone in Nfelia Ops wrote
  * to one client (Clients › a client › Email; app/ops/client_email.php).
  * Variables: $subject, $body (plain text: a blank line starts a paragraph),
- * $button_text, $button_url, $writer, $writer_role, $reply_to.
+ * $button_text, $button_url, $writer, $writer_role, $reply_to, and $lang
+ * ('fr' for the French getting-started emails: app/helpers/getting_started.php).
  * Nfelia's own frame (views/emails/base.php) goes round it.
  */
 $h = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES);
@@ -29,5 +30,9 @@ $paragraphs = preg_split("/\r?\n\s*\r?\n/", trim((string)$body)) ?: [];
     </tr>
 </table>
 <p style="margin:28px 0 0;font-size:13px;line-height:1.6;color:#8A7A80;">
+<?php if (($lang ?? 'en') === 'fr'): ?>
+    Répondez simplement à cet e-mail : votre réponse arrive à l'équipe Nfelia<?= !empty($reply_to) ? ', à ' . $h($reply_to) : '' ?>.
+<?php else: ?>
     Just reply to this email to answer: it reaches the Nfelia team<?= !empty($reply_to) ? ' at ' . $h($reply_to) : '' ?>.
+<?php endif; ?>
 </p>

@@ -255,18 +255,38 @@ class AuthController {
             ]
         );
 
+        // Where they signed up from (Cloudflare's country header): owners in
+        // Cameroon get Nfelia's emails in French, and the welcome email gives
+        // that country's trial length (onboarding sets it when they choose it).
+        require_once BASE_PATH . '/app/helpers/getting_started.php';
+        $from_country = strtoupper(substr(preg_replace('/[^A-Za-z]/', '', (string)($_SERVER['HTTP_CF_IPCOUNTRY'] ?? '')), 0, 2));
+        $from_country = strlen($from_country) === 2 && !in_array($from_country, ['XX', 'T1'], true) ? $from_country : null;
+        $trial_days = TRIAL_DAYS;
+        if ($from_country) {
+            try {
+                $db->prepare("UPDATE businesses SET signup_country = ? WHERE id = ?")->execute([$from_country, $business_id]);
+                $stmt_days = $db->prepare("SELECT trial_days FROM countries WHERE iso_code = ? AND is_active = 1");
+                $stmt_days->execute([$from_country]);
+                $trial_days = (int)$stmt_days->fetchColumn() ?: TRIAL_DAYS;
+            } catch (\Throwable $geo_e) {
+                error_log('[Nfelia] Sign-up country not kept: ' . $geo_e->getMessage());
+            }
+        }
+        $lang = owner_email_lang($from_country);
+
         // Send welcome + email verification
         try {
             send_branded_mail(
                 $email, $full_name,
-                'Welcome to Nfelia — Verify Your Email',
-                'welcome',
+                $lang === 'fr' ? 'Bienvenue sur Nfelia — confirmez votre adresse e-mail' : 'Welcome to Nfelia — Verify Your Email',
+                $lang === 'fr' ? 'welcome_fr' : 'welcome',
                 [
                     'owner_name'     => $full_name,
                     'workspace_name' => $biz_name,
-                    'trial_days'     => TRIAL_DAYS,
+                    'trial_days'     => $trial_days,
                     'verify_url'     => $this->verification_url((int)$user_id, (int)$business_id),
                     'expires_hours'  => self::VERIFY_LINK_HOURS,
+                    'lang'           => $lang,
                 ],
                 [
                     'name'          => 'Nfelia',
