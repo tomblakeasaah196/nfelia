@@ -3,6 +3,7 @@
  * Clients: every business on Nfelia, and each one's whole picture.
  *
  *   GET  clients                  the list (?q, ?plan, ?country, ?sort, ?page)                 clients
+ *   GET  trials                   every free trial on a board, by how far it has got (app/ops/trials.php)
  *   GET  clients/{id}             one client: plan, payments, people, use, shop, errors, tickets, notes
  *   POST clients/{id}/plan        activate a month, extend the trial, suspend                     clients.act
  *   POST clients/{id}/credit      "Shop by Nfelia" on the shop's footer, or not                   clients.act
@@ -79,6 +80,13 @@ class OpsClientsController
             'filter' => compact('q', 'plan', 'country', 'sort'), 'plans' => OPS_PLAN_STATES,
             'countries' => $this->db->query("SELECT id, name, flag_emoji FROM countries ORDER BY name")->fetchAll(),
         ], 'Clients');
+    }
+
+    /** Free trials: a board of every business on its trial, by how far it has got. */
+    public function trials(): void
+    {
+        require_once BASE_PATH . '/app/ops/trials.php';
+        ops_render('clients/trials', ['board' => ops_trials($this->db), 'stages' => TRIAL_STAGES, 'me' => $this->me], 'Free trials');
     }
 
     public function show(string $id): void

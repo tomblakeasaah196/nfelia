@@ -30,7 +30,7 @@ $card = function (array $l) use ($when) {
 <div class="ops-head">
     <div>
         <h1>Leads</h1>
-        <p>Everyone who might use Nfelia: messages from the home page, sign-ups that stalled, trials ending, and people the team reached out to.
+        <p>Everyone who might use Nfelia: messages from the home page, sign-ups that stalled, owners who set up but aren't using it, trials ending, and people the team reached out to.
            <?= $due_count ? '<b>' . $due_count . ' follow-up' . ($due_count === 1 ? '' : 's') . ' due now.</b>' : '' ?>
            <a href="<?= e(ops_url('leads/held')) ?>"><?= (int)($held_count ?? 0) ?> message<?= (int)($held_count ?? 0) === 1 ? '' : 's' ?> held as spam</a></p>
     </div>
@@ -113,7 +113,7 @@ $card = function (array $l) use ($when) {
             <?php endforeach; ?>
             <?php if (!$rows): ?>
                 <tr><td colspan="5"><div class="ops-empty"><h3><?= $filter['q'] !== '' || $chips ? 'Nobody matches' : 'No open leads' ?></h3>
-                    <p><?= $filter['q'] !== '' || $chips ? 'Try other words, or clear the filters.' : 'Messages from the home page, stalled sign-ups and trials ending arrive here by themselves. Add the people you reach out to.' ?></p></div></td></tr>
+                    <p><?= $filter['q'] !== '' || $chips ? 'Try other words, or clear the filters.' : 'Messages from the home page, stalled sign-ups, owners not using Nfelia yet and trials ending arrive here by themselves. Add the people you reach out to.' ?></p></div></td></tr>
             <?php endif; ?>
             </tbody>
         </table>
@@ -136,7 +136,7 @@ $card = function (array $l) use ($when) {
             </div>
             <div class="ops-row">
                 <div class="ops-field"><label for="nl-source">How you met</label>
-                    <select class="ops-select" id="nl-source" name="source"><?php foreach (LEAD_SOURCES as $k => $label): if (in_array($k, ['website', 'signup', 'trial', 'booking'], true)) continue; ?><option value="<?= e($k) ?>"><?= e($label) ?></option><?php endforeach; ?></select></div>
+                    <select class="ops-select" id="nl-source" name="source"><?php foreach (LEAD_SOURCES as $k => $label): if (in_array($k, ['website', 'signup', 'trial', 'booking', 'idle'], true)) continue; ?><option value="<?= e($k) ?>"><?= e($label) ?></option><?php endforeach; ?></select></div>
                 <div class="ops-field"><label for="nl-stage">Where it is</label>
                     <select class="ops-select" id="nl-stage" name="stage"><?php foreach (['new', 'contacted', 'demo', 'trial', 'lost'] as $k): ?><option value="<?= $k ?>"<?= $k === 'contacted' ? ' selected' : '' ?>><?= e(LEAD_STAGES[$k]['label']) ?></option><?php endforeach; ?></select></div>
             </div>
