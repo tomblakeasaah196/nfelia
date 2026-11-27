@@ -397,7 +397,10 @@ $spam = [
     ['Mishra', 'seo@agency.test', 'Would you be interested in improving your website rankings and organic traffic? We provide SEO services.'],
     ['Kola Bot', '08012345678', 'METRYTRH1473728MAVNGHJTH'],
 ];
+// One network sends 5 messages an hour at most (the 'prospect' limit): this test is one network
+$fresh = fn() => exec_sql("DELETE FROM auth_throttle WHERE bucket = 'prospect'");
 foreach ($spam as [$name, $contact, $message]) {
+    $fresh();
     $visitor->get('');
     $visitor->post('public-feedback', ['enterprise' => $name, 'contact' => $contact ?: 'spam@pitch.test', 'message' => $message]);
 }
@@ -416,6 +419,7 @@ ok(str_contains($visitor->body, 'so we can reply to you'), 'and the person is as
 $visitor->post('public-feedback', ['enterprise' => 'Robot Shop', 'contact' => '08099990000', 'message' => 'Hello, price please', 'company_website' => 'http://robot.test']);
 eq((int)q("SELECT COUNT(*) FROM general_feedback WHERE enterprise_name = 'Robot Shop'"), 0, 'a bot that fills in the hidden field is turned away');
 
+$fresh();
 $visitor->get('');
 $visitor->post('public-feedback', ['enterprise' => 'Ngono Boutique', 'contact' => '+237677000000', 'message' => 'Bonjour, je veux utiliser Nfelia pour ma boutique à Douala. C\'est combien par mois?']);
 $real = (int)q("SELECT id FROM leads WHERE business_name = 'Ngono Boutique'");
